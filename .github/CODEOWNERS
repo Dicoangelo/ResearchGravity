@@ -1,0 +1,12 @@
+# ResearchGravity Code Owners
+# Metaventions AI
+
+# Default owner for everything
+* @Blackamethyst-ai
+
+# Core framework
+*.py @Blackamethyst-ai
+SKILL.md @Blackamethyst-ai
+
+# GitHub config
+.github/ @Blackamethyst-ai

@@ -1,0 +1,47 @@
+name: Feature Request
+description: Suggest a new feature for ResearchGravity
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature for ResearchGravity!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What research workflow problem does this solve?
+      placeholder: "When I'm researching X, I find it difficult to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+      placeholder: "It would be great if ResearchGravity could..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Which tier does this relate to?
+      options:
+        - Tier 1 (Research, Labs, Industry)
+        - Tier 2 (GitHub, Benchmarks, Social)
+        - Tier 3 (Newsletters, Forums)
+        - Cold Start Protocol
+        - Synthesis Workflow
+        - Other
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to help implement this feature
+          required: false
