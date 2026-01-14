@@ -3,7 +3,10 @@ name: agent-core
 description: Unified agent orchestration for research, innovation scouting, and memory across CLI (Claude Code), Antigravity (VSCode OSS), and web. Use for multi-environment coordination, parallel sessions, persistent URL logging, and long-term memory. Triggers on "/innovation-scout", "/deep-research", "/remember", "/recall", "/sync", "/archive", "/parallel", or research requests.
 ---
 
-# Agent Core v3.0 — Metaventions AI
+# Agent Core v3.2 — Metaventions AI
+
+**v3.2 Update:** Consolidated architecture, project registry, unified research index.
+**v3.1 Update:** Automatic session capture and cross-project lineage tracking.
 
 Frontier intelligence for meta-invention. Research that compounds.
 
@@ -58,6 +61,83 @@ Do NOT assume. Ask:
 - Continue → Load session, show where we left off
 - Resume → `python3 init_session.py --continue [session-id]`
 - Fresh → Ask for topic, then `python3 init_session.py "[topic]"`
+
+---
+
+## Automatic Session Capture (v3.1)
+
+**All research sessions are now automatically tracked.** No more lost research.
+
+### What Gets Captured Automatically
+
+| Artifact | Capture Method | Storage |
+|----------|---------------|---------|
+| **Full transcript** | Claude session linked | `~/.agent-core/sessions/[id]/full_transcript.txt` |
+| **All URLs** | Extracted from transcript | `urls_captured.json` |
+| **Key findings** | Pattern-matched extraction | `findings_captured.json` |
+| **Lineage** | Cross-project links | `lineage.json` |
+
+### How It Works
+
+```
+1. init_session.py → Auto-registers with tracker
+2. During research → Claude transcript accumulates
+3. On archive/capture → Full session extracted and stored
+4. On project switch → Lineage link created automatically
+```
+
+### Pre-Link to Implementation
+
+When starting research that will feed into a specific project:
+
+```bash
+python3 init_session.py "multi-agent orchestration" --impl-project OS-App
+```
+
+This creates a pending lineage link that gets completed when you move to implementation.
+
+### Manual Capture (if needed)
+
+```bash
+# Capture current session state
+python3 session_tracker.py capture
+
+# Link research to implementation
+python3 session_tracker.py link [research-session-id] [impl-project]
+
+# Check status
+python3 session_tracker.py status
+```
+
+### Backfill Historical Sessions
+
+Recover research from old Claude sessions that weren't tracked:
+
+```bash
+# Scan last 24 hours
+python3 auto_capture.py scan --hours 24
+
+# Backfill specific session file
+python3 auto_capture.py backfill ~/.claude/projects/-Users-foo/abc123.jsonl --topic "my research topic"
+```
+
+### Session Lineage
+
+Every research session can be linked to its implementation:
+
+```
+ResearchGravity Session          →    Implementation Project
+─────────────────────────────         ────────────────────────
+multi-agent-orchestration-...    →    OS-App (ACE feature)
+agentic-ai-framework-...         →    OS-App (agent system)
+```
+
+View lineage:
+```bash
+python3 session_tracker.py status
+```
+
+---
 
 ## Philosophy
 
@@ -207,32 +287,63 @@ site:arxiv.org [topic] submitted:[last 48 hours]
 
 ---
 
-## Architecture
+## Architecture (v3.2 Consolidated)
+
+**Single source of truth:** `~/.agent-core/` for all persistent data.
 
 ```
-CLAUDE.md                         # Project root (commit to git)
-
-~/.agent-core/                    # Global (synced)
-├── config.json                   # Settings
-├── sessions/
-│   ├── index.md                  # All sessions
-│   └── [session-id]/             # Archived sessions
+~/.agent-core/                    # ALL RESEARCH DATA
+├── config.json                   # System settings
+├── projects.json                 # Project registry (v3.2)
+├── session_tracker.json          # Auto-capture state
+├── auto_capture_log.json         # Capture history
+│
+├── sessions/                     # Archived research sessions
+│   ├── index.md
+│   └── [session-id]/
+│       ├── session.json
+│       ├── full_transcript.txt
+│       ├── urls_captured.json
+│       ├── findings_captured.json
+│       └── lineage.json
+│
+├── research/                     # Project research files (v3.2)
+│   ├── INDEX.md                  # Unified research index
+│   ├── careercoach/
+│   │   ├── innovation-scout.md
+│   │   └── sources.csv
+│   ├── os-app/
+│   │   ├── os_app_master_proposal.md
+│   │   └── ...
+│   └── metaventions/
+│       └── metaventions_scout.md
+│
 ├── memory/
-│   ├── global.md                 # Permanent facts
-│   └── learnings.md              # Research insights
-├── workflows/
-├── scripts/
-└── assets/
+│   ├── global.md                 # System-wide facts
+│   └── projects/                 # Per-project identities (v3.2)
+│       └── careercoach.md
+│
+└── workflows/                    # Workflow definitions
+    ├── deep-research.md
+    └── ...
 
-.agent/                           # Project-local
-├── memory.md                     # Project memory
-├── research/
-│   ├── session.json              # Current session
-│   ├── session_log.md            # Narrative + URL table
-│   ├── scratchpad.json           # Machine-readable
-│   └── [topic]_sources.csv       # Export
-└── workflows/
+~/.antigravity/                   # IDE CONFIG ONLY (not for research)
+├── extensions/                   # VSCode extensions
+└── argv.json                     # IDE settings
+
+~/Desktop/Antigravity/ResearchGravity/   # SCRIPTS (git repo)
+├── init_session.py               # Initialize + auto-register
+├── log_url.py                    # Manual URL logging
+├── archive_session.py            # Archive + capture
+├── session_tracker.py            # Auto-capture engine
+├── auto_capture.py               # Backfill + scan
+├── project_context.py            # Project context loader (v3.2)
+├── status.py                     # Cold start checker
+├── SKILL.md                      # This file
+└── .agent/research/              # LOCAL active session only
 ```
+
+**Key Principle:** `~/.antigravity/` is for IDE config only. Never store research there.
 
 ---
 
@@ -248,6 +359,12 @@ CLAUDE.md                         # Project root (commit to git)
 | `/sync` | sync_environments.py | Push/pull state |
 | `/archive` | archive_session.py | Close session |
 | `/status` | sync_environments.py status | Show state |
+| `/capture` | session_tracker.py capture | Capture current session |
+| `/link [session] [project]` | session_tracker.py link | Create lineage link |
+| `/backfill` | auto_capture.py scan | Recover historical sessions |
+| `/context` | project_context.py | Load project context from cwd |
+| `/projects` | project_context.py --list | List all registered projects |
+| `/index` | project_context.py --index | Show unified research index |
 
 ---
 

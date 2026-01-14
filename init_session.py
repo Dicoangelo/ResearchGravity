@@ -3,14 +3,18 @@
 Initialize a new Metaventions AI research session.
 Multi-source, multi-tier signal capture for meta-invention intelligence.
 
+v2.0: Now with automatic session tracking and cross-project lineage.
+
 Usage:
   python3 init_session.py <topic> [--workflow TYPE] [--env ENV] [--continue SESSION_ID]
+  python3 init_session.py <topic> --impl-project OS-App  # Pre-link to implementation
 """
 
 import argparse
 import json
 import os
 import hashlib
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -18,6 +22,78 @@ from pathlib import Path
 def get_agent_core_dir() -> Path:
     """Get the global agent-core directory."""
     return Path.home() / ".agent-core"
+
+
+def register_with_tracker(session_id: str, topic: str, impl_project: str = None):
+    """Register session with the auto-capture tracker for lineage tracking."""
+    tracker_file = get_agent_core_dir() / "session_tracker.json"
+
+    # Load or create tracker state
+    if tracker_file.exists():
+        state = json.loads(tracker_file.read_text())
+    else:
+        state = {
+            "version": "2.0",
+            "active_session": None,
+            "sessions": {},
+            "lineage": [],
+            "pending_captures": []
+        }
+
+    # Find Claude session file for linking
+    claude_session = find_claude_session_file()
+
+    # Register session
+    state["active_session"] = session_id
+    state["sessions"][session_id] = {
+        "session_id": session_id,
+        "topic": topic,
+        "started": datetime.now().isoformat(),
+        "status": "active",
+        "working_directory": str(Path.cwd()),
+        "claude_session_file": str(claude_session) if claude_session else None,
+        "impl_project_placeholder": impl_project,
+        "urls_captured": [],
+        "findings_captured": [],
+        "checkpoints": [],
+        "full_transcript_archived": False
+    }
+
+    # Create lineage entry if impl_project specified
+    if impl_project:
+        state["lineage"].append({
+            "research_session": session_id,
+            "impl_project": impl_project,
+            "impl_session": None,
+            "linked_at": datetime.now().isoformat(),
+            "status": "pending"
+        })
+
+    # Save tracker state
+    tracker_file.parent.mkdir(parents=True, exist_ok=True)
+    tracker_file.write_text(json.dumps(state, indent=2))
+
+    return claude_session
+
+
+def find_claude_session_file() -> Path:
+    """Find the most recent Claude Code session file."""
+    claude_projects = Path.home() / ".claude" / "projects"
+    if not claude_projects.exists():
+        return None
+
+    # Find most recent .jsonl file across all projects
+    latest = None
+    latest_mtime = 0
+
+    for proj_dir in claude_projects.iterdir():
+        if proj_dir.is_dir():
+            for jsonl in proj_dir.glob("*.jsonl"):
+                if jsonl.stat().st_mtime > latest_mtime:
+                    latest = jsonl
+                    latest_mtime = jsonl.stat().st_mtime
+
+    return latest
 
 
 def get_local_agent_dir() -> Path:
@@ -153,7 +229,8 @@ def init_session(
     topic: str,
     workflow: str = "research",
     env: str = None,
-    continue_session: str = None
+    continue_session: str = None,
+    impl_project: str = None
 ) -> dict:
     """Initialize a new research session with Metaventions-grade structure."""
 
@@ -164,6 +241,9 @@ def init_session(
         return load_session(continue_session)
 
     session_id = generate_session_id(topic)
+
+    # AUTO-REGISTER with tracker for lineage tracking
+    claude_session = register_with_tracker(session_id, topic, impl_project)
     timestamp = datetime.now()
 
     # Create directories
@@ -197,7 +277,10 @@ def init_session(
             "checkpoints": 0,
             "last_sync": None
         },
-        "quality_standard": "metaventions"
+        "quality_standard": "metaventions",
+        "impl_project": impl_project,
+        "claude_session_linked": str(claude_session) if claude_session else None,
+        "auto_tracked": True
     }
 
     # Create session log
@@ -446,6 +529,8 @@ def main():
                         help="Override environment detection")
     parser.add_argument("--continue", dest="continue_session",
                         help="Continue existing session by ID")
+    parser.add_argument("--impl-project", dest="impl_project",
+                        help="Target implementation project (creates lineage link)")
 
     args = parser.parse_args()
 
@@ -457,29 +542,36 @@ def main():
             topic=args.topic or "",
             workflow=args.workflow,
             env=args.env,
-            continue_session=args.continue_session
+            continue_session=args.continue_session,
+            impl_project=args.impl_project
         )
 
-        print(f"✅ Session initialized: {session['session_id']}")
+        print(f"Session initialized: {session['session_id']}")
         print(f"   Topic: {session['topic']}")
         print(f"   Workflow: {session['workflow']}")
         print(f"   Quality: Metaventions-grade")
         print(f"   Local: {session['paths']['local']}")
         print()
-        print("📝 Files created:")
+        print("AUTO-TRACKING ENABLED")
+        print(f"   Claude session linked: {session.get('claude_session_linked', 'None')[:50] if session.get('claude_session_linked') else 'Detecting...'}")
+        if session.get('impl_project'):
+            print(f"   Implementation target: {session['impl_project']}")
+        print("   Full transcript will be captured automatically")
+        print()
+        print("Files created:")
         print("   - session_log.md (with all query templates)")
         print("   - scratchpad.json (multi-tier structure)")
         print("   - sources.csv")
         print()
-        print("🔗 Quick scan URLs:")
+        print("Quick scan URLs:")
         for url in session['scan_urls']['daily_scan'][:3]:
             print(f"   - {url}")
         print()
-        print("🎯 Workflow:")
+        print("Workflow:")
         print("   1. Scan Tier 1 sources (30 min)")
-        print("   2. Log ALL URLs via log_url.py")
+        print("   2. URLs auto-captured from transcript")
         print("   3. Synthesize: thesis + gap + direction")
-        print("   4. Archive when complete")
+        print("   4. Archive auto-captures full session")
 
     except Exception as e:
         print(f"❌ Error: {e}")

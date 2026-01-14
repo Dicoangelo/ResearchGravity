@@ -39,3 +39,9 @@ node_modules/
 # Research artifacts (keep local)
 temp_*/
 libs/
+
+# Local scratchpads
+.agent/research/scratchpad_*.md
+
+# Project-specific research (not general framework)
+sssp_*.md
