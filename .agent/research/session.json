@@ -1,34 +1,116 @@
 {
-  "session_id": "agentic-ai-framework-20260109-160753-16a34f",
-  "topic": "agentic AI frameworks",
-  "workflow": "research",
+  "session_id": "frontier-ai-breakthr-20260114-180021-7940dd",
+  "topic": "Frontier AI Breakthroughs - Jan 2026",
+  "workflow": "deep-research",
   "environment": "cli",
-  "started": "2026-01-09T16:07:53.997648",
+  "started": "2026-01-14T18:00:21.764921",
   "status": "active",
   "queries": {
-    "viral": {
-      "github": "agentic AI frameworks stars:>500 pushed:>2025-12-10",
-      "description": "High-adoption, community-vetted"
+    "tier1": {
+      "research": {
+        "arxiv_ai": "site:arxiv.org cs.AI Frontier AI Breakthroughs - Jan 2026 2026",
+        "arxiv_lg": "site:arxiv.org cs.LG Frontier AI Breakthroughs - Jan 2026 2026",
+        "arxiv_se": "site:arxiv.org cs.SE Frontier AI Breakthroughs - Jan 2026 2026",
+        "huggingface": "site:huggingface.co/papers Frontier AI Breakthroughs - Jan 2026",
+        "description": "Academic research papers"
+      },
+      "labs": {
+        "openai": "site:openai.com Frontier AI Breakthroughs - Jan 2026 January 2026",
+        "anthropic": "site:anthropic.com Frontier AI Breakthroughs - Jan 2026 January 2026",
+        "google_ai": "site:blog.google/technology/ai Frontier AI Breakthroughs - Jan 2026 2026",
+        "meta_ai": "site:ai.meta.com Frontier AI Breakthroughs - Jan 2026 2026",
+        "deepmind": "site:deepmind.google Frontier AI Breakthroughs - Jan 2026 2026",
+        "description": "AI lab announcements"
+      },
+      "industry": {
+        "techcrunch": "site:techcrunch.com Frontier AI Breakthroughs - Jan 2026 January 2026",
+        "verge": "site:theverge.com Frontier AI Breakthroughs - Jan 2026 January 2026",
+        "ars": "site:arstechnica.com Frontier AI Breakthroughs - Jan 2026 January 2026",
+        "description": "Tech industry news"
+      }
     },
-    "groundbreaker": {
-      "github": "agentic AI frameworks stars:10..200 created:>2025-10-11",
-      "arxiv": "agentic AI frameworks",
-      "description": "Novel, emerging innovations"
+    "tier2": {
+      "github": {
+        "viral": "Frontier AI Breakthroughs - Jan 2026 stars:>500 pushed:>2025-12-15",
+        "groundbreaker": "Frontier AI Breakthroughs - Jan 2026 stars:10..200 created:>2025-10-16",
+        "trending": "Frontier AI Breakthroughs - Jan 2026 stars:>100 pushed:>2026-01-12",
+        "description": "GitHub repositories"
+      },
+      "benchmarks": {
+        "metr": "site:metr.org Frontier AI Breakthroughs - Jan 2026",
+        "arcprize": "site:arcprize.org Frontier AI Breakthroughs - Jan 2026",
+        "paperswithcode": "site:paperswithcode.com Frontier AI Breakthroughs - Jan 2026 2026",
+        "description": "Benchmark and leaderboard updates"
+      },
+      "social": {
+        "hackernews": "site:news.ycombinator.com Frontier AI Breakthroughs - Jan 2026",
+        "twitter_search": "Frontier AI Breakthroughs - Jan 2026 (from:karpathy OR from:ylecun OR from:sama)",
+        "description": "Social signals from key figures"
+      }
+    },
+    "tier3": {
+      "newsletters": {
+        "import_ai": "https://importai.substack.com/",
+        "the_batch": "https://www.deeplearning.ai/the-batch/",
+        "latent_space": "https://www.latent.space/",
+        "description": "Curated newsletters (benchmark calibration)"
+      },
+      "forums": {
+        "lesswrong": "site:lesswrong.com Frontier AI Breakthroughs - Jan 2026 2026",
+        "alignmentforum": "site:alignmentforum.org Frontier AI Breakthroughs - Jan 2026",
+        "description": "Frontier discourse"
+      }
+    },
+    "frontier": {
+      "breaking": "Frontier AI Breakthroughs - Jan 2026 January 14 2026",
+      "protocols": "\"protocol\" OR \"standard\" OR \"specification\" Frontier AI Breakthroughs - Jan 2026 2026",
+      "description": "Bleeding edge signals"
     }
   },
+  "scan_urls": {
+    "daily_scan": [
+      "https://arxiv.org/list/cs.AI/new",
+      "https://arxiv.org/list/cs.LG/new",
+      "https://arxiv.org/list/cs.SE/new",
+      "https://huggingface.co/papers/trending",
+      "https://news.ycombinator.com/",
+      "https://github.com/trending"
+    ],
+    "lab_blogs": [
+      "https://openai.com/news/",
+      "https://www.anthropic.com/news",
+      "https://blog.google/technology/ai/",
+      "https://ai.meta.com/blog/",
+      "https://deepmind.google/discover/blog/"
+    ],
+    "industry_news": [
+      "https://techcrunch.com/category/artificial-intelligence/",
+      "https://arstechnica.com/ai/",
+      "https://www.theverge.com/ai-artificial-intelligence"
+    ],
+    "benchmarks": [
+      "https://metr.org/blog/",
+      "https://arcprize.org/blog",
+      "https://lmarena.ai/",
+      "https://paperswithcode.com/sota"
+    ]
+  },
   "paths": {
-    "local": "/Users/dicoangelo/.agent/research",
-    "global": "/Users/dicoangelo/.agent-core/sessions/agentic-ai-framework-20260109-160753-16a34f",
-    "session_log": "/Users/dicoangelo/.agent/research/session_log.md",
-    "scratchpad": "/Users/dicoangelo/.agent/research/scratchpad.json",
-    "report": "/Users/dicoangelo/.agent/research/agentic-ai-frameworks_report.md",
-    "sources": "/Users/dicoangelo/.agent/research/agentic-ai-frameworks_sources.csv"
+    "local": "/Users/dicoangelo/researchgravity/.agent/research",
+    "global": "/Users/dicoangelo/.agent-core/sessions/frontier-ai-breakthr-20260114-180021-7940dd",
+    "session_log": "/Users/dicoangelo/researchgravity/.agent/research/session_log.md",
+    "scratchpad": "/Users/dicoangelo/researchgravity/.agent/research/scratchpad.json",
+    "report": "/Users/dicoangelo/researchgravity/.agent/research/frontier-ai-breakthroughs---jan-2026_report.md",
+    "sources": "/Users/dicoangelo/researchgravity/.agent/research/frontier-ai-breakthroughs---jan-2026_sources.csv"
   },
   "stats": {
     "urls_visited": 0,
     "urls_used": 0,
     "checkpoints": 0,
-    "last_sync": "2026-01-09T16:34:41.908549",
-    "sync_direction": "push"
-  }
+    "last_sync": null
+  },
+  "quality_standard": "metaventions",
+  "impl_project": null,
+  "claude_session_linked": "/Users/dicoangelo/.claude/projects/-Users-dicoangelo/eb80cb58-c753-4506-b5b7-78b6443a064c.jsonl",
+  "auto_tracked": true
 }
