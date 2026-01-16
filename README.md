@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-3.2.0-00d9ff?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-3.3.0-00d9ff?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
   <img src="https://img.shields.io/badge/Status-Active-success?style=for-the-badge" alt="Status" />
@@ -27,7 +27,15 @@
 
 ---
 
-## What's New in v3.2
+## What's New in v3.3 (January 2026)
+
+| Feature | Description |
+|---------|-------------|
+| **YouTube Research** | `youtube_channel.py` — Channel analysis and transcript extraction |
+| **Enhanced Backfill** | Improved session recovery with better transcript parsing |
+| **Ecosystem Sync** | Deeper integration with Agent Core orchestration |
+
+### v3.2 Changelog
 
 | Feature | Description |
 |---------|-------------|
@@ -68,11 +76,12 @@ ResearchGravity/                    # SCRIPTS (git repo)
 ├── session_tracker.py              # Auto-capture engine (v3.1)
 ├── auto_capture.py                 # Backfill historical sessions (v3.1)
 ├── project_context.py              # Project context loader (v3.2)
+├── youtube_channel.py              # YouTube research & transcripts (v3.3)
 ├── log_url.py                      # Manual URL logging
 ├── status.py                       # Cold start session checker
 ├── archive_session.py              # Archive completed sessions
 ├── sync_environments.py            # Cross-environment sync
-└── SKILL.md                        # Agent Core v3.2 documentation
+└── SKILL.md                        # Agent Core v3.3 documentation
 
 ~/.agent-core/                      # DATA (single source of truth)
 ├── projects.json                   # Project registry (v3.2)
