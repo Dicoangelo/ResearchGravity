@@ -31,12 +31,26 @@ python3 project_context.py --index             # View unified index
 # Backfill
 python3 auto_capture.py scan --hours 48        # Scan recent history
 python3 auto_capture.py backfill <path> --topic "..."  # Recover from old session
+
+# Context Prefetcher (v3.4)
+python3 prefetch.py                            # Auto-detect project, inject context
+python3 prefetch.py --project os-app --papers  # Specific project with papers
+python3 prefetch.py --topic multi-agent        # Filter by topic
+python3 prefetch.py --clipboard                # Copy to clipboard
+python3 prefetch.py --inject                   # Inject into ~/CLAUDE.md
+
+# Learnings Backfill (v3.4)
+python3 backfill_learnings.py                  # Regenerate learnings.md from all sessions
+python3 backfill_learnings.py --since 7        # Last 7 days only
+python3 backfill_learnings.py --dry-run        # Preview without writing
 ```
 
 ## Architecture
 
 ```
 researchgravity/           # Scripts (this repo)
+├── prefetch.py            # Context prefetcher for Claude sessions (v3.4)
+├── backfill_learnings.py  # Extract learnings from archived sessions (v3.4)
 ├── init_session.py        # Session initialization
 ├── session_tracker.py     # Auto-capture engine
 ├── auto_capture.py        # Backfill historical sessions
@@ -62,7 +76,11 @@ researchgravity/           # Scripts (this repo)
 │       ├── urls_captured.json
 │       ├── findings_captured.json
 │       └── lineage.json
-└── memory/
+├── memory/
+│   ├── learnings.md       # Extracted learnings archive (v3.4)
+│   ├── global.md
+│   └── projects/
+└── workflows/
 ```
 
 ## Cold Start Protocol
