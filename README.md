@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-3.3.0-00d9ff?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-3.4.0-00d9ff?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
   <img src="https://img.shields.io/badge/Status-Active-success?style=for-the-badge" alt="Status" />
@@ -27,7 +27,16 @@
 
 ---
 
-## What's New in v3.3 (January 2026)
+## What's New in v3.4 (January 2026)
+
+| Feature | Description |
+|---------|-------------|
+| **Context Prefetcher** | `prefetch.py` — Inject relevant learnings into Claude sessions |
+| **Learnings Backfill** | `backfill_learnings.py` — Extract learnings from all archived sessions |
+| **Memory Injection** | Auto-load project context, papers, and lineage at session start |
+| **Shell Integration** | `prefetch`, `prefetch-clip`, `prefetch-inject` shell commands |
+
+### v3.3 Changelog
 
 | Feature | Description |
 |---------|-------------|
@@ -72,6 +81,8 @@ Traditional research workflows fail at the frontier:
 
 ```
 ResearchGravity/                    # SCRIPTS (git repo)
+├── prefetch.py                     # Context prefetcher for Claude sessions (v3.4)
+├── backfill_learnings.py           # Extract learnings from archived sessions (v3.4)
 ├── init_session.py                 # Initialize + auto-register sessions
 ├── session_tracker.py              # Auto-capture engine (v3.1)
 ├── auto_capture.py                 # Backfill historical sessions (v3.1)
@@ -81,7 +92,7 @@ ResearchGravity/                    # SCRIPTS (git repo)
 ├── status.py                       # Cold start session checker
 ├── archive_session.py              # Archive completed sessions
 ├── sync_environments.py            # Cross-environment sync
-└── SKILL.md                        # Agent Core v3.3 documentation
+└── SKILL.md                        # Agent Core v3.4 documentation
 
 ~/.agent-core/                      # DATA (single source of truth)
 ├── projects.json                   # Project registry (v3.2)
@@ -99,6 +110,7 @@ ResearchGravity/                    # SCRIPTS (git repo)
 │       ├── findings_captured.json
 │       └── lineage.json
 ├── memory/
+│   ├── learnings.md                # Extracted learnings archive (v3.4)
 │   ├── global.md
 │   └── projects/
 └── workflows/
@@ -288,6 +300,86 @@ python3 auto_capture.py backfill ~/.claude/projects/.../session.jsonl --topic ".
 
 ---
 
+## Context Prefetcher (v3.4)
+
+**Memory injection for Claude sessions.** Automatically load relevant learnings, project memory, and research papers at session start.
+
+### Basic Usage
+
+```bash
+# Auto-detect project from current directory
+python3 prefetch.py
+
+# Specific project with papers
+python3 prefetch.py --project os-app --papers
+
+# Filter by topic
+python3 prefetch.py --topic multi-agent --days 30
+
+# Copy to clipboard
+python3 prefetch.py --project os-app --clipboard
+
+# Inject into ~/CLAUDE.md
+python3 prefetch.py --project os-app --inject
+```
+
+### Shell Commands
+
+After sourcing `~/.claude/scripts/auto-context.sh`:
+
+```bash
+prefetch                    # Auto-detect project, last 14 days
+prefetch os-app 7           # Specific project, last 7 days
+prefetch-clip               # Copy context to clipboard
+prefetch-inject             # Inject into ~/CLAUDE.md
+prefetch-topic "consensus"  # Filter by topic across all sessions
+backfill-learnings          # Regenerate learnings.md from all sessions
+```
+
+### CLI Options
+
+| Flag | Description |
+|------|-------------|
+| `--project, -p` | Project ID to load context for |
+| `--topic, -t` | Filter by topic keywords |
+| `--days, -d` | Limit to last N days (default: 14) |
+| `--limit, -l` | Max learning entries (default: 5) |
+| `--papers` | Include relevant arXiv papers |
+| `--clipboard, -c` | Copy to clipboard (macOS) |
+| `--inject, -i` | Inject into ~/CLAUDE.md |
+| `--json` | Output as JSON |
+| `--quiet, -q` | Suppress info output |
+
+### Backfill Learnings
+
+Extract learnings from all archived sessions:
+
+```bash
+# Process all sessions
+python3 backfill_learnings.py
+
+# Last 7 days only
+python3 backfill_learnings.py --since 7
+
+# Specific session
+python3 backfill_learnings.py --session <session-id>
+
+# Preview without writing
+python3 backfill_learnings.py --dry-run
+```
+
+### What Gets Injected
+
+| Component | Source |
+|-----------|--------|
+| Project info | `projects.json` — name, focus, tech stack, status |
+| Project memory | `memory/projects/[project].md` |
+| Recent learnings | `memory/learnings.md` — filtered by project/topic/days |
+| Research papers | `paper_index` in projects.json |
+| Lineage | Research sessions → features implemented |
+
+---
+
 ## Integration
 
 ResearchGravity integrates with the **Antigravity ecosystem**:
@@ -306,6 +398,8 @@ ResearchGravity integrates with the **Antigravity ecosystem**:
 - [x] ~~Cross-project lineage tracking~~ (v3.1)
 - [x] ~~Project registry & context loader~~ (v3.2)
 - [x] ~~Unified research index~~ (v3.2)
+- [x] ~~Context prefetcher & memory injection~~ (v3.4)
+- [x] ~~Learnings backfill from archived sessions~~ (v3.4)
 - [ ] MCP integration for tool context
 - [ ] Auto-synthesis via LLM
 - [ ] Browser extension for URL capture
