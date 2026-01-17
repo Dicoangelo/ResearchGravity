@@ -5,10 +5,10 @@ Thank you for your interest in contributing to **ResearchGravity** by Metaventio
 ## Ways to Contribute
 
 ### 1. Report Bugs
-Use the [Bug Report template](https://github.com/Blackamethyst-ai/ResearchGravity/issues/new?template=bug_report.yml) to report issues.
+Use the [Bug Report template](https://github.com/Dicoangelo/ResearchGravity/issues/new?template=bug_report.yml) to report issues.
 
 ### 2. Suggest Features
-Use the [Feature Request template](https://github.com/Blackamethyst-ai/ResearchGravity/issues/new?template=feature_request.yml) to propose new features.
+Use the [Feature Request template](https://github.com/Dicoangelo/ResearchGravity/issues/new?template=feature_request.yml) to propose new features.
 
 ### 3. Submit Pull Requests
 
