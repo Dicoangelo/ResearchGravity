@@ -59,6 +59,23 @@ def parse_url_table(session_log_path: Path) -> list:
     return urls
 
 
+def generate_queries_section(session: dict) -> str:
+    """Generate queries section, handling missing data gracefully."""
+    queries = session.get('queries', {})
+    if not queries:
+        return "_No search queries recorded for this session._"
+
+    sections = []
+    if 'viral' in queries:
+        viral_github = queries['viral'].get('github', 'N/A')
+        sections.append(f"### Viral Filter\n```\n{viral_github}\n```")
+    if 'groundbreaker' in queries:
+        gb_github = queries['groundbreaker'].get('github', 'N/A')
+        sections.append(f"### Groundbreaker Filter\n```\n{gb_github}\n```")
+
+    return "\n\n".join(sections) if sections else "_No search queries recorded._"
+
+
 def generate_archive_report(session: dict, urls: list) -> str:
     """Generate the final session archive markdown."""
     now = datetime.now()
@@ -87,15 +104,7 @@ Total URLs visited: {len(urls)}
 
 ## Search Queries Used
 
-### Viral Filter
-```
-{session['queries']['viral']['github']}
-```
-
-### Groundbreaker Filter
-```
-{session['queries']['groundbreaker']['github']}
-```
+{generate_queries_section(session)}
 
 ---
 
