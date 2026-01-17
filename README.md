@@ -11,10 +11,17 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-3.4.0-00d9ff?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-3.5.0-00d9ff?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
   <img src="https://img.shields.io/badge/Status-Active-success?style=for-the-badge" alt="Status" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Sessions-54+-4a0080?style=for-the-badge" alt="Sessions" />
+  <img src="https://img.shields.io/badge/Papers-306+-00d9ff?style=for-the-badge" alt="Papers" />
+  <img src="https://img.shields.io/badge/URLs-3,200+-1a1a2e?style=for-the-badge" alt="URLs" />
+  <img src="https://img.shields.io/badge/Concepts-479+-success?style=for-the-badge" alt="Concepts" />
 </p>
 
 <p align="center">
@@ -27,7 +34,24 @@
 
 ---
 
-## What's New in v3.4 (January 2026)
+## What's New in v3.5 (January 2026)
+
+| Feature | Description |
+|---------|-------------|
+| **Precision Bridge Research** | Tesla US20260017019A1 → RLM synthesis methodology |
+| **Cognitive Wallet Tracking** | 54 sessions, 306 papers, 3,200+ URLs accumulated |
+| **Deep Dive Workflow** | Multi-paper synthesis with implementation output |
+| **Framework Extraction** | COMPRESS → EXPLORE → RECONSTRUCT pattern identified |
+
+### Notable Research Sessions
+
+| Session | Papers | Output |
+|---------|--------|--------|
+| Tesla Mixed-Precision RoPE | 15 arXiv | `recursiveLanguageModel.ts` implementation |
+| Multi-Agent Orchestration | 12 arXiv | ACE/DQ Scoring in OS-App |
+| 160+ Papers Meta-Synthesis | 160+ | Unified research index |
+
+## What's New in v3.4
 
 | Feature | Description |
 |---------|-------------|
