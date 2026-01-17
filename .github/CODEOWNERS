@@ -2,11 +2,11 @@
 # Metaventions AI
 
 # Default owner for everything
-* @Blackamethyst-ai
+* @Dicoangelo
 
 # Core framework
-*.py @Blackamethyst-ai
-SKILL.md @Blackamethyst-ai
+*.py @Dicoangelo
+SKILL.md @Dicoangelo
 
 # GitHub config
-.github/ @Blackamethyst-ai
+.github/ @Dicoangelo

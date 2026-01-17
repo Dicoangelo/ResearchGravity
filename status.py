@@ -8,8 +8,12 @@ Usage:
 """
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
+
+# Add parent for UCW imports
+sys.path.insert(0, str(Path(__file__).parent))
 
 
 def get_agent_core_dir() -> Path:
@@ -65,12 +69,41 @@ def format_time(iso_time: str) -> str:
         return iso_time
 
 
+def get_wallet_value():
+    """Get cognitive wallet value and stats."""
+    try:
+        from ucw.export import build_wallet_from_agent_core
+        wallet = build_wallet_from_agent_core()
+        stats = wallet.get_stats()
+        return {
+            "value": stats["value"],
+            "sessions": stats["sessions"],
+            "concepts": stats["concepts"],
+            "papers": stats["papers"],
+            "urls": stats["urls"],
+            "domains": stats.get("domains", {}),
+        }
+    except Exception as e:
+        return None
+
+
 def main():
     print()
     print("=" * 50)
     print("  ResearchGravity — Metaventions AI")
     print("=" * 50)
     print()
+
+    # Show wallet value
+    wallet = get_wallet_value()
+    if wallet:
+        print(f"💰 COGNITIVE WALLET VALUE: ${wallet['value']:,.2f}")
+        print(f"   {wallet['sessions']} sessions | {wallet['concepts']} concepts | {wallet['papers']} papers | {wallet['urls']} URLs")
+        if wallet['domains']:
+            top_domains = sorted(wallet['domains'].items(), key=lambda x: -x[1])[:2]
+            domain_str = ", ".join(f"{d}: {w*100:.0f}%" for d, w in top_domains)
+            print(f"   Domains: {domain_str}")
+        print()
 
     # Check active session
     active = get_active_session()
