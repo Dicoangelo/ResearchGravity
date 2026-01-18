@@ -61,23 +61,30 @@ class RoutingMetrics:
             return json.load(f)
 
     def load_metrics(self, days: int = 7) -> List[Dict]:
-        """Load metrics from last N days"""
-        if not self.metrics_file.exists():
+        """Load metrics from last N days (from either metrics or history file)"""
+        # Try metrics file first, fall back to history file
+        source_file = self.metrics_file if self.metrics_file.exists() else self.history_file
+
+        if not source_file.exists():
             return []
 
         cutoff = datetime.now() - timedelta(days=days)
         metrics = []
 
-        with open(self.metrics_file) as f:
+        with open(source_file) as f:
             for line in f:
                 if not line.strip():
                     continue
                 try:
                     entry = json.loads(line)
-                    entry_time = datetime.fromtimestamp(entry['ts'])
+                    # Handle both ms and seconds timestamps
+                    ts = entry.get('ts', 0)
+                    if ts > 1e12:  # Milliseconds
+                        ts = ts / 1000
+                    entry_time = datetime.fromtimestamp(ts)
                     if entry_time > cutoff:
                         metrics.append(entry)
-                except (json.JSONDecodeError, KeyError):
+                except (json.JSONDecodeError, KeyError, ValueError):
                     continue
 
         return metrics
@@ -98,6 +105,69 @@ class RoutingMetrics:
                     continue
 
         return history
+
+    def load_last_n_queries(self, n: int) -> List[Dict]:
+        """Load last N queries (usage-based)"""
+        if not self.history_file.exists():
+            return []
+
+        history = []
+        with open(self.history_file) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    history.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+        # Return last N entries
+        return history[-n:] if len(history) >= n else history
+
+    def calculate_data_quality(self, data: List[Dict]) -> float:
+        """
+        Calculate data quality score (0.0-1.0)
+
+        Quality factors:
+        - Variance in DQ scores (consistency)
+        - Feedback rate (% with feedback)
+        - Model distribution (not all one model)
+        - Sample size adequacy
+        """
+        if len(data) < 10:
+            return 0.0
+
+        # Factor 1: DQ score variance (lower is better, 0.0-0.3)
+        dq_scores = [d.get('dq', d.get('dqScore', 0.5)) for d in data]
+        try:
+            dq_variance = statistics.variance(dq_scores) if len(dq_scores) > 1 else 0.5
+            variance_score = max(0, 1.0 - (dq_variance / 0.3))  # Normalize to 0-1
+        except:
+            variance_score = 0.5
+
+        # Factor 2: Feedback rate (higher is better)
+        history = self._load_history()
+        feedback_count = sum(1 for h in history if 'success' in h or 'failure' in h)
+        feedback_rate = feedback_count / max(len(data), 1)
+        feedback_score = min(1.0, feedback_rate * 2)  # 50% feedback = 1.0 score
+
+        # Factor 3: Model distribution (not all one model)
+        models = [d.get('model', 'sonnet') for d in data]
+        unique_models = len(set(models))
+        distribution_score = min(1.0, unique_models / 3)  # All 3 models = 1.0
+
+        # Factor 4: Sample size (more is better)
+        sample_score = min(1.0, len(data) / 200)  # 200+ samples = 1.0
+
+        # Weighted average
+        quality = (
+            variance_score * 0.25 +
+            feedback_score * 0.35 +
+            distribution_score * 0.20 +
+            sample_score * 0.20
+        )
+
+        return quality
 
     def calculate_accuracy(self, metrics: List[Dict]) -> Optional[float]:
         """Calculate routing accuracy via feedback"""
@@ -172,7 +242,8 @@ class RoutingMetrics:
 
     def _avg_dq(self, metrics: List[Dict]) -> Optional[float]:
         """Calculate average DQ score"""
-        scores = [m.get('dq', 0) for m in metrics if 'dq' in m]
+        # Support both 'dq' and 'dqScore' field names
+        scores = [m.get('dq', m.get('dqScore', 0)) for m in metrics if 'dq' in m or 'dqScore' in m]
         return statistics.mean(scores) if scores else None
 
     def _avg_complexity(self, metrics: List[Dict]) -> Optional[float]:
@@ -591,9 +662,16 @@ def main():
     report_parser.add_argument('--days', type=int, default=7, help='Days to analyze')
     report_parser.add_argument('--format', choices=['text', 'json'], default='text')
 
-    # Check targets command
+    # Check targets command (usage-based options)
     targets_parser = subparsers.add_parser('check-targets', help='Check if targets are met')
-    targets_parser.add_argument('--days', type=int, default=7)
+    targets_parser.add_argument('--days', type=int, default=None, help='Days to analyze (time-based)')
+    targets_parser.add_argument('--last-n-queries', type=int, default=None, help='Check last N queries (usage-based)')
+    targets_parser.add_argument('--all-time', action='store_true', help='Check all-time performance')
+
+    # Data quality check (usage-based)
+    quality_parser = subparsers.add_parser('check-data-quality', help='Check data quality metrics')
+    quality_parser.add_argument('--all-time', action='store_true', help='Check all-time data quality')
+    quality_parser.add_argument('--days', type=int, default=None, help='Days to analyze')
 
     # Export command
     export_parser = subparsers.add_parser('export', help='Export metrics')
@@ -635,12 +713,20 @@ def main():
         print(report)
 
     elif args.command == 'check-targets':
-        data = metrics.load_metrics(days=args.days)
+        # Usage-based: last-n-queries or all-time
+        if args.last_n_queries:
+            data = metrics.load_last_n_queries(args.last_n_queries)
+        elif args.all_time:
+            data = metrics.load_metrics(days=999)
+        else:
+            # Default to 7 days if no option specified
+            data = metrics.load_metrics(days=args.days or 7)
+
         targets_met = metrics._check_targets(data)
 
         if not targets_met:
             print("Insufficient data for target validation")
-            return
+            sys.exit(1)
 
         met_count = sum(1 for v in targets_met.values() if v)
         total_count = len(targets_met)
@@ -651,6 +737,17 @@ def main():
             print(f"  {symbol} {key}")
 
         sys.exit(0 if met_count == total_count else 1)
+
+    elif args.command == 'check-data-quality':
+        # Calculate data quality score
+        if args.all_time:
+            data = metrics.load_metrics(days=999)
+        else:
+            data = metrics.load_metrics(days=args.days or 30)
+
+        quality_score = metrics.calculate_data_quality(data)
+        print(f"{quality_score:.2f}")
+        sys.exit(0)
 
     elif args.command == 'export':
         data = metrics.load_metrics(days=args.days)
