@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import statistics
+import random
+import hashlib
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
@@ -305,6 +307,275 @@ class RoutingMetrics:
         return "\n".join(lines)
 
 # ═══════════════════════════════════════════════════════════════════════════
+# A/B TESTING FRAMEWORK
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ABTest:
+    """A/B testing framework for routing optimization"""
+
+    def __init__(self):
+        self.experiments_dir = HOME / ".claude/data/ab-experiments"
+        self.experiments_dir.mkdir(parents=True, exist_ok=True)
+        self.baselines_file = BASELINES_FILE
+
+    def create_experiment(self, config: Dict) -> str:
+        """Create new A/B test experiment"""
+        experiment_id = config.get('experiment_id', self._generate_id())
+
+        experiment = {
+            "id": experiment_id,
+            "name": config['name'],
+            "created": datetime.now().isoformat(),
+            "active": True,
+            "control": config['control'],
+            "variant": config['variant'],
+            "split": config.get('split', 0.5),
+            "primary_metric": config['primary_metric'],
+            "secondary_metrics": config.get('secondary_metrics', []),
+            "min_samples": config.get('min_samples', 100),
+            "success_criteria": config.get('success_criteria', {}),
+            "results": {
+                "control": [],
+                "variant": []
+            }
+        }
+
+        exp_file = self.experiments_dir / f"{experiment_id}.json"
+        exp_file.write_text(json.dumps(experiment, indent=2))
+
+        return experiment_id
+
+    def _generate_id(self) -> str:
+        """Generate unique experiment ID"""
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        random_hash = hashlib.md5(str(random.random()).encode()).hexdigest()[:4]
+        return f"exp-{timestamp}-{random_hash}"
+
+    def should_use_variant(self, experiment_id: str, query_hash: str) -> bool:
+        """Deterministically assign query to control or variant"""
+        experiment = self.load_experiment(experiment_id)
+        if not experiment or not experiment['active']:
+            return False
+
+        # Use query hash for deterministic assignment
+        hash_value = int(hashlib.md5(query_hash.encode()).hexdigest(), 16)
+        return (hash_value % 100) < (experiment['split'] * 100)
+
+    def record_result(self, experiment_id: str, is_variant: bool, metrics: Dict):
+        """Record result for experiment"""
+        experiment = self.load_experiment(experiment_id)
+        if not experiment:
+            return
+
+        target = 'variant' if is_variant else 'control'
+        experiment['results'][target].append({
+            "ts": datetime.now().isoformat(),
+            "metrics": metrics
+        })
+
+        self._save_experiment(experiment)
+
+    def load_experiment(self, experiment_id: str) -> Optional[Dict]:
+        """Load experiment by ID"""
+        exp_file = self.experiments_dir / f"{experiment_id}.json"
+        if not exp_file.exists():
+            return None
+
+        return json.loads(exp_file.read_text())
+
+    def list_experiments(self, active_only: bool = False) -> List[Dict]:
+        """List all experiments"""
+        experiments = []
+
+        for exp_file in self.experiments_dir.glob("*.json"):
+            try:
+                exp = json.loads(exp_file.read_text())
+                if not active_only or exp.get('active', False):
+                    experiments.append(exp)
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        return sorted(experiments, key=lambda x: x.get('created', ''), reverse=True)
+
+    def analyze_experiment(self, experiment_id: str) -> Dict:
+        """Analyze experiment results with statistical significance"""
+        experiment = self.load_experiment(experiment_id)
+        if not experiment:
+            return {"error": "Experiment not found"}
+
+        control_results = experiment['results']['control']
+        variant_results = experiment['results']['variant']
+
+        if len(control_results) < 2 or len(variant_results) < 2:
+            return {
+                "experiment_id": experiment_id,
+                "status": "insufficient_data",
+                "control_samples": len(control_results),
+                "variant_samples": len(variant_results),
+                "min_required": experiment['min_samples']
+            }
+
+        primary_metric = experiment['primary_metric']
+
+        # Extract primary metric values
+        control_values = [r['metrics'].get(primary_metric, 0) for r in control_results]
+        variant_values = [r['metrics'].get(primary_metric, 0) for r in variant_results]
+
+        # Calculate statistics
+        control_mean = statistics.mean(control_values)
+        variant_mean = statistics.mean(variant_values)
+        improvement = ((variant_mean - control_mean) / control_mean * 100) if control_mean != 0 else 0
+
+        # Simple t-test approximation
+        pooled_std = statistics.stdev(control_values + variant_values) if len(control_values + variant_values) > 1 else 0
+        n_control = len(control_values)
+        n_variant = len(variant_values)
+
+        if pooled_std > 0:
+            t_stat = (variant_mean - control_mean) / (pooled_std * ((1/n_control + 1/n_variant) ** 0.5))
+            # Rough p-value approximation (for t_stat > 2, p < 0.05)
+            p_value = 0.05 if abs(t_stat) > 2 else 0.1
+        else:
+            t_stat = 0
+            p_value = 1.0
+
+        significant = p_value < 0.05
+
+        # Check success criteria
+        success_criteria = experiment.get('success_criteria', {})
+        meets_criteria = True
+
+        if 'min_improvement' in success_criteria:
+            meets_criteria = meets_criteria and (improvement >= success_criteria['min_improvement'])
+
+        if 'max_p_value' in success_criteria:
+            meets_criteria = meets_criteria and (p_value <= success_criteria['max_p_value'])
+
+        return {
+            "experiment_id": experiment_id,
+            "name": experiment['name'],
+            "status": "complete" if len(control_results) + len(variant_results) >= experiment['min_samples'] else "in_progress",
+            "samples": {
+                "control": len(control_results),
+                "variant": len(variant_results),
+                "total": len(control_results) + len(variant_results),
+                "min_required": experiment['min_samples']
+            },
+            "primary_metric": primary_metric,
+            "results": {
+                "control_mean": control_mean,
+                "variant_mean": variant_mean,
+                "improvement_pct": improvement,
+                "statistically_significant": significant,
+                "p_value": p_value,
+                "t_statistic": t_stat
+            },
+            "recommendation": "apply_variant" if (meets_criteria and significant and improvement > 0) else "keep_control",
+            "meets_success_criteria": meets_criteria
+        }
+
+    def apply_variant(self, experiment_id: str, dry_run: bool = True) -> Dict:
+        """Apply winning variant to baselines"""
+        experiment = self.load_experiment(experiment_id)
+        if not experiment:
+            return {"error": "Experiment not found"}
+
+        analysis = self.analyze_experiment(experiment_id)
+
+        if analysis.get('recommendation') != 'apply_variant':
+            return {
+                "error": "Variant not recommended",
+                "reason": f"Recommendation: {analysis.get('recommendation')}",
+                "analysis": analysis
+            }
+
+        # Load baselines
+        if not self.baselines_file.exists():
+            return {"error": "Baselines file not found"}
+
+        baselines = json.loads(self.baselines_file.read_text())
+
+        # Apply variant configuration
+        variant_config = experiment['variant']
+        modifications = []
+
+        for target, new_value in variant_config.items():
+            # Parse target path (e.g., "complexity_thresholds.haiku.range[1]")
+            old_value = self._get_nested_value(baselines, target)
+
+            modifications.append({
+                "target": target,
+                "old_value": old_value,
+                "new_value": new_value,
+                "experiment_id": experiment_id,
+                "improvement": analysis['results']['improvement_pct']
+            })
+
+            if not dry_run:
+                self._set_nested_value(baselines, target, new_value)
+
+        if not dry_run:
+            # Update research lineage
+            if 'ab_test_lineage' not in baselines:
+                baselines['ab_test_lineage'] = []
+
+            baselines['ab_test_lineage'].extend(modifications)
+            baselines['last_updated'] = datetime.now().isoformat()
+
+            # Save baselines
+            self.baselines_file.write_text(json.dumps(baselines, indent=2))
+
+            # Mark experiment as inactive
+            experiment['active'] = False
+            experiment['applied'] = datetime.now().isoformat()
+            self._save_experiment(experiment)
+
+        return {
+            "status": "dry_run" if dry_run else "applied",
+            "modifications": modifications,
+            "experiment": experiment_id
+        }
+
+    def _get_nested_value(self, data: Dict, path: str):
+        """Get value from nested dict using dot notation"""
+        parts = path.replace('[', '.').replace(']', '').split('.')
+        current = data
+
+        for part in parts:
+            if part.isdigit():
+                current = current[int(part)]
+            else:
+                current = current.get(part, None)
+                if current is None:
+                    return None
+
+        return current
+
+    def _set_nested_value(self, data: Dict, path: str, value):
+        """Set value in nested dict using dot notation"""
+        parts = path.replace('[', '.').replace(']', '').split('.')
+        current = data
+
+        for i, part in enumerate(parts[:-1]):
+            if part.isdigit():
+                current = current[int(part)]
+            else:
+                if part not in current:
+                    current[part] = {}
+                current = current[part]
+
+        last_part = parts[-1]
+        if last_part.isdigit():
+            current[int(last_part)] = value
+        else:
+            current[last_part] = value
+
+    def _save_experiment(self, experiment: Dict):
+        """Save experiment to file"""
+        exp_file = self.experiments_dir / f"{experiment['id']}.json"
+        exp_file.write_text(json.dumps(experiment, indent=2))
+
+# ═══════════════════════════════════════════════════════════════════════════
 # CLI INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -330,9 +601,34 @@ def main():
     export_parser.add_argument('--format', choices=['json', 'csv'], default='json')
     export_parser.add_argument('--output', help='Output file')
 
+    # A/B test commands
+    ab_parser = subparsers.add_parser('ab-test', help='A/B testing framework')
+    ab_subparsers = ab_parser.add_subparsers(dest='ab_command', help='A/B test commands')
+
+    # Create experiment
+    ab_create = ab_subparsers.add_parser('create', help='Create new experiment')
+    ab_create.add_argument('--config', required=True, help='Experiment config JSON file')
+
+    # List experiments
+    ab_list = ab_subparsers.add_parser('list', help='List experiments')
+    ab_list.add_argument('--active-only', action='store_true', help='Show only active experiments')
+
+    # Analyze experiment
+    ab_analyze = ab_subparsers.add_parser('analyze', help='Analyze experiment results')
+    ab_analyze.add_argument('--experiment', required=True, help='Experiment ID')
+
+    # Apply variant
+    ab_apply = ab_subparsers.add_parser('apply', help='Apply winning variant')
+    ab_apply.add_argument('--experiment', required=True, help='Experiment ID')
+    ab_apply.add_argument('--dry-run', action='store_true', help='Preview without applying')
+
+    # Experiment status
+    ab_status = ab_subparsers.add_parser('status', help='Show all active experiments status')
+
     args = parser.parse_args()
 
     metrics = RoutingMetrics()
+    ab_test = ABTest()
 
     if args.command == 'report':
         report = metrics.generate_report(days=args.days, format=args.format)
@@ -377,6 +673,122 @@ def main():
             print(f"Exported to {args.output}")
         else:
             print(output)
+
+    elif args.command == 'ab-test':
+        if args.ab_command == 'create':
+            config = json.loads(Path(args.config).read_text())
+            exp_id = ab_test.create_experiment(config)
+            print(f"✓ Created experiment: {exp_id}")
+            print(f"  Name: {config['name']}")
+            print(f"  Control: {config['control']}")
+            print(f"  Variant: {config['variant']}")
+
+        elif args.ab_command == 'list':
+            experiments = ab_test.list_experiments(active_only=args.active_only)
+
+            if not experiments:
+                print("No experiments found")
+                return
+
+            print(f"\n{'ID':<30} {'Name':<30} {'Status':<10} {'Samples':<10}")
+            print("=" * 80)
+
+            for exp in experiments:
+                exp_id = exp['id']
+                name = exp['name'][:28]
+                status = "active" if exp.get('active') else "inactive"
+                control_samples = len(exp['results']['control'])
+                variant_samples = len(exp['results']['variant'])
+                samples = f"{control_samples + variant_samples}"
+
+                print(f"{exp_id:<30} {name:<30} {status:<10} {samples:<10}")
+
+        elif args.ab_command == 'analyze':
+            analysis = ab_test.analyze_experiment(args.experiment)
+
+            if 'error' in analysis:
+                print(f"❌ {analysis['error']}")
+                return
+
+            print("\n" + "=" * 60)
+            print(f"  EXPERIMENT ANALYSIS: {args.experiment}")
+            print("=" * 60)
+            print(f"\nName: {analysis['name']}")
+            print(f"Status: {analysis['status']}")
+
+            print(f"\n📊 Samples:")
+            print(f"  Control: {analysis['samples']['control']}")
+            print(f"  Variant: {analysis['samples']['variant']}")
+            print(f"  Total:   {analysis['samples']['total']} / {analysis['samples']['min_required']} required")
+
+            print(f"\n📈 Results ({analysis['primary_metric']}):")
+            results = analysis['results']
+            print(f"  Control Mean: {results['control_mean']:.4f}")
+            print(f"  Variant Mean: {results['variant_mean']:.4f}")
+            print(f"  Improvement:  {results['improvement_pct']:+.2f}%")
+
+            print(f"\n📉 Statistical Significance:")
+            print(f"  t-statistic: {results['t_statistic']:.3f}")
+            print(f"  p-value:     {results['p_value']:.3f}")
+            print(f"  Significant: {'Yes' if results['statistically_significant'] else 'No'}")
+
+            print(f"\n🎯 Recommendation:")
+            rec = analysis['recommendation']
+            if rec == 'apply_variant':
+                print(f"  ✅ APPLY VARIANT (statistically significant improvement)")
+            else:
+                print(f"  ⊘ KEEP CONTROL (no significant improvement)")
+
+            print(f"\nSuccess Criteria Met: {'Yes' if analysis['meets_success_criteria'] else 'No'}")
+            print("\n" + "=" * 60)
+
+        elif args.ab_command == 'apply':
+            result = ab_test.apply_variant(args.experiment, dry_run=args.dry_run)
+
+            if 'error' in result:
+                print(f"❌ {result['error']}")
+                if 'reason' in result:
+                    print(f"   {result['reason']}")
+                return
+
+            print(f"\n{'🔍 DRY RUN' if result['status'] == 'dry_run' else '✅ APPLIED'}")
+            print(f"\nExperiment: {result['experiment']}")
+            print("\nModifications:")
+
+            for mod in result['modifications']:
+                print(f"  {mod['target']}")
+                print(f"    Old: {mod['old_value']}")
+                print(f"    New: {mod['new_value']}")
+                print(f"    Improvement: {mod['improvement']:+.2f}%")
+
+            if result['status'] == 'dry_run':
+                print("\n💡 Run without --dry-run to apply changes")
+
+        elif args.ab_command == 'status':
+            experiments = ab_test.list_experiments(active_only=True)
+
+            if not experiments:
+                print("No active experiments")
+                return
+
+            print("\n" + "=" * 70)
+            print("  ACTIVE A/B EXPERIMENTS")
+            print("=" * 70)
+
+            for exp in experiments:
+                analysis = ab_test.analyze_experiment(exp['id'])
+
+                print(f"\n📊 {exp['name']} ({exp['id']})")
+                print(f"   Status: {analysis['status']}")
+                print(f"   Samples: {analysis['samples']['total']} / {analysis['samples']['min_required']}")
+
+                if analysis['status'] == 'complete':
+                    results = analysis['results']
+                    print(f"   Improvement: {results['improvement_pct']:+.2f}%")
+                    print(f"   Significant: {'Yes' if results['statistically_significant'] else 'No'}")
+                    print(f"   Recommendation: {analysis['recommendation']}")
+
+            print("\n" + "=" * 70)
 
     else:
         parser.print_help()
