@@ -33,14 +33,268 @@ LEARNINGS_FILE = AGENT_CORE_DIR / "memory" / "learnings.md"
 MEMORY_DIR = AGENT_CORE_DIR / "memory" / "projects"
 HOME_CLAUDE_MD = Path.home() / "CLAUDE.md"
 
+# Co-evolution integration
+CLAUDE_DIR = Path.home() / ".claude"
+STATS_CACHE = CLAUDE_DIR / "stats-cache.json"
+DETECTED_PATTERNS = CLAUDE_DIR / "kernel" / "detected-patterns.json"
+COEVO_CONFIG = CLAUDE_DIR / "kernel" / "coevo-config.json"
+
 # Markers for injection
 CONTEXT_START = "<!-- PREFETCHED CONTEXT START -->"
 CONTEXT_END = "<!-- PREFETCHED CONTEXT END -->"
+
+# Pattern-specific research foundations for recursive novelty
+PATTERN_RESEARCH_PAPERS = {
+    "debugging": {
+        "papers": ["2512.20845", "2506.08410"],  # MAR, multi-agent reflexion
+        "focus": ["error patterns", "root cause analysis", "fix verification"],
+        "suggested_tools": ["/debug", "git diff"]
+    },
+    "research": {
+        "papers": ["2511.16931", "2512.12686", "2512.12818"],  # OmniScientist, Memoria, Hindsight
+        "focus": ["papers", "learnings", "thesis gaps", "synthesis"],
+        "suggested_tools": ["log_url.py", "archive_session.py"]
+    },
+    "refactoring": {
+        "papers": ["2505.02888", "2503.00735"],  # LADDER - recursive refinement
+        "focus": ["code patterns", "test coverage", "before/after"],
+        "suggested_tools": ["/refactor", "npm test"]
+    },
+    "testing": {
+        "papers": ["2510.24797", "2601.03511"],  # IntroLM - self-evaluation
+        "focus": ["coverage", "edge cases", "test patterns"],
+        "suggested_tools": ["/test", "npm run test:coverage"]
+    },
+    "architecture": {
+        "papers": ["2507.14241", "2501.12689"],  # Promptomatix, IC-Cache
+        "focus": ["system design", "component boundaries", "trade-offs"],
+        "suggested_tools": ["/arch", "prefetch --papers"]
+    },
+    "performance": {
+        "papers": ["2501.12689", "2502.00299"],  # IC-Cache, ChunkKV
+        "focus": ["profiling", "bottlenecks", "optimization"],
+        "suggested_tools": ["npm run build", "lighthouse"]
+    },
+    "deployment": {
+        "papers": [],
+        "focus": ["CI/CD", "production checks", "rollback"],
+        "suggested_tools": ["/pr", "git status"]
+    },
+    "learning": {
+        "papers": ["2512.12686", "2512.12818"],  # Memoria, Hindsight
+        "focus": ["concepts", "examples", "documentation"],
+        "suggested_tools": ["prefetch --topic"]
+    }
+}
 
 
 class ContextPrefetcher:
     def __init__(self):
         self.projects_data = self._load_projects()
+        self.stats_cache = self._load_stats_cache()
+        self.detected_patterns = self._load_detected_patterns()
+        self.coevo_config = self._load_coevo_config()
+
+    def _load_stats_cache(self) -> Dict[str, Any]:
+        """Load stats-cache.json for temporal analysis."""
+        if STATS_CACHE.exists():
+            try:
+                return json.loads(STATS_CACHE.read_text())
+            except (json.JSONDecodeError, IOError):
+                pass
+        return {}
+
+    def _load_detected_patterns(self) -> Dict[str, Any]:
+        """Load detected-patterns.json."""
+        if DETECTED_PATTERNS.exists():
+            try:
+                return json.loads(DETECTED_PATTERNS.read_text())
+            except (json.JSONDecodeError, IOError):
+                pass
+        return {}
+
+    def _load_coevo_config(self) -> Dict[str, Any]:
+        """Load co-evolution config."""
+        if COEVO_CONFIG.exists():
+            try:
+                return json.loads(COEVO_CONFIG.read_text())
+            except (json.JSONDecodeError, IOError):
+                pass
+        return {"proactive": {"predictPatterns": True}}
+
+    def predict_pattern(self) -> Optional[str]:
+        """
+        Predict likely session pattern using:
+        1. Current time (peak hours from stats)
+        2. Recently detected patterns
+        3. Day of week patterns (if available)
+
+        Returns predicted pattern or None if uncertain.
+        """
+        # Check if prediction is enabled
+        if not self.coevo_config.get("proactive", {}).get("predictPatterns", True):
+            return None
+
+        predictions = {}
+
+        # 1. Time-based prediction
+        current_hour = datetime.now().hour
+        hour_counts = self.stats_cache.get("hourCounts", {})
+
+        # Map hours to likely patterns based on typical workflow
+        hour_pattern_weights = {
+            range(6, 10): {"research": 0.4, "learning": 0.3, "debugging": 0.3},
+            range(10, 12): {"architecture": 0.4, "debugging": 0.3, "refactoring": 0.3},
+            range(12, 14): {"learning": 0.4, "research": 0.3, "testing": 0.3},
+            range(14, 17): {"architecture": 0.5, "refactoring": 0.3, "debugging": 0.2},
+            range(17, 20): {"debugging": 0.4, "testing": 0.3, "deployment": 0.3},
+            range(20, 24): {"research": 0.4, "learning": 0.4, "refactoring": 0.2},
+            range(0, 6): {"research": 0.5, "learning": 0.5}
+        }
+
+        for hour_range, weights in hour_pattern_weights.items():
+            if current_hour in hour_range:
+                for pattern, weight in weights.items():
+                    predictions[pattern] = predictions.get(pattern, 0) + weight * 0.3
+                break
+
+        # 2. Recently detected pattern (strongest signal)
+        detected = self.detected_patterns.get("patterns", [])
+        if detected:
+            top_pattern = detected[0].get("id")
+            if top_pattern:
+                predictions[top_pattern] = predictions.get(top_pattern, 0) + 0.5
+
+        # 3. Historical pattern distribution
+        # This would come from activity-events analysis but we approximate
+
+        if not predictions:
+            return None
+
+        # Return highest confidence pattern
+        best_pattern = max(predictions, key=predictions.get)
+        if predictions[best_pattern] >= 0.3:  # Confidence threshold
+            return best_pattern
+
+        return None
+
+    def load_pattern_based_context(self, pattern: str) -> str:
+        """
+        Load context optimized for detected/specified session type.
+
+        Patterns: debugging, research, refactoring, testing,
+                  architecture, performance, deployment, learning
+
+        Returns markdown context block tailored to the pattern.
+        """
+        pattern_data = PATTERN_RESEARCH_PAPERS.get(pattern, {})
+        if not pattern_data:
+            return ""
+
+        lines = []
+        lines.append(f"### Pattern-Aware Context: {pattern.title()}")
+        lines.append("")
+
+        # Focus areas
+        focus = pattern_data.get("focus", [])
+        if focus:
+            lines.append(f"**Focus Areas:** {', '.join(focus)}")
+            lines.append("")
+
+        # Suggested tools
+        tools = pattern_data.get("suggested_tools", [])
+        if tools:
+            lines.append(f"**Suggested Tools:** `{', '.join(tools)}`")
+            lines.append("")
+
+        # Research papers (for recursive novelty)
+        papers = pattern_data.get("papers", [])
+        if papers:
+            lines.append("**Research Foundations:**")
+            for paper_id in papers:
+                lines.append(f"- [arXiv:{paper_id}](https://arxiv.org/abs/{paper_id})")
+            lines.append("")
+
+        # Pattern-specific memories
+        memory_context = self._load_pattern_memories(pattern)
+        if memory_context:
+            lines.append("**Relevant Memories:**")
+            lines.append(memory_context)
+            lines.append("")
+
+        return '\n'.join(lines)
+
+    def _load_pattern_memories(self, pattern: str) -> str:
+        """Load pattern-specific memories from learnings."""
+        if not LEARNINGS_FILE.exists():
+            return ""
+
+        content = LEARNINGS_FILE.read_text()
+
+        # Keywords associated with each pattern
+        pattern_keywords = {
+            "debugging": ["error", "fix", "bug", "debug", "issue"],
+            "research": ["paper", "arxiv", "study", "finding", "synthesis"],
+            "refactoring": ["refactor", "clean", "extract", "rename"],
+            "testing": ["test", "coverage", "spec", "assert"],
+            "architecture": ["design", "system", "component", "architecture"],
+            "performance": ["performance", "optimize", "slow", "memory"],
+            "deployment": ["deploy", "release", "production", "CI"],
+            "learning": ["learn", "understand", "concept", "tutorial"]
+        }
+
+        keywords = pattern_keywords.get(pattern, [])
+        if not keywords:
+            return ""
+
+        # Find relevant sections
+        relevant = []
+        sections = re.split(r'\n## ', content)
+
+        for section in sections[:20]:  # Limit scan
+            section_lower = section.lower()
+            if any(kw in section_lower for kw in keywords):
+                # Extract first meaningful line
+                first_lines = section.split('\n')[:3]
+                summary = ' '.join(first_lines)[:150]
+                if len(summary) > 50:
+                    relevant.append(f"- {summary}...")
+                if len(relevant) >= 3:
+                    break
+
+        return '\n'.join(relevant)
+
+    def get_proactive_suggestions(self, pattern: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get proactive suggestions based on predicted or detected pattern.
+
+        Returns dict with:
+        - predicted_pattern: the pattern we think is coming
+        - suggestions: list of proactive actions
+        - research_papers: relevant papers for the pattern
+        """
+        if pattern is None:
+            pattern = self.predict_pattern()
+
+        if not pattern:
+            return {
+                "predicted_pattern": None,
+                "suggestions": [],
+                "research_papers": []
+            }
+
+        pattern_data = PATTERN_RESEARCH_PAPERS.get(pattern, {})
+
+        return {
+            "predicted_pattern": pattern,
+            "confidence": 0.7,  # Could be calculated more precisely
+            "suggestions": pattern_data.get("suggested_tools", []),
+            "focus_areas": pattern_data.get("focus", []),
+            "research_papers": [
+                {"id": p, "url": f"https://arxiv.org/abs/{p}"}
+                for p in pattern_data.get("papers", [])
+            ]
+        }
 
     def _load_projects(self) -> Dict[str, Any]:
         """Load projects.json registry."""
@@ -332,13 +586,19 @@ class ContextPrefetcher:
         days: Optional[int] = 7,
         limit: int = 10,
         include_papers: bool = True,
-        output_mode: str = "stdout"
+        output_mode: str = "stdout",
+        pattern: Optional[str] = None,
+        proactive: bool = False
     ) -> str:
         """Main prefetch orchestration."""
 
         # Auto-detect project if not specified
         if not project:
             project = self.detect_project()
+
+        # Proactive mode: predict pattern if not specified
+        if proactive and not pattern:
+            pattern = self.predict_pattern()
 
         # Load components
         learnings = self.load_learnings(
@@ -364,6 +624,16 @@ class ContextPrefetcher:
             papers=papers,
             include_papers=include_papers
         )
+
+        # Add pattern-based context if pattern specified or predicted
+        if pattern:
+            pattern_context = self.load_pattern_based_context(pattern)
+            if pattern_context:
+                # Insert pattern context before the closing marker
+                context = context.replace(
+                    CONTEXT_END,
+                    f"\n{pattern_context}\n{CONTEXT_END}"
+                )
 
         # Output handling
         if output_mode == "clipboard":
@@ -428,10 +698,37 @@ def main():
                         help="Output as JSON instead of markdown")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress informational output")
+    parser.add_argument("--pattern", "--pat",
+                        choices=["debugging", "research", "refactoring", "testing",
+                                "architecture", "performance", "deployment", "learning"],
+                        help="Load pattern-specific context")
+    parser.add_argument("--proactive", action="store_true",
+                        help="Auto-predict pattern from time/history")
+    parser.add_argument("--suggest", action="store_true",
+                        help="Show proactive suggestions for current pattern")
 
     args = parser.parse_args()
 
     prefetcher = ContextPrefetcher()
+
+    # Handle proactive suggestions mode
+    if args.suggest:
+        suggestions = prefetcher.get_proactive_suggestions(args.pattern)
+        if args.json:
+            print(json.dumps(suggestions, indent=2))
+        else:
+            pattern = suggestions.get("predicted_pattern", "unknown")
+            print(f"\nProactive Suggestions for: {pattern}")
+            print("=" * 40)
+            if suggestions.get("focus_areas"):
+                print(f"Focus: {', '.join(suggestions['focus_areas'])}")
+            if suggestions.get("suggestions"):
+                print(f"Tools: {', '.join(suggestions['suggestions'])}")
+            if suggestions.get("research_papers"):
+                print("Research Papers:")
+                for p in suggestions["research_papers"]:
+                    print(f"  - {p['url']}")
+        return
 
     # Determine output mode
     output_mode = "stdout"
@@ -446,7 +743,9 @@ def main():
         days=args.days,
         limit=args.limit,
         include_papers=args.papers,
-        output_mode=output_mode
+        output_mode=output_mode,
+        pattern=args.pattern,
+        proactive=args.proactive
     )
 
     if args.json:
