@@ -703,6 +703,27 @@ def main():
     # Experiment status
     ab_status = ab_subparsers.add_parser('status', help='Show all active experiments status')
 
+    # CPB commands (Cognitive Precision Bridge)
+    cpb_parser = subparsers.add_parser('cpb', help='CPB precision routing')
+    cpb_subparsers = cpb_parser.add_subparsers(dest='cpb_command', help='CPB commands')
+
+    # CPB analyze
+    cpb_analyze = cpb_subparsers.add_parser('analyze', help='Analyze query complexity')
+    cpb_analyze.add_argument('query', help='Query to analyze')
+    cpb_analyze.add_argument('--context', '-c', help='Optional context')
+
+    # CPB score
+    cpb_score = cpb_subparsers.add_parser('score', help='Score a response')
+    cpb_score.add_argument('--query', '-q', required=True, help='Original query')
+    cpb_score.add_argument('--response', '-r', required=True, help='Response to score')
+
+    # CPB stats
+    cpb_stats = cpb_subparsers.add_parser('stats', help='Show CPB statistics')
+    cpb_stats.add_argument('--days', '-d', type=int, default=7, help='Days to analyze')
+
+    # CPB status
+    cpb_status = cpb_subparsers.add_parser('status', help='Show CPB status')
+
     args = parser.parse_args()
 
     metrics = RoutingMetrics()
@@ -886,6 +907,75 @@ def main():
                     print(f"   Recommendation: {analysis['recommendation']}")
 
             print("\n" + "=" * 70)
+
+    elif args.command == 'cpb':
+        # Import CPB module
+        try:
+            from cpb import cpb, dq_scorer
+        except ImportError:
+            print("❌ CPB module not found. Ensure cpb/ directory exists.")
+            sys.exit(1)
+
+        if args.cpb_command == 'analyze':
+            result = cpb.analyze(args.query, args.context)
+
+            print("\n" + "=" * 60)
+            print("  CPB QUERY ANALYSIS")
+            print("=" * 60)
+            print(f"\nQuery: {result['query']}")
+            print(f"\n📊 Complexity: {result['complexity_score']:.3f}")
+            print(f"🔀 Path: {result['selected_path'].upper()}")
+            print(f"📝 {result['reasoning']}")
+            print("=" * 60)
+
+        elif args.cpb_command == 'score':
+            dq = dq_scorer.score(args.query, args.response)
+
+            print("\n" + "=" * 60)
+            print("  DQ SCORE")
+            print("=" * 60)
+            print(f"\n📊 Overall: {dq.overall:.3f}")
+            print(f"   Validity:    {dq.validity:.3f}")
+            print(f"   Specificity: {dq.specificity:.3f}")
+            print(f"   Correctness: {dq.correctness:.3f}")
+
+            tier = dq_scorer.get_quality_tier(dq)
+            print(f"\n🏆 Tier: {tier.upper()}")
+            print("=" * 60)
+
+        elif args.cpb_command == 'stats':
+            stats = dq_scorer.get_stats(args.days)
+
+            print("\n" + "=" * 60)
+            print(f"  CPB DQ STATISTICS ({args.days} days)")
+            print("=" * 60)
+
+            if 'message' in stats:
+                print(f"\n{stats['message']}")
+            else:
+                print(f"\n📊 Total: {stats['total_scored']}")
+                print(f"📈 Avg DQ: {stats['avg_dq']:.3f}")
+                print(f"✅ Above 0.75: {stats['above_threshold']}")
+                print(f"❌ Below 0.60: {stats['below_min']}")
+
+            print("=" * 60)
+
+        elif args.cpb_command == 'status':
+            status = cpb.get_status()
+
+            print("\n" + "=" * 60)
+            print("  CPB STATUS")
+            print("=" * 60)
+            print(f"\n🏷️  Tier: {status['tier'].upper()}")
+            print(f"📚 Learning: {'✓' if status['learning_enabled'] else '✗'}")
+            print(f"✅ Verification: {'✓' if status['verification_enabled'] else '✗'}")
+            print(f"\n⚙️  Config:")
+            for k, v in status['config'].items():
+                print(f"   {k}: {v}")
+            print("=" * 60)
+
+        else:
+            print("Usage: routing-metrics.py cpb <analyze|score|stats|status>")
 
     else:
         parser.print_help()
