@@ -30,6 +30,7 @@ class CPBPath(str, Enum):
     ACE = 'ace'            # Multi-perspective → ACE consensus
     HYBRID = 'hybrid'      # Complex → RLM for context, ACE for decision
     CASCADE = 'cascade'    # Expert → Full pipeline with verification
+    PRECISION = 'precision' # Research-grounded → RG context + 7-agent + 0.95 DQ
 
 
 class CPBPhase(str, Enum):

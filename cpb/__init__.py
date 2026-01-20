@@ -115,7 +115,37 @@ from .dq_scorer import (
     meets_threshold,
 )
 
-__version__ = '1.0.0'
+# Precision Mode (lazy imports to avoid circular deps)
+def get_precision_config():
+    """Get precision mode configuration."""
+    from .precision_config import PRECISION_CONFIG
+    return PRECISION_CONFIG
+
+def get_precision_orchestrator():
+    """Get precision orchestrator singleton."""
+    from .precision_orchestrator import precision_orchestrator
+    return precision_orchestrator
+
+async def execute_precision(query: str, context=None, on_status=None):
+    """Execute precision mode query (v2 with tiered search)."""
+    from .precision_orchestrator import execute_precision as _execute
+    return await _execute(query, context, on_status)
+
+# Search Layer (v2)
+def get_search_layer():
+    """Get tiered search layer singleton."""
+    from .search_layer import get_search_layer as _get
+    return _get()
+
+async def search_tiered(query: str, max_results: int = 30):
+    """Execute tiered search using ResearchGravity methodology."""
+    from .search_layer import search_tiered as _search
+    return await _search(query, max_results)
+
+# Hooks
+from .orchestrator import cpb_hooks
+
+__version__ = '2.0.0'  # v2: Tiered search, MAR consensus, targeted refinement
 __all__ = [
     # Types
     'CPBPath',
@@ -164,4 +194,14 @@ __all__ = [
     'log_score',
     'get_stats',
     'meets_threshold',
+
+    # Precision Mode v2
+    'get_precision_config',
+    'get_precision_orchestrator',
+    'execute_precision',
+    'get_search_layer',
+    'search_tiered',
+
+    # Hooks
+    'cpb_hooks',
 ]

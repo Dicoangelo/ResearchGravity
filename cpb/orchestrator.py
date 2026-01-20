@@ -473,3 +473,123 @@ def build_ace_prompts(query: str, context: Optional[str] = None) -> List[Dict[st
 def score_response(query: str, response: str, context: Optional[str] = None) -> DQScore:
     """Score response quality using DQ framework"""
     return cpb.score_response(query, response, context)
+
+
+# =============================================================================
+# PRE/POST EXECUTION HOOKS
+# =============================================================================
+
+class CPBHooks:
+    """
+    Hooks for extending CPB execution.
+
+    Register callbacks to run before/after various stages.
+    Enables integration with precision mode and external systems.
+
+    Usage:
+        from cpb.orchestrator import cpb_hooks
+
+        @cpb_hooks.on_pre_analyze
+        def my_pre_analyze(query, context):
+            # Enrich context before analysis
+            return query, context
+
+        @cpb_hooks.on_post_score
+        def my_post_score(result):
+            # Log or modify score
+            return result
+    """
+
+    def __init__(self):
+        self._pre_analyze: List[Callable] = []
+        self._post_analyze: List[Callable] = []
+        self._pre_route: List[Callable] = []
+        self._post_route: List[Callable] = []
+        self._pre_ace: List[Callable] = []
+        self._post_ace: List[Callable] = []
+        self._pre_score: List[Callable] = []
+        self._post_score: List[Callable] = []
+
+    def on_pre_analyze(self, func: Callable) -> Callable:
+        """Decorator to register pre-analyze hook."""
+        self._pre_analyze.append(func)
+        return func
+
+    def on_post_analyze(self, func: Callable) -> Callable:
+        """Decorator to register post-analyze hook."""
+        self._post_analyze.append(func)
+        return func
+
+    def on_pre_route(self, func: Callable) -> Callable:
+        """Decorator to register pre-route hook."""
+        self._pre_route.append(func)
+        return func
+
+    def on_post_route(self, func: Callable) -> Callable:
+        """Decorator to register post-route hook."""
+        self._post_route.append(func)
+        return func
+
+    def on_pre_ace(self, func: Callable) -> Callable:
+        """Decorator to register pre-ACE hook."""
+        self._pre_ace.append(func)
+        return func
+
+    def on_post_ace(self, func: Callable) -> Callable:
+        """Decorator to register post-ACE hook."""
+        self._post_ace.append(func)
+        return func
+
+    def on_pre_score(self, func: Callable) -> Callable:
+        """Decorator to register pre-score hook."""
+        self._pre_score.append(func)
+        return func
+
+    def on_post_score(self, func: Callable) -> Callable:
+        """Decorator to register post-score hook."""
+        self._post_score.append(func)
+        return func
+
+    def run_pre_hooks(self, hook_type: str, *args) -> tuple:
+        """Run all pre-hooks of a given type."""
+        hooks = getattr(self, f'_pre_{hook_type}', [])
+        result = args
+        for hook in hooks:
+            try:
+                result = hook(*result)
+                if not isinstance(result, tuple):
+                    result = (result,)
+            except Exception as e:
+                # Log but don't break execution
+                pass
+        return result
+
+    def run_post_hooks(self, hook_type: str, result: Any) -> Any:
+        """Run all post-hooks of a given type."""
+        hooks = getattr(self, f'_post_{hook_type}', [])
+        for hook in hooks:
+            try:
+                result = hook(result)
+            except Exception as e:
+                # Log but don't break execution
+                pass
+        return result
+
+    def clear_hooks(self, hook_type: Optional[str] = None):
+        """Clear registered hooks."""
+        if hook_type:
+            setattr(self, f'_pre_{hook_type}', [])
+            setattr(self, f'_post_{hook_type}', [])
+        else:
+            self._pre_analyze = []
+            self._post_analyze = []
+            self._pre_route = []
+            self._post_route = []
+            self._pre_ace = []
+            self._post_ace = []
+            self._pre_score = []
+            self._post_score = []
+
+
+# Global hooks instance
+cpb_hooks = CPBHooks()
