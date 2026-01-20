@@ -2,18 +2,24 @@
 """
 CPB Precision Mode - Critic Verifier
 
-Integration layer for EvidenceCritic + OracleConsensus verification.
+Integration layer for EvidenceCritic + OracleConsensus + GroundTruth verification.
 Provides evidence-backed quality validation for precision mode responses.
 
 Verification Pipeline:
 1. EvidenceCritic - Validates citations and source quality
 2. OracleConsensus - Multi-stream validation (3 perspectives)
 3. ConfidenceScorer - Calculates calibrated confidence
+4. GroundTruthValidator - Validates against extracted claims, cross-source agreement, self-consistency
 
-DQ Weights (Precision Mode):
-- Validity: 30% (down from 40%)
-- Specificity: 25% (down from 30%)
-- Correctness: 45% (up from 30% - evidence-backed)
+DQ Weights (Precision Mode v2):
+- Validity: 25% (down from 30%)
+- Specificity: 20% (down from 25%)
+- Correctness: 30% (down from 45%)
+- GroundTruth: 25% (NEW - factual accuracy + cross-source + self-consistency)
+
+Research Foundation:
+- arXiv:2512.00047 (Emergent Convergence) - Self-consistency in multi-agent
+- arXiv:2508.17536 (Voting vs Debate) - Agreement as quality signal
 """
 
 import re
@@ -35,6 +41,12 @@ from .precision_config import (
     PRECISION_VERIFICATION_THRESHOLDS,
     calculate_precision_dq
 )
+from .ground_truth import (
+    GroundTruthValidator,
+    ValidationResult as GTValidationResult,
+    get_validator as get_gt_validator,
+    validate_against_ground_truth,
+)
 
 
 # =============================================================================
@@ -52,10 +64,23 @@ class VerificationResult:
     oracle_score: float = 0.0
     confidence_score: float = 0.0
 
+    # Ground truth scores (v2)
+    ground_truth_score: float = 0.0
+    factual_accuracy: float = 0.0
+    cross_source_score: float = 0.0
+    self_consistency: float = 0.0
+
     # Detailed metrics
     validity: float = 0.0
     specificity: float = 0.0
     correctness: float = 0.0
+
+    # Claims analysis (v2)
+    claims_checked: int = 0
+    claims_verified: int = 0
+    claims_contradicted: int = 0
+    verified_claims: List[str] = field(default_factory=list)
+    contradicted_claims: List[str] = field(default_factory=list)
 
     # Issues and citations
     issues: List[Dict[str, Any]] = field(default_factory=list)
@@ -63,7 +88,7 @@ class VerificationResult:
     citations_verified: int = 0
 
     # Metadata
-    verification_method: str = "precision"
+    verification_method: str = "precision_v2"
     retries_recommended: int = 0
     feedback: str = ""
 
@@ -74,9 +99,18 @@ class VerificationResult:
             'evidence_score': self.evidence_score,
             'oracle_score': self.oracle_score,
             'confidence_score': self.confidence_score,
+            'ground_truth_score': self.ground_truth_score,
+            'factual_accuracy': self.factual_accuracy,
+            'cross_source_score': self.cross_source_score,
+            'self_consistency': self.self_consistency,
             'validity': self.validity,
             'specificity': self.specificity,
             'correctness': self.correctness,
+            'claims_checked': self.claims_checked,
+            'claims_verified': self.claims_verified,
+            'claims_contradicted': self.claims_contradicted,
+            'verified_claims': self.verified_claims,
+            'contradicted_claims': self.contradicted_claims,
             'issues': self.issues,
             'citations_found': self.citations_found,
             'citations_verified': self.citations_verified,
@@ -322,18 +356,24 @@ class CitationExtractor:
 
 class CriticVerifier:
     """
-    Main verification pipeline for precision mode.
+    Main verification pipeline for precision mode v2.
 
     Integrates:
     - EvidenceCritic for citation/source validation
     - OracleConsensus for multi-stream verification
     - ConfidenceScorer for calibrated confidence
+    - GroundTruthValidator for factual accuracy and consistency (v2)
+
+    Research Foundation:
+    - arXiv:2512.00047 (Emergent Convergence) - Self-consistency
+    - arXiv:2508.17536 (Voting vs Debate) - Agreement as quality signal
     """
 
     def __init__(self):
         self.evidence_critic = EvidenceCritic()
         self.confidence_scorer = ConfidenceScorer()
         self.citation_extractor = CitationExtractor()
+        self.ground_truth_validator = get_gt_validator()
         self.thresholds = PRECISION_VERIFICATION_THRESHOLDS
 
     async def verify(
@@ -344,7 +384,15 @@ class CriticVerifier:
         context: Optional[str] = None
     ) -> VerificationResult:
         """
-        Run full verification pipeline on a response.
+        Run full verification pipeline on a response (v2 with ground truth).
+
+        Pipeline:
+        1. Citation extraction and verification
+        2. Evidence scoring
+        3. Oracle consensus scoring
+        4. Confidence scoring
+        5. Ground truth validation (v2) - factual accuracy, cross-source, self-consistency
+        6. Combined DQ calculation with ground truth weight
 
         Args:
             response: The response to verify
@@ -353,7 +401,7 @@ class CriticVerifier:
             context: Context used for response
 
         Returns:
-            VerificationResult with combined scores
+            VerificationResult with combined scores including ground truth
         """
         # Extract citations from response
         citations = self.citation_extractor.extract_citations(response)
@@ -375,6 +423,22 @@ class CriticVerifier:
             response, citations_verified, citations_found, evidence_score
         )
 
+        # =================================================================
+        # GROUND TRUTH VALIDATION (v2)
+        # =================================================================
+        # Validate against extracted claims, cross-source agreement, self-consistency
+        gt_result = await self.ground_truth_validator.validate(
+            query=query or "",
+            output=response,
+            sources=sources
+        )
+
+        # Extract ground truth scores
+        factual_accuracy = gt_result.factual_accuracy
+        cross_source_score = gt_result.cross_source_score
+        self_consistency = gt_result.self_consistency
+        ground_truth_score = gt_result.ground_truth_score
+
         # Calculate DQ components
         validity = self._score_validity(response, query)
         specificity = self._score_specificity(response)
@@ -382,34 +446,81 @@ class CriticVerifier:
             evidence_score, oracle_score, citations_verified, citations_found
         )
 
-        # Calculate weighted DQ score
-        dq_score = calculate_precision_dq(validity, specificity, correctness)
+        # =================================================================
+        # DQ CALCULATION v2 (with ground truth weight)
+        # =================================================================
+        # New weights: validity (25%) + specificity (20%) + correctness (30%) + ground_truth (25%)
+        dq_v2_weights = {
+            'validity': 0.25,
+            'specificity': 0.20,
+            'correctness': 0.30,
+            'ground_truth': 0.25,
+        }
 
-        # Also factor in critic scores
+        dq_score = (
+            validity * dq_v2_weights['validity'] +
+            specificity * dq_v2_weights['specificity'] +
+            correctness * dq_v2_weights['correctness'] +
+            ground_truth_score * dq_v2_weights['ground_truth']
+        )
+
+        # Also factor in critic scores for combined score
         combined_score = (
-            dq_score * 0.5 +
+            dq_score * 0.6 +
             evidence_score * PRECISION_CRITIC_WEIGHTS['evidence_critic'] +
             oracle_score * PRECISION_CRITIC_WEIGHTS['oracle_consensus'] +
             confidence_score * PRECISION_CRITIC_WEIGHTS['confidence_scorer']
-        ) / 1.5  # Normalize
+        ) / 1.4  # Normalize
 
-        # Collect issues
+        # Collect issues (including ground truth issues)
         issues = self._collect_issues(
             response, citations, citations_verified, citations_found,
             validity, specificity, correctness
         )
 
+        # Add ground truth issues
+        if gt_result.claims_contradicted > 0:
+            issues.append({
+                'code': 'CONTRADICTED_CLAIMS',
+                'message': f'{gt_result.claims_contradicted} claims contradicted by ground truth',
+                'severity': 'error',
+                'suggestion': 'Review and correct contradicted claims'
+            })
+
+        if cross_source_score < 0.5:
+            issues.append({
+                'code': 'LOW_SOURCE_AGREEMENT',
+                'message': f'Sources show low agreement ({cross_source_score:.2f})',
+                'severity': 'warning',
+                'suggestion': 'Seek additional sources or qualify conflicting information'
+            })
+
+        if self_consistency < 0.5:
+            issues.append({
+                'code': 'LOW_SELF_CONSISTENCY',
+                'message': f'Response inconsistent with previous runs ({self_consistency:.2f})',
+                'severity': 'warning',
+                'suggestion': 'Review for factual stability'
+            })
+
         # Determine if passed
         passed = (
             combined_score >= self.thresholds.combined_min and
-            evidence_score >= self.thresholds.evidence_min * 0.9 and  # Allow some slack
+            evidence_score >= self.thresholds.evidence_min * 0.9 and
+            gt_result.claims_contradicted == 0 and  # No contradictions allowed
             not any(i.get('severity') == 'critical' for i in issues)
         )
 
-        # Generate feedback for retry
+        # Generate feedback for retry (including ground truth feedback)
         feedback = self._generate_feedback(
             issues, validity, specificity, correctness, citations_verified, citations_found
         )
+
+        if gt_result.claims_contradicted > 0:
+            feedback += f"\n- Remove or correct contradicted claims: {', '.join(gt_result.contradicted_claims[:3])}"
+
+        if ground_truth_score < 0.6:
+            feedback += "\n- Improve factual accuracy by verifying claims against sources"
 
         # Calculate recommended retries
         retries = self._calculate_retries_needed(combined_score)
@@ -420,9 +531,18 @@ class CriticVerifier:
             evidence_score=round(evidence_score, 3),
             oracle_score=round(oracle_score, 3),
             confidence_score=round(confidence_score, 3),
+            ground_truth_score=round(ground_truth_score, 3),
+            factual_accuracy=round(factual_accuracy, 3),
+            cross_source_score=round(cross_source_score, 3),
+            self_consistency=round(self_consistency, 3),
             validity=round(validity, 3),
             specificity=round(specificity, 3),
             correctness=round(correctness, 3),
+            claims_checked=gt_result.claims_checked,
+            claims_verified=gt_result.claims_verified,
+            claims_contradicted=gt_result.claims_contradicted,
+            verified_claims=gt_result.verified_claims[:10],  # Limit for output
+            contradicted_claims=gt_result.contradicted_claims,
             issues=issues,
             citations_found=citations_found,
             citations_verified=citations_verified,

@@ -67,7 +67,7 @@ def _get_executor():
 
 @dataclass
 class PrecisionResult:
-    """Result from precision mode execution."""
+    """Result from precision mode execution (v2 with ground truth)."""
     # Core output
     output: str = ""
     confidence: float = 0.0
@@ -77,6 +77,19 @@ class PrecisionResult:
     validity: float = 0.0
     specificity: float = 0.0
     correctness: float = 0.0
+
+    # Ground truth metrics (v2)
+    ground_truth_score: float = 0.0
+    factual_accuracy: float = 0.0
+    cross_source_score: float = 0.0
+    self_consistency: float = 0.0
+
+    # Claims analysis (v2)
+    claims_checked: int = 0
+    claims_verified: int = 0
+    claims_contradicted: int = 0
+    verified_claims: List[str] = field(default_factory=list)
+    contradicted_claims: List[str] = field(default_factory=list)
 
     # Editorial frame (v2)
     thesis: str = ""
@@ -124,6 +137,18 @@ class PrecisionResult:
             'validity': self.validity,
             'specificity': self.specificity,
             'correctness': self.correctness,
+            # Ground truth metrics (v2)
+            'ground_truth_score': self.ground_truth_score,
+            'factual_accuracy': self.factual_accuracy,
+            'cross_source_score': self.cross_source_score,
+            'self_consistency': self.self_consistency,
+            # Claims analysis
+            'claims_checked': self.claims_checked,
+            'claims_verified': self.claims_verified,
+            'claims_contradicted': self.claims_contradicted,
+            'verified_claims': self.verified_claims,
+            'contradicted_claims': self.contradicted_claims,
+            # Editorial
             'thesis': self.thesis,
             'gap': self.gap,
             'innovation_direction': self.innovation_direction,
@@ -289,6 +314,18 @@ class PrecisionOrchestrator:
             result.validity = verification.validity
             result.specificity = verification.specificity
             result.correctness = verification.correctness
+            # Ground truth scores (v2)
+            result.ground_truth_score = verification.ground_truth_score
+            result.factual_accuracy = verification.factual_accuracy
+            result.cross_source_score = verification.cross_source_score
+            result.self_consistency = verification.self_consistency
+            # Claims analysis
+            result.claims_checked = verification.claims_checked
+            result.claims_verified = verification.claims_verified
+            result.claims_contradicted = verification.claims_contradicted
+            result.verified_claims = verification.verified_claims
+            result.contradicted_claims = verification.contradicted_claims
+            # Citation stats
             result.citations_found = verification.citations_found
             result.citations_verified = verification.citations_verified
 
@@ -332,6 +369,18 @@ class PrecisionOrchestrator:
                 result.validity = verification.validity
                 result.specificity = verification.specificity
                 result.correctness = verification.correctness
+                # Ground truth scores (v2)
+                result.ground_truth_score = verification.ground_truth_score
+                result.factual_accuracy = verification.factual_accuracy
+                result.cross_source_score = verification.cross_source_score
+                result.self_consistency = verification.self_consistency
+                # Claims analysis
+                result.claims_checked = verification.claims_checked
+                result.claims_verified = verification.claims_verified
+                result.claims_contradicted = verification.claims_contradicted
+                result.verified_claims = verification.verified_claims
+                result.contradicted_claims = verification.contradicted_claims
+                # Citation stats
                 result.citations_found = verification.citations_found
                 result.citations_verified = verification.citations_verified
 
@@ -656,15 +705,18 @@ Include thesis, gap analysis, and innovation direction."""
 
     def _identify_weakest_dimension(self, verification: VerificationResult) -> str:
         """
-        Identify weakest DQ dimension for targeted refinement.
+        Identify weakest DQ dimension for targeted refinement (v2 with ground truth).
 
         From arXiv:2502.18530 (IMPROVE):
         Focus on one component at a time rather than global updates.
+
+        v2 adds ground_truth as a targetable dimension.
         """
         dimensions = {
             'validity': verification.validity,
             'specificity': verification.specificity,
             'correctness': verification.correctness,
+            'ground_truth': verification.ground_truth_score,  # v2
         }
         return min(dimensions, key=dimensions.get)
 
@@ -673,7 +725,7 @@ Include thesis, gap analysis, and innovation direction."""
         verification: VerificationResult,
         target_dim: str
     ) -> str:
-        """Generate feedback targeting the weakest dimension."""
+        """Generate feedback targeting the weakest dimension (v2 with ground truth)."""
         prompts = {
             'validity': """IMPROVE VALIDITY:
 - Strengthen logical coherence
@@ -692,6 +744,13 @@ Include thesis, gap analysis, and innovation direction."""
 - Remove unsupported statements
 - Ensure citations match content
 - Fix any factual errors""",
+
+            'ground_truth': """IMPROVE GROUND TRUTH ACCURACY:
+- Verify all factual claims against retrieved source content
+- Remove or qualify claims that multiple sources disagree on
+- Ensure consistency with previous responses on this topic
+- Do not make claims that cannot be verified from sources
+- Cite specific passages from sources when making factual claims""",
         }
 
         base_feedback = prompts.get(target_dim, "Improve overall quality.")
