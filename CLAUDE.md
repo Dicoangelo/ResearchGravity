@@ -68,13 +68,22 @@ python3 backfill_learnings.py                  # Regenerate learnings.md from al
 python3 backfill_learnings.py --since 7        # Last 7 days only
 
 # ═══════════════════════════════════════════════════════════
-# CPB PRECISION MODE v2
+# CPB PRECISION MODE v2.1 (with Ground Truth)
 # ═══════════════════════════════════════════════════════════
 python3 -m cpb precision "query"               # Run precision mode (95%+ DQ target)
 python3 -m cpb precision "query" --verbose     # With detailed output
 python3 -m cpb precision --interactive         # Interactive REPL mode
 python3 -m cpb precision --status              # Show orchestrator status
 python3 -m cpb precision --agents              # List 7 agent personas
+
+# ═══════════════════════════════════════════════════════════
+# CPB FEEDBACK & GROUND TRUTH LEARNING
+# ═══════════════════════════════════════════════════════════
+python3 -m cpb feedback --stats                # Show feedback statistics
+python3 -m cpb feedback --list                 # List recent feedback
+python3 -m cpb feedback --interactive          # Interactive feedback collection
+python3 -m cpb feedback --query "Q" --output "A" --rating 4  # Record feedback
+python3 -m cpb feedback --export feedback.json # Export feedback data
 ```
 
 ## Architecture
@@ -93,6 +102,14 @@ researchgravity/               # Scripts (this repo)
 │   ├── archive_critic.py      # Archive validation
 │   ├── evidence_critic.py     # Evidence validation
 │   └── pack_critic.py         # Pack validation
+├── cpb/                       # Cognitive Precision Bridge v2.1
+│   ├── precision_orchestrator.py  # 7-agent cascade with ground truth
+│   ├── search_layer.py        # Tiered search (arXiv, GitHub, internal)
+│   ├── ground_truth.py        # Ground truth validation system
+│   ├── critic_verifier.py     # DQ scoring with ground truth weight
+│   ├── feedback_cli.py        # Human feedback collection
+│   ├── llm_client.py          # Multi-provider LLM client
+│   └── precision_cli.py       # Precision mode CLI
 ├── prefetch.py                # Context prefetcher for Claude sessions
 ├── backfill_learnings.py      # Extract learnings from archived sessions
 ├── init_session.py            # Session initialization
