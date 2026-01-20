@@ -11,17 +11,23 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-3.5.0-00d9ff?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-5.0.0-00d9ff?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/badge/Status-Active-success?style=for-the-badge" alt="Status" />
+  <img src="https://img.shields.io/badge/Status-Production-success?style=for-the-badge" alt="Status" />
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Sessions-54+-4a0080?style=for-the-badge" alt="Sessions" />
-  <img src="https://img.shields.io/badge/Papers-306+-00d9ff?style=for-the-badge" alt="Papers" />
-  <img src="https://img.shields.io/badge/URLs-3,200+-1a1a2e?style=for-the-badge" alt="URLs" />
-  <img src="https://img.shields.io/badge/Concepts-479+-success?style=for-the-badge" alt="Concepts" />
+  <img src="https://img.shields.io/badge/Sessions-114+-4a0080?style=for-the-badge" alt="Sessions" />
+  <img src="https://img.shields.io/badge/Findings-2,530+-00d9ff?style=for-the-badge" alt="Findings" />
+  <img src="https://img.shields.io/badge/URLs-8,935+-1a1a2e?style=for-the-badge" alt="URLs" />
+  <img src="https://img.shields.io/badge/Tokens-27M+-success?style=for-the-badge" alt="Tokens" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Graph_Nodes-11,579-purple?style=for-the-badge" alt="Graph Nodes" />
+  <img src="https://img.shields.io/badge/API_Endpoints-19-blue?style=for-the-badge" alt="API Endpoints" />
+  <img src="https://img.shields.io/badge/Critics-3-orange?style=for-the-badge" alt="Critics" />
 </p>
 
 <p align="center">
@@ -34,7 +40,49 @@
 
 ---
 
-## What's New in v4.0 (January 2026)
+## What's New in v5.0 — Chief of Staff (January 2026)
+
+**The AI Second Brain is now complete.** Full infrastructure for sovereign knowledge management.
+
+| Feature | Description |
+|---------|-------------|
+| **🏛️ Storage Triad** | SQLite (WAL mode, FTS5) + Qdrant (semantic search) |
+| **⚖️ Writer-Critic System** | 3 critics validate archives, evidence, and context packs |
+| **🕸️ Graph Intelligence** | 11,579 nodes, 13,744 edges — concept relationships & lineage |
+| **🔌 REST API** | 19 endpoints on port 3847 for cross-app integration |
+| **📊 Oracle Consensus** | Multi-stream validation for high-stakes outputs |
+| **🎯 Evidence Layer** | Citations, confidence scoring, source validation |
+
+### Chief of Staff Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         CHIEF OF STAFF INFRASTRUCTURE                         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐   │
+│  │   CAPTURE   │───▶│  STORAGE    │───▶│ INTELLIGENCE│───▶│  RETRIEVAL  │   │
+│  │             │    │   TRIAD     │    │             │    │     API     │   │
+│  │ Sessions    │    │             │    │ Writer      │    │             │   │
+│  │ URLs        │    │ SQLite      │    │ Critic      │    │ REST /api/* │   │
+│  │ Findings    │    │ Qdrant      │    │ Oracle      │    │ Graph /v2   │   │
+│  │ Transcripts │    │ Graph       │    │ Evidence    │    │ SDK         │   │
+│  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘   │
+│                                                                               │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │                           GRAPH INTELLIGENCE                            │  │
+│  │                                                                         │  │
+│  │   Sessions ──contains──▶ Findings ──cites──▶ Papers                    │  │
+│  │      │                      │                   │                       │  │
+│  │      └──────enables─────────┴────derives_from───┘                       │  │
+│  │                                                                         │  │
+│  │   11,579 Nodes  •  13,744 Edges  •  Concept Clusters  •  Lineage       │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### v4.0 Features (Still Available)
 
 | Feature | Description |
 |---------|-------------|
@@ -70,7 +118,7 @@
 | Feature | Description |
 |---------|-------------|
 | **Precision Bridge Research** | Tesla US20260017019A1 → RLM synthesis methodology |
-| **Cognitive Wallet Tracking** | 54 sessions, 306 papers, 3,200+ URLs accumulated |
+| **Cognitive Wallet Tracking** | 114 sessions, 2,530 findings, 8,935 URLs, 27M tokens |
 | **Deep Dive Workflow** | Multi-paper synthesis with implementation output |
 | **Framework Extraction** | COMPRESS → EXPLORE → RECONSTRUCT pattern identified |
 
@@ -78,6 +126,7 @@
 
 | Session | Papers | Output |
 |---------|--------|--------|
+| Chief of Staff Architecture | 374 | Storage Triad, Graph Intelligence, Writer-Critic |
 | Tesla Mixed-Precision RoPE | 15 arXiv | `recursiveLanguageModel.ts` implementation |
 | Multi-Agent Orchestration | 12 arXiv | ACE/DQ Scoring in OS-App |
 | CPB Integration | 8 arXiv | `cpb/` Python module |
@@ -167,27 +216,52 @@ Traditional research workflows fail at the frontier:
 
 ```
 ResearchGravity/                    # SCRIPTS (git repo)
-├── cpb/                            # 🆕 Cognitive Precision Bridge (v4.0)
+│
+├── api/                            # 🆕 REST API Server (v5.0)
+│   └── server.py                   # FastAPI on port 3847 — 19 endpoints
+│
+├── storage/                        # 🆕 Storage Triad (v5.0)
+│   ├── __init__.py                 # Package exports
+│   ├── sqlite_db.py                # SQLite with WAL mode, FTS5
+│   ├── qdrant_db.py                # Vector search (all-MiniLM-L6-v2)
+│   ├── engine.py                   # Unified storage interface
+│   ├── migrate.py                  # JSON → relational migration
+│   └── ucw_ingestion.py            # UCW pack imports
+│
+├── critic/                         # 🆕 Writer-Critic System (v5.0)
+│   ├── __init__.py                 # Package exports
+│   ├── base.py                     # CriticBase, ValidationResult, OracleConsensus
+│   ├── archive_critic.py           # Validates archive completeness
+│   ├── evidence_critic.py          # Validates citation accuracy
+│   └── pack_critic.py              # Validates context pack relevance
+│
+├── graph/                          # 🆕 Graph Intelligence (v5.0)
+│   ├── __init__.py                 # Package exports
+│   ├── lineage.py                  # LineageNode, LineageEdge, LineageGraph
+│   ├── concept_graph.py            # ConceptGraph — relationship traversal
+│   └── queries.py                  # Convenience query functions
+│
+├── cpb/                            # Cognitive Precision Bridge (v4.0)
 │   ├── __init__.py                 # Package exports
 │   ├── types.py                    # Path types, configs, DQScore
 │   ├── router.py                   # Complexity analysis, path selection
 │   ├── orchestrator.py             # 5-agent ACE consensus, learning
 │   ├── dq_scorer.py                # DQ quality measurement
 │   └── cli.py                      # CLI interface
-├── prefetch.py                     # Context prefetcher for Claude sessions (v3.4)
-├── backfill_learnings.py           # Extract learnings from archived sessions (v3.4)
-├── routing-metrics.py              # Routing performance + CPB integration
-├── confidence_scorer.py            # Evidence validation scoring
+│
+├── evidence_extractor.py           # Extract citations from findings
+├── evidence_validator.py           # Writer-Critic evidence validation
+├── reinvigorate.py                 # Session context reconstruction
+├── sync_to_ccc.py                  # CCC dashboard sync
+├── prefetch.py                     # Context prefetcher for Claude sessions
+├── backfill_learnings.py           # Extract learnings from archived sessions
 ├── init_session.py                 # Initialize + auto-register sessions
-├── session_tracker.py              # Auto-capture engine (v3.1)
-├── auto_capture.py                 # Backfill historical sessions (v3.1)
-├── project_context.py              # Project context loader (v3.2)
-├── youtube_channel.py              # YouTube research & transcripts (v3.3)
+├── session_tracker.py              # Auto-capture engine
+├── auto_capture.py                 # Backfill historical sessions
+├── archive_session.py              # Archive with critic validation
 ├── log_url.py                      # Manual URL logging
 ├── status.py                       # Cold start session checker
-├── archive_session.py              # Archive completed sessions
-├── sync_environments.py            # Cross-environment sync
-└── SKILL.md                        # Agent Core v3.4 documentation
+└── SKILL.md                        # Agent Core documentation
 
 ~/.agent-core/                      # DATA (single source of truth)
 ├── projects.json                   # Project registry (v3.2)
@@ -567,16 +641,111 @@ ResearchGravity integrates with the **Antigravity ecosystem**:
 
 ---
 
+## API Server (v5.0)
+
+Start the Chief of Staff API:
+
+```bash
+python api/server.py
+# Running on http://127.0.0.1:3847
+```
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/sessions` | GET | List all sessions |
+| `/api/v1/sessions/{id}` | GET | Get session details |
+| `/api/v1/findings` | GET | Search findings |
+| `/api/v1/urls` | GET | Search URLs |
+| `/api/v2/graph/stats` | GET | Graph statistics |
+| `/api/v2/graph/session/{id}` | GET | Session subgraph (D3 format) |
+| `/api/v2/graph/related/{id}` | GET | Related sessions |
+| `/api/v2/graph/lineage/{id}` | GET | Research lineage chain |
+| `/api/v2/graph/clusters` | GET | Concept clusters |
+| `/api/v2/graph/timeline` | GET | Research timeline |
+| `/api/v2/graph/network/{id}` | GET | Concept network |
+
+### Example Queries
+
+```bash
+# Get graph stats
+curl http://localhost:3847/api/v2/graph/stats | jq
+
+# Get session subgraph
+curl "http://localhost:3847/api/v2/graph/session/my-session-id?depth=2" | jq
+
+# Find concept clusters
+curl "http://localhost:3847/api/v2/graph/clusters?min_size=5" | jq
+```
+
+---
+
+## Writer-Critic System (v5.0)
+
+High-stakes outputs are validated by dual-agent critic system:
+
+| Critic | Target | Confidence |
+|--------|--------|------------|
+| **ArchiveCritic** | Archive completeness (files, metadata, findings) | 96.3% |
+| **EvidenceCritic** | Citation accuracy, source validation | Threshold: 0.7 |
+| **PackCritic** | Context pack relevance, token efficiency | Threshold: 0.7 |
+
+```python
+from critic import ArchiveCritic, EvidenceCritic
+
+# Validate an archive
+critic = ArchiveCritic()
+result = await critic.validate("session-id")
+print(f"Valid: {result.valid}, Confidence: {result.confidence:.2%}")
+```
+
+---
+
+## Graph Intelligence (v5.0)
+
+Query the knowledge graph:
+
+```python
+from graph import ConceptGraph, get_research_lineage
+
+# Get session subgraph
+graph = ConceptGraph()
+await graph.load()
+subgraph = await graph.get_session_graph("session-id", depth=2)
+d3_data = subgraph.to_d3_format()  # For visualization
+
+# Get research lineage
+lineage = await get_research_lineage("session-id")
+print(f"Ancestors: {len(lineage['ancestors'])}")
+print(f"Descendants: {len(lineage['descendants'])}")
+
+# Find concept clusters
+clusters = await graph.get_concept_clusters(min_size=5)
+```
+
+---
+
 ## Roadmap
 
-- [x] ~~Auto-capture sessions~~ (v3.1)
-- [x] ~~Cross-project lineage tracking~~ (v3.1)
-- [x] ~~Project registry & context loader~~ (v3.2)
-- [x] ~~Unified research index~~ (v3.2)
-- [x] ~~Context prefetcher & memory injection~~ (v3.4)
-- [x] ~~Learnings backfill from archived sessions~~ (v3.4)
-- [ ] MCP integration for tool context
-- [ ] Auto-synthesis via LLM
+### Completed ✅
+- [x] Auto-capture sessions (v3.1)
+- [x] Cross-project lineage tracking (v3.1)
+- [x] Project registry & context loader (v3.2)
+- [x] Unified research index (v3.2)
+- [x] Context prefetcher & memory injection (v3.4)
+- [x] Learnings backfill from archived sessions (v3.4)
+- [x] CPB — Cognitive Precision Bridge (v4.0)
+- [x] Storage Triad — SQLite + Qdrant (v5.0)
+- [x] Writer-Critic validation system (v5.0)
+- [x] Graph Intelligence — concept relationships (v5.0)
+- [x] REST API — 19 endpoints (v5.0)
+- [x] Evidence Layer — citations & confidence (v5.0)
+- [x] CCC Dashboard sync (v5.0)
+
+### Future
+- [ ] OS-App SDK integration
+- [ ] Real-time WebSocket updates
 - [ ] Browser extension for URL capture
 - [ ] Team collaboration features
 
