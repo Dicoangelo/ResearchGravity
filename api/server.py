@@ -699,6 +699,108 @@ if FASTAPI_AVAILABLE:
             raise HTTPException(status_code=500, detail=str(e))
 
     # ============================================================
+    # Graph Intelligence Endpoints (Phase 6)
+    # ============================================================
+
+    # Import graph module if available
+    GRAPH_AVAILABLE = False
+    try:
+        from graph import ConceptGraph, get_related_sessions, get_research_lineage, get_concept_network
+        GRAPH_AVAILABLE = True
+    except ImportError:
+        pass
+
+    @app.get("/api/v2/graph/stats")
+    async def graph_stats():
+        """Get knowledge graph statistics."""
+        if not GRAPH_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Graph module not available")
+
+        graph = ConceptGraph()
+        stats = await graph.get_stats()
+        return stats
+
+    @app.get("/api/v2/graph/session/{session_id}")
+    async def get_session_graph(session_id: str, depth: int = Query(2, ge=1, le=4)):
+        """
+        Get the knowledge subgraph centered on a session.
+
+        Returns D3.js compatible format for visualization.
+        """
+        if not GRAPH_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Graph module not available")
+
+        graph = ConceptGraph()
+        subgraph = await graph.get_session_graph(session_id, depth=depth)
+        return subgraph.to_d3_format()
+
+    @app.get("/api/v2/graph/related/{session_id}")
+    async def related_sessions(session_id: str, limit: int = Query(10, ge=1, le=50)):
+        """
+        Find sessions related to a given session.
+
+        Uses shared sources and lineage connections.
+        """
+        if not GRAPH_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Graph module not available")
+
+        related = await get_related_sessions(session_id, limit=limit)
+        return {"session_id": session_id, "related": related}
+
+    @app.get("/api/v2/graph/lineage/{session_id}")
+    async def session_lineage(session_id: str, include_urls: bool = True):
+        """
+        Get the complete research lineage for a session.
+
+        Returns ancestors (what it builds on) and descendants (what builds on it).
+        """
+        if not GRAPH_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Graph module not available")
+
+        lineage = await get_research_lineage(session_id, include_urls=include_urls)
+        return lineage
+
+    @app.get("/api/v2/graph/clusters")
+    async def concept_clusters(min_size: int = Query(5, ge=2, le=50)):
+        """
+        Find concept clusters (groups of related sessions/findings).
+
+        Returns connected components analysis.
+        """
+        if not GRAPH_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Graph module not available")
+
+        graph = ConceptGraph()
+        clusters = await graph.get_concept_clusters(min_size=min_size)
+        return {"clusters": clusters, "total": len(clusters)}
+
+    @app.get("/api/v2/graph/timeline")
+    async def research_timeline(
+        project: Optional[str] = None,
+        limit: int = Query(50, ge=1, le=200)
+    ):
+        """Get chronological research timeline with lineage links."""
+        if not GRAPH_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Graph module not available")
+
+        graph = ConceptGraph()
+        timeline = await graph.get_research_timeline(project=project, limit=limit)
+        return {"timeline": timeline, "count": len(timeline)}
+
+    @app.get("/api/v2/graph/network/{node_id}")
+    async def concept_network(node_id: str, depth: int = Query(2, ge=1, le=4)):
+        """
+        Get a concept network centered on any node.
+
+        node_id format: "session:xxx" or "finding:xxx" or just session_id
+        """
+        if not GRAPH_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Graph module not available")
+
+        network = await get_concept_network(node_id, depth=depth)
+        return network
+
+    # ============================================================
     # Original Endpoints (backward compatibility)
     # ============================================================
 

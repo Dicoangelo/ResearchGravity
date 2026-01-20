@@ -36,10 +36,9 @@ try:
     from critic import (
         ArchiveCritic,
         EvidenceCritic,
-        OracleValidator,
-        run_oracle_consensus,
-        CriticResult
+        ValidationResult,
     )
+    from critic.base import OracleConsensus
     CRITIC_SYSTEM_AVAILABLE = True
 except ImportError:
     CRITIC_SYSTEM_AVAILABLE = False
@@ -378,29 +377,55 @@ def archive_session(
 
     # ═══════════════════════════════════════════════════════════════
     # CRITIC SYSTEM: Oracle Multi-Stream Archive Validation
-    # Runs ArchiveCritic + EvidenceCritic with Oracle consensus
+    # Runs ArchiveCritic + EvidenceCritic for dual validation
     # ═══════════════════════════════════════════════════════════════
     critic_result = None
     if CRITIC_SYSTEM_AVAILABLE and not skip_validation:
         print("🔎 Critic System Validation...")
         try:
-            # Run Oracle consensus with archive and evidence critics
-            validator = OracleValidator(
-                critics=[ArchiveCritic(), EvidenceCritic()],
-                confidence_threshold=0.7
-            )
+            import asyncio
 
-            critic_result = validator.validate_with_critic_result({
-                "session_id": session["session_id"],
-                "session_dir": str(global_dir)
-            })
+            async def run_critics():
+                # Run both critics
+                archive_critic = ArchiveCritic()
+                evidence_critic = EvidenceCritic()
 
-            status_icon = "✅" if critic_result.approved else "⚠️"
-            print(f"   {status_icon} {critic_result.summary}")
+                archive_result = await archive_critic.validate(session["session_id"])
+                evidence_result = await evidence_critic.validate(session["session_id"])
+
+                # Combine results (weighted: archive 60%, evidence 40%)
+                combined_confidence = (
+                    archive_result.confidence * 0.6 +
+                    evidence_result.confidence * 0.4
+                )
+
+                all_issues = archive_result.issues + evidence_result.issues
+
+                return ValidationResult(
+                    valid=combined_confidence >= 0.7,
+                    confidence=round(combined_confidence, 3),
+                    issues=all_issues,
+                    metrics={
+                        "archive_confidence": archive_result.confidence,
+                        "evidence_confidence": evidence_result.confidence,
+                        "archive_metrics": archive_result.metrics,
+                        "evidence_metrics": evidence_result.metrics,
+                    },
+                    critic_name="combined_archive_evidence",
+                    target_id=session["session_id"],
+                )
+
+            critic_result = asyncio.run(run_critics())
+
+            status_icon = "✅" if critic_result.valid else "⚠️"
+            print(f"   {status_icon} Confidence: {critic_result.confidence:.1%}")
+            print(f"      Archive: {critic_result.metrics['archive_confidence']:.1%}")
+            print(f"      Evidence: {critic_result.metrics['evidence_confidence']:.1%}")
 
             if critic_result.issues:
+                print(f"   Issues ({len(critic_result.issues)}):")
                 for issue in critic_result.issues[:3]:  # Show top 3 issues
-                    print(f"      → {issue.message}")
+                    print(f"      → [{issue.code}] {issue.message}")
 
             # Save critic result to archive
             critic_result_path = global_dir / "critic_validation.json"
@@ -432,10 +457,11 @@ def archive_session(
             # Add critic validation summary
             if critic_result is not None:
                 session_meta["critic_validation"] = {
-                    "approved": critic_result.approved,
+                    "approved": critic_result.valid,
                     "confidence": critic_result.confidence,
                     "issue_count": len(critic_result.issues),
-                    "summary": critic_result.summary,
+                    "archive_confidence": critic_result.metrics.get("archive_confidence", 0),
+                    "evidence_confidence": critic_result.metrics.get("evidence_confidence", 0),
                     "validated_at": critic_result.timestamp
                 }
 
@@ -465,7 +491,7 @@ def archive_session(
 
     # Critic validation summary
     if critic_result is not None:
-        status = "✅ Approved" if critic_result.approved else "⚠️ Needs Review"
+        status = "✅ Approved" if critic_result.valid else "⚠️ Needs Review"
         print(f"🔎 Critic: {status} ({critic_result.confidence:.2f} confidence)")
 
     print()

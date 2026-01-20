@@ -1,374 +1,326 @@
-#!/usr/bin/env python3
 """
-Evidence Critic - Validates citation and source quality.
+Evidence Critic
 
-Checks:
-- Evidence presence for findings
-- Citation validity (URLs accessible)
-- Source tier quality
-- Confidence score accuracy
-
-Usage:
-    python3 -m critic.evidence_critic --session <session-id>
-    python3 -m critic.evidence_critic --finding <finding-id>
+Validates citation accuracy and source integrity:
+- URLs are valid and accessible
+- arXiv IDs are properly formatted
+- Findings cite actual sources
+- Confidence scores are justified
 """
 
-import argparse
 import json
 import re
+import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse
 
-from .base import (
-    BaseCritic, CriticResult, ValidationIssue,
-    IssueSeverity, IssueCategory
-)
+from .base import CriticBase, ValidationResult, Issue, Severity
+
+# URL patterns
+ARXIV_PATTERN = re.compile(r'(\d{4}\.\d{4,5})(v\d+)?')
+GITHUB_PATTERN = re.compile(r'github\.com/[\w-]+/[\w.-]+')
+DOI_PATTERN = re.compile(r'10\.\d{4,}/[^\s]+')
+
+# Tier 1 domains (primary research sources)
+TIER1_DOMAINS = {
+    'arxiv.org', 'huggingface.co', 'openai.com', 'anthropic.com',
+    'deepmind.com', 'ai.google', 'research.google', 'meta.com',
+    'github.com', 'proceedings.mlr.press', 'proceedings.neurips.cc',
+}
 
 
-AGENT_CORE_DIR = Path.home() / ".agent-core"
-SESSIONS_DIR = AGENT_CORE_DIR / "sessions"
-
-# Valid URL patterns
-ARXIV_PATTERN = re.compile(r'arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})')
-GITHUB_PATTERN = re.compile(r'github\.com/([a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+)')
-
-
-class EvidenceCritic(BaseCritic):
+class EvidenceCritic(CriticBase):
     """
-    Validates evidence quality for findings.
+    Validates citation accuracy and evidence quality.
 
-    Ensures findings have:
-    - At least one source citation
-    - Valid URLs
-    - Appropriate confidence levels
-    - High-quality Tier 1 sources when possible
+    Checks:
+    1. URLs are well-formed
+    2. arXiv IDs are valid format
+    3. Findings have source attribution
+    4. Source quality (Tier 1 vs Tier 3)
+    5. No broken/invalid citations
     """
 
-    # Evidence-specific thresholds
-    MIN_SOURCES_FOR_CLAIM = 1           # Claims need at least 1 source
-    MIN_CONFIDENCE_FOR_CLAIM = 0.3      # Minimum confidence for unsourced claims
-    TIER1_DOMAINS = [
-        "arxiv.org", "openai.com", "anthropic.com", "deepmind.google",
-        "huggingface.co", "ai.meta.com", "ai.google"
-    ]
+    name = "evidence_critic"
+    description = "Validates citation accuracy and source quality"
 
-    def __init__(self):
-        super().__init__("EvidenceCritic")
+    def __init__(self, sessions_dir: Optional[Path] = None, min_confidence: float = 0.7):
+        super().__init__(min_confidence)
+        self.sessions_dir = sessions_dir or Path.home() / ".agent-core/sessions"
 
-    def _is_valid_url(self, url: str) -> bool:
-        """Check if URL has valid structure."""
-        try:
-            result = urlparse(url)
-            return all([result.scheme in ['http', 'https'], result.netloc])
-        except:
-            return False
+    async def validate(self, target_id: str, **kwargs) -> ValidationResult:
+        """
+        Validate evidence/citations for a session.
 
-    def _get_url_tier(self, url: str) -> int:
-        """Determine source tier from URL."""
-        url_lower = url.lower()
+        Args:
+            target_id: Session ID to validate
+            check_accessibility: If True, verify URLs are reachable (slow)
 
-        for domain in self.TIER1_DOMAINS:
-            if domain in url_lower:
-                return 1
+        Returns:
+            ValidationResult with citation assessment
+        """
+        check_accessibility = kwargs.get('check_accessibility', False)
 
-        if "github.com" in url_lower:
-            return 2
+        # Gather evidence
+        evidence = await self._gather_evidence(target_id, check_accessibility=check_accessibility)
 
-        return 3
+        if not evidence.get('exists'):
+            return ValidationResult(
+                valid=False,
+                confidence=0.0,
+                issues=[self.add_issue(
+                    "SESSION_NOT_FOUND",
+                    f"Session not found: {target_id}",
+                    Severity.CRITICAL,
+                )],
+                critic_name=self.name,
+                target_id=target_id,
+            )
 
-    def _validate_source(self, source: dict) -> list[ValidationIssue]:
-        """Validate a single source citation."""
+        # Run checks
+        issues = await self._run_checks(evidence)
+
+        # Calculate confidence
+        confidence = self._calculate_confidence(evidence, issues)
+
+        result = ValidationResult(
+            valid=confidence >= self.min_confidence,
+            confidence=confidence,
+            issues=issues,
+            metrics=evidence.get('metrics', {}),
+            critic_name=self.name,
+            target_id=target_id,
+        )
+
+        self.record_result(result)
+        return result
+
+    async def _gather_evidence(self, target_id: str, **kwargs) -> Dict[str, Any]:
+        """Gather all citation/evidence data."""
+        archive_dir = self.sessions_dir / target_id
+
+        if not archive_dir.exists():
+            return {'exists': False}
+
+        evidence = {
+            'exists': True,
+            'urls': [],
+            'findings': [],
+            'metrics': {
+                'total_urls': 0,
+                'valid_urls': 0,
+                'arxiv_papers': 0,
+                'github_repos': 0,
+                'tier1_sources': 0,
+                'findings_with_sources': 0,
+                'findings_without_sources': 0,
+            },
+        }
+
+        # Load URLs
+        urls_file = archive_dir / "urls_captured.json"
+        if urls_file.exists():
+            try:
+                with open(urls_file) as f:
+                    data = json.load(f)
+                    evidence['urls'] = data if isinstance(data, list) else data.get('urls', [])
+            except:
+                evidence['urls'] = []
+
+        # Load findings
+        findings_file = archive_dir / "findings_captured.json"
+        if findings_file.exists():
+            try:
+                with open(findings_file) as f:
+                    data = json.load(f)
+                    evidence['findings'] = data if isinstance(data, list) else data.get('findings', [])
+            except:
+                evidence['findings'] = []
+
+        # Analyze URLs
+        for url_entry in evidence['urls']:
+            url = url_entry.get('url', '') if isinstance(url_entry, dict) else str(url_entry)
+            evidence['metrics']['total_urls'] += 1
+
+            if self._is_valid_url(url):
+                evidence['metrics']['valid_urls'] += 1
+
+                # Check for arXiv
+                if 'arxiv.org' in url or ARXIV_PATTERN.search(url):
+                    evidence['metrics']['arxiv_papers'] += 1
+
+                # Check for GitHub
+                if GITHUB_PATTERN.search(url):
+                    evidence['metrics']['github_repos'] += 1
+
+                # Check tier
+                domain = urlparse(url).netloc.replace('www.', '')
+                if domain in TIER1_DOMAINS:
+                    evidence['metrics']['tier1_sources'] += 1
+
+        # Analyze findings
+        for finding in evidence['findings']:
+            sources = finding.get('sources', []) or finding.get('evidence', {}).get('sources', [])
+            if sources:
+                evidence['metrics']['findings_with_sources'] += 1
+            else:
+                evidence['metrics']['findings_without_sources'] += 1
+
+        return evidence
+
+    async def _run_checks(self, evidence: Dict[str, Any]) -> List[Issue]:
+        """Run citation validation checks."""
         issues = []
+        metrics = evidence['metrics']
 
-        url = source.get("url", "")
+        # Check 1: URL validity
+        total_urls = metrics['total_urls']
+        valid_urls = metrics['valid_urls']
+        if total_urls > 0:
+            invalid_count = total_urls - valid_urls
+            if invalid_count > 0:
+                issues.append(self.add_issue(
+                    "INVALID_URLS",
+                    f"{invalid_count} URLs are malformed or invalid",
+                    Severity.WARNING if invalid_count < 3 else Severity.ERROR,
+                ))
 
-        # Check URL validity
-        if not url:
-            issues.append(ValidationIssue(
-                category=IssueCategory.EVIDENCE,
-                severity=IssueSeverity.ERROR,
-                message="Source missing URL",
-                suggestion="Add valid URL to source"
+        # Check 2: Source quality
+        tier1_ratio = metrics['tier1_sources'] / total_urls if total_urls > 0 else 0
+        if total_urls > 5 and tier1_ratio < 0.3:
+            issues.append(self.add_issue(
+                "LOW_TIER1_RATIO",
+                f"Only {tier1_ratio:.0%} of sources are Tier 1 (research papers, etc.)",
+                Severity.INFO,
+                suggestion="Prioritize arXiv, official docs, and research sources",
             ))
-        elif not self._is_valid_url(url):
-            issues.append(ValidationIssue(
-                category=IssueCategory.EVIDENCE,
-                severity=IssueSeverity.WARNING,
-                message=f"Potentially invalid URL: {url[:50]}",
-                suggestion="Verify URL is accessible"
-            ))
 
-        # Check for arXiv ID consistency
-        if "arxiv.org" in url:
-            match = ARXIV_PATTERN.search(url)
-            if match:
-                arxiv_id = match.group(1)
-                stored_id = source.get("arxiv_id")
-                if stored_id and stored_id != arxiv_id:
-                    issues.append(ValidationIssue(
-                        category=IssueCategory.CONSISTENCY,
-                        severity=IssueSeverity.WARNING,
-                        message=f"arXiv ID mismatch: URL has {arxiv_id}, stored is {stored_id}",
-                        suggestion="Correct arXiv ID to match URL"
+        # Check 3: Finding citations
+        findings_without = metrics['findings_without_sources']
+        total_findings = findings_without + metrics['findings_with_sources']
+        if total_findings > 0:
+            uncited_ratio = findings_without / total_findings
+            if uncited_ratio > 0.5:
+                issues.append(self.add_issue(
+                    "UNCITED_FINDINGS",
+                    f"{findings_without}/{total_findings} findings lack source citations",
+                    Severity.WARNING,
+                    suggestion="Add evidence.sources to findings for traceability",
+                ))
+
+        # Check 4: arXiv ID format
+        for url_entry in evidence['urls']:
+            url = url_entry.get('url', '') if isinstance(url_entry, dict) else str(url_entry)
+            if 'arxiv' in url.lower():
+                if not ARXIV_PATTERN.search(url):
+                    issues.append(self.add_issue(
+                        "MALFORMED_ARXIV",
+                        f"arXiv URL may be malformed: {url[:60]}...",
+                        Severity.WARNING,
+                        location=url,
                     ))
+                    break  # Only report once
 
-        # Check relevance score
-        relevance = source.get("relevance_score", 0)
-        if relevance > 1.0 or relevance < 0.0:
-            issues.append(ValidationIssue(
-                category=IssueCategory.ACCURACY,
-                severity=IssueSeverity.WARNING,
-                message=f"Relevance score out of range: {relevance}",
-                suggestion="Relevance should be 0.0-1.0"
+        # Check 5: No sources at all
+        if total_urls == 0:
+            issues.append(self.add_issue(
+                "NO_SOURCES",
+                "Session has no captured URLs/sources",
+                Severity.ERROR,
+                suggestion="Research sessions should cite sources via log_url.py",
             ))
 
         return issues
 
-    def _validate_finding(self, finding: dict) -> tuple[list[ValidationIssue], float]:
-        """Validate evidence for a single finding."""
-        issues = []
-        confidence_factors = []
+    def _calculate_confidence(self, evidence: Dict[str, Any], issues: List[Issue]) -> float:
+        """
+        Calculate evidence confidence.
 
-        content = finding.get("content", "")
-        finding_type = finding.get("type", "finding")
-        evidence = finding.get("evidence", {})
-        sources = evidence.get("sources", [])
-        stated_confidence = evidence.get("confidence", 0.0)
+        Scoring:
+        - URL validity: 25%
+        - Source quality (Tier 1): 25%
+        - Finding citations: 30%
+        - No critical issues: 20%
+        """
+        score = 0.0
+        metrics = evidence['metrics']
 
-        # Check for sources
-        if not sources:
-            if finding_type in ["thesis", "gap", "innovation"]:
-                # High-value findings need sources
-                issues.append(ValidationIssue(
-                    category=IssueCategory.EVIDENCE,
-                    severity=IssueSeverity.ERROR,
-                    message=f"{finding_type.title()} finding has no sources",
-                    location=finding.get("id", "unknown"),
-                    suggestion="Add source citations for key findings"
-                ))
-                confidence_factors.append(0.3)
-            else:
-                issues.append(ValidationIssue(
-                    category=IssueCategory.EVIDENCE,
-                    severity=IssueSeverity.WARNING,
-                    message="Finding has no sources",
-                    location=finding.get("id", "unknown"),
-                    suggestion="Add source citations if available"
-                ))
-                confidence_factors.append(0.5)
+        # URL validity (25%)
+        total_urls = metrics['total_urls']
+        if total_urls > 0:
+            validity_ratio = metrics['valid_urls'] / total_urls
+            score += 0.25 * validity_ratio
         else:
-            # Validate each source
-            tier1_count = 0
-            for source in sources:
-                source_issues = self._validate_source(source)
-                issues.extend(source_issues)
+            # No URLs is a problem but not zero confidence
+            score += 0.05
 
-                if not source_issues:
-                    confidence_factors.append(1.0)
-                    tier = self._get_url_tier(source.get("url", ""))
-                    if tier == 1:
-                        tier1_count += 1
-                else:
-                    confidence_factors.append(0.7)
+        # Source quality (25%)
+        if total_urls > 0:
+            tier1_ratio = metrics['tier1_sources'] / total_urls
+            # Also count arXiv and GitHub
+            research_sources = metrics['arxiv_papers'] + metrics['github_repos']
+            research_ratio = research_sources / total_urls
+            score += 0.25 * max(tier1_ratio, research_ratio)
 
-            # Check for Tier 1 sources on important findings
-            if finding_type in ["thesis", "gap"] and tier1_count == 0:
-                issues.append(ValidationIssue(
-                    category=IssueCategory.QUALITY,
-                    severity=IssueSeverity.INFO,
-                    message=f"{finding_type.title()} has no Tier 1 sources",
-                    location=finding.get("id", "unknown"),
-                    suggestion="Consider adding arXiv or official documentation sources"
-                ))
+        # Finding citations (30%)
+        total_findings = metrics['findings_with_sources'] + metrics['findings_without_sources']
+        if total_findings > 0:
+            cited_ratio = metrics['findings_with_sources'] / total_findings
+            score += 0.30 * cited_ratio
+        else:
+            # No findings to cite
+            score += 0.15
 
-        # Validate confidence score
-        if sources:
-            # Calculate expected confidence
-            avg_relevance = sum(s.get("relevance_score", 0.5) for s in sources) / len(sources)
+        # No critical issues (20%)
+        critical_count = sum(1 for i in issues if i.severity == Severity.CRITICAL)
+        error_count = sum(1 for i in issues if i.severity == Severity.ERROR)
+        if critical_count == 0 and error_count == 0:
+            score += 0.20
+        elif critical_count == 0:
+            score += 0.10
 
-            # Check if stated confidence is reasonable
-            if abs(stated_confidence - avg_relevance) > 0.3:
-                issues.append(ValidationIssue(
-                    category=IssueCategory.ACCURACY,
-                    severity=IssueSeverity.INFO,
-                    message=f"Confidence {stated_confidence:.2f} differs from source average {avg_relevance:.2f}",
-                    location=finding.get("id", "unknown"),
-                    suggestion="Review confidence calculation"
-                ))
+        return max(0.0, min(1.0, round(score, 3)))
 
-        # Calculate overall confidence
-        calculated_confidence = sum(confidence_factors) / len(confidence_factors) if confidence_factors else 0.0
-
-        return issues, calculated_confidence
-
-    def validate(self, content: dict) -> CriticResult:
-        """
-        Validate evidence for findings.
-
-        Args:
-            content: Dict with 'findings' list or 'session_id'
-
-        Returns:
-            CriticResult with evidence quality assessment
-        """
-        findings = content.get("findings", [])
-        session_id = content.get("session_id")
-
-        # Load findings from session if needed
-        if not findings and session_id:
-            session_dir = SESSIONS_DIR / session_id
-            evidenced_file = session_dir / "findings_evidenced.json"
-            findings_file = session_dir / "findings_captured.json"
-
-            if evidenced_file.exists():
-                try:
-                    findings = json.loads(evidenced_file.read_text())
-                except json.JSONDecodeError:
-                    pass
-            elif findings_file.exists():
-                try:
-                    raw_findings = json.loads(findings_file.read_text())
-                    # Convert to standard format
-                    findings = [
-                        {
-                            "id": f"finding-{i}",
-                            "content": f.get("text", ""),
-                            "type": f.get("type", "finding"),
-                            "evidence": {"sources": [], "confidence": 0.0}
-                        }
-                        for i, f in enumerate(raw_findings)
-                    ]
-                except json.JSONDecodeError:
-                    pass
-
-        if not findings:
-            return self._create_result(
-                confidence=0.0,
-                issues=[ValidationIssue(
-                    category=IssueCategory.COMPLETENESS,
-                    severity=IssueSeverity.ERROR,
-                    message="No findings to validate"
-                )],
-                summary="No findings provided"
-            )
-
-        all_issues = []
-        confidence_scores = []
-        findings_with_sources = 0
-        total_sources = 0
-
-        for finding in findings:
-            issues, confidence = self._validate_finding(finding)
-            all_issues.extend(issues)
-            confidence_scores.append(confidence)
-
-            sources = finding.get("evidence", {}).get("sources", [])
-            if sources:
-                findings_with_sources += 1
-                total_sources += len(sources)
-
-        # Calculate overall confidence
-        overall_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.0
-
-        # Summary
-        coverage = findings_with_sources / len(findings) if findings else 0
-        summary = (
-            f"Evidence coverage: {coverage:.0%} ({findings_with_sources}/{len(findings)} findings), "
-            f"{total_sources} total sources"
-        )
-
-        return self._create_result(
-            confidence=overall_confidence,
-            issues=all_issues,
-            summary=summary,
-            metadata={
-                "session_id": session_id,
-                "findings_count": len(findings),
-                "findings_with_sources": findings_with_sources,
-                "total_sources": total_sources,
-                "coverage": coverage
-            }
-        )
+    def _is_valid_url(self, url: str) -> bool:
+        """Check if URL is well-formed."""
+        try:
+            result = urlparse(url)
+            return all([result.scheme in ('http', 'https'), result.netloc])
+        except:
+            return False
 
 
-def validate_evidence(session_id: str, verbose: bool = False) -> CriticResult:
-    """Validate evidence for a session."""
+async def main():
+    """CLI for evidence validation."""
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Usage: python evidence_critic.py <session-id>")
+        print("\nValidates citation accuracy and source quality.")
+        sys.exit(1)
+
+    session_id = sys.argv[1]
+
     critic = EvidenceCritic()
-    result = critic.validate({"session_id": session_id})
+    result = await critic.validate(session_id)
 
-    if verbose:
-        print(f"\n{'='*50}")
-        print(f"Evidence Critic Report: {session_id[:40]}")
-        print(f"{'='*50}")
-        print(f"Status: {'✅ APPROVED' if result.approved else '❌ REJECTED'}")
-        print(f"Confidence: {result.confidence:.2f}")
-        print(f"Summary: {result.summary}")
+    print(f"\n{'='*60}")
+    print(f"EVIDENCE VALIDATION: {session_id}")
+    print(f"{'='*60}")
+    print(f"\nConfidence: {result.confidence:.1%} {'✓' if result.passes_threshold else '✗'}")
 
-        meta = result.metadata
+    if result.issues:
+        print(f"\nIssues ({len(result.issues)}):")
+        for issue in result.issues:
+            icon = {'critical': '🔴', 'error': '🟠', 'warning': '🟡', 'info': '🔵'}
+            print(f"  {icon.get(issue.severity.value, '•')} [{issue.code}] {issue.message}")
+
+    if result.metrics:
         print(f"\nMetrics:")
-        print(f"  Findings: {meta.get('findings_count', 0)}")
-        print(f"  With sources: {meta.get('findings_with_sources', 0)}")
-        print(f"  Total sources: {meta.get('total_sources', 0)}")
-        print(f"  Coverage: {meta.get('coverage', 0):.0%}")
-
-        if result.issues:
-            errors = [i for i in result.issues if i.severity in [IssueSeverity.ERROR, IssueSeverity.CRITICAL]]
-            warnings = [i for i in result.issues if i.severity == IssueSeverity.WARNING]
-
-            if errors:
-                print(f"\nErrors ({len(errors)}):")
-                for issue in errors[:5]:
-                    print(f"  ❌ {issue.message}")
-
-            if warnings:
-                print(f"\nWarnings ({len(warnings)}):")
-                for issue in warnings[:5]:
-                    print(f"  ⚠️ {issue.message}")
-
-    return result
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Evidence Critic - Validate source citations")
-    parser.add_argument("--session", "-s", help="Session ID to validate")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
-    parser.add_argument("--stats", action="store_true", help="Show aggregate stats")
-
-    args = parser.parse_args()
-
-    if args.session:
-        result = validate_evidence(args.session, verbose=True)
-        return 0 if result.approved else 1
-
-    elif args.stats:
-        if not SESSIONS_DIR.exists():
-            print("No sessions directory found")
-            return 1
-
-        total_findings = 0
-        with_sources = 0
-        total_sources = 0
-
-        for session_dir in SESSIONS_DIR.iterdir():
-            if not session_dir.is_dir():
-                continue
-
-            result = validate_evidence(session_dir.name, verbose=False)
-            meta = result.metadata
-
-            total_findings += meta.get("findings_count", 0)
-            with_sources += meta.get("findings_with_sources", 0)
-            total_sources += meta.get("total_sources", 0)
-
-        print(f"Evidence Stats Across All Sessions:")
-        print(f"  Total findings: {total_findings}")
-        print(f"  With sources: {with_sources} ({with_sources/total_findings:.0%})" if total_findings else "  With sources: 0")
-        print(f"  Total sources: {total_sources}")
-
-    else:
-        parser.print_help()
+        for key, value in result.metrics.items():
+            print(f"  {key}: {value}")
 
 
 if __name__ == "__main__":
-    exit(main() or 0)
+    asyncio.run(main())

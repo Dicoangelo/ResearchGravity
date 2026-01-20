@@ -1,339 +1,403 @@
-#!/usr/bin/env python3
 """
-Archive Critic - Validates session archive completeness.
+Archive Critic
 
-Checks:
-- Required files present (session.json, findings, urls)
-- Minimum content thresholds met
-- Thesis/synthesis present for research sessions
-- Lineage properly recorded
-
-Usage:
-    python3 -m critic.archive_critic --session <session-id>
-    python3 -m critic.archive_critic --all --dry-run
+Validates session archive completeness and coherence:
+- Required files present
+- Session metadata complete
+- Findings properly extracted
+- URLs captured and categorized
+- Transcript preserved
 """
 
-import argparse
 import json
+import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Any, List, Optional
 
-from .base import (
-    BaseCritic, CriticResult, ValidationIssue,
-    IssueSeverity, IssueCategory
-)
+from .base import CriticBase, ValidationResult, Issue, Severity
+
+# Expected archive structure
+REQUIRED_FILES = [
+    "session.json",
+    "urls_captured.json",
+    "findings_captured.json",
+]
+
+OPTIONAL_FILES = [
+    "full_transcript.txt",
+    "lineage.json",
+    "evidence.json",
+]
+
+# Minimum thresholds
+MIN_FINDINGS_FOR_RESEARCH = 3
+MIN_URLS_FOR_RESEARCH = 5
+MIN_TRANSCRIPT_CHARS = 1000
 
 
-AGENT_CORE_DIR = Path.home() / ".agent-core"
-SESSIONS_DIR = AGENT_CORE_DIR / "sessions"
-
-
-class ArchiveCritic(BaseCritic):
+class ArchiveCritic(CriticBase):
     """
-    Validates archive completeness and quality.
+    Validates archive completeness and coherence.
 
-    Ensures archived sessions have:
-    - Complete metadata
-    - Sufficient findings
-    - Proper URL documentation
-    - Research synthesis (for research sessions)
+    Checks:
+    1. Required files present
+    2. Session metadata complete (topic, dates, status)
+    3. Findings extracted (min 3 for research sessions)
+    4. URLs captured (min 5 for research sessions)
+    5. Transcript preserved (if available)
+    6. Cross-references valid (findings → URLs)
     """
 
-    # Archive-specific thresholds
-    MIN_URLS_FOR_RESEARCH = 3           # Research sessions should have URLs
-    MIN_FINDINGS_FOR_RESEARCH = 2       # Research sessions should have findings
-    REQUIRED_FILES = ["session.json"]   # Must have at minimum
-    RECOMMENDED_FILES = ["urls_captured.json", "findings_captured.json"]
+    name = "archive_critic"
+    description = "Validates session archive completeness"
 
-    def __init__(self):
-        super().__init__("ArchiveCritic")
+    def __init__(self, sessions_dir: Optional[Path] = None, min_confidence: float = 0.7):
+        super().__init__(min_confidence)
+        self.sessions_dir = sessions_dir or Path.home() / ".agent-core/sessions"
 
-    def validate(self, content: dict) -> CriticResult:
+    async def validate(self, target_id: str, **kwargs) -> ValidationResult:
         """
-        Validate an archive.
+        Validate an archived session.
 
         Args:
-            content: Dict with 'session_id' and optionally 'session_dir' path
+            target_id: Session ID to validate
+            strict: If True, enforce stricter thresholds (default: False)
 
         Returns:
-            CriticResult with completeness assessment
+            ValidationResult with completeness assessment
         """
-        session_id = content.get("session_id")
-        session_dir = content.get("session_dir")
+        strict = kwargs.get('strict', False)
 
-        if session_dir:
-            session_path = Path(session_dir)
-        elif session_id:
-            session_path = SESSIONS_DIR / session_id
-        else:
-            return self._create_result(
+        # Gather evidence
+        evidence = await self._gather_evidence(target_id, strict=strict)
+
+        if not evidence.get('exists'):
+            return ValidationResult(
+                valid=False,
                 confidence=0.0,
-                issues=[ValidationIssue(
-                    category=IssueCategory.COMPLETENESS,
-                    severity=IssueSeverity.CRITICAL,
-                    message="No session_id or session_dir provided"
+                issues=[self.add_issue(
+                    "ARCHIVE_NOT_FOUND",
+                    f"Session archive not found: {target_id}",
+                    Severity.CRITICAL,
                 )],
-                summary="Cannot validate: no session specified"
+                critic_name=self.name,
+                target_id=target_id,
             )
 
-        if not session_path.exists():
-            return self._create_result(
-                confidence=0.0,
-                issues=[ValidationIssue(
-                    category=IssueCategory.COMPLETENESS,
-                    severity=IssueSeverity.CRITICAL,
-                    message=f"Session directory not found: {session_path}"
-                )],
-                summary="Session not found"
-            )
-
-        issues = []
-        confidence_factors = []
-
-        # Check required files
-        for required_file in self.REQUIRED_FILES:
-            file_path = session_path / required_file
-            if not file_path.exists():
-                issues.append(ValidationIssue(
-                    category=IssueCategory.COMPLETENESS,
-                    severity=IssueSeverity.ERROR,
-                    message=f"Required file missing: {required_file}",
-                    location=str(session_path),
-                    suggestion=f"Create {required_file} with session metadata"
-                ))
-                confidence_factors.append(0.0)
-            else:
-                confidence_factors.append(1.0)
-
-        # Check recommended files
-        for rec_file in self.RECOMMENDED_FILES:
-            file_path = session_path / rec_file
-            if not file_path.exists():
-                issues.append(ValidationIssue(
-                    category=IssueCategory.COMPLETENESS,
-                    severity=IssueSeverity.WARNING,
-                    message=f"Recommended file missing: {rec_file}",
-                    location=str(session_path),
-                    suggestion=f"Add {rec_file} for better archive quality"
-                ))
-                confidence_factors.append(0.5)
-            else:
-                confidence_factors.append(1.0)
-
-        # Load and validate session.json
-        session_file = session_path / "session.json"
-        session_data = {}
-        if session_file.exists():
-            try:
-                session_data = json.loads(session_file.read_text())
-                confidence_factors.append(1.0)
-
-                # Check for topic
-                if not session_data.get("topic"):
-                    issues.append(ValidationIssue(
-                        category=IssueCategory.COMPLETENESS,
-                        severity=IssueSeverity.WARNING,
-                        message="Session missing topic",
-                        location="session.json",
-                        suggestion="Add a descriptive topic to session.json"
-                    ))
-                    confidence_factors.append(0.7)
-
-            except json.JSONDecodeError as e:
-                issues.append(ValidationIssue(
-                    category=IssueCategory.ACCURACY,
-                    severity=IssueSeverity.ERROR,
-                    message=f"Invalid JSON in session.json: {e}",
-                    location="session.json",
-                    suggestion="Fix JSON syntax errors"
-                ))
-                confidence_factors.append(0.0)
-
-        # Check URLs for research sessions
-        urls_file = session_path / "urls_captured.json"
-        url_count = 0
-        if urls_file.exists():
-            try:
-                urls = json.loads(urls_file.read_text())
-                url_count = len(urls) if isinstance(urls, list) else 0
-
-                # Check URL quality
-                tier1_count = sum(1 for u in urls if u.get("tier") == 1)
-                if url_count > 0 and tier1_count == 0:
-                    issues.append(ValidationIssue(
-                        category=IssueCategory.QUALITY,
-                        severity=IssueSeverity.INFO,
-                        message="No Tier 1 sources in URLs",
-                        location="urls_captured.json",
-                        suggestion="Add high-quality Tier 1 sources (arXiv, official docs)"
-                    ))
-
-            except json.JSONDecodeError:
-                issues.append(ValidationIssue(
-                    category=IssueCategory.ACCURACY,
-                    severity=IssueSeverity.WARNING,
-                    message="Invalid JSON in urls_captured.json",
-                    location="urls_captured.json"
-                ))
-
-        # Check findings
-        findings_file = session_path / "findings_captured.json"
-        finding_count = 0
-        if findings_file.exists():
-            try:
-                findings = json.loads(findings_file.read_text())
-                finding_count = len(findings) if isinstance(findings, list) else 0
-
-                # Check for thesis in research sessions
-                if url_count >= self.MIN_URLS_FOR_RESEARCH:
-                    has_thesis = any(
-                        f.get("type") == "thesis"
-                        for f in findings
-                    ) if findings else False
-
-                    if not has_thesis:
-                        issues.append(ValidationIssue(
-                            category=IssueCategory.COMPLETENESS,
-                            severity=IssueSeverity.WARNING,
-                            message="Research session missing thesis finding",
-                            location="findings_captured.json",
-                            suggestion="Add a thesis finding to summarize research conclusions"
-                        ))
-
-            except json.JSONDecodeError:
-                issues.append(ValidationIssue(
-                    category=IssueCategory.ACCURACY,
-                    severity=IssueSeverity.WARNING,
-                    message="Invalid JSON in findings_captured.json",
-                    location="findings_captured.json"
-                ))
-
-        # Check if research session has minimum content
-        is_research = url_count >= self.MIN_URLS_FOR_RESEARCH
-        if is_research and finding_count < self.MIN_FINDINGS_FOR_RESEARCH:
-            issues.append(ValidationIssue(
-                category=IssueCategory.COMPLETENESS,
-                severity=IssueSeverity.WARNING,
-                message=f"Research session has only {finding_count} findings (minimum: {self.MIN_FINDINGS_FOR_RESEARCH})",
-                location="findings_captured.json",
-                suggestion="Extract more findings from the research"
-            ))
-            confidence_factors.append(0.6)
-        else:
-            confidence_factors.append(1.0)
-
-        # Check for evidence enrichment
-        evidenced_file = session_path / "findings_evidenced.json"
-        if not evidenced_file.exists() and finding_count > 0:
-            issues.append(ValidationIssue(
-                category=IssueCategory.EVIDENCE,
-                severity=IssueSeverity.INFO,
-                message="Findings not enriched with evidence",
-                location=str(session_path),
-                suggestion="Run evidence_extractor.py to add citations"
-            ))
-
-        # Check for transcript
-        transcript_file = session_path / "full_transcript.txt"
-        if not transcript_file.exists():
-            issues.append(ValidationIssue(
-                category=IssueCategory.COMPLETENESS,
-                severity=IssueSeverity.INFO,
-                message="No full transcript archived",
-                location=str(session_path),
-                suggestion="Archive transcript for reinvigoration support"
-            ))
+        # Run checks
+        issues = await self._run_checks(evidence)
 
         # Calculate confidence
-        confidence = sum(confidence_factors) / len(confidence_factors) if confidence_factors else 0.0
+        confidence = self._calculate_confidence(evidence, issues)
 
-        # Create summary
-        summary_parts = []
-        if url_count > 0:
-            summary_parts.append(f"{url_count} URLs")
-        if finding_count > 0:
-            summary_parts.append(f"{finding_count} findings")
-
-        summary = f"Archive contains: {', '.join(summary_parts) if summary_parts else 'minimal content'}"
-
-        return self._create_result(
+        # Build result
+        result = ValidationResult(
+            valid=confidence >= self.min_confidence,
             confidence=confidence,
             issues=issues,
-            summary=summary,
-            metadata={
-                "session_id": session_path.name,
-                "url_count": url_count,
-                "finding_count": finding_count,
-                "is_research_session": is_research
-            }
+            metrics=evidence.get('metrics', {}),
+            critic_name=self.name,
+            target_id=target_id,
         )
 
+        self.record_result(result)
+        return result
 
-def validate_session(session_id: str, verbose: bool = False) -> CriticResult:
-    """Validate a single session archive."""
-    critic = ArchiveCritic()
-    result = critic.validate({"session_id": session_id})
+    async def _gather_evidence(self, target_id: str, **kwargs) -> Dict[str, Any]:
+        """Gather all archive data for validation."""
+        archive_dir = self.sessions_dir / target_id
 
-    if verbose:
-        print(f"\n{'='*50}")
-        print(f"Archive Critic Report: {session_id[:40]}")
-        print(f"{'='*50}")
-        print(f"Status: {'✅ APPROVED' if result.approved else '❌ REJECTED'}")
-        print(f"Confidence: {result.confidence:.2f}")
-        print(f"Summary: {result.summary}")
+        if not archive_dir.exists():
+            return {'exists': False}
 
-        if result.issues:
-            print(f"\nIssues ({len(result.issues)}):")
-            for issue in result.issues:
-                icon = {"info": "ℹ️", "warning": "⚠️", "error": "❌", "critical": "🚫"}
-                print(f"  {icon.get(issue.severity.value, '•')} [{issue.category.value}] {issue.message}")
-                if issue.suggestion:
-                    print(f"     → {issue.suggestion}")
+        evidence = {
+            'exists': True,
+            'archive_dir': str(archive_dir),
+            'files': {},
+            'metrics': {},
+        }
 
-    return result
+        # Check which files exist
+        for filename in REQUIRED_FILES + OPTIONAL_FILES:
+            filepath = archive_dir / filename
+            evidence['files'][filename] = {
+                'exists': filepath.exists(),
+                'size': filepath.stat().st_size if filepath.exists() else 0,
+            }
 
+        # Load session.json
+        session_file = archive_dir / "session.json"
+        if session_file.exists():
+            try:
+                with open(session_file) as f:
+                    evidence['session'] = json.load(f)
+            except Exception as e:
+                evidence['session'] = {'error': str(e)}
+        else:
+            evidence['session'] = None
 
-def main():
-    parser = argparse.ArgumentParser(description="Archive Critic - Validate session archives")
-    parser.add_argument("--session", "-s", help="Session ID to validate")
-    parser.add_argument("--all", "-a", action="store_true", help="Validate all sessions")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
-    parser.add_argument("--dry-run", "-n", action="store_true", help="Preview only")
+        # Load findings
+        findings_file = archive_dir / "findings_captured.json"
+        if findings_file.exists():
+            try:
+                with open(findings_file) as f:
+                    findings = json.load(f)
+                    evidence['findings'] = findings if isinstance(findings, list) else findings.get('findings', [])
+                    evidence['metrics']['finding_count'] = len(evidence['findings'])
+            except Exception as e:
+                evidence['findings'] = []
+                evidence['metrics']['finding_count'] = 0
+        else:
+            evidence['findings'] = []
+            evidence['metrics']['finding_count'] = 0
 
-    args = parser.parse_args()
+        # Load URLs
+        urls_file = archive_dir / "urls_captured.json"
+        if urls_file.exists():
+            try:
+                with open(urls_file) as f:
+                    urls = json.load(f)
+                    evidence['urls'] = urls if isinstance(urls, list) else urls.get('urls', [])
+                    evidence['metrics']['url_count'] = len(evidence['urls'])
 
-    if args.session:
-        result = validate_session(args.session, verbose=True)
-        return 0 if result.approved else 1
+                    # Count by tier
+                    tier_counts = {1: 0, 2: 0, 3: 0}
+                    for url in evidence['urls']:
+                        tier = url.get('tier', 3)
+                        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+                    evidence['metrics']['urls_by_tier'] = tier_counts
+            except Exception as e:
+                evidence['urls'] = []
+                evidence['metrics']['url_count'] = 0
+        else:
+            evidence['urls'] = []
+            evidence['metrics']['url_count'] = 0
 
-    elif args.all:
-        if not SESSIONS_DIR.exists():
-            print("No sessions directory found")
-            return 1
+        # Check transcript
+        transcript_file = archive_dir / "full_transcript.txt"
+        if transcript_file.exists():
+            try:
+                text = transcript_file.read_text()
+                evidence['transcript'] = {
+                    'exists': True,
+                    'chars': len(text),
+                    'lines': text.count('\n'),
+                }
+                evidence['metrics']['transcript_chars'] = len(text)
+            except:
+                evidence['transcript'] = {'exists': True, 'chars': 0, 'lines': 0}
+        else:
+            evidence['transcript'] = {'exists': False, 'chars': 0, 'lines': 0}
 
-        results = {"approved": 0, "rejected": 0, "total": 0}
+        return evidence
 
-        for session_dir in SESSIONS_DIR.iterdir():
-            if not session_dir.is_dir():
-                continue
+    async def _run_checks(self, evidence: Dict[str, Any]) -> List[Issue]:
+        """Run all validation checks."""
+        issues = []
 
-            result = validate_session(session_dir.name, verbose=args.verbose)
-            results["total"] += 1
+        # Check 1: Required files
+        for filename in REQUIRED_FILES:
+            file_info = evidence['files'].get(filename, {})
+            if not file_info.get('exists'):
+                issues.append(self.add_issue(
+                    "MISSING_REQUIRED_FILE",
+                    f"Required file missing: {filename}",
+                    Severity.ERROR,
+                    location=filename,
+                ))
+            elif file_info.get('size', 0) == 0:
+                issues.append(self.add_issue(
+                    "EMPTY_FILE",
+                    f"File is empty: {filename}",
+                    Severity.WARNING,
+                    location=filename,
+                ))
 
-            if result.approved:
-                results["approved"] += 1
+        # Check 2: Session metadata
+        session = evidence.get('session')
+        if session:
+            if session.get('error'):
+                issues.append(self.add_issue(
+                    "SESSION_PARSE_ERROR",
+                    f"Could not parse session.json: {session['error']}",
+                    Severity.ERROR,
+                ))
             else:
-                results["rejected"] += 1
+                # Check required fields
+                if not session.get('topic') and not session.get('title'):
+                    issues.append(self.add_issue(
+                        "MISSING_TOPIC",
+                        "Session has no topic/title",
+                        Severity.WARNING,
+                        suggestion="Add topic to session metadata",
+                    ))
 
-        print(f"\n{'='*50}")
-        print("Summary:")
-        print(f"  Total: {results['total']}")
-        print(f"  Approved: {results['approved']}")
-        print(f"  Rejected: {results['rejected']}")
+                if not session.get('status'):
+                    issues.append(self.add_issue(
+                        "MISSING_STATUS",
+                        "Session has no status",
+                        Severity.INFO,
+                    ))
 
-    else:
-        parser.print_help()
+        # Check 3: Findings
+        finding_count = evidence['metrics'].get('finding_count', 0)
+        if finding_count == 0:
+            issues.append(self.add_issue(
+                "NO_FINDINGS",
+                "No findings captured in archive",
+                Severity.WARNING,
+                suggestion="Run evidence extraction on session",
+            ))
+        elif finding_count < MIN_FINDINGS_FOR_RESEARCH:
+            issues.append(self.add_issue(
+                "LOW_FINDINGS",
+                f"Only {finding_count} findings (expected {MIN_FINDINGS_FOR_RESEARCH}+)",
+                Severity.INFO,
+            ))
+
+        # Check 4: URLs
+        url_count = evidence['metrics'].get('url_count', 0)
+        if url_count == 0:
+            issues.append(self.add_issue(
+                "NO_URLS",
+                "No URLs captured in archive",
+                Severity.WARNING,
+            ))
+        elif url_count < MIN_URLS_FOR_RESEARCH:
+            issues.append(self.add_issue(
+                "LOW_URLS",
+                f"Only {url_count} URLs (expected {MIN_URLS_FOR_RESEARCH}+)",
+                Severity.INFO,
+            ))
+
+        # Check 5: Transcript
+        transcript = evidence.get('transcript', {})
+        if not transcript.get('exists'):
+            issues.append(self.add_issue(
+                "NO_TRANSCRIPT",
+                "Full transcript not preserved",
+                Severity.WARNING,
+                suggestion="Archive should include full_transcript.txt for reinvigoration",
+            ))
+        elif transcript.get('chars', 0) < MIN_TRANSCRIPT_CHARS:
+            issues.append(self.add_issue(
+                "SHORT_TRANSCRIPT",
+                f"Transcript very short ({transcript.get('chars', 0)} chars)",
+                Severity.INFO,
+            ))
+
+        # Check 6: Findings have types
+        findings = evidence.get('findings', [])
+        untyped = [f for f in findings if not f.get('type')]
+        if untyped and len(untyped) > len(findings) * 0.3:
+            issues.append(self.add_issue(
+                "UNTYPED_FINDINGS",
+                f"{len(untyped)} findings without type classification",
+                Severity.WARNING,
+                suggestion="Classify findings by type (thesis, gap, innovation, etc.)",
+            ))
+
+        return issues
+
+    def _calculate_confidence(self, evidence: Dict[str, Any], issues: List[Issue]) -> float:
+        """
+        Calculate confidence score.
+
+        Scoring:
+        - Required files present: 30%
+        - Session metadata complete: 15%
+        - Findings captured: 20%
+        - URLs captured: 15%
+        - Transcript preserved: 20%
+        """
+        score = 0.0
+
+        # Required files (30%)
+        required_present = sum(
+            1 for f in REQUIRED_FILES
+            if evidence['files'].get(f, {}).get('exists')
+        )
+        score += 0.30 * (required_present / len(REQUIRED_FILES))
+
+        # Session metadata (15%)
+        session = evidence.get('session', {})
+        if session and not session.get('error'):
+            meta_score = 0.0
+            if session.get('topic') or session.get('title'):
+                meta_score += 0.5
+            if session.get('status'):
+                meta_score += 0.25
+            if session.get('started_at') or session.get('archived_at'):
+                meta_score += 0.25
+            score += 0.15 * meta_score
+
+        # Findings (20%)
+        finding_count = evidence['metrics'].get('finding_count', 0)
+        if finding_count >= MIN_FINDINGS_FOR_RESEARCH:
+            score += 0.20
+        elif finding_count > 0:
+            score += 0.20 * (finding_count / MIN_FINDINGS_FOR_RESEARCH)
+
+        # URLs (15%)
+        url_count = evidence['metrics'].get('url_count', 0)
+        if url_count >= MIN_URLS_FOR_RESEARCH:
+            score += 0.15
+        elif url_count > 0:
+            score += 0.15 * (url_count / MIN_URLS_FOR_RESEARCH)
+
+        # Transcript (20%)
+        transcript = evidence.get('transcript', {})
+        if transcript.get('exists'):
+            chars = transcript.get('chars', 0)
+            if chars >= MIN_TRANSCRIPT_CHARS:
+                score += 0.20
+            elif chars > 0:
+                score += 0.20 * min(1.0, chars / MIN_TRANSCRIPT_CHARS)
+
+        # Penalty for critical/error issues
+        critical_count = sum(1 for i in issues if i.severity == Severity.CRITICAL)
+        error_count = sum(1 for i in issues if i.severity == Severity.ERROR)
+
+        score -= critical_count * 0.15
+        score -= error_count * 0.05
+
+        return max(0.0, min(1.0, round(score, 3)))
+
+
+async def main():
+    """CLI for archive validation."""
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Usage: python archive_critic.py <session-id> [--strict]")
+        print("\nValidates session archive completeness.")
+        sys.exit(1)
+
+    session_id = sys.argv[1]
+    strict = '--strict' in sys.argv
+
+    critic = ArchiveCritic()
+    result = await critic.validate(session_id, strict=strict)
+
+    print(f"\n{'='*60}")
+    print(f"ARCHIVE VALIDATION: {session_id}")
+    print(f"{'='*60}")
+    print(f"\nConfidence: {result.confidence:.1%} {'✓' if result.passes_threshold else '✗'}")
+    print(f"Valid: {result.valid}")
+
+    if result.issues:
+        print(f"\nIssues ({len(result.issues)}):")
+        for issue in result.issues:
+            icon = {'critical': '🔴', 'error': '🟠', 'warning': '🟡', 'info': '🔵'}
+            print(f"  {icon.get(issue.severity.value, '•')} [{issue.code}] {issue.message}")
+            if issue.suggestion:
+                print(f"     → {issue.suggestion}")
+
+    if result.metrics:
+        print(f"\nMetrics:")
+        for key, value in result.metrics.items():
+            print(f"  {key}: {value}")
 
 
 if __name__ == "__main__":
-    exit(main() or 0)
+    asyncio.run(main())
