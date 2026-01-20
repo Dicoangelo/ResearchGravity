@@ -330,42 +330,145 @@ class TieredSearchLayer:
         return await self._search_internal(query, limit)
 
     async def _search_arxiv(self, query: str, limit: int) -> list[SearchResult]:
-        """Search arXiv for recent papers."""
+        """
+        Search arXiv for relevant papers using keyword extraction and category filtering.
+
+        Improvements over naive search:
+        1. Extract meaningful keywords from natural language query
+        2. Filter by relevant arXiv categories (cs.AI, cs.MA, cs.LG, cs.CL)
+        3. Sort by relevance first, then apply time-decay scoring
+        """
         if not HAS_ARXIV:
             return []
 
         results = []
 
         try:
-            # Search recent papers (last 30 days)
+            # Extract keywords from query
+            arxiv_query = self._build_arxiv_query(query)
+
             client = arxiv.Client()
             search = arxiv.Search(
-                query=query,
-                max_results=limit,
-                sort_by=arxiv.SortCriterion.SubmittedDate,
+                query=arxiv_query,
+                max_results=limit * 2,  # Get more, then filter
+                sort_by=arxiv.SortCriterion.Relevance,  # Sort by relevance, not date
                 sort_order=arxiv.SortOrder.Descending
             )
 
             for paper in client.results(search):
                 # Extract arXiv ID
                 arxiv_id = paper.entry_id.split('/abs/')[-1]
+                if 'v' in arxiv_id:
+                    arxiv_id = arxiv_id.split('v')[0]
+
+                # Check if paper is from relevant categories
+                categories = [cat for cat in paper.categories] if paper.categories else []
+                relevance_boost = self._compute_category_relevance(categories, query)
 
                 result = SearchResult(
                     url=paper.entry_id,
                     title=paper.title,
-                    content=paper.summary,
+                    content=f"arXiv:{arxiv_id} - {paper.summary}",  # Include arXiv ID in content for citation
                     tier=SourceTier.TIER_1,
                     category=SourceCategory.RESEARCH,
                     source_name="arXiv",
                     published_date=paper.published.replace(tzinfo=None) if paper.published else None,
-                    base_relevance=0.9,  # High base for direct search match
+                    base_relevance=0.85 + relevance_boost,  # Boost relevant categories
                 )
                 results.append(result)
+
+                if len(results) >= limit:
+                    break
 
         except Exception as e:
             print(f"arXiv search error: {e}")
 
         return results
+
+    def _build_arxiv_query(self, query: str) -> str:
+        """
+        Build optimized arXiv query from natural language.
+
+        Extracts keywords and adds category filters for AI/ML papers.
+        """
+        # Stopwords to remove
+        stopwords = {
+            'what', 'are', 'the', 'best', 'practices', 'for', 'in', 'how',
+            'do', 'does', 'can', 'should', 'would', 'could', 'a', 'an',
+            'to', 'of', 'and', 'or', 'is', 'it', 'this', 'that', 'with',
+            'from', 'by', 'on', 'at', 'as', 'be', 'was', 'were', 'been',
+            'have', 'has', 'had', 'having', 'about', 'into', 'through',
+            'during', 'before', 'after', 'above', 'below', 'between',
+            '2024', '2025', '2026', 'current', 'latest', 'recent', 'new'
+        }
+
+        # Domain-specific keyword mappings for better arXiv search
+        keyword_expansions = {
+            'multi-agent': ['multi-agent', 'multiagent', 'MAS', 'multi agent'],
+            'orchestration': ['orchestration', 'coordination', 'collaboration'],
+            'llm': ['LLM', 'large language model', 'GPT', 'transformer'],
+            'agent': ['agent', 'autonomous', 'agentic'],
+            'rag': ['RAG', 'retrieval augmented', 'retrieval-augmented'],
+            'consensus': ['consensus', 'agreement', 'voting', 'debate'],
+            'reasoning': ['reasoning', 'chain-of-thought', 'CoT'],
+        }
+
+        # Extract words from query
+        words = re.findall(r'\b[a-zA-Z]+(?:-[a-zA-Z]+)?\b', query.lower())
+
+        # Filter out stopwords
+        keywords = [w for w in words if w not in stopwords and len(w) > 2]
+
+        # Expand domain-specific keywords
+        expanded = []
+        for kw in keywords:
+            if kw in keyword_expansions:
+                expanded.extend(keyword_expansions[kw])
+            else:
+                expanded.append(kw)
+
+        # Build arXiv query with category filter
+        # Focus on AI/ML categories: cs.AI, cs.MA, cs.LG, cs.CL
+        categories = "(cat:cs.AI OR cat:cs.MA OR cat:cs.LG OR cat:cs.CL)"
+
+        if expanded:
+            # Use OR for keywords to get broader results
+            keyword_query = " OR ".join(f'"{kw}"' if ' ' in kw or '-' in kw else kw for kw in expanded[:6])
+            return f"({keyword_query}) AND {categories}"
+        else:
+            # Fallback to original query with category filter
+            return f"{query} AND {categories}"
+
+    def _compute_category_relevance(self, categories: list[str], query: str) -> float:
+        """
+        Compute relevance boost based on arXiv categories.
+
+        Higher boost for categories more relevant to the query.
+        """
+        query_lower = query.lower()
+
+        # Category relevance for common query topics
+        category_boosts = {
+            'cs.AI': 0.10,   # Artificial Intelligence
+            'cs.MA': 0.15,   # Multi-agent systems (highest for agent queries)
+            'cs.LG': 0.08,   # Machine Learning
+            'cs.CL': 0.08,   # Computation and Language (NLP/LLM)
+            'cs.SE': 0.05,   # Software Engineering
+            'cs.DC': 0.05,   # Distributed Computing
+            'cs.NE': 0.05,   # Neural/Evolutionary Computing
+        }
+
+        # Extra boost for multi-agent queries
+        if 'multi-agent' in query_lower or 'orchestration' in query_lower or 'agent' in query_lower:
+            category_boosts['cs.MA'] = 0.20
+            category_boosts['cs.AI'] = 0.15
+
+        boost = 0.0
+        for cat in categories:
+            if cat in category_boosts:
+                boost = max(boost, category_boosts[cat])
+
+        return boost
 
     async def _search_github(self, query: str, limit: int) -> list[SearchResult]:
         """Search GitHub for relevant repositories."""
