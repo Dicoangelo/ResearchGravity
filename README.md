@@ -113,6 +113,56 @@
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 🆕 CPB Precision Mode v2.0
+
+**Research-grounded answers with 95%+ quality target.** Combines tiered search, grounded generation, and cutting-edge convergence research.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PRECISION MODE v2 PIPELINE                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Query                                                                  │
+│    │                                                                    │
+│    ▼ PHASE 1: TIERED SEARCH (ResearchGravity methodology)              │
+│    │  ├── Tier 1: arXiv, Labs, Industry News                           │
+│    │  ├── Tier 2: GitHub, Benchmarks, Social                           │
+│    │  └── Tier 3: Internal learnings (Qdrant)                          │
+│    │                                                                    │
+│    ▼ PHASE 2: CONTEXT GROUNDING                                        │
+│    │  └── Build citation-ready context (agents cite ONLY these)        │
+│    │                                                                    │
+│    ▼ PHASE 3: GROUNDED CASCADE (7 agents)                              │
+│    │  └── 🔬🤔🔄🛠️🔭📚💡 with citation enforcement                      │
+│    │                                                                    │
+│    ▼ PHASE 4: MAR CONSENSUS (Multi-Agent Reflexion)                    │
+│    │  └── ValidityCritic + EvidenceCritic + ActionabilityCritic        │
+│    │                                                                    │
+│    ▼ PHASE 5: TARGETED REFINEMENT (IMPROVE pattern)                    │
+│    │  └── Fix weakest DQ dimension per retry                           │
+│    │                                                                    │
+│    ▼ PHASE 6: EDITORIAL FRAME                                          │
+│    │  └── Extract thesis / gap / innovation direction                  │
+│    │                                                                    │
+│    ▼ Result (DQ score + verifiable citations)                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+| Feature | Description |
+|---------|-------------|
+| **Tiered Search** | arXiv API + GitHub API + Internal Qdrant |
+| **Time-Decay Scoring** | Research: 23-day half-life, News: 2-day |
+| **Signal Quantification** | Stars, citations, dates extracted |
+| **Grounded Generation** | Agents can ONLY cite retrieved sources |
+| **MAR Consensus** | 3 persona critics → synthesis (arXiv:2512.20845) |
+| **Targeted Refinement** | IMPROVE pattern (arXiv:2502.18530) |
+
+**Usage:**
+```bash
+python3 -m cpb precision "your research question" --verbose
+```
+
 ### v3.5 Changelog
 
 | Feature | Description |
