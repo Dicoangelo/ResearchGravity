@@ -5,9 +5,14 @@ Agent Core API Server - FastAPI implementation.
 Provides REST endpoints for:
 - Session management
 - Finding queries with evidence
-- Semantic search
+- Semantic search (with Qdrant vector search)
 - Context pack selection
 - Reinvigoration support
+- Graph intelligence (lineage, related concepts)
+- UCW pack ingestion
+- Storage statistics
+
+Phase 3a: Now uses SQLite + Qdrant for concurrent-safe storage.
 
 Usage:
     python3 -m api.server --port 3847
@@ -16,12 +21,22 @@ Usage:
 
 import json
 import sys
+import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 # Add parent for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Storage engine (Phase 3a)
+STORAGE_AVAILABLE = False
+try:
+    from storage import StorageEngine, get_engine
+    from storage.ucw_ingestion import UCWIngestionPipeline, ingest_ucw_trade
+    STORAGE_AVAILABLE = True
+except ImportError:
+    pass
 
 try:
     from fastapi import FastAPI, HTTPException, Query
@@ -102,6 +117,57 @@ if FASTAPI_AVAILABLE:
         project: Optional[str] = None
         pattern: Optional[str] = None
         limit: int = 5
+
+    class UCWIngestRequest(BaseModel):
+        wallet_id: str
+        packs: List[dict]
+        validate: bool = False
+
+    class BulkFindingsRequest(BaseModel):
+        findings: List[dict]
+        source: str = "api"
+
+    class SemanticSearchRequest(BaseModel):
+        query: str
+        limit: int = 10
+        min_score: float = 0.4
+        collections: Optional[List[str]] = None  # ['findings', 'sessions', 'packs']
+
+
+# ============================================================
+# Storage Engine (Phase 3a)
+# ============================================================
+
+_storage_engine: Optional['StorageEngine'] = None
+
+
+async def get_storage():
+    """Get initialized storage engine."""
+    global _storage_engine
+    if _storage_engine is None and STORAGE_AVAILABLE:
+        _storage_engine = await get_engine()
+    return _storage_engine
+
+
+if FASTAPI_AVAILABLE:
+    @app.on_event("startup")
+    async def startup_event():
+        """Initialize storage engine on startup."""
+        if STORAGE_AVAILABLE:
+            try:
+                global _storage_engine
+                _storage_engine = await get_engine()
+                health = await _storage_engine.health_check()
+                print(f"Storage engine initialized: SQLite=✓ Qdrant={'✓' if health.get('qdrant') else '✗'}")
+            except Exception as e:
+                print(f"Storage engine initialization warning: {e}")
+                print("Falling back to file-based storage")
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        """Clean up storage engine."""
+        if _storage_engine:
+            await _storage_engine.close()
 
 
 # ============================================================
@@ -453,6 +519,189 @@ if FASTAPI_AVAILABLE:
             "count": len(selected)
         }
 
+    # ============================================================
+    # Storage-Backed Endpoints (Phase 3a)
+    # ============================================================
+
+    @app.get("/api/v2/search")
+    async def semantic_search_v2(
+        query: str = Query(..., min_length=1),
+        limit: int = Query(10, ge=1, le=50),
+        min_score: float = Query(0.4, ge=0.0, le=1.0),
+        collections: Optional[str] = Query(None, description="Comma-separated: findings,sessions,packs")
+    ):
+        """
+        Semantic search using vector embeddings (Qdrant).
+
+        This endpoint uses the new storage engine for true semantic search,
+        not just keyword matching. Requires Qdrant to be running.
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(
+                status_code=503,
+                detail="Storage engine not available. Run migration first."
+            )
+
+        coll_list = collections.split(",") if collections else None
+
+        try:
+            results = await storage.semantic_search(
+                query=query,
+                limit=limit,
+                min_score=min_score,
+                collections=coll_list
+            )
+            return {
+                "query": query,
+                "results": results,
+                "engine": "qdrant" if storage._qdrant_enabled else "fts"
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/v2/findings/batch")
+    async def store_findings_batch(request: BulkFindingsRequest):
+        """
+        Store multiple findings in a single transaction.
+
+        Optimized for agent production - handles concurrent writes safely.
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(
+                status_code=503,
+                detail="Storage engine not available"
+            )
+
+        try:
+            count = await storage.store_findings_batch(
+                request.findings,
+                source=request.source
+            )
+            return {
+                "status": "success",
+                "stored": count,
+                "source": request.source
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/v2/ucw/ingest")
+    async def ingest_ucw_packs(request: UCWIngestRequest):
+        """
+        Ingest packs from a UCW (Universal Cognitive Wallet) trade.
+
+        Handles:
+        - Bulk import with transaction safety
+        - Provenance tracking
+        - Optional validation via Writer-Critic
+        - Deduplication
+        """
+        if not STORAGE_AVAILABLE:
+            raise HTTPException(
+                status_code=503,
+                detail="Storage engine not available"
+            )
+
+        try:
+            result = await ingest_ucw_trade(
+                wallet_id=request.wallet_id,
+                packs=request.packs,
+                validate=request.validate
+            )
+            return result.to_dict()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/v2/stats")
+    async def get_storage_stats():
+        """
+        Get storage statistics.
+
+        Returns counts for sessions, findings, packs, and UCW imports.
+        """
+        storage = await get_storage()
+        if not storage:
+            # Return file-based stats as fallback
+            sessions_count = len(list(SESSIONS_DIR.iterdir())) if SESSIONS_DIR.exists() else 0
+            return {
+                "engine": "file-based",
+                "sessions": sessions_count,
+                "storage_available": False
+            }
+
+        try:
+            stats = await storage.get_stats()
+            health = await storage.health_check()
+            return {
+                "engine": "storage-triad",
+                "health": health,
+                **stats
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/v2/health")
+    async def storage_health():
+        """Check storage engine health."""
+        storage = await get_storage()
+        if not storage:
+            return {
+                "status": "degraded",
+                "sqlite": False,
+                "qdrant": False,
+                "message": "Storage engine not initialized"
+            }
+
+        health = await storage.health_check()
+        status = "healthy" if all(health.values()) else "degraded"
+
+        return {
+            "status": status,
+            **health,
+            "message": "Qdrant disabled" if not health.get("qdrant") else "All systems operational"
+        }
+
+    @app.post("/api/v2/sessions")
+    async def store_session_v2(session: dict):
+        """Store a session using the storage engine."""
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            session_id = await storage.store_session(session)
+            return {"status": "created", "session_id": session_id}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/v2/sessions")
+    async def list_sessions_v2(
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+        project: Optional[str] = None
+    ):
+        """List sessions from storage engine."""
+        storage = await get_storage()
+        if not storage:
+            # Fall back to file-based
+            return await list_sessions(limit=limit, project=project)
+
+        try:
+            sessions = await storage.list_sessions(
+                limit=limit,
+                offset=offset,
+                project=project
+            )
+            return sessions
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # ============================================================
+    # Original Endpoints (backward compatibility)
+    # ============================================================
+
     @app.get("/api/reinvigorate/{session_id}")
     async def get_reinvigoration_context(session_id: str):
         """Get full context for session reinvigoration."""
@@ -512,6 +761,330 @@ if FASTAPI_AVAILABLE:
             "urls_count": len(urls) if isinstance(urls, list) else 0,
             "context_block": context,
             "lineage": lineage
+        }
+
+    # ============================================================
+    # Graph Intelligence Endpoints
+    # ============================================================
+
+    @app.get("/api/graph/concepts")
+    async def get_related_concepts(
+        query: str = Query(..., description="Concept to find related items for"),
+        depth: int = Query(2, ge=1, le=3, description="Relationship depth"),
+        limit: int = Query(20, ge=1, le=50, description="Max results")
+    ):
+        """
+        Find concepts related to a query term.
+
+        Searches across:
+        - Session topics
+        - Finding types and content
+        - URL categories
+        - Paper keywords
+
+        Returns a graph of related concepts with relationship types.
+        """
+        concepts = []
+        edges = []
+        seen_concepts = set()
+
+        query_lower = query.lower()
+
+        if not SESSIONS_DIR.exists():
+            return {"query": query, "concepts": [], "edges": []}
+
+        # Scan sessions for related concepts
+        for session_dir in SESSIONS_DIR.iterdir():
+            if not session_dir.is_dir():
+                continue
+
+            # Load session data
+            session_data = load_json_file(session_dir / "session.json")
+            topic = session_data.get("topic", "").lower()
+            session_id = session_dir.name
+
+            # Check if session topic matches query
+            if query_lower in topic or any(w in topic for w in query_lower.split()):
+                if session_id not in seen_concepts:
+                    seen_concepts.add(session_id)
+                    concepts.append({
+                        "id": session_id,
+                        "label": session_data.get("topic", session_id[:30]),
+                        "type": "session",
+                        "relevance": 0.8
+                    })
+                    edges.append({
+                        "source": query,
+                        "target": session_id,
+                        "relation": "researched_in"
+                    })
+
+            # Check findings
+            findings = get_evidenced_findings(session_id)
+            for f in findings:
+                content = f.get("content", "").lower()
+                finding_type = f.get("type", "finding")
+
+                if query_lower in content:
+                    finding_id = f.get("id", f"finding-{len(concepts)}")
+                    if finding_id not in seen_concepts:
+                        seen_concepts.add(finding_id)
+                        concepts.append({
+                            "id": finding_id,
+                            "label": f.get("content", "")[:50] + "...",
+                            "type": finding_type,
+                            "session_id": session_id,
+                            "relevance": f.get("evidence", {}).get("confidence", 0.5)
+                        })
+                        edges.append({
+                            "source": query,
+                            "target": finding_id,
+                            "relation": "found_as"
+                        })
+
+                        # Connect finding to session
+                        if session_id in seen_concepts:
+                            edges.append({
+                                "source": session_id,
+                                "target": finding_id,
+                                "relation": "contains"
+                            })
+
+            # Check URLs for paper references
+            urls = load_json_file(session_dir / "urls_captured.json")
+            if isinstance(urls, list):
+                for u in urls:
+                    url = u.get("url", "")
+                    if "arxiv.org" in url:
+                        # Extract arXiv ID
+                        import re
+                        match = re.search(r'(\d{4}\.\d{4,5})', url)
+                        if match:
+                            arxiv_id = match.group(1)
+                            paper_id = f"paper-{arxiv_id}"
+                            if paper_id not in seen_concepts:
+                                seen_concepts.add(paper_id)
+                                concepts.append({
+                                    "id": paper_id,
+                                    "label": f"arXiv:{arxiv_id}",
+                                    "type": "paper",
+                                    "url": url,
+                                    "relevance": 0.7
+                                })
+                                edges.append({
+                                    "source": session_id,
+                                    "target": paper_id,
+                                    "relation": "cites"
+                                })
+
+            if len(concepts) >= limit:
+                break
+
+        return {
+            "query": query,
+            "concepts": concepts[:limit],
+            "edges": edges,
+            "depth": depth
+        }
+
+    @app.get("/api/graph/lineage/{session_id}")
+    async def get_session_lineage(
+        session_id: str,
+        include_findings: bool = Query(True, description="Include findings as nodes"),
+        include_papers: bool = Query(True, description="Include cited papers")
+    ):
+        """
+        Get the research lineage graph for a session.
+
+        Returns nodes (session, findings, papers, concepts) and edges
+        showing relationships between them.
+        """
+        session_dir = SESSIONS_DIR / session_id
+        if not session_dir.exists():
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        nodes = []
+        edges = []
+
+        # Root node: the session
+        session_data = load_json_file(session_dir / "session.json")
+        nodes.append({
+            "id": session_id,
+            "label": session_data.get("topic", session_id[:30]),
+            "type": "session",
+            "isRoot": True
+        })
+
+        # Add findings
+        if include_findings:
+            findings = get_evidenced_findings(session_id)
+            for f in findings:
+                finding_id = f.get("id", f"finding-{len(nodes)}")
+                nodes.append({
+                    "id": finding_id,
+                    "label": f.get("content", "")[:50] + "...",
+                    "type": f.get("type", "finding"),
+                    "confidence": f.get("evidence", {}).get("confidence", 0.0)
+                })
+                edges.append({
+                    "source": session_id,
+                    "target": finding_id,
+                    "relation": "produced"
+                })
+
+                # Add sources as edges
+                sources = f.get("evidence", {}).get("sources", [])
+                for s in sources:
+                    if "arxiv_id" in s and include_papers:
+                        paper_id = f"paper-{s['arxiv_id']}"
+                        # Check if paper node exists
+                        if not any(n["id"] == paper_id for n in nodes):
+                            nodes.append({
+                                "id": paper_id,
+                                "label": f"arXiv:{s['arxiv_id']}",
+                                "type": "paper",
+                                "url": s.get("url")
+                            })
+                        edges.append({
+                            "source": finding_id,
+                            "target": paper_id,
+                            "relation": "cites"
+                        })
+
+        # Add papers from URLs
+        if include_papers:
+            urls = load_json_file(session_dir / "urls_captured.json")
+            if isinstance(urls, list):
+                import re
+                for u in urls:
+                    url = u.get("url", "")
+                    if "arxiv.org" in url:
+                        match = re.search(r'(\d{4}\.\d{4,5})', url)
+                        if match:
+                            paper_id = f"paper-{match.group(1)}"
+                            if not any(n["id"] == paper_id for n in nodes):
+                                nodes.append({
+                                    "id": paper_id,
+                                    "label": f"arXiv:{match.group(1)}",
+                                    "type": "paper",
+                                    "url": url,
+                                    "tier": u.get("tier", 3)
+                                })
+                                edges.append({
+                                    "source": session_id,
+                                    "target": paper_id,
+                                    "relation": "references"
+                                })
+
+        # Load existing lineage if available
+        lineage = load_json_file(session_dir / "lineage.json")
+        if lineage:
+            # Add lineage connections
+            for parent in lineage.get("parents", []):
+                edges.append({
+                    "source": parent,
+                    "target": session_id,
+                    "relation": "builds_on"
+                })
+            for child in lineage.get("children", []):
+                edges.append({
+                    "source": session_id,
+                    "target": child,
+                    "relation": "enables"
+                })
+
+        return {
+            "session_id": session_id,
+            "nodes": nodes,
+            "edges": edges,
+            "node_count": len(nodes),
+            "edge_count": len(edges)
+        }
+
+    @app.get("/api/graph/sessions")
+    async def get_sessions_graph(
+        limit: int = Query(30, ge=1, le=100),
+        project: Optional[str] = None
+    ):
+        """
+        Get a graph of all sessions with connections.
+
+        Connections are based on:
+        - Shared topics/keywords
+        - Shared paper citations
+        - Explicit lineage links
+        """
+        nodes = []
+        edges = []
+        paper_sessions = {}  # Track which sessions cite which papers
+
+        if not SESSIONS_DIR.exists():
+            return {"nodes": [], "edges": []}
+
+        # First pass: collect sessions and paper citations
+        for session_dir in sorted(SESSIONS_DIR.iterdir(), reverse=True)[:limit]:
+            if not session_dir.is_dir():
+                continue
+
+            session_id = session_dir.name
+            session_data = load_json_file(session_dir / "session.json")
+
+            # Filter by project
+            if project and session_data.get("implementation_project") != project:
+                continue
+
+            topic = session_data.get("topic", session_id[:30])
+
+            # Add session node
+            nodes.append({
+                "id": session_id,
+                "label": topic[:40],
+                "type": "session",
+                "project": session_data.get("implementation_project"),
+                "status": session_data.get("status", "archived")
+            })
+
+            # Track paper citations
+            urls = load_json_file(session_dir / "urls_captured.json")
+            if isinstance(urls, list):
+                import re
+                for u in urls:
+                    url = u.get("url", "")
+                    if "arxiv.org" in url:
+                        match = re.search(r'(\d{4}\.\d{4,5})', url)
+                        if match:
+                            paper_id = match.group(1)
+                            if paper_id not in paper_sessions:
+                                paper_sessions[paper_id] = []
+                            paper_sessions[paper_id].append(session_id)
+
+            # Check lineage
+            lineage = load_json_file(session_dir / "lineage.json")
+            if lineage:
+                for parent in lineage.get("parents", []):
+                    edges.append({
+                        "source": parent,
+                        "target": session_id,
+                        "relation": "builds_on"
+                    })
+
+        # Second pass: create edges for shared papers
+        for paper_id, sessions in paper_sessions.items():
+            if len(sessions) > 1:
+                # Create edges between sessions that share this paper
+                for i, s1 in enumerate(sessions):
+                    for s2 in sessions[i+1:]:
+                        edges.append({
+                            "source": s1,
+                            "target": s2,
+                            "relation": "shares_reference",
+                            "paper": paper_id
+                        })
+
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "shared_papers": len([p for p, s in paper_sessions.items() if len(s) > 1])
         }
 
 

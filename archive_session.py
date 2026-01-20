@@ -31,6 +31,19 @@ try:
 except ImportError:
     EVIDENCE_LAYER_AVAILABLE = False
 
+# Import critic system for Writer-Critic validation
+try:
+    from critic import (
+        ArchiveCritic,
+        EvidenceCritic,
+        OracleValidator,
+        run_oracle_consensus,
+        CriticResult
+    )
+    CRITIC_SYSTEM_AVAILABLE = True
+except ImportError:
+    CRITIC_SYSTEM_AVAILABLE = False
+
 
 def get_agent_core_dir() -> Path:
     return Path.home() / ".agent-core"
@@ -362,6 +375,39 @@ def archive_session(
                 print(f"   ⚠ Validation failed: {e}")
 
         print()
+
+    # ═══════════════════════════════════════════════════════════════
+    # CRITIC SYSTEM: Oracle Multi-Stream Archive Validation
+    # Runs ArchiveCritic + EvidenceCritic with Oracle consensus
+    # ═══════════════════════════════════════════════════════════════
+    critic_result = None
+    if CRITIC_SYSTEM_AVAILABLE and not skip_validation:
+        print("🔎 Critic System Validation...")
+        try:
+            # Run Oracle consensus with archive and evidence critics
+            validator = OracleValidator(
+                critics=[ArchiveCritic(), EvidenceCritic()],
+                confidence_threshold=0.7
+            )
+
+            critic_result = validator.validate_with_critic_result({
+                "session_id": session["session_id"],
+                "session_dir": str(global_dir)
+            })
+
+            status_icon = "✅" if critic_result.approved else "⚠️"
+            print(f"   {status_icon} {critic_result.summary}")
+
+            if critic_result.issues:
+                for issue in critic_result.issues[:3]:  # Show top 3 issues
+                    print(f"      → {issue.message}")
+
+            # Save critic result to archive
+            critic_result_path = global_dir / "critic_validation.json"
+            critic_result_path.write_text(json.dumps(critic_result.to_dict(), indent=2))
+
+        except Exception as e:
+            print(f"   ⚠ Critic validation failed: {e}")
     elif not EVIDENCE_LAYER_AVAILABLE:
         print("ℹ  Evidence layer not available (import evidence_extractor for full features)")
 
@@ -376,12 +422,23 @@ def archive_session(
     # Update session index
     update_session_index(session, duration)
 
-    # Save evidence stats to session metadata
+    # Save evidence stats and critic result to session metadata
     session_meta_path = global_dir / "session.json"
     if session_meta_path.exists():
         try:
             session_meta = json.loads(session_meta_path.read_text())
             session_meta["evidence_stats"] = evidence_stats
+
+            # Add critic validation summary
+            if critic_result is not None:
+                session_meta["critic_validation"] = {
+                    "approved": critic_result.approved,
+                    "confidence": critic_result.confidence,
+                    "issue_count": len(critic_result.issues),
+                    "summary": critic_result.summary,
+                    "validated_at": critic_result.timestamp
+                }
+
             session_meta_path.write_text(json.dumps(session_meta, indent=2))
         except (json.JSONDecodeError, IOError):
             pass
@@ -405,6 +462,11 @@ def archive_session(
         print(f"🔬 Evidence: {evidence_stats['findings_count']} findings, "
               f"{evidence_stats['avg_confidence']:.2f} confidence, "
               f"{evidence_stats['validation_pass_rate']*100:.0f}% validated")
+
+    # Critic validation summary
+    if critic_result is not None:
+        status = "✅ Approved" if critic_result.approved else "⚠️ Needs Review"
+        print(f"🔎 Critic: {status} ({critic_result.confidence:.2f} confidence)")
 
     print()
     print(f"To revisit: /recall {session['topic']}")

@@ -3,11 +3,13 @@
 Pack Builder - Generate context packs from sessions and learnings.
 
 Creates modular, composable context packs optimized for token efficiency.
+Integrates with Writer-Critic validation for quality assurance.
 
 Usage:
   python3 build_packs.py --source sessions --since 2026-01-01
   python3 build_packs.py --source learnings --cluster-by topic
   python3 build_packs.py --create --type domain --name "quantum-computing"
+  python3 build_packs.py --validate --pack "my-pack"
 """
 
 import argparse
@@ -22,6 +24,13 @@ import hashlib
 AGENT_CORE = Path.home() / ".agent-core"
 PACK_DIR = AGENT_CORE / "context-packs"
 SESSIONS_DIR = AGENT_CORE / "sessions"
+
+# Import critic system for pack validation
+try:
+    from critic import PackCritic, run_oracle_consensus, CriticResult
+    CRITIC_AVAILABLE = True
+except ImportError:
+    CRITIC_AVAILABLE = False
 
 
 class PackBuilder:
@@ -413,6 +422,90 @@ class PackBuilder:
         print(f"✓ Created manual pack: {pack_id} ({pack['size_tokens']} tokens)")
         return pack_id
 
+    def validate_pack(self, pack_id: str, verbose: bool = True) -> Optional[Dict]:
+        """
+        Validate a pack using Writer-Critic system.
+
+        Uses PackCritic with Oracle consensus for quality validation.
+
+        Args:
+            pack_id: Pack ID to validate
+            verbose: Print validation results
+
+        Returns:
+            Validation result dict or None if critic unavailable
+        """
+        if not CRITIC_AVAILABLE:
+            if verbose:
+                print("⚠ Critic system not available")
+            return None
+
+        # Find pack file
+        pack_file = None
+        for pack_type in ['domain', 'project', 'pattern', 'paper']:
+            candidate = self.pack_dir / pack_type / f"{pack_id}.pack.json"
+            if candidate.exists():
+                pack_file = candidate
+                break
+
+        if not pack_file:
+            if verbose:
+                print(f"❌ Pack not found: {pack_id}")
+            return None
+
+        try:
+            with open(pack_file) as f:
+                pack_data = json.load(f)
+        except json.JSONDecodeError:
+            if verbose:
+                print(f"❌ Invalid JSON in pack: {pack_id}")
+            return None
+
+        # Run Oracle consensus validation
+        critic = PackCritic()
+        consensus = run_oracle_consensus(critic, {"pack": pack_data, "pack_id": pack_id})
+
+        result = {
+            "pack_id": pack_id,
+            "approved": consensus.approved,
+            "confidence": consensus.confidence,
+            "issues": consensus.issues,
+            "summary": consensus.summary
+        }
+
+        if verbose:
+            status = "✅ APPROVED" if consensus.approved else "❌ NEEDS REVIEW"
+            print(f"\n{status}: {pack_id}")
+            print(f"   Confidence: {consensus.confidence:.2f}")
+            print(f"   Summary: {consensus.summary}")
+            if consensus.issues:
+                print(f"   Issues ({len(consensus.issues)}):")
+                for issue in consensus.issues[:5]:
+                    print(f"      → {issue}")
+
+        # Save validation result
+        validation_file = pack_file.parent / f"{pack_id}.validation.json"
+        with open(validation_file, 'w') as f:
+            json.dump(result, f, indent=2)
+
+        return result
+
+    def validate_all_packs(self, verbose: bool = False) -> Dict:
+        """Validate all packs and return summary."""
+        results = {"approved": 0, "rejected": 0, "total": 0, "packs": {}}
+
+        for pack_id in self.registry['packs']:
+            result = self.validate_pack(pack_id, verbose=verbose)
+            if result:
+                results["total"] += 1
+                results["packs"][pack_id] = result
+                if result["approved"]:
+                    results["approved"] += 1
+                else:
+                    results["rejected"] += 1
+
+        return results
+
     def list_packs(self):
         """List all packs"""
         print(f"\nTotal packs: {self.registry['metadata']['total_packs']}")
@@ -487,12 +580,43 @@ def main():
         help="List all packs"
     )
 
+    parser.add_argument(
+        '--validate',
+        action='store_true',
+        help="Validate pack(s) using Writer-Critic system"
+    )
+
+    parser.add_argument(
+        '--pack',
+        help="Pack ID to validate (with --validate)"
+    )
+
+    parser.add_argument(
+        '--skip-validation',
+        action='store_true',
+        help="Skip validation after pack creation"
+    )
+
     args = parser.parse_args()
 
     builder = PackBuilder()
 
     if args.list:
         builder.list_packs()
+        return
+
+    if args.validate:
+        if args.pack:
+            # Validate single pack
+            builder.validate_pack(args.pack, verbose=True)
+        else:
+            # Validate all packs
+            print("Validating all packs...")
+            results = builder.validate_all_packs(verbose=True)
+            print(f"\n━━━ Summary ━━━")
+            print(f"Total: {results['total']}")
+            print(f"Approved: {results['approved']}")
+            print(f"Needs Review: {results['rejected']}")
         return
 
     if args.create:
@@ -503,26 +627,42 @@ def main():
         papers = args.papers.split(',') if args.papers else []
         keywords = args.keywords.split(',') if args.keywords else []
 
-        builder.create_manual_pack(
+        pack_id = builder.create_manual_pack(
             pack_id=args.name,
             pack_type=args.type,
             papers=papers,
             keywords=keywords
         )
 
+        # Auto-validate unless skipped
+        if not args.skip_validation and pack_id and CRITIC_AVAILABLE:
+            print("\n🔎 Running validation...")
+            builder.validate_pack(pack_id, verbose=True)
+
     elif args.source == 'sessions':
         if not args.topic:
             print("Error: --topic required when source=sessions")
             return
 
-        builder.create_pack_from_sessions(
+        pack_id = builder.create_pack_from_sessions(
             topic=args.topic,
             since_days=args.since,
             pack_type=args.type
         )
 
+        # Auto-validate unless skipped
+        if not args.skip_validation and pack_id and CRITIC_AVAILABLE:
+            print("\n🔎 Running validation...")
+            builder.validate_pack(pack_id, verbose=True)
+
     elif args.source == 'learnings':
-        builder.create_pack_from_learnings(cluster_by=args.cluster_by)
+        pack_ids = builder.create_pack_from_learnings(cluster_by=args.cluster_by)
+
+        # Auto-validate unless skipped
+        if not args.skip_validation and pack_ids and CRITIC_AVAILABLE:
+            print("\n🔎 Running validation on created packs...")
+            for pack_id in pack_ids:
+                builder.validate_pack(pack_id, verbose=True)
 
     else:
         parser.print_help()
