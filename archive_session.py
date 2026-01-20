@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """
 Archive a completed research session.
-Logs all URLs, extracts learnings, and syncs to global storage.
+Logs all URLs, extracts learnings, validates evidence, and syncs to global storage.
+
+Implements "Agent Maintainability" and "Evidence Required" principles:
+- Full session preservation for reinvigoration
+- Evidence validation via Writer-Critic (Oracle integration)
+- Confidence scoring for all findings
 
 Usage:
   python3 archive_session.py [--extract-learnings] [--clean-local]
+  python3 archive_session.py --validate-evidence    # Run evidence validation
+  python3 archive_session.py --skip-validation      # Skip validation step
 """
 
 import argparse
@@ -14,6 +21,15 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Import evidence layer components
+try:
+    from evidence_extractor import process_session as extract_evidence
+    from confidence_scorer import score_session
+    from evidence_validator import validate_session
+    EVIDENCE_LAYER_AVAILABLE = True
+except ImportError:
+    EVIDENCE_LAYER_AVAILABLE = False
 
 
 def get_agent_core_dir() -> Path:
@@ -242,34 +258,47 @@ def update_session_index(session: dict, duration: float):
         f.write(entry)
 
 
-def archive_session(extract_learnings_flag: bool = True, clean_local: bool = False):
-    """Main archive function."""
+def archive_session(
+    extract_learnings_flag: bool = True,
+    clean_local: bool = False,
+    validate_evidence_flag: bool = True,
+    skip_validation: bool = False
+):
+    """
+    Main archive function with evidence layer integration.
+
+    Args:
+        extract_learnings_flag: Extract learnings to memory
+        clean_local: Clean local workspace after archiving
+        validate_evidence_flag: Run evidence extraction and scoring
+        skip_validation: Skip Writer-Critic validation step
+    """
     session = get_current_session()
     if not session:
         print("❌ No active session found")
         return False
-    
+
     local_dir = get_local_agent_dir() / "research"
     global_dir = get_agent_core_dir() / "sessions" / session["session_id"]
     global_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Parse URLs from session log
     session_log = local_dir / "session_log.md"
     urls = parse_url_table(session_log) if session_log.exists() else []
-    
+
     # Generate archive report
     archive_report = generate_archive_report(session, urls)
     archive_path = local_dir / "session_archive.md"
     archive_path.write_text(archive_report)
-    
+
     # Update session status
     session["status"] = "archived"
     session["completed"] = datetime.now().isoformat()
-    
+
     # Calculate duration
     started = datetime.fromisoformat(session["started"])
     duration = (datetime.now() - started).total_seconds() / 60
-    
+
     # Copy all files to global
     import shutil
     for file in local_dir.iterdir():
@@ -280,7 +309,62 @@ def archive_session(extract_learnings_flag: bool = True, clean_local: bool = Fal
             if dest.exists():
                 shutil.rmtree(dest)
             shutil.copytree(file, dest)
-    
+
+    # ═══════════════════════════════════════════════════════════════
+    # EVIDENCE LAYER: Extract, Score, and Validate
+    # Implements "Evidence Required" and "Writer-Critic Validation"
+    # ═══════════════════════════════════════════════════════════════
+    evidence_stats = {
+        "extracted": False,
+        "scored": False,
+        "validated": False,
+        "findings_count": 0,
+        "avg_confidence": 0.0,
+        "validation_pass_rate": 0.0,
+    }
+
+    if EVIDENCE_LAYER_AVAILABLE and validate_evidence_flag:
+        print("\n🔬 Evidence Layer Processing...")
+
+        # Step 1: Extract evidence from findings
+        try:
+            extract_result = extract_evidence(session["session_id"])
+            if "error" not in extract_result:
+                evidence_stats["extracted"] = True
+                evidence_stats["findings_count"] = extract_result.get("findings_processed", 0)
+                print(f"   ✓ Evidence extracted: {evidence_stats['findings_count']} findings")
+        except Exception as e:
+            print(f"   ⚠ Evidence extraction failed: {e}")
+
+        # Step 2: Score confidence
+        try:
+            score_result = score_session(session["session_id"], update_file=True)
+            if "error" not in score_result:
+                evidence_stats["scored"] = True
+                evidence_stats["avg_confidence"] = score_result.get("avg_confidence", 0)
+                print(f"   ✓ Confidence scored: {evidence_stats['avg_confidence']:.2f} avg")
+        except Exception as e:
+            print(f"   ⚠ Confidence scoring failed: {e}")
+
+        # Step 3: Writer-Critic Validation (Oracle integration)
+        if not skip_validation:
+            try:
+                validate_result = validate_session(
+                    session["session_id"],
+                    update_file=True,
+                    verbose=False
+                )
+                if "error" not in validate_result:
+                    evidence_stats["validated"] = True
+                    evidence_stats["validation_pass_rate"] = validate_result.get("pass_rate", 0)
+                    print(f"   ✓ Validated: {validate_result.get('passed', 0)}/{validate_result.get('findings_validated', 0)} passed")
+            except Exception as e:
+                print(f"   ⚠ Validation failed: {e}")
+
+        print()
+    elif not EVIDENCE_LAYER_AVAILABLE:
+        print("ℹ  Evidence layer not available (import evidence_extractor for full features)")
+
     # Extract and save learnings
     learnings_count = 0
     if extract_learnings_flag:
@@ -288,10 +372,20 @@ def archive_session(extract_learnings_flag: bool = True, clean_local: bool = Fal
         learnings = extract_learnings(session, scratchpad)
         if learnings:
             learnings_count = update_learnings_memory(session, learnings)
-    
+
     # Update session index
     update_session_index(session, duration)
-    
+
+    # Save evidence stats to session metadata
+    session_meta_path = global_dir / "session.json"
+    if session_meta_path.exists():
+        try:
+            session_meta = json.loads(session_meta_path.read_text())
+            session_meta["evidence_stats"] = evidence_stats
+            session_meta_path.write_text(json.dumps(session_meta, indent=2))
+        except (json.JSONDecodeError, IOError):
+            pass
+
     # Clean local if requested
     if clean_local:
         for file in local_dir.iterdir():
@@ -299,16 +393,23 @@ def archive_session(extract_learnings_flag: bool = True, clean_local: bool = Fal
                 file.unlink()
         last_session = local_dir / ".last_session"
         last_session.write_text(session["session_id"])
-    
+
     print(f"✅ Session archived: {session['session_id']}")
     print(f"📁 Location: {global_dir}")
     print(f"📝 Learnings extracted: {learnings_count}")
     print(f"🔗 URLs logged: {len(urls)} total")
     print(f"⏱️  Duration: {duration:.1f} minutes")
+
+    # Evidence summary
+    if evidence_stats["extracted"]:
+        print(f"🔬 Evidence: {evidence_stats['findings_count']} findings, "
+              f"{evidence_stats['avg_confidence']:.2f} confidence, "
+              f"{evidence_stats['validation_pass_rate']*100:.0f}% validated")
+
     print()
     print(f"To revisit: /recall {session['topic']}")
     print(f"To continue: --continue {session['session_id']}")
-    
+
     return True
 
 
@@ -318,12 +419,20 @@ def main():
                         help="Skip extracting learnings to memory")
     parser.add_argument("--clean-local", action="store_true",
                         help="Clean local workspace after archiving")
-    
+    parser.add_argument("--validate-evidence", action="store_true",
+                        help="Run evidence layer processing (default: True)")
+    parser.add_argument("--skip-validation", action="store_true",
+                        help="Skip Writer-Critic validation step")
+    parser.add_argument("--no-evidence", action="store_true",
+                        help="Skip all evidence layer processing")
+
     args = parser.parse_args()
-    
+
     archive_session(
         extract_learnings_flag=not args.no_extract,
-        clean_local=args.clean_local
+        clean_local=args.clean_local,
+        validate_evidence_flag=not args.no_evidence,
+        skip_validation=args.skip_validation
     )
 
 

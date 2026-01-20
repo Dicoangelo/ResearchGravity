@@ -6,12 +6,16 @@ Scans all archived sessions and extracts:
 - Findings (thesis, gap, innovation, finding types)
 - High-value URLs (Tier 1/2 research sources)
 - Project lineage connections
+- Evidence chains with confidence scores (new in Evidence Layer)
+
+Implements "Evidence Required" principle by preserving citation chains.
 
 Usage:
   python3 backfill_learnings.py              # Process all sessions
   python3 backfill_learnings.py --since 7    # Only last 7 days
   python3 backfill_learnings.py --session ID # Specific session
   python3 backfill_learnings.py --dry-run    # Preview without writing
+  python3 backfill_learnings.py --with-evidence  # Include evidence details
 """
 
 import argparse
@@ -80,15 +84,20 @@ def scan_archived_sessions(since_days: Optional[int] = None) -> List[Path]:
     return sorted(sessions, key=lambda x: x.name)
 
 
-def extract_session_learnings(session_dir: Path) -> Dict[str, Any]:
+def extract_session_learnings(session_dir: Path, include_evidence: bool = False) -> Dict[str, Any]:
     """
     Extract learnings from a single session.
 
     Sources:
     - session.json: metadata (topic, date, status)
     - findings_captured.json: thesis, gap, innovation, finding entries
+    - findings_evidenced.json: evidence-enriched findings (new)
     - urls_captured.json: Tier 1/2 research URLs
     - lineage.json: project linkage
+
+    Args:
+        session_dir: Path to session directory
+        include_evidence: Include evidence chains in output
     """
     result = {
         "session_id": session_dir.name,
@@ -101,7 +110,10 @@ def extract_session_learnings(session_dir: Path) -> Dict[str, Any]:
         "insights": [],
         "thesis": None,
         "gap": None,
-        "lineage": None
+        "lineage": None,
+        # Evidence layer additions
+        "evidence_stats": None,
+        "evidenced_findings": [],
     }
 
     # Load session metadata
@@ -119,6 +131,26 @@ def extract_session_learnings(session_dir: Path) -> Dict[str, Any]:
                     result["date"] = dt.strftime("%Y-%m-%d")
                 except (ValueError, TypeError):
                     result["date"] = date_str[:10] if date_str else ""
+
+            # Load evidence stats if available
+            result["evidence_stats"] = data.get("evidence_stats")
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # Load evidenced findings if available (new Evidence Layer)
+    evidenced_file = session_dir / "findings_evidenced.json"
+    if include_evidence and evidenced_file.exists():
+        try:
+            evidenced = json.loads(evidenced_file.read_text())
+            for f in evidenced:
+                if "evidence" in f and f["evidence"].get("confidence", 0) >= 0.5:
+                    result["evidenced_findings"].append({
+                        "content": f.get("content", "")[:200],
+                        "type": f.get("type", "finding"),
+                        "confidence": f["evidence"].get("confidence", 0),
+                        "sources": [s.get("url", "") for s in f["evidence"].get("sources", [])[:3]],
+                        "validated": f["evidence"].get("validation", {}).get("validated", False),
+                    })
         except (json.JSONDecodeError, IOError):
             pass
 
@@ -224,7 +256,7 @@ def extract_session_learnings(session_dir: Path) -> Dict[str, Any]:
     return result
 
 
-def format_learning_entry(session_data: Dict[str, Any]) -> str:
+def format_learning_entry(session_data: Dict[str, Any], include_evidence: bool = False) -> str:
     """Format learnings as a markdown section."""
     lines = []
 
@@ -239,6 +271,16 @@ def format_learning_entry(session_data: Dict[str, Any]) -> str:
             artifacts = ", ".join(session_data["lineage"]["key_artifacts"][:3])
             lines.append(f"**Key Artifacts:** {artifacts}")
         lines.append("")
+
+    # Evidence stats (if available)
+    if session_data.get("evidence_stats"):
+        stats = session_data["evidence_stats"]
+        confidence = stats.get("avg_confidence", 0)
+        pass_rate = stats.get("validation_pass_rate", 0)
+        if confidence > 0:
+            badge = "🟢" if confidence >= 0.7 else "🟡" if confidence >= 0.5 else "🔴"
+            lines.append(f"**Evidence:** {badge} {confidence:.2f} confidence, {pass_rate*100:.0f}% validated")
+            lines.append("")
 
     # Papers (most valuable)
     if session_data["papers"]:
@@ -301,14 +343,42 @@ def format_learning_entry(session_data: Dict[str, Any]) -> str:
             lines.append(f"- {clean}")
         lines.append("")
 
+    # Evidenced findings (new Evidence Layer)
+    if include_evidence and session_data.get("evidenced_findings"):
+        lines.append("### Evidence-Backed Findings")
+        for ef in session_data["evidenced_findings"][:3]:
+            confidence = ef.get("confidence", 0)
+            validated = "✓" if ef.get("validated") else ""
+            badge = "🟢" if confidence >= 0.7 else "🟡" if confidence >= 0.5 else "🔴"
+            content = ef.get("content", "")[:150]
+            if len(content) >= 150:
+                content += "..."
+            lines.append(f"- {badge} [{confidence:.2f}]{validated} {content}")
+
+            # Show sources if available
+            sources = ef.get("sources", [])
+            if sources:
+                for src in sources[:2]:
+                    lines.append(f"  - Source: {src}")
+        lines.append("")
+
     lines.append("---")
 
     return "\n".join(lines)
 
 
-def create_learnings_file(all_sessions: List[Dict[str, Any]], dry_run: bool = False) -> Path:
+def create_learnings_file(
+    all_sessions: List[Dict[str, Any]],
+    dry_run: bool = False,
+    include_evidence: bool = False
+) -> Path:
     """
     Create ~/.agent-core/memory/learnings.md from extracted session data.
+
+    Args:
+        all_sessions: List of session data dicts
+        dry_run: Preview without writing
+        include_evidence: Include evidence chains in output
     """
     # Build header
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -333,10 +403,10 @@ def create_learnings_file(all_sessions: List[Dict[str, Any]], dry_run: bool = Fa
     # Add each session (most recent first)
     for session in reversed(all_sessions):
         # Skip sessions with no meaningful content
-        if not (session["papers"] or session["findings"] or session["thesis"] or session["tools"]):
+        if not (session["papers"] or session["findings"] or session["thesis"] or session["tools"] or session.get("evidenced_findings")):
             continue
 
-        entry = format_learning_entry(session)
+        entry = format_learning_entry(session, include_evidence=include_evidence)
         content += entry
 
     if dry_run:
@@ -367,6 +437,8 @@ def main():
                         help="Preview output without writing")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Show detailed extraction info")
+    parser.add_argument("--with-evidence", "-e", action="store_true",
+                        help="Include evidence chains in output")
 
     args = parser.parse_args()
 
@@ -394,7 +466,7 @@ def main():
     for session_dir in sessions:
         print(f"  → Processing: {session_dir.name[:50]}...")
 
-        data = extract_session_learnings(session_dir)
+        data = extract_session_learnings(session_dir, include_evidence=args.with_evidence)
 
         if args.verbose:
             print(f"    Topic: {data['topic']}")
@@ -403,12 +475,18 @@ def main():
             print(f"    Papers: {len(data['papers'])}")
             print(f"    Tools: {len(data['tools'])}")
             print(f"    Findings: {len(data['findings'])}")
+            if args.with_evidence and data.get("evidenced_findings"):
+                print(f"    Evidenced: {len(data['evidenced_findings'])}")
 
         all_learnings.append(data)
 
     # Create learnings file
     print()
-    output_path = create_learnings_file(all_learnings, dry_run=args.dry_run)
+    output_path = create_learnings_file(
+        all_learnings,
+        dry_run=args.dry_run,
+        include_evidence=args.with_evidence
+    )
 
     if not args.dry_run:
         print(f"✅ Learnings written to: {output_path}")
