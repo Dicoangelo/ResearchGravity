@@ -34,7 +34,38 @@
 
 ---
 
-## What's New in v3.5 (January 2026)
+## What's New in v4.0 (January 2026)
+
+| Feature | Description |
+|---------|-------------|
+| **🧠 CPB Module** | Cognitive Precision Bridge — 5-path AI orchestration |
+| **🎯 ELITE TIER** | 5-agent ACE consensus, Opus-first routing, 0.75 DQ bar |
+| **📊 DQ Scoring** | Validity (40%) + Specificity (30%) + Correctness (30%) |
+| **🔀 Smart Routing** | Auto-select path based on query complexity |
+
+### CPB Execution Paths
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    COGNITIVE PRECISION BRIDGE (CPB)                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Query → [Complexity Analysis] → Path Selection → Execution → DQ Score  │
+│                                                                         │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐              │
+│  │  DIRECT  │   RLM    │   ACE    │  HYBRID  │ CASCADE  │              │
+│  │  <0.2    │ 0.2-0.5  │ 0.5-0.7  │  >0.7+   │  >0.7    │              │
+│  │  Simple  │ Context  │ Consensus│ Combined │ Full     │              │
+│  │  ~1s     │  ~5s     │   ~5s    │  ~10s    │  ~15s    │              │
+│  └──────────┴──────────┴──────────┴──────────┴──────────┘              │
+│                                                                         │
+│  5-Agent ACE Ensemble:                                                  │
+│  🔬 Analyst | 🤔 Skeptic | 🔄 Synthesizer | 🛠️ Pragmatist | 🔭 Visionary │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### v3.5 Changelog
 
 | Feature | Description |
 |---------|-------------|
@@ -49,6 +80,7 @@
 |---------|--------|--------|
 | Tesla Mixed-Precision RoPE | 15 arXiv | `recursiveLanguageModel.ts` implementation |
 | Multi-Agent Orchestration | 12 arXiv | ACE/DQ Scoring in OS-App |
+| CPB Integration | 8 arXiv | `cpb/` Python module |
 | 160+ Papers Meta-Synthesis | 160+ | Unified research index |
 
 ## What's New in v3.4
@@ -104,9 +136,48 @@ Traditional research workflows fail at the frontier:
 ## Architecture
 
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RESEARCHGRAVITY SYSTEM                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    CPB (Cognitive Precision Bridge)                  │   │
+│  │                                                                      │   │
+│  │   Query ──→ Complexity Router ──→ Path Selection ──→ DQ Scoring     │   │
+│  │                   │                      │               │           │   │
+│  │           ┌───────┴───────┐      ┌──────┴──────┐   ┌───┴───┐       │   │
+│  │           │ Code: +0.25   │      │ ACE 5-Agent │   │ V:40% │       │   │
+│  │           │ Reason: +0.20 │      │ Consensus   │   │ S:30% │       │   │
+│  │           │ Nav: -0.30    │      │ Engine      │   │ C:30% │       │   │
+│  │           └───────────────┘      └─────────────┘   └───────┘       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                        │                                    │
+│                                        ▼                                    │
+│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────┐   │
+│  │  SESSION TRACKER  │  │  ROUTING METRICS  │  │  CONFIDENCE SCORER    │   │
+│  │  Auto-capture     │  │  DQ history       │  │  Source validation    │   │
+│  │  URL logging      │  │  A/B testing      │  │  Evidence scoring     │   │
+│  │  Lineage          │  │  Performance      │  │  Quality thresholds   │   │
+│  └───────────────────┘  └───────────────────┘  └───────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Directory Structure
+
+```
 ResearchGravity/                    # SCRIPTS (git repo)
+├── cpb/                            # 🆕 Cognitive Precision Bridge (v4.0)
+│   ├── __init__.py                 # Package exports
+│   ├── types.py                    # Path types, configs, DQScore
+│   ├── router.py                   # Complexity analysis, path selection
+│   ├── orchestrator.py             # 5-agent ACE consensus, learning
+│   ├── dq_scorer.py                # DQ quality measurement
+│   └── cli.py                      # CLI interface
 ├── prefetch.py                     # Context prefetcher for Claude sessions (v3.4)
 ├── backfill_learnings.py           # Extract learnings from archived sessions (v3.4)
+├── routing-metrics.py              # Routing performance + CPB integration
+├── confidence_scorer.py            # Evidence validation scoring
 ├── init_session.py                 # Initialize + auto-register sessions
 ├── session_tracker.py              # Auto-capture engine (v3.1)
 ├── auto_capture.py                 # Backfill historical sessions (v3.1)
@@ -138,7 +209,87 @@ ResearchGravity/                    # SCRIPTS (git repo)
 │   ├── global.md
 │   └── projects/
 └── workflows/
+
+~/.claude/                          # CPB DATA
+├── data/
+│   ├── cpb-patterns.jsonl          # CPB execution patterns
+│   └── routing-metrics.jsonl       # Routing performance history
+└── kernel/
+    └── dq-scores.jsonl             # DQ score history
 ```
+
+---
+
+## CPB Module (v4.0)
+
+The **Cognitive Precision Bridge** provides precision-aware AI orchestration.
+
+### Quick Start
+
+```python
+from cpb import cpb, analyze, score_response
+
+# Analyze query complexity
+result = analyze("Design a distributed cache system")
+print(f"Complexity: {result['complexity_score']:.2f}")
+print(f"Path: {result['selected_path']}")
+
+# Build ACE consensus prompts (5 agents)
+prompts = cpb.build_ace_prompts("What's the best auth strategy?")
+for p in prompts:
+    print(f"[{p['agent']}] {p['system_prompt'][:50]}...")
+
+# Score response quality
+dq = score_response(query, response)
+print(f"DQ: {dq.overall:.2f} (V:{dq.validity:.2f} S:{dq.specificity:.2f} C:{dq.correctness:.2f})")
+```
+
+### CLI Commands
+
+```bash
+# Analyze query complexity
+python3 -m cpb.cli analyze "Your query here"
+
+# Score a response
+python3 -m cpb.cli score --query "Q" --response "R"
+
+# View DQ statistics
+python3 -m cpb.cli stats --days 30
+
+# Check CPB status
+python3 -m cpb.cli status
+
+# Via routing-metrics
+python3 routing-metrics.py cpb analyze "Your query"
+python3 routing-metrics.py cpb status
+```
+
+### ELITE TIER Configuration
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| Complexity Thresholds | 0.2 / 0.5 | Lower = more orchestration |
+| ACE Agent Count | 5 | Full ensemble |
+| DQ Quality Bar | 0.75 | Higher standard |
+| Default Path | cascade | Full pipeline |
+| RLM Iterations | 25 | Deeper decomposition |
+| Model Routing | Opus-first | Maximum quality |
+
+### 5-Agent ACE Ensemble
+
+| Agent | Role | Focus |
+|-------|------|-------|
+| 🔬 **Analyst** | Evidence evaluator | Data, logic, consistency |
+| 🤔 **Skeptic** | Challenge assumptions | Failure modes, risks |
+| 🔄 **Synthesizer** | Pattern finder | Connections, frameworks |
+| 🛠️ **Pragmatist** | Feasibility checker | Implementation, constraints |
+| 🔭 **Visionary** | Strategic thinker | Long-term, second-order effects |
+
+### Research Foundation
+
+- **arXiv:2512.24601** (RLM) - Recursive context externalization
+- **arXiv:2511.15755** (DQ) - Decisional quality measurement
+- **arXiv:2508.17536** - Voting vs Debate consensus strategies
 
 ---
 
