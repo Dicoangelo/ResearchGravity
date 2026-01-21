@@ -133,6 +133,11 @@ class PrecisionResult:
     query_dimensions: List[str] = field(default_factory=list)
     follow_up_queries: List[str] = field(default_factory=list)
 
+    # Run logging (v2.3)
+    run_id: str = ""
+    run_tier: str = ""  # "breakthrough" or "developing"
+    run_path: str = ""
+
     def to_dict(self) -> Dict[str, Any]:
         result = {
             'output': self.output,
@@ -451,7 +456,7 @@ class PrecisionOrchestrator:
             result.execution_time_ms = elapsed_ms
 
             # =================================================================
-            # v2.2: STORE VERIFIED CLAIMS TO CORPUS
+            # v2.2: STORE VERIFIED CLAIMS TO CORPUS (high-quality only)
             # =================================================================
             # On successful runs (DQ >= 0.80), store claims to build ground truth
             if result.dq_score >= 0.80 and result.citations_verified > 0:
@@ -469,6 +474,19 @@ class PrecisionOrchestrator:
                     )
                 except Exception:
                     pass  # Corpus storage is best-effort, don't fail the run
+
+            # =================================================================
+            # v2.3: LOG ALL RUNS (breakthrough vs developing)
+            # =================================================================
+            # Every run gets logged - compute was used, capture the output
+            try:
+                from .run_logger import log_run
+                log_result = log_run(result, query)
+                result.run_id = log_result.get('run_id', '')
+                result.run_tier = log_result.get('tier', '')
+                result.run_path = log_result.get('path', '')
+            except Exception:
+                pass  # Logging is best-effort
 
             self._update_status(
                 "complete", 100,

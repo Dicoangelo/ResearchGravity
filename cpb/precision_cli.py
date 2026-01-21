@@ -149,6 +149,15 @@ def print_result(result: PrecisionResult, verbose: bool = False):
         for i, fq in enumerate(result.follow_up_queries, 1):
             print(f"\n  {i}. {fq}")
 
+    # Run logging info (v2.3)
+    if result.run_id:
+        tier_icon = "🚀" if result.run_tier == "breakthrough" else "🔄"
+        tier_label = "BREAKTHROUGH" if result.run_tier == "breakthrough" else "DEVELOPING"
+        print("\n" + "-" * 70)
+        print(f"  {tier_icon} Run logged: {tier_label}")
+        print(f"     ID: {result.run_id}")
+        print(f"     Path: {result.run_path}")
+
     print()
     print("=" * 70)
 
