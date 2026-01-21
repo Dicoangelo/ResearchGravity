@@ -18,15 +18,13 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 import argparse
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from storage.sqlite_db import SQLiteDB, DB_PATH
-from storage.qdrant_db import QdrantDB, QDRANT_AVAILABLE
+from storage.sqlite_db import DB_PATH
 from storage.engine import StorageEngine
 
 
@@ -298,7 +296,7 @@ class Migrator:
                         paper_id = paper.get("arxiv_id") or paper.get("id")
                         if paper_id and paper_id not in papers:
                             papers[paper_id] = paper
-            except Exception as e:
+            except Exception:
                 pass
 
         self.stats["papers"]["found"] = len(papers)

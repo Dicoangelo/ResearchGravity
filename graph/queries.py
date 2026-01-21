@@ -4,7 +4,6 @@ Graph Query Functions
 Convenience functions for common graph queries.
 """
 
-import asyncio
 from typing import Dict, Any, List, Optional
 from .concept_graph import ConceptGraph
 

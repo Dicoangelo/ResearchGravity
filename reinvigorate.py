@@ -25,9 +25,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 
 AGENT_CORE_DIR = Path.home() / ".agent-core"
@@ -258,7 +256,7 @@ def build_reinvigoration_context(session_id: str) -> str:
 """
 
     if incomplete_tasks:
-        context += f"""
+        context += """
 ### Incomplete Tasks
 """
         for task in incomplete_tasks:

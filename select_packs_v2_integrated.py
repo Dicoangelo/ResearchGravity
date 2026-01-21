@@ -14,9 +14,7 @@ Usage:
 
 import argparse
 import json
-import os
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 

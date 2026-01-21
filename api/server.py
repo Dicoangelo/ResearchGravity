@@ -21,7 +21,6 @@ Usage:
 
 import json
 import sys
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
@@ -422,7 +421,7 @@ if FASTAPI_AVAILABLE:
                 )
                 for r in results
             ]
-        except Exception as e:
+        except Exception:
             # Fallback to simple keyword search
             knowledge_file = MEMORY_DIR / "knowledge.json"
             knowledge = load_json_file(knowledge_file)

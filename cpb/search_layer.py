@@ -13,7 +13,7 @@ import asyncio
 import math
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 from enum import Enum
 

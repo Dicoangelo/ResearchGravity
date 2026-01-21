@@ -8,8 +8,7 @@ Provides relationship traversal and concept discovery.
 import sqlite3
 import asyncio
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
-from collections import defaultdict
+from typing import Dict, Any, List, Optional
 
 from .lineage import (
     LineageTracker,

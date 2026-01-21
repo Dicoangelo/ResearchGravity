@@ -12,7 +12,7 @@ Also enriches data from original session JSON files for full metadata.
 import json
 import sqlite3
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
 
 # Paths

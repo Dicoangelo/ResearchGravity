@@ -27,7 +27,6 @@ import random
 import hashlib
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 import urllib.request
 import urllib.error
 
@@ -539,7 +538,7 @@ def main():
         if "error" in stats:
             print(f"❌ {stats['error']}")
         else:
-            print(f"\n📊 Validation Results:")
+            print("\n📊 Validation Results:")
             print(f"   Findings validated: {stats['findings_validated']}")
             print(f"   Passed: {stats['passed']} ({stats['pass_rate']*100:.1f}%)")
             print(f"   Failed: {stats['failed']}")
@@ -554,7 +553,7 @@ def main():
         if "error" in stats:
             print(f"❌ {stats['error']}")
         else:
-            print(f"\n📊 Spot Check Results:")
+            print("\n📊 Spot Check Results:")
             print(f"   Sample size: {stats['sample_size']} / {stats['total_findings']} total")
             print(f"   Passed: {stats['validated']} ({stats['pass_rate']*100:.1f}%)")
             print(f"   Failed: {stats['failed']}")

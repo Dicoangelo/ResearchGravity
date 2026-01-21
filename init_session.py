@@ -14,7 +14,6 @@ import argparse
 import json
 import os
 import hashlib
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -549,7 +548,7 @@ def main():
         print(f"Session initialized: {session['session_id']}")
         print(f"   Topic: {session['topic']}")
         print(f"   Workflow: {session['workflow']}")
-        print(f"   Quality: Metaventions-grade")
+        print("   Quality: Metaventions-grade")
         print(f"   Local: {session['paths']['local']}")
         print()
         print("AUTO-TRACKING ENABLED")

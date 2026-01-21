@@ -27,10 +27,9 @@ from .precision_config import (
     validate_precision_config
 )
 from .precision_orchestrator import (
-    PrecisionOrchestrator, PrecisionResult, PrecisionStatus,
+    PrecisionResult, PrecisionStatus,
     execute_precision, get_precision_status
 )
-from .rg_adapter import rg_adapter
 
 
 # =============================================================================
@@ -84,7 +83,7 @@ def print_result(result: PrecisionResult, verbose: bool = False):
         else:
             print(f"  [{i}] {source}")
 
-    print(f"\nCritic Validation:")
+    print("\nCritic Validation:")
     if result.verification:
         v = result.verification
         evidence_icon = "✅" if v.evidence_score >= 0.85 else "⚠️" if v.evidence_score >= 0.7 else "❌"
@@ -102,7 +101,7 @@ def print_result(result: PrecisionResult, verbose: bool = False):
                 icon = severity_icon.get(issue.get('severity', 'info'), "•")
                 print(f"    {icon} [{issue.get('code')}] {issue.get('message')}")
 
-    print(f"\nExecution:")
+    print("\nExecution:")
     print(f"  Path: {result.path.value}")
     print(f"  Agents: {result.agent_count}")
     print(f"  Retries: {result.retry_count}/{PRECISION_CONFIG.max_retries}")
@@ -110,7 +109,7 @@ def print_result(result: PrecisionResult, verbose: bool = False):
     print(f"  RG Mode: {result.rg_connection_mode}")
 
     if result.warnings:
-        print(f"\n⚠️ Warnings:")
+        print("\n⚠️ Warnings:")
         for w in result.warnings:
             print(f"  • {w}")
 
@@ -121,7 +120,7 @@ def print_result(result: PrecisionResult, verbose: bool = False):
         print(f"Correctness: {result.correctness:.3f}")
 
         if result.feedback_history:
-            print(f"\nFeedback History:")
+            print("\nFeedback History:")
             for i, fb in enumerate(result.feedback_history, 1):
                 print(f"  Retry {i}:")
                 for line in fb.split('\n'):
@@ -157,13 +156,13 @@ def print_config_status():
     for key, value in config.items():
         print(f"  {key}: {value}")
 
-    print(f"\nResearchGravity Status:")
+    print("\nResearchGravity Status:")
     rg = status.get('rg_status', {})
     for key, value in rg.items():
         print(f"  {key}: {value}")
 
     if warnings:
-        print(f"\n⚠️ Configuration Warnings:")
+        print("\n⚠️ Configuration Warnings:")
         for w in warnings:
             print(f"  • {w}")
 
@@ -235,21 +234,21 @@ async def cmd_query(args):
 def format_output(result: PrecisionResult, query: str, context: Optional[str]) -> str:
     """Format result for file output."""
     lines = [
-        f"# CPB Precision Mode Result",
-        f"",
+        "# CPB Precision Mode Result",
+        "",
         f"**Query:** {query}",
         f"**DQ Score:** {result.dq_score:.3f}",
         f"**Verified:** {'✅ Yes' if result.verified else '❌ No'}",
         f"**Retries:** {result.retry_count}",
-        f"",
-        f"---",
-        f"",
+        "",
+        "---",
+        "",
         result.output,
-        f"",
-        f"---",
-        f"",
-        f"## Evidence",
-        f""
+        "",
+        "---",
+        "",
+        "## Evidence",
+        ""
     ]
 
     for i, source in enumerate(result.sources[:15], 1):
@@ -262,9 +261,9 @@ def format_output(result: PrecisionResult, query: str, context: Optional[str]) -
             lines.append(f"- [{i}] Session: {session_id}")
 
     lines.extend([
-        f"",
-        f"## Validation",
-        f"",
+        "",
+        "## Validation",
+        "",
         f"- Validity: {result.validity:.3f}",
         f"- Specificity: {result.specificity:.3f}",
         f"- Correctness: {result.correctness:.3f}",

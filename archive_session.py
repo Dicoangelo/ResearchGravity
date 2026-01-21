@@ -16,7 +16,6 @@ Usage:
 
 import argparse
 import json
-import csv
 import re
 from datetime import datetime
 from pathlib import Path
@@ -64,11 +63,11 @@ def parse_url_table(session_log_path: Path) -> list:
     """Parse URLs from session log markdown table."""
     urls = []
     content = session_log_path.read_text()
-    
+
     # Find the URLs table
     table_pattern = r'\| Time \| Source \| URL.*?\n\|[-\s|]+\n((?:\|.*\n)*)'
     match = re.search(table_pattern, content)
-    
+
     if match:
         rows = match.group(1).strip().split('\n')
         for row in rows:
@@ -83,7 +82,7 @@ def parse_url_table(session_log_path: Path) -> list:
                     "relevance": cols[5] if len(cols) > 5 else "",
                     "notes": cols[6] if len(cols) > 6 else ""
                 })
-    
+
     return urls
 
 
@@ -109,10 +108,10 @@ def generate_archive_report(session: dict, urls: list) -> str:
     now = datetime.now()
     started = datetime.fromisoformat(session["started"])
     duration = (now - started).total_seconds() / 60
-    
+
     used_urls = [u for u in urls if '✓' in u.get("used", "")]
     unused_urls = [u for u in urls if '✗' in u.get("used", "")]
-    
+
     report = f"""# Session Archive: {session['topic']}
 
 **Session ID:** `{session['session_id']}`
@@ -141,10 +140,10 @@ Total URLs visited: {len(urls)}
 | Source | URL | Relevance | Contribution |
 |--------|-----|-----------|--------------|
 """
-    
+
     for u in used_urls:
         report += f"| {u['source']} | {u['url']} | {u['relevance']} | {u['notes']} |\n"
-    
+
     report += """
 ---
 
@@ -153,10 +152,10 @@ Total URLs visited: {len(urls)}
 | Source | URL | Why Skipped |
 |--------|-----|-------------|
 """
-    
+
     for u in unused_urls:
         report += f"| {u['source']} | {u['url']} | {u['notes']} |\n"
-    
+
     report += f"""
 ---
 
@@ -186,17 +185,17 @@ python3 ~/.agent-core/scripts/init_session.py "{session['topic']}" --continue {s
 
 *Archived: {now.strftime("%Y-%m-%d %H:%M")}*
 """
-    
+
     return report
 
 
 def extract_learnings(session: dict, scratchpad_path: Path) -> list:
     """Extract key learnings from scratchpad."""
     learnings = []
-    
+
     if scratchpad_path.exists():
         data = json.loads(scratchpad_path.read_text())
-        
+
         # Extract from viral candidates
         for item in data.get("viral_candidates", []):
             learnings.append({
@@ -205,7 +204,7 @@ def extract_learnings(session: dict, scratchpad_path: Path) -> list:
                 "url": item.get("url", ""),
                 "insight": f"High-adoption tool: {item.get('why', 'well-maintained')}"
             })
-        
+
         # Extract from groundbreaker candidates
         for item in data.get("groundbreaker_candidates", []):
             learnings.append({
@@ -214,7 +213,7 @@ def extract_learnings(session: dict, scratchpad_path: Path) -> list:
                 "url": item.get("url", ""),
                 "insight": f"Novel approach: {item.get('novel', 'emerging')}"
             })
-        
+
         # Extract from arxiv papers
         for item in data.get("arxiv_papers", []):
             learnings.append({
@@ -223,7 +222,7 @@ def extract_learnings(session: dict, scratchpad_path: Path) -> list:
                 "url": item.get("url", ""),
                 "insight": item.get("insight", "Research finding")
             })
-    
+
     return learnings
 
 
@@ -231,17 +230,17 @@ def update_learnings_memory(session: dict, learnings: list):
     """Append learnings to global memory."""
     memory_file = get_agent_core_dir() / "memory" / "learnings.md"
     memory_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     now = datetime.now().strftime("%Y-%m-%d")
-    
+
     entry = f"\n\n## {now} - {session['topic']} (`{session['session_id']}`)\n\n"
-    
+
     for l in learnings:
         entry += f"- **{l['type'].title()}**: [{l['name']}]({l['url']}) — {l['insight']}\n"
-    
+
     with open(memory_file, "a") as f:
         f.write(entry)
-    
+
     return len(learnings)
 
 
@@ -249,13 +248,13 @@ def update_session_index(session: dict, duration: float):
     """Update the global session index."""
     index_file = get_agent_core_dir() / "sessions" / "index.md"
     index_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     if not index_file.exists():
         index_file.write_text("| Date | Session ID | Topic | Workflow | Duration | Key Finding |\n")
         index_file.write_text(index_file.read_text() + "|------|------------|-------|----------|----------|-------------|\n")
-    
+
     date = datetime.now().strftime("%Y-%m-%d")
-    
+
     # Get key finding from scratchpad
     key_finding = "See report"
     scratchpad = get_local_agent_dir() / "research" / "scratchpad.json"
@@ -263,9 +262,9 @@ def update_session_index(session: dict, duration: float):
         data = json.loads(scratchpad.read_text())
         if data.get("viral_candidates"):
             key_finding = data["viral_candidates"][0].get("name", "See report")
-    
+
     entry = f"| {date} | {session['session_id']} | {session['topic']} | {session['workflow']} | {duration:.0f}m | {key_finding} |\n"
-    
+
     with open(index_file, "a") as f:
         f.write(entry)
 

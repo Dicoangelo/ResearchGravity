@@ -144,7 +144,7 @@ class ArchiveCritic(CriticBase):
                     findings = json.load(f)
                     evidence['findings'] = findings if isinstance(findings, list) else findings.get('findings', [])
                     evidence['metrics']['finding_count'] = len(evidence['findings'])
-            except Exception as e:
+            except Exception:
                 evidence['findings'] = []
                 evidence['metrics']['finding_count'] = 0
         else:
@@ -166,7 +166,7 @@ class ArchiveCritic(CriticBase):
                         tier = url.get('tier', 3)
                         tier_counts[tier] = tier_counts.get(tier, 0) + 1
                     evidence['metrics']['urls_by_tier'] = tier_counts
-            except Exception as e:
+            except Exception:
                 evidence['urls'] = []
                 evidence['metrics']['url_count'] = 0
         else:
@@ -394,7 +394,7 @@ async def main():
                 print(f"     → {issue.suggestion}")
 
     if result.metrics:
-        print(f"\nMetrics:")
+        print("\nMetrics:")
         for key, value in result.metrics.items():
             print(f"  {key}: {value}")
 

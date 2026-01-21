@@ -14,10 +14,9 @@ import json
 import subprocess
 import sys
 import time
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
@@ -94,7 +93,7 @@ class RoutingTestSuite:
                 latency_ms = (time.time() - start) * 1000
 
                 if result.returncode != 0:
-                    print(f"  ✗ FAIL: DQ scorer error")
+                    print("  ✗ FAIL: DQ scorer error")
                     results.append({
                         "query": query,
                         "expected": expected,
@@ -137,7 +136,7 @@ class RoutingTestSuite:
                 })
 
             except subprocess.TimeoutExpired:
-                print(f"  ✗ FAIL: Timeout")
+                print("  ✗ FAIL: Timeout")
                 results.append({
                     "query": query,
                     "expected": expected,

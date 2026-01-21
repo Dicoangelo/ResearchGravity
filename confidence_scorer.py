@@ -19,9 +19,8 @@ Usage:
 import argparse
 import json
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 

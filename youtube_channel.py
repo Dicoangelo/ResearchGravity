@@ -99,7 +99,7 @@ def resolve_channel(handle: str, api_key: str) -> dict:
             data = json.loads(response.read().decode())
     except urllib.error.HTTPError as e:
         if e.code == 403:
-            print(f"ERROR: API quota exceeded or invalid key.", file=sys.stderr)
+            print("ERROR: API quota exceeded or invalid key.", file=sys.stderr)
         elif e.code == 404:
             print(f"ERROR: Channel @{handle} not found.", file=sys.stderr)
         else:
@@ -359,13 +359,13 @@ Examples:
         output_dir = get_youtube_dir() / handle
 
     # Fetch videos
-    print(f"Fetching videos from uploads playlist...")
+    print("Fetching videos from uploads playlist...")
     videos = fetch_all_videos(channel["uploads_playlist"], api_key, args.limit)
     print(f"  Total: {len(videos)} videos")
 
     # Fetch detailed metadata (unless urls-only)
     if not args.urls_only:
-        print(f"Fetching video metadata...")
+        print("Fetching video metadata...")
         video_ids = [v["id"] for v in videos]
         metadata = fetch_video_metadata(video_ids, api_key)
 
