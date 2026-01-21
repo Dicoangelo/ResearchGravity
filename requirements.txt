@@ -1,0 +1,19 @@
+# ResearchGravity Dependencies
+# ============================
+
+# MCP Server
+mcp>=1.0.0
+
+# API Server
+fastapi>=0.100.0
+uvicorn>=0.20.0
+
+# Storage
+aiofiles>=23.0.0
+
+# Context Packs V2
+sentence-transformers>=2.2.0
+numpy>=1.24.0
+
+# Include CPB dependencies
+-r cpb/requirements.txt
