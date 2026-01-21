@@ -2,11 +2,7 @@
 # Local session data (not committed)
 
 # Session state (local working data)
-.agent/research/session.json
-.agent/research/session_log.md
-.agent/research/scratchpad.json
-.agent/research/*.csv
-.agent/research/*_sources.csv
+.agent/
 
 # OS files
 .DS_Store
