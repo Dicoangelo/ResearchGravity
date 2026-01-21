@@ -575,3 +575,31 @@ async def search_tiered(query: str, max_results: int = 30) -> SearchContext:
     """Convenience function for tiered search."""
     layer = get_search_layer()
     return await layer.search(query, max_results_per_tier=max_results // 3)
+
+
+def create_trusted_user_context(content: str) -> SearchResult:
+    """
+    Wrap user-provided context as Tier 1 trusted source (v2.4).
+
+    When --trust-context is enabled, user-provided context is treated as
+    a Tier 1 primary source with maximum relevance. This is useful for:
+    - Research papers the user has synthesized
+    - Internal documentation the user trusts
+    - Cutting-edge content that lacks external citations
+
+    Args:
+        content: The user-provided context content
+
+    Returns:
+        SearchResult configured as Tier 1 trusted source
+    """
+    return SearchResult(
+        url="internal://user-trusted",
+        title="User-Provided Trusted Context",
+        content=content,
+        tier=SourceTier.TIER_1,
+        category=SourceCategory.INTERNAL,
+        source_name="User Input (Trusted)",
+        published_date=datetime.now(),
+        base_relevance=1.0,  # Maximum relevance - user explicitly trusts this
+    )

@@ -35,7 +35,9 @@ from critic.evidence_critic import EvidenceCritic
 
 from .precision_config import (
     PRECISION_CRITIC_WEIGHTS,
-    PRECISION_VERIFICATION_THRESHOLDS
+    PRECISION_VERIFICATION_THRESHOLDS,
+    PIONEER_DQ_WEIGHTS,
+    TRUST_CONTEXT_DQ_WEIGHTS
 )
 from .ground_truth import (
     get_validator as get_gt_validator,
@@ -434,10 +436,12 @@ class CriticVerifier:
         response: str,
         sources: List[Dict[str, Any]],
         query: Optional[str] = None,
-        context: Optional[str] = None
+        context: Optional[str] = None,
+        pioneer_mode: bool = False,
+        trust_context: bool = False
     ) -> VerificationResult:
         """
-        Run full verification pipeline on a response (v2 with ground truth).
+        Run full verification pipeline on a response (v2.4 with mode flags).
 
         Pipeline:
         1. Citation extraction and verification
@@ -445,13 +449,15 @@ class CriticVerifier:
         3. Oracle consensus scoring
         4. Confidence scoring
         5. Ground truth validation (v2) - factual accuracy, cross-source, self-consistency
-        6. Combined DQ calculation with ground truth weight
+        6. Combined DQ calculation with dynamic weight selection (v2.4)
 
         Args:
             response: The response to verify
             sources: Sources/citations to validate
             query: Original query (for relevance checking)
             context: Context used for response
+            pioneer_mode: If True, use pioneer DQ weights for cutting-edge research
+            trust_context: If True, use trust context DQ weights for user-provided context
 
         Returns:
             VerificationResult with combined scores including ground truth
@@ -500,22 +506,33 @@ class CriticVerifier:
         )
 
         # =================================================================
-        # DQ CALCULATION v2.2 (optimized weights)
+        # DQ CALCULATION v2.4 (dynamic weight selection)
         # =================================================================
-        # Rebalanced: favor reliable metrics (validity, correctness)
-        # Ground truth reduced since self-consistency is inherently noisy
-        dq_v2_weights = {
-            'validity': 0.30,       # Increased - very reliable
-            'specificity': 0.20,    # Same
-            'correctness': 0.35,    # Increased - citation-based, reliable
-            'ground_truth': 0.15,   # Reduced - self-consistency noise
-        }
+        # Select weights based on mode flags:
+        # - Pioneer mode: for cutting-edge research without external validation
+        # - Trust context: for user-provided context as Tier 1 source
+        # - Default: standard v2.2 weights
+        if pioneer_mode:
+            dq_weights = PIONEER_DQ_WEIGHTS
+            weight_mode = "pioneer"
+        elif trust_context:
+            dq_weights = TRUST_CONTEXT_DQ_WEIGHTS
+            weight_mode = "trust_context"
+        else:
+            # Default v2.2 weights (optimized for reliability)
+            dq_weights = {
+                'validity': 0.30,       # Increased - very reliable
+                'specificity': 0.20,    # Same
+                'correctness': 0.35,    # Increased - citation-based, reliable
+                'ground_truth': 0.15,   # Reduced - self-consistency noise
+            }
+            weight_mode = "default"
 
         dq_score = (
-            validity * dq_v2_weights['validity'] +
-            specificity * dq_v2_weights['specificity'] +
-            correctness * dq_v2_weights['correctness'] +
-            ground_truth_score * dq_v2_weights['ground_truth']
+            validity * dq_weights['validity'] +
+            specificity * dq_weights['specificity'] +
+            correctness * dq_weights['correctness'] +
+            ground_truth_score * dq_weights.get('ground_truth', 0.15)
         )
 
         # Combine DQ with critic scores for final score
@@ -975,10 +992,27 @@ async def verify(
     response: str,
     sources: List[Dict[str, Any]],
     query: Optional[str] = None,
-    context: Optional[str] = None
+    context: Optional[str] = None,
+    pioneer_mode: bool = False,
+    trust_context: bool = False
 ) -> VerificationResult:
-    """Verify a response using the precision verification pipeline."""
-    return await critic_verifier.verify(response, sources, query, context)
+    """
+    Verify a response using the precision verification pipeline (v2.4).
+
+    Args:
+        response: The response to verify
+        sources: Sources/citations to validate
+        query: Original query (for relevance checking)
+        context: Context used for response
+        pioneer_mode: If True, use pioneer DQ weights for cutting-edge research
+        trust_context: If True, use trust context DQ weights
+
+    Returns:
+        VerificationResult with combined scores
+    """
+    return await critic_verifier.verify(
+        response, sources, query, context, pioneer_mode, trust_context
+    )
 
 
 def format_critic_feedback(issues: List[Dict[str, Any]]) -> str:

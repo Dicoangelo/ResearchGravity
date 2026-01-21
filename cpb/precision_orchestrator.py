@@ -28,6 +28,7 @@ Research Foundation:
 import asyncio
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable
 
 from .types import (
@@ -138,6 +139,19 @@ class PrecisionResult:
     run_tier: str = ""  # "breakthrough" or "developing"
     run_path: str = ""
 
+    # Pioneer and Trust Context modes (v2.4)
+    pioneer_mode: bool = False
+    trust_context_provided: bool = False
+    pioneer_auto_detected: bool = False  # True if pioneer mode was auto-enabled
+    pioneer_signals: List[str] = field(default_factory=list)  # Signals that triggered auto-detection
+
+    # Deep Research (v2.4)
+    deep_research_used: bool = False
+    deep_research_provider: str = ""
+    deep_research_time_ms: int = 0
+    deep_research_citations: int = 0
+    deep_research_content: str = ""  # Synthesized content from deep research
+
     def to_dict(self) -> Dict[str, Any]:
         result = {
             'output': self.output,
@@ -187,6 +201,16 @@ class PrecisionResult:
             'enhancement_reasoning': self.enhancement_reasoning,
             'query_dimensions': self.query_dimensions,
             'follow_up_queries': self.follow_up_queries,
+            # Pioneer and Trust Context modes (v2.4)
+            'pioneer_mode': self.pioneer_mode,
+            'trust_context_provided': self.trust_context_provided,
+            'pioneer_auto_detected': self.pioneer_auto_detected,
+            'pioneer_signals': self.pioneer_signals,
+            # Deep Research (v2.4)
+            'deep_research_used': self.deep_research_used,
+            'deep_research_provider': self.deep_research_provider,
+            'deep_research_time_ms': self.deep_research_time_ms,
+            'deep_research_citations': self.deep_research_citations,
         }
         return result
 
@@ -233,13 +257,18 @@ class PrecisionOrchestrator:
         query: str,
         context: Optional[str] = None,
         on_status: Optional[Callable[[PrecisionStatus], None]] = None,
-        enhance: bool = True
+        enhance: bool = True,
+        pioneer: bool = False,
+        trust_context: bool = False,
+        deep_research: bool = False,
+        deep_provider: Optional[str] = None
     ) -> PrecisionResult:
         """
-        Execute precision mode v2.3 query with query enhancement.
+        Execute precision mode v2.4 query with query enhancement, mode flags, and deep research.
 
         Flow:
         0. QUERY ENHANCEMENT: Transform casual query to research-grade (Haiku)
+        0.5. DEEP RESEARCH (optional): External API research via Gemini/Perplexity
         1. TIERED SEARCH: arXiv + Labs + News + GitHub + Internal
         2. CONTEXT GROUNDING: Build citation-ready context
         3. CASCADE EXECUTION: 7-agent with grounded prompts
@@ -252,6 +281,10 @@ class PrecisionOrchestrator:
             context: Optional additional context
             on_status: Optional callback for status updates
             enhance: Whether to enhance the query (default True)
+            pioneer: Pioneer mode for cutting-edge research (adjusts DQ weights)
+            trust_context: Mark user-provided context as Tier 1 trusted source
+            deep_research: Enable external deep research before agent cascade
+            deep_provider: Deep research provider (gemini, perplexity, or None for auto)
 
         Returns:
             PrecisionResult with verified answer
@@ -261,7 +294,9 @@ class PrecisionOrchestrator:
 
         result = PrecisionResult(
             path=CPBPath.CASCADE,
-            agent_count=self.config.ace_config.agent_count
+            agent_count=self.config.ace_config.agent_count,
+            pioneer_mode=pioneer,
+            trust_context_provided=trust_context
         )
 
         try:
@@ -281,6 +316,10 @@ class PrecisionOrchestrator:
                     result.query_dimensions = enhanced.dimensions
                     result.follow_up_queries = enhanced.follow_ups
 
+                    # Store pioneer suggestion from enhancer (v2.4)
+                    result._enhancer_suggest_pioneer = getattr(enhanced, 'suggest_pioneer', False)
+                    result._enhancer_pioneer_signals = getattr(enhanced, 'pioneer_signals', []) or []
+
                     if enhanced.was_enhanced:
                         working_query = enhanced.enhanced
                         self._update_status("enhancing", 4, f"Enhanced: {working_query[:60]}...")
@@ -299,10 +338,54 @@ class PrecisionOrchestrator:
                 result.enhancement_reasoning = "Enhancement disabled"
 
             # =================================================================
+            # PHASE 0.5: DEEP RESEARCH (optional - external API)
+            # =================================================================
+            deep_research_results = []
+            if deep_research:
+                self._update_status("deep_research", 6, f"Running deep research via {deep_provider or 'auto'}...")
+                try:
+                    from .deep_research import deep_research as do_deep_research, get_best_available_provider
+
+                    # Auto-detect provider if not specified
+                    if not deep_provider:
+                        deep_provider, _ = get_best_available_provider()
+
+                    if deep_provider:
+                        dr_result, dr_search_results = await do_deep_research(
+                            working_query,
+                            provider=deep_provider
+                        )
+                        deep_research_results = dr_search_results
+
+                        # Store deep research metadata
+                        result.deep_research_used = True
+                        result.deep_research_provider = f"{dr_result.provider}/{dr_result.model}"
+                        result.deep_research_time_ms = dr_result.search_time_ms
+                        result.deep_research_citations = len(dr_result.citations)
+                        result.deep_research_content = dr_result.content[:2000]  # Truncate for storage
+
+                        self._update_status(
+                            "deep_research", 10,
+                            f"Deep research: {len(dr_result.citations)} citations in {dr_result.search_time_ms}ms"
+                        )
+                    else:
+                        result.warnings.append("Deep research requested but no provider available")
+                except Exception as e:
+                    result.warnings.append(f"Deep research failed: {str(e)[:100]}")
+                    self._update_status("deep_research", 10, f"Deep research failed: {str(e)[:50]}")
+
+            # =================================================================
             # PHASE 1: TIERED SEARCH (ResearchGravity methodology)
             # =================================================================
             self._update_status("searching", 5, "Tier 1: Searching arXiv, labs, industry...")
             search_context = await self._execute_tiered_search(working_query)
+
+            # Inject deep research results as Tier 1 sources (at the top)
+            if deep_research_results:
+                search_context.results = deep_research_results + search_context.results
+                search_context.tier1_results = deep_research_results + search_context.tier1_results
+                # Rebuild citation context to include deep research
+                search_context.build_citation_context()
 
             result.search_time_ms = search_context.search_time_ms
             result.tier1_count = len(search_context.tier1_results)
@@ -310,10 +393,48 @@ class PrecisionOrchestrator:
             result.tier3_count = len(search_context.tier3_results)
             result.total_sources_found = len(search_context.results)
 
+            dr_suffix = f" +{len(deep_research_results)} deep" if deep_research_results else ""
             self._update_status(
                 "searching", 15,
-                f"Found {result.total_sources_found} sources (T1:{result.tier1_count} T2:{result.tier2_count} T3:{result.tier3_count})"
+                f"Found {result.total_sources_found} sources (T1:{result.tier1_count} T2:{result.tier2_count} T3:{result.tier3_count}){dr_suffix}"
             )
+
+            # =================================================================
+            # PHASE 1.5: AUTO-DETECT PIONEER MODE (v2.4)
+            # =================================================================
+            # Combine query-based and search-based signals to auto-enable pioneer mode
+            pioneer_signals = []
+
+            # Signal 1: Query enhancer detected pioneer indicators
+            if getattr(result, '_enhancer_suggest_pioneer', False):
+                enhancer_signals = getattr(result, '_enhancer_pioneer_signals', [])
+                pioneer_signals.extend(enhancer_signals or ["query targets cutting-edge research"])
+
+            # Signal 2: Sparse Tier 1 results (< 3 high-quality sources)
+            if result.tier1_count < 3:
+                pioneer_signals.append(f"sparse Tier 1 results ({result.tier1_count} found)")
+
+            # Signal 3: Very recent sources dominate (most sources < 14 days old)
+            recent_count = sum(
+                1 for r in search_context.results
+                if r.published_date and (datetime.now() - r.published_date).days < 14
+            )
+            if result.total_sources_found > 0 and recent_count / result.total_sources_found > 0.6:
+                pioneer_signals.append(f"mostly recent sources ({recent_count}/{result.total_sources_found} < 14 days)")
+
+            # Signal 4: User provided context (suggests synthesis request)
+            if context and len(context) > 500:
+                pioneer_signals.append("substantial user-provided context")
+
+            # Auto-enable pioneer mode if enough signals (and not already enabled)
+            if not pioneer and len(pioneer_signals) >= 2:
+                pioneer = True
+                result.pioneer_auto_detected = True
+                result.pioneer_signals = pioneer_signals
+                self._update_status("routing", 18, f"Auto-enabled pioneer mode: {', '.join(pioneer_signals[:2])}")
+
+            # Store final pioneer state
+            result.pioneer_mode = pioneer
 
             # =================================================================
             # PHASE 2: CONTEXT GROUNDING
@@ -327,11 +448,12 @@ class PrecisionOrchestrator:
             result.rg_connection_mode = rg_context.connection_mode.value
             result.warnings.extend(rg_context.warnings)
 
-            # Merge all context
+            # Merge all context (v2.4: pass trust_context flag)
             enriched_context = self._build_grounded_context(
                 user_context=context,
                 search_context=search_context,
-                rg_context=rg_context
+                rg_context=rg_context,
+                trust_context=trust_context
             )
             result.context_used = enriched_context[:1000] + "..."
 
@@ -359,7 +481,8 @@ class PrecisionOrchestrator:
             # =================================================================
             self._update_status("verifying", 60, "Running critic verification...")
             verification = await self._verify_result(
-                result.output, result.sources, working_query, enriched_context
+                result.output, result.sources, working_query, enriched_context,
+                pioneer_mode=pioneer, trust_context=trust_context
             )
 
             result.verification = verification
@@ -412,9 +535,10 @@ class PrecisionOrchestrator:
                 result.output = cascade_result.get('output', '')
                 result.sources = cascade_result.get('sources', [])
 
-                # Re-verify
+                # Re-verify (v2.4: pass mode flags)
                 verification = await self._verify_result(
-                    result.output, result.sources, working_query, enriched_context
+                    result.output, result.sources, working_query, enriched_context,
+                    pioneer_mode=pioneer, trust_context=trust_context
                 )
 
                 result.verification = verification
@@ -525,15 +649,37 @@ class PrecisionOrchestrator:
         user_context: Optional[str],
         search_context: SearchContext,
         rg_context: RGContext,
-        budget: int = 20000
+        budget: int = 20000,
+        trust_context: bool = False
     ) -> str:
         """
         Build grounded context with citation-ready sources.
 
         Agents can ONLY cite sources in this context.
+
+        Args:
+            user_context: Optional user-provided context
+            search_context: Search results from tiered search
+            rg_context: ResearchGravity internal context
+            budget: Maximum character budget
+            trust_context: If True, wrap user context as Tier 1 trusted source (v2.4)
+
+        Returns:
+            Combined grounded context string
         """
         parts = []
         remaining = budget
+
+        # If trust_context is enabled, inject user context as a Tier 1 trusted source
+        # at the top of the search results
+        if trust_context and user_context:
+            from .search_layer import create_trusted_user_context
+            trusted_result = create_trusted_user_context(user_context)
+            # Prepend to search results
+            search_context.results.insert(0, trusted_result)
+            search_context.tier1_results.insert(0, trusted_result)
+            # Rebuild citation context to include the trusted source
+            search_context.build_citation_context()
 
         # Grounding prompt (search results - highest priority)
         grounding = search_context.get_grounding_prompt()
@@ -542,8 +688,8 @@ class PrecisionOrchestrator:
             parts.append(grounding_truncated)
             remaining -= len(grounding_truncated)
 
-        # User context
-        if user_context and remaining > 0:
+        # User context (if not already included as trusted source)
+        if user_context and remaining > 0 and not trust_context:
             user_truncated = user_context[:min(len(user_context), remaining // 3)]
             parts.append(f"## Additional Context\n{user_truncated}")
             remaining -= len(user_truncated)
@@ -1139,21 +1285,25 @@ Include thesis, gap analysis, and innovation direction."""
         output: str,
         sources: List[Dict[str, Any]],
         query: str,
-        context: str
+        context: str,
+        pioneer_mode: bool = False,
+        trust_context: bool = False
     ) -> VerificationResult:
         """
-        Run critic verification on result.
+        Run critic verification on result (v2.4 with mode flags).
 
         Args:
             output: Response output
             sources: Sources used
             query: Original query
             context: Context used
+            pioneer_mode: If True, use pioneer DQ weights
+            trust_context: If True, use trust context DQ weights
 
         Returns:
             VerificationResult with DQ score
         """
-        return await verify(output, sources, query, context)
+        return await verify(output, sources, query, context, pioneer_mode, trust_context)
 
     def _update_status(
         self,
@@ -1214,10 +1364,32 @@ async def execute_precision(
     query: str,
     context: Optional[str] = None,
     on_status: Optional[Callable[[PrecisionStatus], None]] = None,
-    enhance: bool = True
+    enhance: bool = True,
+    pioneer: bool = False,
+    trust_context: bool = False,
+    deep_research: bool = False,
+    deep_provider: Optional[str] = None
 ) -> PrecisionResult:
-    """Execute precision mode query with optional query enhancement."""
-    return await precision_orchestrator.execute(query, context, on_status, enhance)
+    """
+    Execute precision mode query with optional query enhancement (v2.4).
+
+    Args:
+        query: The query to answer
+        context: Optional additional context
+        on_status: Optional callback for status updates
+        enhance: Whether to enhance the query (default True)
+        pioneer: Pioneer mode for cutting-edge research (adjusts DQ weights)
+        trust_context: Mark user-provided context as Tier 1 trusted source
+        deep_research: Enable external deep research before agent cascade
+        deep_provider: Deep research provider (gemini, perplexity, or None for auto)
+
+    Returns:
+        PrecisionResult with verified answer
+    """
+    return await precision_orchestrator.execute(
+        query, context, on_status, enhance, pioneer, trust_context,
+        deep_research, deep_provider
+    )
 
 
 def get_precision_status() -> Dict[str, Any]:
