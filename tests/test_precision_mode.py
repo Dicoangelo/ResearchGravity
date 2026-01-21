@@ -12,12 +12,9 @@ Unit and integration tests for:
 Run with: python3 -m pytest tests/test_precision_mode.py -v
 """
 
-import asyncio
-import json
 import pytest
 import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 # Add parent directory for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,8 +26,7 @@ from cpb.precision_config import (
     validate_precision_config, get_agent_by_role
 )
 from cpb.rg_adapter import (
-    RGAdapter, RGContext, ConnectionMode, SearchResult,
-    rg_adapter, get_context, search_learnings
+    RGAdapter, RGContext, ConnectionMode, SearchResult
 )
 from cpb.critic_verifier import (
     CriticVerifier, VerificationResult, ConfidenceScorer,
@@ -40,6 +36,7 @@ from cpb.precision_orchestrator import (
     PrecisionOrchestrator, PrecisionResult, PrecisionStatus,
     execute_precision, get_precision_status
 )
+from cpb.types import CPBPath
 
 
 # =============================================================================
