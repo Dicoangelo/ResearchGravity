@@ -438,6 +438,196 @@ async def cmd_status(args):
     return 0
 
 
+def show_status():
+    """
+    Show comprehensive system status (v2.5).
+
+    Displays:
+    - Dependency status
+    - Gemini availability + message
+    - Perplexity availability + message
+    - Best available provider
+    - Cache stats
+    """
+    print("\n" + "=" * 70)
+    print("  CPB PRECISION MODE - SYSTEM STATUS")
+    print("=" * 70)
+
+    # Dependencies
+    print("\n📦 Dependencies:")
+    print("-" * 50)
+
+    from . import check_dependencies
+    deps = check_dependencies()
+
+    core_deps = ['aiohttp', 'google-generativeai', 'anthropic']
+    optional_deps = ['arxiv', 'cohere']
+
+    print("  Core:")
+    for dep in core_deps:
+        info = deps.get(dep, {'installed': False})
+        if info['installed']:
+            print(f"    ✅ {dep}: {info['version']}")
+        else:
+            print(f"    ❌ {dep}: Not installed")
+
+    print("  Optional:")
+    for dep in optional_deps:
+        info = deps.get(dep, {'installed': False})
+        if info['installed']:
+            print(f"    ✅ {dep}: {info['version']}")
+        else:
+            print(f"    ⚠️  {dep}: Not installed")
+
+    # Deep Research Providers
+    print("\n🔬 Deep Research Providers:")
+    print("-" * 50)
+
+    from .deep_research import (
+        check_deep_research_available,
+        get_best_available_provider,
+        get_cache_stats,
+    )
+
+    gemini_available, gemini_msg = check_deep_research_available("gemini")
+    perplexity_available, perplexity_msg = check_deep_research_available("perplexity")
+    best_provider, best_msg = get_best_available_provider()
+
+    if gemini_available:
+        print(f"  ✅ Gemini: {gemini_msg}")
+    else:
+        print(f"  ❌ Gemini: {gemini_msg}")
+
+    if perplexity_available:
+        print(f"  ✅ Perplexity: {perplexity_msg}")
+    else:
+        print(f"  ❌ Perplexity: {perplexity_msg}")
+
+    print(f"\n  🎯 Best Available: {best_provider or 'None'}")
+    if best_provider:
+        print(f"     {best_msg}")
+
+    # Cache Stats
+    print("\n💾 Deep Research Cache:")
+    print("-" * 50)
+    cache_stats = get_cache_stats()
+    print(f"  Entries: {cache_stats['valid_entries']}/{cache_stats['total_entries']} valid")
+    print(f"  TTL: {cache_stats['ttl_seconds']}s ({cache_stats['ttl_seconds'] // 60} min)")
+
+    # Ground Truth Corpus
+    print("\n📚 Ground Truth Corpus:")
+    print("-" * 50)
+    try:
+        from .ground_truth import get_corpus
+        corpus = get_corpus()
+        stats = corpus.get_corpus_stats()
+        print(f"  Total entries: {stats['total_entries']}")
+        print(f"  Total claims: {stats['total_claims']}")
+        print(f"  High confidence: {stats['high_confidence']}")
+        if stats['avg_dq_score'] > 0:
+            print(f"  Avg DQ score: {stats['avg_dq_score']:.3f}")
+    except Exception as e:
+        print(f"  ⚠️  Unable to load corpus: {str(e)[:50]}")
+
+    print("\n" + "=" * 70)
+
+
+def dry_run(args):
+    """
+    Show execution plan without running (v2.5).
+
+    Displays:
+    - Query being processed
+    - All phases that would execute
+    - Flags being applied
+    - Estimated provider usage
+    """
+    print("\n" + "=" * 70)
+    print("  CPB PRECISION MODE - DRY RUN")
+    print("=" * 70)
+
+    query = args.query or "(No query provided)"
+    print(f"\n📝 Query: {query}")
+
+    # Flags
+    print("\n🎛️  Flags:")
+    print("-" * 50)
+    enhance = not getattr(args, 'no_enhance', False)
+    pioneer = getattr(args, 'pioneer', False)
+    trust_context = getattr(args, 'trust_context', False)
+    deep_research = getattr(args, 'deep_research', False)
+    deep_provider = getattr(args, 'deep_provider', None)
+
+    print(f"  Query enhancement: {'enabled' if enhance else 'disabled'}")
+    print(f"  Pioneer mode: {'enabled' if pioneer else 'auto-detect'}")
+    print(f"  Trust context: {'enabled' if trust_context else 'disabled'}")
+    print(f"  Deep research: {'enabled' if deep_research else 'disabled'}")
+    if deep_research:
+        print(f"  Deep provider: {deep_provider or 'auto-detect'}")
+
+    # Context
+    if args.context:
+        if args.context.startswith('@'):
+            print(f"\n📄 Context: From file {args.context[1:]}")
+        else:
+            print(f"\n📄 Context: {len(args.context)} chars inline")
+    else:
+        print("\n📄 Context: None")
+
+    # Execution Plan
+    print("\n📋 Execution Plan:")
+    print("-" * 50)
+
+    phases = []
+    if enhance:
+        phases.append(("1", "Query Enhancement", "Haiku", "~2s"))
+    if deep_research:
+        provider = deep_provider or "auto"
+        phases.append(("2", f"Deep Research ({provider})", "External API", "~3-5s"))
+    phases.append(("3", "Tiered Search", "arXiv + GitHub + Internal", "~2-4s"))
+    phases.append(("4", "Context Grounding", "Build citation context", "<1s"))
+    phases.append(("5", "7-Agent Cascade", "Sonnet × 7", "~15-20s"))
+    phases.append(("6", "MAR Consensus", "Haiku × 3 + Sonnet", "~5-8s"))
+    phases.append(("7", "Verification + Refinement", "Up to 5 retries", "~5-30s"))
+    phases.append(("8", "Editorial Frame", "Extract thesis/gap", "<1s"))
+
+    for num, name, model, timing in phases:
+        print(f"  [{num}] {name}")
+        print(f"      Model: {model} | Est: {timing}")
+
+    # DQ Weights
+    print("\n⚖️  DQ Weights:")
+    print("-" * 50)
+    if pioneer:
+        from .precision_config import PIONEER_DQ_WEIGHTS as weights
+        mode = "Pioneer Mode"
+    elif trust_context:
+        from .precision_config import TRUST_CONTEXT_DQ_WEIGHTS as weights
+        mode = "Trust Context Mode"
+    else:
+        weights = {
+            'validity': 0.30,
+            'specificity': 0.20,
+            'correctness': 0.35,
+            'ground_truth': 0.15,
+        }
+        mode = "Default v2.2"
+
+    print(f"  Mode: {mode}")
+    for dim, weight in weights.items():
+        print(f"    {dim}: {weight:.0%}")
+
+    # Output
+    if args.output:
+        print(f"\n💾 Output: {args.output}")
+    if args.json:
+        print(f"  Format: JSON")
+
+    print("\n" + "=" * 70)
+    print("  ⏸️  Dry run complete. No API calls were made.")
+    print("=" * 70 + "\n")
+
+
 async def cmd_agents(args):
     """Show agent information."""
     print_header()
@@ -538,12 +728,22 @@ Examples:
     parser.add_argument(
         '--status', '-s',
         action='store_true',
-        help='Show configuration status'
+        help='Show system status (dependencies, providers, cache)'
     )
     parser.add_argument(
         '--agents', '-a',
         action='store_true',
         help='Show agent information'
+    )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Show execution plan without running (v2.5)'
+    )
+    parser.add_argument(
+        '--config-status',
+        action='store_true',
+        help='Show configuration status (legacy --status behavior)'
     )
 
     return parser
@@ -554,9 +754,24 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    # Handle mode flags
+    # Handle mode flags (v2.5: updated flag handling)
+
+    # New --status shows comprehensive system status
     if args.status:
+        show_status()
+        return 0
+
+    # Legacy config status
+    if getattr(args, 'config_status', False):
         return asyncio.run(cmd_status(args))
+
+    # Dry run - show plan without executing
+    if getattr(args, 'dry_run', False):
+        if not args.query:
+            print("Error: --dry-run requires a query")
+            return 1
+        dry_run(args)
+        return 0
 
     if args.agents:
         return asyncio.run(cmd_agents(args))

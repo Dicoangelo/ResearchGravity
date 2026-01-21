@@ -1,0 +1,25 @@
+# CPB Core Dependencies
+# ====================
+
+# Async HTTP client (required for Perplexity, deep research)
+aiohttp>=3.8.0
+
+# Google AI SDK (required for Gemini deep research)
+google-generativeai>=0.3.0
+
+# Anthropic SDK (optional - for LLM client)
+anthropic>=0.18.0
+
+# Testing Dependencies
+# ====================
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Optional Dependencies
+# ====================
+
+# arXiv search (for tiered search layer)
+arxiv>=1.4.0
+
+# Cohere embeddings (for internal search)
+cohere>=4.0.0

@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
 """
-CPB Deep Research Layer - External Research API Integration
+CPB Deep Research Layer - External Research API Integration (v2.5 Hardened)
 
 Integrates external deep research APIs (Perplexity, Gemini) to augment
 CPB's internal search with real-time web research capabilities.
 
+v2.5 Enhancements:
+- Caching layer with 15-min TTL to avoid redundant API calls
+- Retry logic with exponential backoff (1s, 2s, 4s) for transient failures
+- Provider fallback chain (Gemini → Perplexity) on failure
+- Hardened Gemini grounding extraction with 3 fallback methods
+
 Supported Providers:
-- Perplexity (default): sonar, sonar-pro models
-- Gemini: Coming soon
+- Gemini (default): gemini-2.0-flash with Google Search grounding
+- Perplexity: sonar, sonar-pro models
 
 Usage:
-    results = await deep_research(query, provider="perplexity")
+    results = await deep_research(query, provider="gemini")
     # Returns list of SearchResult objects ready for injection into pipeline
+
+    # With fallback on failure:
+    result, search_results, provider_used = await deep_research_with_fallback(query)
 """
 
 import asyncio
 import json
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from enum import Enum
 
 try:
@@ -36,6 +46,102 @@ except ImportError:
     HAS_GEMINI = False
 
 from .search_layer import SearchResult, SourceTier, SourceCategory
+
+
+# =============================================================================
+# CACHING LAYER (v2.5)
+# =============================================================================
+
+# Cache with 15-minute TTL
+_deep_research_cache: dict = {}
+CACHE_TTL_SECONDS = 900  # 15 minutes
+
+
+def _cache_key(query: str, provider: str, model: str) -> str:
+    """Generate cache key for deep research result."""
+    # Normalize query for caching
+    normalized = query.strip().lower()
+    return f"{normalized}:{provider}:{model}"
+
+
+def _get_cached(key: str) -> Optional['DeepResearchResult']:
+    """Get cached result if still valid."""
+    if key in _deep_research_cache:
+        cached_time, result = _deep_research_cache[key]
+        if time.time() - cached_time < CACHE_TTL_SECONDS:
+            return result
+        else:
+            # Expired, remove from cache
+            del _deep_research_cache[key]
+    return None
+
+
+def _set_cached(key: str, result: 'DeepResearchResult'):
+    """Store result in cache with current timestamp."""
+    _deep_research_cache[key] = (time.time(), result)
+
+
+def clear_deep_research_cache():
+    """Clear all cached deep research results."""
+    global _deep_research_cache
+    _deep_research_cache = {}
+
+
+def get_cache_stats() -> dict:
+    """Get cache statistics."""
+    now = time.time()
+    valid_count = sum(
+        1 for cached_time, _ in _deep_research_cache.values()
+        if now - cached_time < CACHE_TTL_SECONDS
+    )
+    return {
+        'total_entries': len(_deep_research_cache),
+        'valid_entries': valid_count,
+        'ttl_seconds': CACHE_TTL_SECONDS,
+    }
+
+
+# =============================================================================
+# RETRY LOGIC (v2.5)
+# =============================================================================
+
+async def _retry_with_backoff(
+    async_fn,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 10.0,
+    exceptions: tuple = (Exception,)
+) -> any:
+    """
+    Retry an async function with exponential backoff.
+
+    Args:
+        async_fn: Async function to call (no arguments, use lambda)
+        max_retries: Maximum retry attempts (default: 3)
+        base_delay: Initial delay in seconds (default: 1.0)
+        max_delay: Maximum delay cap in seconds (default: 10.0)
+        exceptions: Tuple of exceptions to catch and retry
+
+    Returns:
+        Result from async_fn
+
+    Raises:
+        Last exception if all retries exhausted
+    """
+    last_exception = None
+
+    for attempt in range(max_retries):
+        try:
+            return await async_fn()
+        except exceptions as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                # Calculate delay with exponential backoff
+                delay = min(base_delay * (2 ** attempt), max_delay)
+                await asyncio.sleep(delay)
+
+    # All retries exhausted
+    raise last_exception
 
 
 class DeepResearchProvider(Enum):
@@ -271,29 +377,8 @@ Requirements:
         # Extract content and grounding metadata
         content = response.text if response.text else ""
 
-        # Extract citations from grounding metadata
-        citations = []
-        try:
-            # Gemini returns grounding metadata with search results
-            if hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, 'grounding_metadata'):
-                    gm = candidate.grounding_metadata
-                    # Extract grounding chunks (citations)
-                    if hasattr(gm, 'grounding_chunks'):
-                        for chunk in gm.grounding_chunks:
-                            if hasattr(chunk, 'web') and chunk.web:
-                                citations.append({
-                                    'url': chunk.web.uri or '',
-                                    'title': chunk.web.title or 'Web Source',
-                                    'snippet': '',
-                                })
-                    # Also check grounding_supports for inline citations
-                    if hasattr(gm, 'web_search_queries'):
-                        pass  # Could log search queries used
-        except Exception as e:
-            # Grounding metadata extraction failed, continue without citations
-            pass
+        # Extract citations using hardened extraction (v2.5)
+        citations = self._extract_gemini_citations(response, content)
 
         # Calculate timing and approximate cost
         search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -323,6 +408,104 @@ Requirements:
             token_count=token_count,
             cost_usd=cost_usd,
         )
+
+    def _extract_gemini_citations(self, response, content: str) -> list[dict]:
+        """
+        Extract citations from Gemini response with 3 fallback methods (v2.5).
+
+        Fallback chain:
+        1. grounding_metadata.grounding_chunks (primary)
+        2. grounding_metadata.grounding_supports (inline citations)
+        3. Parse inline URLs from response text (last resort)
+
+        Args:
+            response: Gemini API response object
+            content: Response text content
+
+        Returns:
+            List of citation dicts with url, title, snippet
+        """
+        citations = []
+        seen_urls = set()
+
+        # Method 1: grounding_chunks (primary)
+        try:
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'grounding_metadata'):
+                    gm = candidate.grounding_metadata
+
+                    # Try grounding_chunks first
+                    if hasattr(gm, 'grounding_chunks') and gm.grounding_chunks:
+                        for chunk in gm.grounding_chunks:
+                            if hasattr(chunk, 'web') and chunk.web:
+                                url = getattr(chunk.web, 'uri', '') or ''
+                                if url and url not in seen_urls:
+                                    seen_urls.add(url)
+                                    citations.append({
+                                        'url': url,
+                                        'title': getattr(chunk.web, 'title', 'Web Source') or 'Web Source',
+                                        'snippet': '',
+                                    })
+        except Exception:
+            pass
+
+        # Method 2: grounding_supports (inline citations)
+        if not citations:
+            try:
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'grounding_metadata'):
+                        gm = candidate.grounding_metadata
+
+                        if hasattr(gm, 'grounding_supports') and gm.grounding_supports:
+                            for support in gm.grounding_supports:
+                                # grounding_supports links segments to sources
+                                if hasattr(support, 'grounding_chunk_indices'):
+                                    # References indices in grounding_chunks
+                                    pass  # Already handled above
+                                if hasattr(support, 'web') and support.web:
+                                    url = getattr(support.web, 'uri', '') or ''
+                                    if url and url not in seen_urls:
+                                        seen_urls.add(url)
+                                        citations.append({
+                                            'url': url,
+                                            'title': getattr(support.web, 'title', 'Web Source') or 'Web Source',
+                                            'snippet': getattr(support, 'segment', '') or '',
+                                        })
+            except Exception:
+                pass
+
+        # Method 3: Parse inline URLs from text (last resort)
+        if not citations and content:
+            try:
+                # Find URLs in the response text
+                url_pattern = r'https?://[^\s\)\]\>\"\']+[^\s\.\,\!\?\)\]\>\"\']'
+                urls = re.findall(url_pattern, content)
+
+                for url in urls[:10]:  # Limit to 10
+                    # Clean up common URL artifacts
+                    url = url.rstrip('.,;:')
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        # Try to extract title from URL
+                        title = 'Web Source'
+                        if 'arxiv.org' in url:
+                            title = 'arXiv Paper'
+                        elif 'github.com' in url:
+                            title = 'GitHub Repository'
+                        elif 'wikipedia.org' in url:
+                            title = 'Wikipedia Article'
+
+                        citations.append({
+                            'url': url,
+                            'title': title,
+                            'snippet': '',
+                        })
+            except Exception:
+                pass
+
+        return citations
 
 
 def deep_result_to_search_results(result: DeepResearchResult) -> list[SearchResult]:
@@ -404,36 +587,139 @@ async def deep_research(
     query: str,
     provider: str = "gemini",  # Default to Gemini since user has account
     model: Optional[str] = None,
-    system_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None,
+    use_cache: bool = True
 ) -> tuple[DeepResearchResult, list[SearchResult]]:
     """
-    Execute deep research and return results ready for CPB pipeline.
+    Execute deep research and return results ready for CPB pipeline (v2.5 with caching).
 
     Args:
         query: Research query
         provider: Provider to use (gemini, perplexity)
         model: Model override (default: gemini-2.0-flash for gemini, sonar for perplexity)
         system_prompt: Optional system prompt
+        use_cache: Whether to use caching (default: True)
 
     Returns:
         Tuple of (DeepResearchResult, list of SearchResult for pipeline)
     """
+    # Determine model
     if provider == "perplexity":
-        client = get_perplexity_client()
         model = model or "sonar"
-        result = await client.research(query, model=model, system_prompt=system_prompt)
-        search_results = deep_result_to_search_results(result)
-        return result, search_results
-
     elif provider == "gemini":
-        client = get_gemini_client()
         model = model or "gemini-2.0-flash"
-        result = await client.research(query, model=model, system_prompt=system_prompt)
-        search_results = deep_result_to_search_results(result)
-        return result, search_results
-
     else:
         raise ValueError(f"Unknown provider: {provider}. Use 'gemini' or 'perplexity'")
+
+    # Check cache first (v2.5)
+    if use_cache:
+        cache_key = _cache_key(query, provider, model)
+        cached_result = _get_cached(cache_key)
+        if cached_result is not None:
+            # Return cached result
+            search_results = deep_result_to_search_results(cached_result)
+            return cached_result, search_results
+
+    # Execute research with retry logic (v2.5)
+    async def _do_research():
+        if provider == "perplexity":
+            client = get_perplexity_client()
+            return await client.research(query, model=model, system_prompt=system_prompt)
+        else:  # gemini
+            client = get_gemini_client()
+            return await client.research(query, model=model, system_prompt=system_prompt)
+
+    # Retry with exponential backoff
+    result = await _retry_with_backoff(
+        _do_research,
+        max_retries=3,
+        base_delay=1.0,
+        max_delay=10.0,
+        exceptions=(RuntimeError, ValueError, Exception)
+    )
+
+    # Cache the result (v2.5)
+    if use_cache:
+        cache_key = _cache_key(query, provider, model)
+        _set_cached(cache_key, result)
+
+    search_results = deep_result_to_search_results(result)
+    return result, search_results
+
+
+async def deep_research_with_fallback(
+    query: str,
+    preferred_provider: Optional[str] = None,
+    model: Optional[str] = None,
+    system_prompt: Optional[str] = None,
+    use_cache: bool = True
+) -> Tuple[DeepResearchResult, list[SearchResult], str]:
+    """
+    Execute deep research with automatic provider fallback (v2.5).
+
+    Tries the preferred provider first, then falls back to the alternate
+    if the primary fails.
+
+    Fallback chain:
+    - If preferred is Gemini: Gemini → Perplexity
+    - If preferred is Perplexity: Perplexity → Gemini
+    - If no preferred: Best available → Alternate
+
+    Args:
+        query: Research query
+        preferred_provider: Preferred provider (gemini, perplexity, or None for auto)
+        model: Model override
+        system_prompt: Optional system prompt
+        use_cache: Whether to use caching (default: True)
+
+    Returns:
+        Tuple of (DeepResearchResult, list of SearchResult, actual_provider_used)
+
+    Raises:
+        RuntimeError: If all providers fail
+    """
+    # Determine provider order
+    if preferred_provider:
+        providers = [preferred_provider]
+        if preferred_provider == "gemini":
+            providers.append("perplexity")
+        else:
+            providers.append("gemini")
+    else:
+        # Auto-detect best available
+        best, _ = get_best_available_provider()
+        if best == "gemini":
+            providers = ["gemini", "perplexity"]
+        elif best == "perplexity":
+            providers = ["perplexity", "gemini"]
+        else:
+            raise RuntimeError("No deep research provider available")
+
+    last_error = None
+
+    for provider in providers:
+        # Check if provider is available
+        available, msg = check_deep_research_available(provider)
+        if not available:
+            continue
+
+        try:
+            result, search_results = await deep_research(
+                query,
+                provider=provider,
+                model=model if provider == preferred_provider else None,  # Use default model for fallback
+                system_prompt=system_prompt,
+                use_cache=use_cache
+            )
+            return result, search_results, provider
+
+        except Exception as e:
+            last_error = e
+            # Continue to fallback provider
+            continue
+
+    # All providers failed
+    raise RuntimeError(f"All deep research providers failed. Last error: {last_error}")
 
 
 def check_deep_research_available(provider: str = "gemini") -> tuple[bool, str]:

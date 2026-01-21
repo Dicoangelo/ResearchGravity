@@ -164,7 +164,91 @@ from .ground_truth import (
     store_verified_claims,
 )
 
-__version__ = '2.2.0'  # v2.2: Ground truth diagnostic mode, corpus storage
+__version__ = '2.5.0'  # v2.5: Comprehensive hardening (caching, retry, fallback, cost tracking)
+
+
+# =============================================================================
+# DEPENDENCY CHECK (v2.5)
+# =============================================================================
+
+def check_dependencies() -> dict:
+    """
+    Check installed CPB dependencies and their versions.
+
+    Returns:
+        Dict with dependency status:
+        {
+            'aiohttp': {'installed': True, 'version': '3.9.0'},
+            'google-generativeai': {'installed': False, 'version': None, 'message': 'Not installed'},
+            ...
+        }
+    """
+    import importlib.metadata
+
+    dependencies = [
+        'aiohttp',
+        'google-generativeai',
+        'anthropic',
+        'pytest',
+        'pytest-asyncio',
+        'arxiv',
+        'cohere',
+    ]
+
+    result = {}
+
+    for dep in dependencies:
+        try:
+            version = importlib.metadata.version(dep)
+            result[dep] = {
+                'installed': True,
+                'version': version,
+            }
+        except importlib.metadata.PackageNotFoundError:
+            result[dep] = {
+                'installed': False,
+                'version': None,
+                'message': 'Not installed',
+            }
+
+    return result
+
+
+def get_deep_research_status() -> dict:
+    """
+    Get comprehensive deep research provider status.
+
+    Returns:
+        Dict with provider availability:
+        {
+            'gemini': {'available': True, 'message': 'Ready'},
+            'perplexity': {'available': False, 'message': 'API key not found'},
+            'best_provider': 'gemini',
+            'cache_stats': {...},
+        }
+    """
+    from .deep_research import (
+        check_deep_research_available,
+        get_best_available_provider,
+        get_cache_stats,
+    )
+
+    gemini_available, gemini_msg = check_deep_research_available("gemini")
+    perplexity_available, perplexity_msg = check_deep_research_available("perplexity")
+    best_provider, _ = get_best_available_provider()
+
+    return {
+        'gemini': {
+            'available': gemini_available,
+            'message': gemini_msg,
+        },
+        'perplexity': {
+            'available': perplexity_available,
+            'message': perplexity_msg,
+        },
+        'best_provider': best_provider,
+        'cache_stats': get_cache_stats(),
+    }
 __all__ = [
     # Types
     'CPBPath',
@@ -240,4 +324,8 @@ __all__ = [
     'GroundTruthCorpus',
     'get_ground_truth_corpus',
     'store_verified_claims',
+
+    # v2.5: Dependency check
+    'check_dependencies',
+    'get_deep_research_status',
 ]
