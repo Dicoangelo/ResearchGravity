@@ -42,6 +42,7 @@ from .critic_verifier import CriticVerifier, VerificationResult, verify
 from .search_layer import (
     SearchContext, search_tiered, get_search_layer
 )
+from .query_enhancer import enhance_query, EnhancedQuery
 
 # LLM client import (lazy to avoid circular deps)
 _llm_executor = None
@@ -124,6 +125,14 @@ class PrecisionResult:
     feedback_history: List[str] = field(default_factory=list)
     refinement_targets: List[str] = field(default_factory=list)  # Which DQ dims were targeted (v2)
 
+    # Query enhancement (v2.3)
+    original_query: str = ""
+    enhanced_query: str = ""
+    query_was_enhanced: bool = False
+    enhancement_reasoning: str = ""
+    query_dimensions: List[str] = field(default_factory=list)
+    follow_up_queries: List[str] = field(default_factory=list)
+
     def to_dict(self) -> Dict[str, Any]:
         result = {
             'output': self.output,
@@ -166,6 +175,13 @@ class PrecisionResult:
             'warnings': self.warnings,
             'feedback_history': self.feedback_history,
             'refinement_targets': self.refinement_targets,
+            # Query enhancement (v2.3)
+            'original_query': self.original_query,
+            'enhanced_query': self.enhanced_query,
+            'query_was_enhanced': self.query_was_enhanced,
+            'enhancement_reasoning': self.enhancement_reasoning,
+            'query_dimensions': self.query_dimensions,
+            'follow_up_queries': self.follow_up_queries,
         }
         return result
 
@@ -211,12 +227,14 @@ class PrecisionOrchestrator:
         self,
         query: str,
         context: Optional[str] = None,
-        on_status: Optional[Callable[[PrecisionStatus], None]] = None
+        on_status: Optional[Callable[[PrecisionStatus], None]] = None,
+        enhance: bool = True
     ) -> PrecisionResult:
         """
-        Execute precision mode v2 query.
+        Execute precision mode v2.3 query with query enhancement.
 
         Flow:
+        0. QUERY ENHANCEMENT: Transform casual query to research-grade (Haiku)
         1. TIERED SEARCH: arXiv + Labs + News + GitHub + Internal
         2. CONTEXT GROUNDING: Build citation-ready context
         3. CASCADE EXECUTION: 7-agent with grounded prompts
@@ -228,6 +246,7 @@ class PrecisionOrchestrator:
             query: The query to answer
             context: Optional additional context
             on_status: Optional callback for status updates
+            enhance: Whether to enhance the query (default True)
 
         Returns:
             PrecisionResult with verified answer
@@ -242,10 +261,43 @@ class PrecisionOrchestrator:
 
         try:
             # =================================================================
+            # PHASE 0: QUERY ENHANCEMENT (v2.3)
+            # =================================================================
+            result.original_query = query
+            working_query = query
+
+            if enhance:
+                self._update_status("enhancing", 2, "Enhancing query for research depth...")
+                try:
+                    enhanced = await enhance_query(query, context, model="haiku")
+                    result.enhanced_query = enhanced.enhanced
+                    result.query_was_enhanced = enhanced.was_enhanced
+                    result.enhancement_reasoning = enhanced.reasoning
+                    result.query_dimensions = enhanced.dimensions
+                    result.follow_up_queries = enhanced.follow_ups
+
+                    if enhanced.was_enhanced:
+                        working_query = enhanced.enhanced
+                        self._update_status("enhancing", 4, f"Enhanced: {working_query[:60]}...")
+                    else:
+                        result.enhanced_query = query  # Keep original if already good
+                        self._update_status("enhancing", 4, "Query already research-grade")
+                except Exception as e:
+                    # Enhancement failed, continue with original
+                    result.enhanced_query = query
+                    result.query_was_enhanced = False
+                    result.enhancement_reasoning = f"Enhancement failed: {str(e)[:50]}"
+                    result.warnings.append(f"Query enhancement failed: {str(e)[:50]}")
+            else:
+                result.enhanced_query = query
+                result.query_was_enhanced = False
+                result.enhancement_reasoning = "Enhancement disabled"
+
+            # =================================================================
             # PHASE 1: TIERED SEARCH (ResearchGravity methodology)
             # =================================================================
             self._update_status("searching", 5, "Tier 1: Searching arXiv, labs, industry...")
-            search_context = await self._execute_tiered_search(query)
+            search_context = await self._execute_tiered_search(working_query)
 
             result.search_time_ms = search_context.search_time_ms
             result.tier1_count = len(search_context.tier1_results)
@@ -266,7 +318,7 @@ class PrecisionOrchestrator:
             result.grounding_prompt = grounding_prompt[:2000] + "..." if len(grounding_prompt) > 2000 else grounding_prompt
 
             # Also get RG context for internal learnings
-            rg_context = await self._enrich_context(query, context)
+            rg_context = await self._enrich_context(working_query, context)
             result.rg_connection_mode = rg_context.connection_mode.value
             result.warnings.extend(rg_context.warnings)
 
@@ -283,7 +335,7 @@ class PrecisionOrchestrator:
             # =================================================================
             self._update_status("executing", 30, "Running 7-agent cascade with grounded sources...")
             cascade_result = await self._execute_grounded_cascade(
-                query, enriched_context, search_context
+                working_query, enriched_context, search_context
             )
             result.output = cascade_result.get('output', '')
             result.sources = cascade_result.get('sources', [])
@@ -293,7 +345,7 @@ class PrecisionOrchestrator:
             # =================================================================
             self._update_status("consensus", 50, "Running MAR consensus critique...")
             mar_result = await self._execute_mar_consensus(
-                query, result.output, enriched_context, search_context
+                working_query, result.output, enriched_context, search_context
             )
             result.output = mar_result.get('output', result.output)
 
@@ -302,7 +354,7 @@ class PrecisionOrchestrator:
             # =================================================================
             self._update_status("verifying", 60, "Running critic verification...")
             verification = await self._verify_result(
-                result.output, result.sources, query, enriched_context
+                result.output, result.sources, working_query, enriched_context
             )
 
             result.verification = verification
@@ -350,14 +402,14 @@ class PrecisionOrchestrator:
 
                 # Re-execute with targeted refinement
                 cascade_result = await self._execute_grounded_cascade(
-                    query, enriched_context, search_context, feedback=feedback
+                    working_query, enriched_context, search_context, feedback=feedback
                 )
                 result.output = cascade_result.get('output', '')
                 result.sources = cascade_result.get('sources', [])
 
                 # Re-verify
                 verification = await self._verify_result(
-                    result.output, result.sources, query, enriched_context
+                    result.output, result.sources, working_query, enriched_context
                 )
 
                 result.verification = verification
@@ -1143,10 +1195,11 @@ precision_orchestrator = PrecisionOrchestrator()
 async def execute_precision(
     query: str,
     context: Optional[str] = None,
-    on_status: Optional[Callable[[PrecisionStatus], None]] = None
+    on_status: Optional[Callable[[PrecisionStatus], None]] = None,
+    enhance: bool = True
 ) -> PrecisionResult:
-    """Execute precision mode query."""
-    return await precision_orchestrator.execute(query, context, on_status)
+    """Execute precision mode query with optional query enhancement."""
+    return await precision_orchestrator.execute(query, context, on_status, enhance)
 
 
 def get_precision_status() -> Dict[str, Any]:

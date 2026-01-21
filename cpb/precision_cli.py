@@ -141,6 +141,14 @@ def print_result(result: PrecisionResult, verbose: bool = False):
                 for line in fb.split('\n'):
                     print(f"    {line}")
 
+    # Follow-up queries (v2.3)
+    if result.follow_up_queries:
+        print("\n" + "=" * 70)
+        print("  SUGGESTED FOLLOW-UP QUERIES")
+        print("=" * 70)
+        for i, fq in enumerate(result.follow_up_queries, 1):
+            print(f"\n  {i}. {fq}")
+
     print()
     print("=" * 70)
 
@@ -225,6 +233,9 @@ async def cmd_query(args):
     print(f"\n📝 Query: {args.query}")
     print(f"🎯 Target DQ: {PRECISION_CONFIG.dq_threshold}")
     print(f"🤖 Agents: {PRECISION_CONFIG.ace_config.agent_count}")
+    enhance = not getattr(args, 'no_enhance', False)
+    if not enhance:
+        print("⏭️  Query enhancement: disabled")
     print()
 
     # Status callback
@@ -237,12 +248,27 @@ async def cmd_query(args):
     result = await execute_precision(
         args.query,
         context=context,
-        on_status=on_status if not args.quiet else None
+        on_status=on_status if not args.quiet else None,
+        enhance=enhance
     )
     elapsed = time.time() - start
 
     # Clear status line
     if not args.quiet:
+        print()
+
+    # Display query enhancement info (v2.3)
+    if result.query_was_enhanced and not args.quiet:
+        print()
+        print("-" * 70)
+        print("  QUERY ENHANCEMENT")
+        print("-" * 70)
+        print(f"\n  Original: {result.original_query}")
+        print(f"\n  Enhanced: {result.enhanced_query}")
+        if result.enhancement_reasoning:
+            print(f"\n  Reasoning: {result.enhancement_reasoning}")
+        if result.query_dimensions:
+            print(f"\n  Dimensions: {', '.join(result.query_dimensions)}")
         print()
 
     # Display result
@@ -413,6 +439,11 @@ Examples:
         '--quiet', '-q',
         action='store_true',
         help='Suppress progress output'
+    )
+    parser.add_argument(
+        '--no-enhance',
+        action='store_true',
+        help='Skip query enhancement (use raw query)'
     )
 
     # Mode flags
