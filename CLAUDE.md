@@ -68,13 +68,20 @@ python3 backfill_learnings.py                  # Regenerate learnings.md from al
 python3 backfill_learnings.py --since 7        # Last 7 days only
 
 # ═══════════════════════════════════════════════════════════
-# CPB PRECISION MODE v2.1 (with Ground Truth)
+# CPB PRECISION MODE v2.5 (Hardened)
 # ═══════════════════════════════════════════════════════════
-python3 -m cpb precision "query"               # Run precision mode (95%+ DQ target)
-python3 -m cpb precision "query" --verbose     # With detailed output
-python3 -m cpb precision --interactive         # Interactive REPL mode
-python3 -m cpb precision --status              # Show orchestrator status
-python3 -m cpb precision --agents              # List 7 agent personas
+python3 -m cpb.precision_cli "query"           # Run precision mode (95%+ DQ target)
+python3 -m cpb.precision_cli "query" --verbose # With detailed output
+python3 -m cpb.precision_cli --status          # System status (deps, providers, cache)
+python3 -m cpb.precision_cli "query" --dry-run # Show execution plan without running
+python3 -m cpb.precision_cli --interactive     # Interactive REPL mode
+python3 -m cpb.precision_cli --agents          # List 7 agent personas
+
+# v2.4+ Features: Pioneer Mode, Trust Context, Deep Research
+python3 -m cpb.precision_cli "cutting-edge query" --pioneer        # Adjusted DQ weights
+python3 -m cpb.precision_cli "query" --deep-research               # Gemini/Perplexity search
+python3 -m cpb.precision_cli "query" --context @file.md --trust-context  # Tier 1 user context
+python3 -m cpb.precision_cli "query" --pioneer --deep-research --verbose # Full stack
 
 # ═══════════════════════════════════════════════════════════
 # CPB FEEDBACK & GROUND TRUTH LEARNING
@@ -102,14 +109,18 @@ researchgravity/               # Scripts (this repo)
 │   ├── archive_critic.py      # Archive validation
 │   ├── evidence_critic.py     # Evidence validation
 │   └── pack_critic.py         # Pack validation
-├── cpb/                       # Cognitive Precision Bridge v2.1
+├── cpb/                       # Cognitive Precision Bridge v2.5
 │   ├── precision_orchestrator.py  # 7-agent cascade with ground truth
 │   ├── search_layer.py        # Tiered search (arXiv, GitHub, internal)
+│   ├── deep_research.py       # Gemini/Perplexity integration (v2.5 hardened)
 │   ├── ground_truth.py        # Ground truth validation system
 │   ├── critic_verifier.py     # DQ scoring with ground truth weight
+│   ├── query_enhancer.py      # Query expansion with pioneer detection
+│   ├── run_logger.py          # Run documentation with cost tracking
 │   ├── feedback_cli.py        # Human feedback collection
 │   ├── llm_client.py          # Multi-provider LLM client
-│   └── precision_cli.py       # Precision mode CLI
+│   ├── precision_cli.py       # Precision mode CLI (--status, --dry-run)
+│   └── tests/                 # Test suite (17 tests)
 ├── prefetch.py                # Context prefetcher for Claude sessions
 ├── backfill_learnings.py      # Extract learnings from archived sessions
 ├── init_session.py            # Session initialization
