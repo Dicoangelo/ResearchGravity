@@ -96,40 +96,26 @@
   - Pytest fixtures and mock factories
   - All tests passing
 
+### v3.7 - MCP Integration (NEW - 2026-01-21)
+- ✅ **MCP Server Implementation**
+  - Full MCP server in `mcp_server.py` (606 lines)
+  - 8 tools: get_session_context, search_learnings, get_project_research, log_finding, select_context_packs, get_research_index, list_projects, get_session_stats
+  - 4 resources: session://active, learnings://all, research://index, project://{name}/research
+
+- ✅ **Claude Code Integration**
+  - Registered in `~/.claude.json` mcpServers
+  - Auto-starts with Claude Code sessions
+  - Cross-tool context sharing ready
+
+- ✅ **Dependencies**
+  - MCP SDK v1.25.0 installed
+  - requirements.txt updated with mcp>=1.0.0
+
 ---
 
 ## 🚧 In Progress
 
 ### v4.0 - Advanced Integration
-
-#### MCP Integration for Tool Context
-**Status:** Planned
-**Priority:** High
-
-Use Model Context Protocol to:
-- Expose ResearchGravity as MCP server
-- Provide context to other tools (Cursor, Windsurf, etc.)
-- Enable cross-tool session tracking
-- Unified context across development environments
-
-**Implementation:**
-```python
-# Planned structure
-researchgravity/
-├── mcp_server.py          # MCP server implementation
-├── mcp_client.py          # Client for testing
-└── mcp_schema.json        # Context schema definition
-```
-
-**Expected Features:**
-- `get_session_context` - Retrieve active session info
-- `search_learnings` - Query archived learnings
-- `get_project_research` - Load project-specific research
-- `log_finding` - Record findings from external tools
-
-**Target:** v4.0 (Q1 2026)
-
----
 
 #### Auto-Synthesis via LLM
 **Status:** Planned
@@ -375,7 +361,7 @@ researchgravity/
 | Context Packs V2 | ✅ Complete | 2,195 | 5 files |
 | CPB Precision v2.5 | ✅ Complete | ~4,500 | 15 files |
 | Documentation | ✅ Complete | 2,800+ | 10 files |
-| MCP Integration | 🚧 Planned | - | - |
+| MCP Integration | ✅ Complete | 606 | 1 file |
 | Auto-Synthesis | 🚧 Planned | - | - |
 | Browser Extension | 🚧 Planned | - | - |
 | Team Collaboration | 🚧 Planned | - | - |
@@ -518,5 +504,5 @@ Built on the shoulders of giants:
 
 **ResearchGravity + Context Packs** - From research to implementation, with full traceability.
 
-**Status:** v3.6 Complete | v4.0 In Planning
-**Next Release:** v4.0 (Q1 2026) - MCP Integration
+**Status:** v3.7 Complete | v4.0 In Planning
+**Next Release:** v4.0 (Q1 2026) - Auto-Synthesis
