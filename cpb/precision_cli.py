@@ -94,6 +94,21 @@ def print_result(result: PrecisionResult, verbose: bool = False):
         print(f"  {oracle_icon} OracleConsensus: {v.oracle_score:.2f}")
         print(f"  {conf_icon} ConfidenceScorer: {v.confidence_score:.2f}")
 
+        # Ground Truth Diagnostic (v2.2)
+        gt_icon = "✅" if v.ground_truth_score >= 0.7 else "⚠️" if v.ground_truth_score >= 0.5 else "🔬"
+        print(f"\n  Ground Truth (diagnostic):")
+        print(f"    {gt_icon} Score: {v.ground_truth_score:.2f} ({v.claims_verified}/{v.claims_checked} claims matched)")
+        if v.factual_accuracy > 0:
+            print(f"       Factual accuracy: {v.factual_accuracy:.2f}")
+        if v.cross_source_score > 0:
+            print(f"       Cross-source: {v.cross_source_score:.2f}")
+        if v.self_consistency > 0:
+            print(f"       Self-consistency: {v.self_consistency:.2f}")
+
+        # Needs review flag
+        if v.needs_review:
+            print(f"\n  🔍 NEEDS REVIEW: Ground truth issues detected - recommend human verification")
+
         if v.issues:
             print(f"\n  Issues ({len(v.issues)}):")
             for issue in v.issues[:5]:
@@ -160,6 +175,22 @@ def print_config_status():
     rg = status.get('rg_status', {})
     for key, value in rg.items():
         print(f"  {key}: {value}")
+
+    # v2.2: Ground Truth Corpus stats
+    try:
+        from .ground_truth import get_corpus
+        corpus = get_corpus()
+        stats = corpus.get_corpus_stats()
+        print("\nGround Truth Corpus (v2.2):")
+        print(f"  Total entries: {stats['total_entries']}")
+        print(f"  Total claims: {stats['total_claims']}")
+        print(f"  High confidence: {stats['high_confidence']}")
+        print(f"  Medium confidence: {stats['medium_confidence']}")
+        print(f"  Baseline: {stats['baseline']}")
+        if stats['avg_dq_score'] > 0:
+            print(f"  Avg DQ score: {stats['avg_dq_score']:.3f}")
+    except Exception:
+        pass  # Corpus stats optional
 
     if warnings:
         print("\n⚠️ Configuration Warnings:")

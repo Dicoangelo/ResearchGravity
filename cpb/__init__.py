@@ -145,7 +145,7 @@ async def search_tiered(query: str, max_results: int = 30):
 # Hooks
 from .orchestrator import cpb_hooks
 
-# Ground Truth (v2)
+# Ground Truth (v2) + Corpus (v2.2)
 from .ground_truth import (
     GroundTruthValidator,
     GroundTruthClaim,
@@ -158,9 +158,13 @@ from .ground_truth import (
     get_validator as get_ground_truth_validator,
     validate_against_ground_truth,
     record_feedback,
+    # v2.2: Ground Truth Corpus
+    GroundTruthCorpus,
+    get_corpus as get_ground_truth_corpus,
+    store_verified_claims,
 )
 
-__version__ = '2.1.0'  # v2.1: Ground truth validation, feedback learning
+__version__ = '2.2.0'  # v2.2: Ground truth diagnostic mode, corpus storage
 __all__ = [
     # Types
     'CPBPath',
@@ -220,7 +224,7 @@ __all__ = [
     # Hooks
     'cpb_hooks',
 
-    # Ground Truth (v2.1)
+    # Ground Truth (v2.1) + Corpus (v2.2)
     'GroundTruthValidator',
     'GroundTruthClaim',
     'GroundTruthResult',
@@ -232,4 +236,8 @@ __all__ = [
     'get_ground_truth_validator',
     'validate_against_ground_truth',
     'record_feedback',
+    # v2.2
+    'GroundTruthCorpus',
+    'get_ground_truth_corpus',
+    'store_verified_claims',
 ]

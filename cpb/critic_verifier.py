@@ -85,10 +85,14 @@ class VerificationResult:
     retries_recommended: int = 0
     feedback: str = ""
 
+    # Diagnostic flags (v2.2)
+    needs_review: bool = False  # Flag for human review when GT issues exist
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'dq_score': self.dq_score,
             'passed': self.passed,
+            'needs_review': self.needs_review,
             'evidence_score': self.evidence_score,
             'oracle_score': self.oracle_score,
             'confidence_score': self.confidence_score,
@@ -556,12 +560,16 @@ class CriticVerifier:
             })
 
         # Determine if passed
+        # Ground truth is diagnostic, not gating - pioneering content may not have
+        # external ground truth to validate against (see v2.2 retrospective)
         passed = (
             combined_score >= self.thresholds.combined_min and
             evidence_score >= self.thresholds.evidence_min * 0.9 and
-            gt_result.claims_contradicted == 0 and  # No contradictions allowed
             not any(i.get('severity') == 'critical' for i in issues)
         )
+
+        # Flag for human review if ground truth issues exist (diagnostic)
+        needs_review = gt_result.claims_contradicted > 0 or ground_truth_score < 0.5
 
         # Generate feedback for retry (including ground truth feedback)
         feedback = self._generate_feedback(
@@ -580,6 +588,7 @@ class CriticVerifier:
         return VerificationResult(
             dq_score=round(combined_score, 3),
             passed=passed,
+            needs_review=needs_review,
             evidence_score=round(evidence_score, 3),
             oracle_score=round(oracle_score, 3),
             confidence_score=round(confidence_score, 3),
