@@ -1,10 +1,10 @@
 # ResearchGravity + Context Packs - Roadmap
 
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-01-21
 
 ---
 
-## ✅ Completed (v3.1 - v3.4)
+## ✅ Completed (v3.1 - v3.6)
 
 ### v3.1 - Session Management
 - ✅ **Auto-capture sessions** - `session_tracker.py`, `auto_capture.py`
@@ -67,6 +67,34 @@
   - 7 January 2026 research papers converged
   - No existing system has all features combined
   - 99%+ token reduction on realistic baseline
+
+### v3.6 - CPB Precision Mode v2.5 (NEW - 2026-01-21)
+- ✅ **Deep Research Integration**
+  - Gemini + Perplexity external research APIs
+  - Google Search grounding for real-time web research
+  - Provider fallback chain (Gemini → Perplexity)
+  - Migrated to new `google-genai` SDK
+
+- ✅ **Pioneer Mode & Trust Context**
+  - Adjusted DQ weights for cutting-edge research queries
+  - User-provided context treated as Tier 1 sources
+  - Auto-detection from query signals and sparse results
+
+- ✅ **Hardening & Reliability**
+  - 15-minute TTL caching layer for deep research
+  - Retry logic with exponential backoff (1s, 2s, 4s)
+  - Hardened Gemini grounding extraction (3 fallback methods)
+  - Cost tracking (tokens, USD, phase timings)
+
+- ✅ **CLI Enhancements**
+  - `--status`: System status (dependencies, providers, cache)
+  - `--dry-run`: Execution plan preview without API calls
+  - `--pioneer`, `--deep-research`, `--trust-context` flags
+
+- ✅ **Testing Infrastructure**
+  - 17 test cases covering v2.4/2.5 features
+  - Pytest fixtures and mock factories
+  - All tests passing
 
 ---
 
@@ -335,7 +363,7 @@ researchgravity/
 
 ---
 
-## 📊 Current State (2026-01-18)
+## 📊 Current State (2026-01-21)
 
 ### Implementation Status
 
@@ -345,7 +373,8 @@ researchgravity/
 | Project Context | ✅ Complete | ~1,000 | 3 files |
 | Memory & Prefetch | ✅ Complete | ~2,000 | 2 files |
 | Context Packs V2 | ✅ Complete | 2,195 | 5 files |
-| Documentation | ✅ Complete | 2,542+ | 9 files |
+| CPB Precision v2.5 | ✅ Complete | ~4,500 | 15 files |
+| Documentation | ✅ Complete | 2,800+ | 10 files |
 | MCP Integration | 🚧 Planned | - | - |
 | Auto-Synthesis | 🚧 Planned | - | - |
 | Browser Extension | 🚧 Planned | - | - |
@@ -489,5 +518,5 @@ Built on the shoulders of giants:
 
 **ResearchGravity + Context Packs** - From research to implementation, with full traceability.
 
-**Status:** v3.5 Complete | v4.0 In Planning
+**Status:** v3.6 Complete | v4.0 In Planning
 **Next Release:** v4.0 (Q1 2026) - MCP Integration
