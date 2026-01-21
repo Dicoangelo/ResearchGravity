@@ -1,0 +1,30 @@
+# Ruff configuration for researchgravity
+# https://docs.astral.sh/ruff/configuration/
+
+[lint]
+# Enable common rules
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+]
+
+# Ignore rules that are too noisy for this codebase
+ignore = [
+    "E402",  # Module level import not at top of file (often intentional)
+    "E501",  # Line too long (handled by formatter)
+    "E722",  # Bare except (legacy code, fix incrementally)
+    "E741",  # Ambiguous variable name (legacy code)
+    "F401",  # Unused imports (many are try/except availability checks)
+    "F841",  # Local variable assigned but never used (argparse subparsers)
+]
+
+[lint.per-file-ignores]
+# Test files can have more relaxed rules
+"**/test_*.py" = ["F401", "F811"]
+"**/*_test.py" = ["F401", "F811"]
+
+[format]
+# Use 4 spaces for indentation
+indent-style = "space"
+quote-style = "double"
