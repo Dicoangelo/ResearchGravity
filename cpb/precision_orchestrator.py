@@ -92,6 +92,7 @@ class PrecisionResult:
 
     # Verification
     verified: bool = False
+    needs_review: bool = False  # Flag for ground truth issues (v2.2 diagnostic)
     verification: Optional[VerificationResult] = None
 
     # Execution metadata
@@ -147,6 +148,7 @@ class PrecisionResult:
             'gap': self.gap,
             'innovation_direction': self.innovation_direction,
             'verified': self.verified,
+            'needs_review': self.needs_review,
             'verification': self.verification.to_dict() if self.verification else None,
             'path': self.path.value,
             'execution_time_ms': self.execution_time_ms,
@@ -380,6 +382,7 @@ class PrecisionOrchestrator:
 
             result.retry_count = retry
             result.verified = verification.passed
+            result.needs_review = verification.needs_review  # v2.2: GT diagnostic flag
             result.confidence = verification.dq_score * 100
 
             # =================================================================
@@ -394,6 +397,26 @@ class PrecisionOrchestrator:
             # Complete
             elapsed_ms = int((time.time() - start_time) * 1000)
             result.execution_time_ms = elapsed_ms
+
+            # =================================================================
+            # v2.2: STORE VERIFIED CLAIMS TO CORPUS
+            # =================================================================
+            # On successful runs (DQ >= 0.80), store claims to build ground truth
+            if result.dq_score >= 0.80 and result.citations_verified > 0:
+                try:
+                    from .ground_truth import store_verified_claims, ClaimExtractor
+                    extractor = ClaimExtractor()
+                    claims = extractor.extract_claims(result.output)
+                    store_verified_claims(
+                        query=query,
+                        claims=claims,
+                        sources=result.sources,
+                        dq_score=result.dq_score,
+                        citations_verified=result.citations_verified,
+                        citations_total=result.citations_found,
+                    )
+                except Exception:
+                    pass  # Corpus storage is best-effort, don't fail the run
 
             self._update_status(
                 "complete", 100,

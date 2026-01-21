@@ -643,3 +643,206 @@ def record_feedback(
     validator.feedback.record_feedback(
         query, output, rating, corrections, verified_claims, false_claims
     )
+
+
+# =============================================================================
+# GROUND TRUTH CORPUS (v2.2)
+# =============================================================================
+
+class GroundTruthCorpus:
+    """
+    Store verified claims from successful runs to build internal ground truth.
+
+    Philosophy: At the edge of innovation, you become the ground truth.
+    This corpus accumulates verified claims over time, enabling progressive
+    validation where earlier verified runs become the baseline for later runs.
+
+    Storage hierarchy:
+    1. High-confidence claims (DQ >= 0.90, citations verified)
+    2. Medium-confidence claims (DQ >= 0.80, some citations)
+    3. Unverified claims (DQ < 0.80, flagged for review)
+    """
+
+    def __init__(self, storage_path: Optional[Path] = None):
+        self.storage_path = storage_path or Path.home() / ".agent-core" / "precision" / "corpus"
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+        self.corpus_file = self.storage_path / "ground_truth_corpus.json"
+
+    def _load_corpus(self) -> list[dict]:
+        """Load corpus from storage."""
+        if self.corpus_file.exists():
+            with open(self.corpus_file) as f:
+                return json.load(f)
+        return []
+
+    def _save_corpus(self, corpus: list[dict]):
+        """Save corpus to storage."""
+        with open(self.corpus_file, 'w') as f:
+            json.dump(corpus, f, indent=2)
+
+    def store_verified_claims(
+        self,
+        query: str,
+        claims: list[str],
+        sources: list[dict],
+        dq_score: float,
+        citations_verified: int,
+        citations_total: int,
+    ):
+        """
+        Store verified claims from a successful run.
+
+        Only stores claims from runs with:
+        - DQ score >= 0.80
+        - At least one verified citation
+
+        Args:
+            query: The query that produced these claims
+            claims: List of claim strings
+            sources: Sources that backed the claims
+            dq_score: DQ score of the run
+            citations_verified: Number of verified citations
+            citations_total: Total citations found
+        """
+        # Only store high-quality claims
+        if dq_score < 0.80 or citations_verified == 0:
+            return
+
+        corpus = self._load_corpus()
+
+        # Determine confidence tier
+        if dq_score >= 0.90 and citations_verified >= citations_total * 0.9:
+            confidence_tier = "high"
+            confidence_score = 0.95
+        elif dq_score >= 0.85:
+            confidence_tier = "medium"
+            confidence_score = 0.80
+        else:
+            confidence_tier = "baseline"
+            confidence_score = 0.70
+
+        # Create corpus entry
+        query_hash = hashlib.md5(query.lower().strip().encode()).hexdigest()[:16]
+
+        entry = {
+            'id': f"gt_{query_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            'timestamp': datetime.now().isoformat(),
+            'query': query,
+            'query_hash': query_hash,
+            'claims': claims[:30],  # Limit claims per entry
+            'source_urls': [s.get('url', '') for s in sources[:10] if s.get('url')],
+            'source_arxiv_ids': [s.get('arxiv_id', '') for s in sources[:10] if s.get('arxiv_id')],
+            'dq_score': dq_score,
+            'citations_verified': citations_verified,
+            'citations_total': citations_total,
+            'confidence_tier': confidence_tier,
+            'confidence_score': confidence_score,
+        }
+
+        # Add to corpus, avoiding duplicates
+        existing_hashes = {e.get('query_hash') for e in corpus}
+        if query_hash not in existing_hashes:
+            corpus.append(entry)
+        else:
+            # Update existing entry if new run has higher confidence
+            for i, e in enumerate(corpus):
+                if e.get('query_hash') == query_hash and dq_score > e.get('dq_score', 0):
+                    corpus[i] = entry
+                    break
+
+        # Keep corpus manageable (last 500 entries)
+        corpus = sorted(corpus, key=lambda x: x.get('timestamp', ''), reverse=True)[:500]
+
+        self._save_corpus(corpus)
+
+    def get_claims_for_topic(self, topic: str, limit: int = 50) -> list[GroundTruthClaim]:
+        """
+        Retrieve verified claims relevant to a topic.
+
+        Args:
+            topic: Topic to search for
+            limit: Maximum claims to return
+
+        Returns:
+            List of GroundTruthClaim objects
+        """
+        corpus = self._load_corpus()
+        topic_lower = topic.lower()
+        claims = []
+
+        for entry in corpus:
+            # Check if topic matches query or claims
+            query_match = topic_lower in entry.get('query', '').lower()
+            claim_match = any(topic_lower in c.lower() for c in entry.get('claims', []))
+
+            if query_match or claim_match:
+                confidence = entry.get('confidence_score', 0.7)
+                for claim_text in entry.get('claims', []):
+                    gt_claim = GroundTruthClaim(
+                        claim=claim_text,
+                        source=TruthSource.EXTRACTED_CLAIM,
+                        confidence=confidence,
+                        source_urls=entry.get('source_urls', []),
+                        topic=entry.get('query', ''),
+                    )
+                    claims.append(gt_claim)
+
+                    if len(claims) >= limit:
+                        return claims
+
+        return claims
+
+    def get_corpus_stats(self) -> dict:
+        """Get statistics about the ground truth corpus."""
+        corpus = self._load_corpus()
+
+        if not corpus:
+            return {
+                'total_entries': 0,
+                'total_claims': 0,
+                'high_confidence': 0,
+                'medium_confidence': 0,
+                'baseline': 0,
+                'avg_dq_score': 0.0,
+            }
+
+        high = sum(1 for e in corpus if e.get('confidence_tier') == 'high')
+        medium = sum(1 for e in corpus if e.get('confidence_tier') == 'medium')
+        baseline = sum(1 for e in corpus if e.get('confidence_tier') == 'baseline')
+        total_claims = sum(len(e.get('claims', [])) for e in corpus)
+        avg_dq = sum(e.get('dq_score', 0) for e in corpus) / len(corpus)
+
+        return {
+            'total_entries': len(corpus),
+            'total_claims': total_claims,
+            'high_confidence': high,
+            'medium_confidence': medium,
+            'baseline': baseline,
+            'avg_dq_score': round(avg_dq, 3),
+        }
+
+
+# Singleton for corpus
+_corpus: Optional[GroundTruthCorpus] = None
+
+def get_corpus() -> GroundTruthCorpus:
+    """Get ground truth corpus singleton."""
+    global _corpus
+    if _corpus is None:
+        _corpus = GroundTruthCorpus()
+    return _corpus
+
+
+def store_verified_claims(
+    query: str,
+    claims: list[str],
+    sources: list[dict],
+    dq_score: float,
+    citations_verified: int,
+    citations_total: int,
+):
+    """Store verified claims from a successful run."""
+    corpus = get_corpus()
+    corpus.store_verified_claims(
+        query, claims, sources, dq_score, citations_verified, citations_total
+    )
