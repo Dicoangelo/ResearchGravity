@@ -152,6 +152,16 @@ class PrecisionResult:
     deep_research_citations: int = 0
     deep_research_content: str = ""  # Synthesized content from deep research
 
+    # Cost Tracking (v2.5)
+    deep_research_cost_usd: float = 0.0
+    deep_research_tokens: int = 0
+    total_cost_usd: float = 0.0
+    phase_timings: Dict[str, int] = field(default_factory=dict)  # Phase name → ms
+
+    # Query enhancement metadata (v2.5 - proper fields)
+    enhancer_suggest_pioneer: bool = False
+    enhancer_pioneer_signals: List[str] = field(default_factory=list)
+
     def to_dict(self) -> Dict[str, Any]:
         result = {
             'output': self.output,
@@ -211,6 +221,11 @@ class PrecisionResult:
             'deep_research_provider': self.deep_research_provider,
             'deep_research_time_ms': self.deep_research_time_ms,
             'deep_research_citations': self.deep_research_citations,
+            # Cost Tracking (v2.5)
+            'deep_research_cost_usd': self.deep_research_cost_usd,
+            'deep_research_tokens': self.deep_research_tokens,
+            'total_cost_usd': self.total_cost_usd,
+            'phase_timings': self.phase_timings,
         }
         return result
 
@@ -316,9 +331,9 @@ class PrecisionOrchestrator:
                     result.query_dimensions = enhanced.dimensions
                     result.follow_up_queries = enhanced.follow_ups
 
-                    # Store pioneer suggestion from enhancer (v2.4)
-                    result._enhancer_suggest_pioneer = getattr(enhanced, 'suggest_pioneer', False)
-                    result._enhancer_pioneer_signals = getattr(enhanced, 'pioneer_signals', []) or []
+                    # Store pioneer suggestion from enhancer (v2.5 - proper fields)
+                    result.enhancer_suggest_pioneer = getattr(enhanced, 'suggest_pioneer', False)
+                    result.enhancer_pioneer_signals = getattr(enhanced, 'pioneer_signals', []) or []
 
                     if enhanced.was_enhanced:
                         working_query = enhanced.enhanced
@@ -363,10 +378,14 @@ class PrecisionOrchestrator:
                         result.deep_research_time_ms = dr_result.search_time_ms
                         result.deep_research_citations = len(dr_result.citations)
                         result.deep_research_content = dr_result.content[:2000]  # Truncate for storage
+                        # Cost tracking (v2.5)
+                        result.deep_research_cost_usd = dr_result.cost_usd
+                        result.deep_research_tokens = dr_result.token_count
+                        result.phase_timings['deep_research'] = dr_result.search_time_ms
 
                         self._update_status(
                             "deep_research", 10,
-                            f"Deep research: {len(dr_result.citations)} citations in {dr_result.search_time_ms}ms"
+                            f"Deep research: {len(dr_result.citations)} citations in {dr_result.search_time_ms}ms (${dr_result.cost_usd:.4f})"
                         )
                     else:
                         result.warnings.append("Deep research requested but no provider available")
@@ -392,6 +411,7 @@ class PrecisionOrchestrator:
             result.tier2_count = len(search_context.tier2_results)
             result.tier3_count = len(search_context.tier3_results)
             result.total_sources_found = len(search_context.results)
+            result.phase_timings['search'] = search_context.search_time_ms
 
             dr_suffix = f" +{len(deep_research_results)} deep" if deep_research_results else ""
             self._update_status(
@@ -406,8 +426,8 @@ class PrecisionOrchestrator:
             pioneer_signals = []
 
             # Signal 1: Query enhancer detected pioneer indicators
-            if getattr(result, '_enhancer_suggest_pioneer', False):
-                enhancer_signals = getattr(result, '_enhancer_pioneer_signals', [])
+            if result.enhancer_suggest_pioneer:
+                enhancer_signals = result.enhancer_pioneer_signals
                 pioneer_signals.extend(enhancer_signals or ["query targets cutting-edge research"])
 
             # Signal 2: Sparse Tier 1 results (< 3 high-quality sources)
@@ -578,6 +598,10 @@ class PrecisionOrchestrator:
             # Complete
             elapsed_ms = int((time.time() - start_time) * 1000)
             result.execution_time_ms = elapsed_ms
+            result.phase_timings['total'] = elapsed_ms
+
+            # Calculate total cost (v2.5)
+            result.total_cost_usd = result.deep_research_cost_usd  # Add LLM costs if tracked
 
             # =================================================================
             # v2.2: STORE VERIFIED CLAIMS TO CORPUS (high-quality only)

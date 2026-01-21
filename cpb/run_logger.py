@@ -128,7 +128,21 @@ class RunLogger:
                 "agent_count": getattr(result, 'agent_count', 7),
                 "path": getattr(result, 'path', 'cascade').value if hasattr(getattr(result, 'path', None), 'value') else 'cascade',
                 "rg_connection_mode": getattr(result, 'rg_connection_mode', 'unknown'),
+                "phase_timings": getattr(result, 'phase_timings', {}),
             },
+
+            # Deep Research (v2.5)
+            "deep_research": {
+                "used": getattr(result, 'deep_research_used', False),
+                "provider": getattr(result, 'deep_research_provider', ''),
+                "time_ms": getattr(result, 'deep_research_time_ms', 0),
+                "citations": getattr(result, 'deep_research_citations', 0),
+                "cost_usd": getattr(result, 'deep_research_cost_usd', 0.0),
+                "tokens": getattr(result, 'deep_research_tokens', 0),
+            },
+
+            # Cost Tracking (v2.5)
+            "total_cost_usd": getattr(result, 'total_cost_usd', 0.0),
 
             # Search stats
             "search": {
