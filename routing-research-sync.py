@@ -14,10 +14,9 @@ Usage:
 import argparse
 import json
 import subprocess
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 
 try:
     import arxiv
@@ -178,7 +177,7 @@ Only include insights that are directly applicable to routing decisions. Use nul
                     insights.append(insight)
                     print(f"  ✓ Extracted insights (confidence: {insight.get('confidence', 'N/A')})")
                 else:
-                    print(f"  ⚠️  Could not parse insights")
+                    print("  ⚠️  Could not parse insights")
 
             except Exception as e:
                 print(f"  ❌ Error: {e}")
@@ -418,7 +417,7 @@ def main():
         )
 
         if modifications:
-            print(f"\n📋 Modifications:")
+            print("\n📋 Modifications:")
             for mod in modifications:
                 print(f"  {mod['target']}: {mod['old_value']} → {mod['new_value']}")
 

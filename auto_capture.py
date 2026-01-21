@@ -18,13 +18,12 @@ Usage:
 
 import argparse
 import json
-import os
 import re
 import time
 import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 
 
 # Paths

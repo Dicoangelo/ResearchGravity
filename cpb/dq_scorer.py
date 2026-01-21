@@ -16,7 +16,6 @@ import json
 import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict
 
 from .types import DQScore, CPBPath
 

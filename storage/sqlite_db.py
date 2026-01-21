@@ -12,7 +12,6 @@ Uses aiosqlite for async operations and connection pooling.
 """
 
 import aiosqlite
-import sqlite3
 import json
 import asyncio
 from pathlib import Path

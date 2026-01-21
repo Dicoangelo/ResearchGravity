@@ -18,7 +18,6 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-import hashlib
 
 
 AGENT_CORE = Path.home() / ".agent-core"
@@ -148,7 +147,7 @@ class PackBuilder:
                             'date': session_date,
                             'path': session_dir
                         })
-            except Exception as e:
+            except Exception:
                 continue
 
         if not relevant_sessions:
@@ -613,7 +612,7 @@ def main():
             # Validate all packs
             print("Validating all packs...")
             results = builder.validate_all_packs(verbose=True)
-            print(f"\n━━━ Summary ━━━")
+            print("\n━━━ Summary ━━━")
             print(f"Total: {results['total']}")
             print(f"Approved: {results['approved']}")
             print(f"Needs Review: {results['rejected']}")

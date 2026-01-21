@@ -14,12 +14,9 @@ Usage:
 
 import argparse
 import json
-import sys
-from dataclasses import asdict
 
 from .orchestrator import cpb, analyze
 from .dq_scorer import dq_scorer
-from .types import CPBPath
 
 
 def cmd_analyze(args):
@@ -77,7 +74,7 @@ def cmd_score(args):
     bar = "█" * filled + "░" * (bar_length - filled)
     print(f"   [{bar}] {dq.overall*100:.1f}%")
 
-    print(f"\n📈 Component Breakdown:")
+    print("\n📈 Component Breakdown:")
     print(f"   Validity (40%):    {dq.validity:.3f}")
     print(f"   Specificity (30%): {dq.specificity:.3f}")
     print(f"   Correctness (30%): {dq.correctness:.3f}")

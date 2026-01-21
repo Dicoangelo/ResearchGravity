@@ -15,7 +15,7 @@ ELITE TIER: Maximum quality configuration with Opus-first routing
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Literal
+from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 
 

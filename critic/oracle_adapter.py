@@ -28,11 +28,11 @@ import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from .base import (
     BaseCritic, CriticResult, ValidationIssue,
-    IssueSeverity, IssueCategory, CompositeCritic
+    IssueSeverity, IssueCategory
 )
 
 

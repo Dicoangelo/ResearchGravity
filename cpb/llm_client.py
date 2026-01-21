@@ -19,7 +19,7 @@ import json
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 from enum import Enum
 
@@ -541,11 +541,12 @@ class AgentExecutor:
         ]
 
         # Execute in parallel
+        # Use low temperature for precision mode consistency
         responses = await self.llm_client.complete_parallel(
             prompts,
             model=model,
             max_tokens=max_tokens,
-            temperature=0.7
+            temperature=0.3  # Lower temp for consistent outputs
         )
 
         # Build agent responses
@@ -649,7 +650,7 @@ Format your response with:
             user_prompt=synthesis_prompt,
             model=model,
             max_tokens=4096,
-            temperature=0.5  # Lower temp for synthesis
+            temperature=0.2  # Very low temp for consistent synthesis
         )
 
 

@@ -15,10 +15,8 @@ Based on: Memory-R1 (arXiv:2508.19828)
 import os
 import json
 import time
-from pathlib import Path
-from typing import List, Dict, Tuple, Any, Optional
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
-from collections import defaultdict
 
 try:
     import numpy as np
@@ -137,7 +135,7 @@ class RLPackManager:
         self.operation_history: List[PackOperation] = []
         self._load_operations()
 
-        print(f"RL Pack Manager initialized")
+        print("RL Pack Manager initialized")
         print(f"  Operations logged: {len(self.operation_history)}")
         print(f"  RL policy: {'Trained' if TORCH_AVAILABLE else 'Mock'}")
 

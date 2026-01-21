@@ -16,7 +16,7 @@ Based on: Active Context Compression (arXiv:2601.07190)
 import os
 import json
 import time
-from typing import List, Dict, Tuple, Any, Optional
+from typing import List, Dict, Tuple, Any
 from dataclasses import dataclass
 from collections import defaultdict
 
@@ -307,7 +307,7 @@ class ContinuumMemory:
         self.memory_states: Dict[str, MemoryState] = {}
         self._load_memory_states()
 
-        print(f"Continuum Memory initialized")
+        print("Continuum Memory initialized")
         print(f"  Memory states: {len(self.memory_states)}")
 
     def _load_memory_states(self):

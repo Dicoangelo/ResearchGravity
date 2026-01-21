@@ -17,10 +17,9 @@ Features:
 import asyncio
 import json
 import logging
-import os
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from enum import Enum
 
 # Optional aiohttp import
@@ -31,7 +30,6 @@ except ImportError:
     aiohttp = None
     HAS_AIOHTTP = False
 
-from .precision_config import PRECISION_CONFIG
 
 # Configure logging
 logger = logging.getLogger(__name__)

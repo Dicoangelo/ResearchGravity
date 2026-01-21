@@ -21,10 +21,9 @@ import argparse
 import json
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, List
 
-from .ground_truth import FeedbackCollector, get_validator
+from .ground_truth import FeedbackCollector
 
 
 def print_banner():

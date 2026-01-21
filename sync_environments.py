@@ -28,7 +28,7 @@ def get_current_session() -> Optional[dict]:
     """Get the current active session metadata."""
     local_dir = get_local_agent_dir() / "research"
     session_file = local_dir / "session.json"
-    
+
     if session_file.exists():
         return json.loads(session_file.read_text())
     return None
@@ -40,12 +40,12 @@ def push_session():
     if not session:
         print("❌ No active session found in .agent/research/")
         return False
-    
+
     local_dir = get_local_agent_dir() / "research"
     global_dir = get_agent_core_dir() / "sessions" / session["session_id"]
-    
+
     global_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Copy all files from local to global
     files_synced = []
     for file in local_dir.iterdir():
@@ -60,17 +60,17 @@ def push_session():
                 shutil.rmtree(dest_dir)
             shutil.copytree(file, dest_dir)
             files_synced.append("snippets/")
-    
+
     # Update sync timestamp
     session["stats"]["last_sync"] = datetime.now().isoformat()
     session["stats"]["sync_direction"] = "push"
-    
+
     session_file = local_dir / "session.json"
     session_file.write_text(json.dumps(session, indent=2))
-    
+
     global_session_file = global_dir / "session.json"
     global_session_file.write_text(json.dumps(session, indent=2))
-    
+
     print(f"✅ Pushed session: {session['session_id']}")
     print(f"   Files synced: {', '.join(files_synced)}")
     print(f"   Destination: {global_dir}")
@@ -80,7 +80,7 @@ def push_session():
 def pull_session(session_id: str = None):
     """Pull session state from global storage to local."""
     global_base = get_agent_core_dir() / "sessions"
-    
+
     if session_id:
         global_dir = global_base / session_id
     else:
@@ -91,14 +91,14 @@ def pull_session(session_id: str = None):
             return False
         global_dir = sessions[0]
         session_id = global_dir.name
-    
+
     if not global_dir.exists():
         print(f"❌ Session not found: {session_id}")
         return False
-    
+
     local_dir = get_local_agent_dir() / "research"
     local_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Copy all files from global to local
     files_synced = []
     for file in global_dir.iterdir():
@@ -112,7 +112,7 @@ def pull_session(session_id: str = None):
                 shutil.rmtree(dest_dir)
             shutil.copytree(file, dest_dir)
             files_synced.append("snippets/")
-    
+
     # Update sync timestamp
     session_file = local_dir / "session.json"
     if session_file.exists():
@@ -120,7 +120,7 @@ def pull_session(session_id: str = None):
         session["stats"]["last_sync"] = datetime.now().isoformat()
         session["stats"]["sync_direction"] = "pull"
         session_file.write_text(json.dumps(session, indent=2))
-    
+
     print(f"✅ Pulled session: {session_id}")
     print(f"   Files synced: {', '.join(files_synced)}")
     print(f"   Destination: {local_dir}")
@@ -131,10 +131,10 @@ def sync_status():
     """Show current sync status."""
     local_session = get_current_session()
     global_base = get_agent_core_dir() / "sessions"
-    
+
     print("📊 Sync Status")
     print("=" * 50)
-    
+
     # Local status
     print("\n📁 Local (.agent/research/):")
     if local_session:
@@ -145,13 +145,13 @@ def sync_status():
         print(f"   Last sync: {last_sync}")
     else:
         print("   No active session")
-    
+
     # Global status
     print(f"\n🌐 Global ({global_base}):")
     if global_base.exists():
         sessions = list(global_base.iterdir())
         print(f"   Total sessions: {len(sessions)}")
-        
+
         if sessions:
             recent = sorted(sessions, key=lambda p: p.stat().st_mtime, reverse=True)[:3]
             print("   Recent sessions:")
@@ -163,7 +163,7 @@ def sync_status():
     else:
         print("   Global storage not initialized")
         print(f"   Run: mkdir -p {global_base}")
-    
+
     # Memory status
     memory_dir = get_agent_core_dir() / "memory"
     print(f"\n💾 Memory ({memory_dir}):")
@@ -180,11 +180,11 @@ def main():
     parser.add_argument("command", choices=["push", "pull", "status"],
                         help="Sync command")
     parser.add_argument("--session", help="Specific session ID (for pull)")
-    parser.add_argument("--force", action="store_true", 
+    parser.add_argument("--force", action="store_true",
                         help="Force overwrite without confirmation")
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "push":
         push_session()
     elif args.command == "pull":

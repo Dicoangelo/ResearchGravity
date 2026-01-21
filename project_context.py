@@ -19,9 +19,8 @@ Usage:
 
 import argparse
 import json
-import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 
 AGENT_CORE_DIR = Path.home() / ".agent-core"

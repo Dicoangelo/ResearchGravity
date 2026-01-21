@@ -18,7 +18,6 @@ Usage:
 
 import argparse
 import json
-import os
 import re
 import hashlib
 from datetime import datetime
@@ -416,7 +415,7 @@ def show_status():
     active = state.get("active_session")
     if active and active in state["sessions"]:
         session = state["sessions"][active]
-        print(f"ACTIVE SESSION")
+        print("ACTIVE SESSION")
         print(f"  ID: {active}")
         print(f"  Topic: {session.get('topic', 'N/A')}")
         print(f"  Started: {session.get('started', 'N/A')}")

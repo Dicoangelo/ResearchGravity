@@ -16,11 +16,11 @@ domain specificity, and compounding mechanics."
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from dataclasses import dataclass
 import re
 
-from .schema import CognitiveWallet, ValueMetrics, Concept
+from .schema import CognitiveWallet, Concept
 
 
 # Value constants (tunable)
@@ -296,27 +296,27 @@ def format_value_display(wallet: CognitiveWallet) -> str:
     breakdown = engine.calculate_breakdown(wallet)
 
     lines = [
-        f"",
-        f"  COGNITIVE WALLET VALUE",
-        f"  ═══════════════════════════════════════",
-        f"",
+        "",
+        "  COGNITIVE WALLET VALUE",
+        "  ═══════════════════════════════════════",
+        "",
         f"  Total Value:     ${breakdown.total_value:,.2f}",
-        f"",
-        f"  Breakdown:",
+        "",
+        "  Breakdown:",
         f"    Concepts ({len(wallet.concepts)}):    ${breakdown.concept_value:,.2f}",
         f"    Papers ({len(wallet.papers)}):      ${breakdown.paper_value:,.2f}",
         f"    URLs:              ${breakdown.url_value:,.2f}",
-        f"",
-        f"  Multipliers:",
+        "",
+        "  Multipliers:",
         f"    Connections:       {breakdown.connection_premium:.2f}x",
         f"    Domain Focus:      {breakdown.specificity_premium:.2f}x",
         f"    Time Compounding:  {breakdown.time_premium:.2f}x",
         f"    Quality:           {breakdown.quality_premium:.2f}x",
-        f"",
+        "",
     ]
 
     if breakdown.domains:
-        lines.append(f"  Domains:")
+        lines.append("  Domains:")
         for domain, weight in sorted(breakdown.domains.items(), key=lambda x: -x[1]):
             pct = weight * 100
             lines.append(f"    {domain}: {pct:.0f}%")
@@ -324,9 +324,9 @@ def format_value_display(wallet: CognitiveWallet) -> str:
 
     lines.extend([
         f"  Appreciation Rate: {breakdown.appreciation_rate * 100:.1f}% per session",
-        f"",
-        f"  ═══════════════════════════════════════",
-        f"",
+        "",
+        "  ═══════════════════════════════════════",
+        "",
     ])
 
     return "\n".join(lines)

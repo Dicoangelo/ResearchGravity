@@ -10,8 +10,7 @@ import hashlib
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-import uuid
+from typing import Dict, Optional, Any
 
 from .schema import (
     CognitiveWallet,
@@ -19,9 +18,6 @@ from .schema import (
     ConceptType,
     Session,
     URL,
-    Connection,
-    ConnectionType,
-    ValueMetrics,
 )
 from .value import CognitiveAppreciationEngine
 from .history import load_history, record_snapshot

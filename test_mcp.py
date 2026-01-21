@@ -6,7 +6,6 @@ Verifies that all tools work correctly.
 """
 
 import asyncio
-import json
 from pathlib import Path
 
 try:

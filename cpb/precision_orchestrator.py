@@ -26,27 +26,21 @@ Research Foundation:
 """
 
 import asyncio
-import json
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable
-from pathlib import Path
 
 from .types import (
-    CPBPath, CPBPhase, CPBResult, CPBRequest, DQScore,
-    PathSignals, ACE_AGENT_PERSONAS
+    CPBPath
 )
 from .precision_config import (
     PRECISION_CONFIG, PrecisionConfig,
-    PRECISION_AGENT_PERSONAS, PRECISION_DQ_WEIGHTS,
-    get_precision_agent_prompts, calculate_precision_dq
+    PRECISION_AGENT_PERSONAS, get_precision_agent_prompts
 )
-from .rg_adapter import RGAdapter, RGContext, rg_adapter
-from .critic_verifier import CriticVerifier, VerificationResult, verify, format_critic_feedback
-from .orchestrator import cpb as base_cpb
+from .rg_adapter import RGContext, rg_adapter
+from .critic_verifier import CriticVerifier, VerificationResult, verify
 from .search_layer import (
-    TieredSearchLayer, SearchContext, SearchResult,
-    SourceTier, SourceCategory, search_tiered, get_search_layer
+    SearchContext, search_tiered, get_search_layer
 )
 
 # LLM client import (lazy to avoid circular deps)
@@ -577,6 +571,9 @@ class PrecisionOrchestrator:
                 'title': result.title,
                 'signal': result.signal_string,
                 'score': result.final_score,
+                # Include content for ground truth validation
+                'content': result.content or '',
+                'abstract': result.content[:500] if result.content else '',
             })
         return sources
 

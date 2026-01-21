@@ -14,14 +14,11 @@ used by any LLM integration.
 
 import time
 import json
-import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, List
-from dataclasses import asdict
 
 from .types import (
-    CPBPath, CPBPhase, CPBConfig, CPBStatus, CPBResult,
-    CPBRequest, DQScore, PathSignals, ACE_AGENT_PERSONAS,
+    CPBPath, CPBConfig, DQScore, ACE_AGENT_PERSONAS,
     DEFAULT_CPB_CONFIG
 )
 from .router import select_path, analyze_query, hash_query
@@ -559,7 +556,7 @@ class CPBHooks:
                 result = hook(*result)
                 if not isinstance(result, tuple):
                     result = (result,)
-            except Exception as e:
+            except Exception:
                 # Log but don't break execution
                 pass
         return result
@@ -570,7 +567,7 @@ class CPBHooks:
         for hook in hooks:
             try:
                 result = hook(result)
-            except Exception as e:
+            except Exception:
                 # Log but don't break execution
                 pass
         return result

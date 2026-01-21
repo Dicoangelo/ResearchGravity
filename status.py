@@ -83,7 +83,7 @@ def get_wallet_value():
             "urls": stats["urls"],
             "domains": stats.get("domains", {}),
         }
-    except Exception as e:
+    except Exception:
         return None
 
 

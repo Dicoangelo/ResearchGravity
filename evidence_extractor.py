@@ -23,7 +23,6 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 
 # Add parent dir for schema import

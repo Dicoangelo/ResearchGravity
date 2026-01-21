@@ -317,7 +317,7 @@ async def main():
             print(f"  {icon.get(issue.severity.value, '•')} [{issue.code}] {issue.message}")
 
     if result.metrics:
-        print(f"\nMetrics:")
+        print("\nMetrics:")
         for key, value in result.metrics.items():
             print(f"  {key}: {value}")
 

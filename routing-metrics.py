@@ -12,7 +12,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 import statistics
 import random
 import hashlib
@@ -356,7 +356,7 @@ class RoutingMetrics:
         if report_data['accuracy'] is not None:
             lines.append(f"  Accuracy:       {report_data['accuracy']*100:.1f}%")
         else:
-            lines.append(f"  Accuracy:       N/A (no feedback yet)")
+            lines.append("  Accuracy:       N/A (no feedback yet)")
 
         if report_data['cost_reduction'] is not None:
             lines.append(f"  Cost Reduction: {report_data['cost_reduction']*100:.1f}% vs random")
@@ -834,7 +834,7 @@ def main():
             print(f"\nName: {analysis['name']}")
             print(f"Status: {analysis['status']}")
 
-            print(f"\n📊 Samples:")
+            print("\n📊 Samples:")
             print(f"  Control: {analysis['samples']['control']}")
             print(f"  Variant: {analysis['samples']['variant']}")
             print(f"  Total:   {analysis['samples']['total']} / {analysis['samples']['min_required']} required")
@@ -845,17 +845,17 @@ def main():
             print(f"  Variant Mean: {results['variant_mean']:.4f}")
             print(f"  Improvement:  {results['improvement_pct']:+.2f}%")
 
-            print(f"\n📉 Statistical Significance:")
+            print("\n📉 Statistical Significance:")
             print(f"  t-statistic: {results['t_statistic']:.3f}")
             print(f"  p-value:     {results['p_value']:.3f}")
             print(f"  Significant: {'Yes' if results['statistically_significant'] else 'No'}")
 
-            print(f"\n🎯 Recommendation:")
+            print("\n🎯 Recommendation:")
             rec = analysis['recommendation']
             if rec == 'apply_variant':
-                print(f"  ✅ APPLY VARIANT (statistically significant improvement)")
+                print("  ✅ APPLY VARIANT (statistically significant improvement)")
             else:
-                print(f"  ⊘ KEEP CONTROL (no significant improvement)")
+                print("  ⊘ KEEP CONTROL (no significant improvement)")
 
             print(f"\nSuccess Criteria Met: {'Yes' if analysis['meets_success_criteria'] else 'No'}")
             print("\n" + "=" * 60)
@@ -969,7 +969,7 @@ def main():
             print(f"\n🏷️  Tier: {status['tier'].upper()}")
             print(f"📚 Learning: {'✓' if status['learning_enabled'] else '✗'}")
             print(f"✅ Verification: {'✓' if status['verification_enabled'] else '✗'}")
-            print(f"\n⚙️  Config:")
+            print("\n⚙️  Config:")
             for k, v in status['config'].items():
                 print(f"   {k}: {v}")
             print("=" * 60)

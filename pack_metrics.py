@@ -18,7 +18,7 @@ import argparse
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 
 
 AGENT_CORE = Path.home() / ".agent-core"

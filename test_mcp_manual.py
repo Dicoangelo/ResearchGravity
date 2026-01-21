@@ -5,7 +5,6 @@ Manual test for ResearchGravity MCP Server
 Tests server startup and basic functionality without needing MCP client.
 """
 
-import json
 import sys
 from pathlib import Path
 
