@@ -184,6 +184,34 @@ PRECISION_DQ_WEIGHTS = {
     'correctness': 0.45,    # Up from 30% - evidence-backed correctness
 }
 
+# =============================================================================
+# DQ WEIGHTS FOR PIONEER MODE (v2.4)
+# =============================================================================
+# For cutting-edge research queries without established external validation.
+# Reduces validity strictness (exploratory reasoning OK), increases ground truth
+# weight (trust claimed ground truth more when external sources don't exist yet).
+
+PIONEER_DQ_WEIGHTS = {
+    'validity': 0.25,       # Reduced - exploratory reasoning acceptable
+    'specificity': 0.25,    # Same - still need concrete details
+    'correctness': 0.30,    # Reduced - may lack external validation
+    'ground_truth': 0.20,   # Increased - trust user-provided ground truth
+}
+
+# =============================================================================
+# DQ WEIGHTS FOR TRUST CONTEXT MODE (v2.4)
+# =============================================================================
+# For queries with user-provided context marked as Tier 1 trusted.
+# Increases correctness weight (user context assumed credible), reduces
+# external validation requirement.
+
+TRUST_CONTEXT_DQ_WEIGHTS = {
+    'validity': 0.28,       # Slightly reduced
+    'specificity': 0.20,    # Reduced - user context provides specificity
+    'correctness': 0.40,    # Increased - user context assumed credible
+    'ground_truth': 0.12,   # Reduced - less need for external validation
+}
+
 
 # =============================================================================
 # CRITIC WEIGHTS FOR PRECISION MODE

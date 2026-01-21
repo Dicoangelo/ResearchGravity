@@ -28,6 +28,12 @@ class EnhancedQuery:
     follow_ups: list[str]
     dimensions: list[str]  # Key aspects the enhanced query covers
     was_enhanced: bool  # False if query was already high-quality
+    suggest_pioneer: bool = False  # v2.4: True if query targets cutting-edge research
+    pioneer_signals: list[str] = None  # Signals that triggered pioneer suggestion
+
+    def __post_init__(self):
+        if self.pioneer_signals is None:
+            self.pioneer_signals = []
 
 
 ENHANCER_PROMPT = """You are a Research Query Architect. Your job is to transform casual or vague questions into precise, research-grade queries optimized for multi-agent AI systems.
@@ -57,6 +63,18 @@ Take the user's query and enhance it for maximum research depth. The enhanced qu
 
 5. **Keep Intent**: Don't change what the user is actually asking about
 
+## Pioneer Mode Detection
+
+Detect if this query targets CUTTING-EDGE research that may lack external validation. Set `suggest_pioneer: true` if ANY of these signals are present:
+
+1. **Recent timeframes**: References 2025, 2026, "latest", "newest", "emerging", "just released"
+2. **Specific recent papers**: Mentions arXiv papers from the last 2 weeks
+3. **Frontier topics**: Asks about unreleased models, unpublished research, or bleeding-edge techniques
+4. **Synthesis requests**: Asks to combine/analyze user-provided research or context
+5. **Exploratory framing**: "What could...", "How might...", "Potential approaches to..."
+
+Pioneer mode adjusts DQ scoring to not penalize lack of external citations for truly novel content.
+
 ## Output Format (JSON)
 
 {
@@ -68,7 +86,9 @@ Take the user's query and enhance it for maximum research depth. The enhanced qu
     "Suggested follow-up query 2",
     "Suggested follow-up query 3"
   ],
-  "was_enhanced": true  // false if original was already research-grade
+  "was_enhanced": true,  // false if original was already research-grade
+  "suggest_pioneer": false,  // true if query targets cutting-edge research
+  "pioneer_signals": []  // e.g., ["references 2026", "asks about emerging patterns"]
 }
 
 ## Examples
@@ -84,7 +104,25 @@ Take the user's query and enhance it for maximum research depth. The enhanced qu
     "How do CrewAI, AutoGen, and LangGraph compare for enterprise multi-agent deployment?",
     "What failure modes and recovery patterns exist for multi-agent systems?"
   ],
-  "was_enhanced": true
+  "was_enhanced": true,
+  "suggest_pioneer": false,
+  "pioneer_signals": []
+}
+
+**Input**: "What are the latest TDP patterns from the January 2026 papers?"
+**Output**:
+{
+  "enhanced_query": "What are the Task-Decoupled Planning (TDP) architectural patterns and implementation strategies from January 2026 research, including supervisor-executor topologies, DAG-based decomposition, and their empirical performance on benchmarks like TravelPlanner and HotpotQA?",
+  "reasoning": "Expanded TDP acronym and added specific architectural dimensions. Query targets very recent research.",
+  "dimensions": ["TDP architecture", "supervisor-executor patterns", "benchmark performance", "implementation strategies"],
+  "follow_ups": [
+    "How does TDP compare to monolithic planning in terms of token efficiency?",
+    "What are the failure modes of DAG-based task decomposition?",
+    "Which frameworks implement TDP patterns?"
+  ],
+  "was_enhanced": true,
+  "suggest_pioneer": true,
+  "pioneer_signals": ["references January 2026", "targets very recent papers", "cutting-edge architectural pattern"]
 }
 
 **Input**: "What are the trade-offs between transformer-based and RNN-based architectures for sequence modeling in terms of computational efficiency, parallelization, and long-range dependency handling?"
@@ -98,7 +136,9 @@ Take the user's query and enhance it for maximum research depth. The enhanced qu
     "What are the memory-compute trade-offs for different attention mechanisms?",
     "Which architecture patterns work best for real-time inference applications?"
   ],
-  "was_enhanced": false
+  "was_enhanced": false,
+  "suggest_pioneer": false,
+  "pioneer_signals": []
 }
 
 Now enhance this query:
@@ -157,7 +197,9 @@ async def enhance_query(
             reasoning=result.get("reasoning", ""),
             follow_ups=result.get("follow_ups", []),
             dimensions=result.get("dimensions", []),
-            was_enhanced=result.get("was_enhanced", True)
+            was_enhanced=result.get("was_enhanced", True),
+            suggest_pioneer=result.get("suggest_pioneer", False),
+            pioneer_signals=result.get("pioneer_signals", [])
         )
 
     except Exception as e:
@@ -199,3 +241,6 @@ if __name__ == "__main__":
     for i, f in enumerate(result.follow_ups, 1):
         print(f"  {i}. {f}")
     print(f"\nWas enhanced: {result.was_enhanced}")
+    print(f"Suggest pioneer: {result.suggest_pioneer}")
+    if result.pioneer_signals:
+        print(f"Pioneer signals: {', '.join(result.pioneer_signals)}")

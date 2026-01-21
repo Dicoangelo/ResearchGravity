@@ -123,6 +123,24 @@ def print_result(result: PrecisionResult, verbose: bool = False):
     print(f"  Time: {result.execution_time_ms}ms")
     print(f"  RG Mode: {result.rg_connection_mode}")
 
+    # v2.4 mode flags
+    if result.pioneer_mode or result.trust_context_provided or result.deep_research_used:
+        mode_parts = []
+        if result.deep_research_used:
+            mode_parts.append(f"🔬 deep-research ({result.deep_research_provider})")
+        if result.pioneer_mode:
+            if result.pioneer_auto_detected:
+                mode_parts.append("🚀 pioneer (auto)")
+            else:
+                mode_parts.append("🚀 pioneer")
+        if result.trust_context_provided:
+            mode_parts.append("🔒 trust-context")
+        print(f"  DQ Mode: {', '.join(mode_parts)}")
+        if result.pioneer_auto_detected and result.pioneer_signals:
+            print(f"  Signals: {', '.join(result.pioneer_signals[:3])}")
+        if result.deep_research_used and result.deep_research_time_ms:
+            print(f"  Deep research: {result.deep_research_time_ms}ms, {result.deep_research_citations} citations")
+
     if result.warnings:
         print("\n⚠️ Warnings:")
         for w in result.warnings:
@@ -243,8 +261,35 @@ async def cmd_query(args):
     print(f"🎯 Target DQ: {PRECISION_CONFIG.dq_threshold}")
     print(f"🤖 Agents: {PRECISION_CONFIG.ace_config.agent_count}")
     enhance = not getattr(args, 'no_enhance', False)
+    pioneer = getattr(args, 'pioneer', False)
+    trust_context = getattr(args, 'trust_context', False)
     if not enhance:
         print("⏭️  Query enhancement: disabled")
+    if pioneer:
+        print("🚀 Pioneer mode: enabled (adjusted weights for cutting-edge research)")
+    if trust_context:
+        print("🔒 Trust context: enabled (user context treated as Tier 1)")
+
+    # Deep research setup
+    deep_research_enabled = getattr(args, 'deep_research', False)
+    deep_provider = getattr(args, 'deep_provider', None)
+    if deep_research_enabled:
+        from .deep_research import check_deep_research_available, get_best_available_provider
+        if deep_provider:
+            available, msg = check_deep_research_available(deep_provider)
+            if not available:
+                print(f"⚠️  Deep research ({deep_provider}): {msg}")
+                deep_research_enabled = False
+            else:
+                print(f"🔬 Deep research: {deep_provider} ({msg})")
+        else:
+            provider, msg = get_best_available_provider()
+            if provider:
+                deep_provider = provider
+                print(f"🔬 Deep research: {provider} ({msg})")
+            else:
+                print(f"⚠️  Deep research: {msg}")
+                deep_research_enabled = False
     print()
 
     # Status callback
@@ -258,7 +303,11 @@ async def cmd_query(args):
         args.query,
         context=context,
         on_status=on_status if not args.quiet else None,
-        enhance=enhance
+        enhance=enhance,
+        pioneer=pioneer,
+        trust_context=trust_context,
+        deep_research=deep_research_enabled,
+        deep_provider=deep_provider
     )
     elapsed = time.time() - start
 
@@ -453,6 +502,31 @@ Examples:
         '--no-enhance',
         action='store_true',
         help='Skip query enhancement (use raw query)'
+    )
+
+    # Pioneer and Trust Context flags (v2.4)
+    parser.add_argument(
+        '--pioneer',
+        action='store_true',
+        help='Pioneer mode for cutting-edge queries (adjusts DQ weights for exploratory research)'
+    )
+    parser.add_argument(
+        '--trust-context',
+        action='store_true',
+        help='Mark user-provided context as Tier 1 trusted source'
+    )
+
+    # Deep Research flag (v2.4)
+    parser.add_argument(
+        '--deep-research',
+        action='store_true',
+        help='Enable external deep research (Gemini/Perplexity) before agent cascade'
+    )
+    parser.add_argument(
+        '--deep-provider',
+        choices=['gemini', 'perplexity'],
+        default=None,
+        help='Deep research provider (default: auto-detect best available)'
     )
 
     # Mode flags
