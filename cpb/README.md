@@ -22,7 +22,7 @@
 pip install -r cpb/requirements.txt
 
 # Or install individually
-pip install aiohttp google-generativeai anthropic
+pip install aiohttp google-genai anthropic
 ```
 
 ## Quick Start

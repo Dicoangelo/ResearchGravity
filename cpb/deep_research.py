@@ -40,9 +40,12 @@ except ImportError:
     HAS_AIOHTTP = False
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     HAS_GEMINI = True
 except ImportError:
+    genai = None
+    genai_types = None
     HAS_GEMINI = False
 
 from .search_layer import SearchResult, SourceTier, SourceCategory
@@ -277,26 +280,27 @@ class PerplexityClient:
 
 class GeminiClient:
     """
-    Gemini API client for deep research with Google Search grounding.
+    Gemini API client for deep research with Google Search grounding (v2.5 - new SDK).
 
     Models:
     - gemini-2.0-flash: Fast, grounding supported
     - gemini-1.5-pro: More capable, grounding supported
 
-    Requires: pip install google-generativeai
+    Requires: pip install google-genai
     API docs: https://ai.google.dev/
     """
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or self._load_api_key()
-        if self.api_key and HAS_GEMINI:
-            genai.configure(api_key=self.api_key)
+        self._client = None
 
     def _load_api_key(self) -> Optional[str]:
         """Load API key from config or environment."""
         import os
 
-        # Check environment first
+        # Check environment first (new SDK uses GEMINI_API_KEY or GOOGLE_API_KEY)
+        if os.environ.get('GEMINI_API_KEY'):
+            return os.environ['GEMINI_API_KEY']
         if os.environ.get('GOOGLE_API_KEY'):
             return os.environ['GOOGLE_API_KEY']
 
@@ -312,6 +316,12 @@ class GeminiClient:
                     cfg.get('google_ai', {}).get('api_key')
                 )
         return None
+
+    def _get_client(self):
+        """Get or create Gemini client."""
+        if self._client is None and HAS_GEMINI and self.api_key:
+            self._client = genai.Client(api_key=self.api_key)
+        return self._client
 
     async def research(
         self,
@@ -331,28 +341,16 @@ class GeminiClient:
             DeepResearchResult with content and citations
         """
         if not HAS_GEMINI:
-            raise RuntimeError("google-generativeai required. Install with: pip install google-generativeai")
+            raise RuntimeError("google-genai required. Install with: pip install google-genai")
 
         if not self.api_key:
             raise ValueError("Gemini API key not found. Set GOOGLE_API_KEY env var or add to ~/.agent-core/config.json")
 
+        client = self._get_client()
+        if not client:
+            raise RuntimeError("Failed to create Gemini client")
+
         start_time = datetime.now()
-
-        # Configure model with search grounding
-        generation_config = genai.GenerationConfig(
-            temperature=0.3,
-            max_output_tokens=4096,
-        )
-
-        # Enable Google Search grounding
-        tools = [genai.Tool(google_search=genai.GoogleSearch())]
-
-        model_instance = genai.GenerativeModel(
-            model_name=model,
-            generation_config=generation_config,
-            tools=tools,
-            system_instruction=system_prompt or "You are a research assistant. Provide comprehensive, well-cited answers using search results."
-        )
 
         # Build prompt for research
         research_prompt = f"""Research the following query thoroughly using web search.
@@ -366,12 +364,24 @@ Requirements:
 3. Cite your sources clearly
 4. Focus on accuracy over speculation"""
 
+        # Configure with Google Search grounding (new SDK)
+        config = genai_types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=4096,
+            system_instruction=system_prompt or "You are a research assistant. Provide comprehensive, well-cited answers using search results.",
+            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
+        )
+
         # Execute (run in thread pool since Gemini SDK is sync)
         import asyncio
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
-            lambda: model_instance.generate_content(research_prompt)
+            lambda: client.models.generate_content(
+                model=model,
+                contents=research_prompt,
+                config=config
+            )
         )
 
         # Extract content and grounding metadata
@@ -739,7 +749,7 @@ def check_deep_research_available(provider: str = "gemini") -> tuple[bool, str]:
 
     elif provider == "gemini":
         if not HAS_GEMINI:
-            return False, "google-generativeai not installed. Run: pip install google-generativeai"
+            return False, "google-genai not installed. Run: pip install google-genai"
         client = GeminiClient()
         if not client.api_key:
             return False, "Gemini API key not found. Set GOOGLE_API_KEY env var or add to ~/.agent-core/config.json under 'gemini.api_key'"

@@ -179,7 +179,7 @@ def check_dependencies() -> dict:
         Dict with dependency status:
         {
             'aiohttp': {'installed': True, 'version': '3.9.0'},
-            'google-generativeai': {'installed': False, 'version': None, 'message': 'Not installed'},
+            'google-genai': {'installed': False, 'version': None, 'message': 'Not installed'},
             ...
         }
     """
@@ -187,7 +187,7 @@ def check_dependencies() -> dict:
 
     dependencies = [
         'aiohttp',
-        'google-generativeai',
+        'google-genai',
         'anthropic',
         'pytest',
         'pytest-asyncio',

@@ -460,7 +460,7 @@ def show_status():
     from . import check_dependencies
     deps = check_dependencies()
 
-    core_deps = ['aiohttp', 'google-generativeai', 'anthropic']
+    core_deps = ['aiohttp', 'google-genai', 'anthropic']
     optional_deps = ['arxiv', 'cohere']
 
     print("  Core:")

@@ -39,10 +39,12 @@ except ImportError:
     HAS_OPENAI = False
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     HAS_GEMINI = True
 except ImportError:
     genai = None
+    genai_types = None
     HAS_GEMINI = False
 
 
