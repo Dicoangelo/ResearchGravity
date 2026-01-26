@@ -14,7 +14,7 @@ Usage:
 import argparse
 import json
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -77,7 +77,7 @@ class ResearchSync:
             print("Install with: pip install arxiv")
             return []
 
-        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         print(f"🔍 Searching arXiv for: {query}")
         print(f"📅 Date range: Last {days} days")
