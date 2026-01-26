@@ -16,6 +16,7 @@ Environment:
 
 import hashlib
 import os
+import uuid
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import json
@@ -62,6 +63,18 @@ COLLECTIONS = {
         "distance": Distance.COSINE,
     },
     "packs": {
+        "vector_size": EMBEDDING_DIM,
+        "distance": Distance.COSINE,
+    },
+    "session_outcomes": {
+        "vector_size": EMBEDDING_DIM,
+        "distance": Distance.COSINE,
+    },
+    "cognitive_states": {
+        "vector_size": EMBEDDING_DIM,
+        "distance": Distance.COSINE,
+    },
+    "error_patterns": {
         "vector_size": EMBEDDING_DIM,
         "distance": Distance.COSINE,
     },
@@ -262,9 +275,14 @@ class QdrantDB:
         return reranked
 
     def _generate_id(self, text: str, prefix: str = "") -> str:
-        """Generate deterministic ID from text."""
+        """Generate deterministic ID from text (for deduplication)."""
         content = f"{prefix}:{text}" if prefix else text
         return hashlib.md5(content.encode()).hexdigest()
+
+    def _generate_unique_id(self, prefix: str = "") -> str:
+        """Generate unique ID using UUID (for temporal records)."""
+        unique_id = uuid.uuid4().hex[:12]
+        return f"{prefix}-{unique_id}" if prefix else unique_id
 
     # --- Finding Operations ---
 
@@ -638,6 +656,354 @@ class QdrantDB:
             packs = self.rerank(query, packs, top_n=limit, content_key="name")
 
         return packs[:limit]
+
+    # --- Session Outcome Operations ---
+
+    async def upsert_outcome(
+        self,
+        outcome_id: str,
+        intent: str,
+        metadata: Dict[str, Any]
+    ):
+        """Store a session outcome with its embedding."""
+        # Embed the intent (what the session was about)
+        embedding = self.embed(intent)
+
+        await self.async_client.upsert(
+            collection_name="session_outcomes",
+            points=[
+                PointStruct(
+                    id=self._generate_id(outcome_id, "outcome"),
+                    vector=embedding,
+                    payload={
+                        "outcome_id": outcome_id,
+                        "session_id": metadata.get("session_id"),
+                        "intent": intent[:500],  # Truncate for storage
+                        "outcome": metadata.get("outcome"),
+                        "quality": metadata.get("quality"),
+                        "model_efficiency": metadata.get("model_efficiency"),
+                        "models_used": metadata.get("models_used"),
+                        "date": metadata.get("date"),
+                        "messages": metadata.get("messages"),
+                        "tools": metadata.get("tools"),
+                    }
+                )
+            ]
+        )
+
+    async def upsert_outcomes_batch(
+        self,
+        outcomes: List[Dict[str, Any]]
+    ) -> int:
+        """Store multiple session outcomes with embeddings."""
+        if not outcomes:
+            return 0
+
+        # Generate embeddings for intents
+        texts = [o.get("intent", o.get("title", "")) for o in outcomes]
+        embeddings = self.embed_batch(texts)
+
+        points = [
+            PointStruct(
+                id=self._generate_id(o.get("session_id", f"outcome-{i}"), "outcome"),
+                vector=emb,
+                payload={
+                    "outcome_id": o.get("session_id"),
+                    "session_id": o.get("session_id"),
+                    "intent": o.get("intent", "")[:500],
+                    "outcome": o.get("outcome"),
+                    "quality": o.get("quality"),
+                    "model_efficiency": o.get("model_efficiency"),
+                    "models_used": o.get("models_used"),
+                    "date": o.get("date"),
+                    "messages": o.get("messages"),
+                    "tools": o.get("tools"),
+                }
+            )
+            for i, (o, emb) in enumerate(zip(outcomes, embeddings))
+        ]
+
+        await self.async_client.upsert(
+            collection_name="session_outcomes",
+            points=points
+        )
+
+        return len(points)
+
+    async def search_outcomes(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.5,
+        filter_outcome: Optional[str] = None,
+        min_quality: Optional[float] = None,
+        rerank: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Semantic search for session outcomes with optional reranking.
+
+        Args:
+            query: Search query (e.g., "implement authentication system")
+            limit: Number of results to return
+            min_score: Minimum similarity score
+            filter_outcome: Filter by outcome type ('success', 'partial', 'failed')
+            min_quality: Minimum quality score (1-5)
+            rerank: Whether to rerank results using Cohere
+        """
+        embedding = self.embed_query(query)
+
+        # Build filter
+        conditions = []
+        if filter_outcome:
+            conditions.append(
+                FieldCondition(key="outcome", match=MatchValue(value=filter_outcome))
+            )
+        if min_quality:
+            conditions.append(
+                FieldCondition(key="quality", range=models.Range(gte=min_quality))
+            )
+
+        search_filter = Filter(must=conditions) if conditions else None
+
+        # Fetch more results for reranking
+        fetch_limit = limit * 3 if rerank else limit
+
+        results = await self.async_client.query_points(
+            collection_name="session_outcomes",
+            query=embedding,
+            query_filter=search_filter,
+            limit=fetch_limit,
+            score_threshold=min_score
+        )
+
+        outcomes = [
+            {
+                "outcome_id": r.payload.get("outcome_id"),
+                "session_id": r.payload.get("session_id"),
+                "intent": r.payload.get("intent"),
+                "outcome": r.payload.get("outcome"),
+                "quality": r.payload.get("quality"),
+                "model_efficiency": r.payload.get("model_efficiency"),
+                "models_used": r.payload.get("models_used"),
+                "date": r.payload.get("date"),
+                "messages": r.payload.get("messages"),
+                "tools": r.payload.get("tools"),
+                "content": r.payload.get("intent"),  # For reranking
+                "score": r.score,
+            }
+            for r in results.points
+        ]
+
+        # Rerank if enabled
+        if rerank and outcomes:
+            outcomes = self.rerank(query, outcomes, top_n=limit, content_key="intent")
+
+        return outcomes[:limit]
+
+    # --- Cognitive State Operations ---
+
+    async def upsert_cognitive_state(
+        self,
+        state_id: str,
+        context: str,
+        metadata: Dict[str, Any]
+    ):
+        """Store a cognitive state with its embedding."""
+        embedding = self.embed(context)
+
+        await self.async_client.upsert(
+            collection_name="cognitive_states",
+            points=[
+                PointStruct(
+                    id=self._generate_id(state_id, "cognitive"),
+                    vector=embedding,
+                    payload={
+                        "state_id": state_id,
+                        "mode": metadata.get("mode"),
+                        "energy_level": metadata.get("energy_level"),
+                        "flow_score": metadata.get("flow_score"),
+                        "hour": metadata.get("hour"),
+                        "day": metadata.get("day"),
+                        "timestamp": metadata.get("timestamp"),
+                        "predictions": metadata.get("predictions"),
+                    }
+                )
+            ]
+        )
+
+    async def upsert_cognitive_states_batch(
+        self,
+        states: List[Dict[str, Any]]
+    ) -> int:
+        """Store multiple cognitive states with embeddings."""
+        if not states:
+            return 0
+
+        # Create context strings for embedding
+        texts = [
+            f"{s.get('mode', '')} energy_{s.get('energy_level', 0):.2f} flow_{s.get('flow_score', 0):.2f} hour_{s.get('hour', 0)}"
+            for s in states
+        ]
+        embeddings = self.embed_batch(texts)
+
+        points = [
+            PointStruct(
+                id=self._generate_id(s.get("id", f"state-{i}"), "cognitive"),
+                vector=emb,
+                payload={
+                    "state_id": s.get("id"),
+                    "mode": s.get("mode"),
+                    "energy_level": s.get("energy_level"),
+                    "flow_score": s.get("flow_score"),
+                    "hour": s.get("hour"),
+                    "day": s.get("day"),
+                    "timestamp": s.get("timestamp"),
+                    "predictions": s.get("predictions"),
+                }
+            )
+            for i, (s, emb) in enumerate(zip(states, embeddings))
+        ]
+
+        await self.async_client.upsert(
+            collection_name="cognitive_states",
+            points=points
+        )
+
+        return len(points)
+
+    async def search_cognitive_states(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.5
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for cognitive states."""
+        embedding = self.embed_query(query)
+
+        results = await self.async_client.query_points(
+            collection_name="cognitive_states",
+            query=embedding,
+            limit=limit,
+            score_threshold=min_score
+        )
+
+        return [
+            {
+                "state_id": r.payload.get("state_id"),
+                "mode": r.payload.get("mode"),
+                "energy_level": r.payload.get("energy_level"),
+                "flow_score": r.payload.get("flow_score"),
+                "hour": r.payload.get("hour"),
+                "day": r.payload.get("day"),
+                "timestamp": r.payload.get("timestamp"),
+                "predictions": r.payload.get("predictions"),
+                "score": r.score,
+            }
+            for r in results.points
+        ]
+
+    # --- Error Pattern Operations ---
+
+    async def upsert_error_pattern(
+        self,
+        error_id: str,
+        context: str,
+        metadata: Dict[str, Any]
+    ):
+        """Store an error pattern with its embedding."""
+        embedding = self.embed(context)
+
+        await self.async_client.upsert(
+            collection_name="error_patterns",
+            points=[
+                PointStruct(
+                    id=self._generate_id(error_id, "error"),
+                    vector=embedding,
+                    payload={
+                        "error_id": error_id,
+                        "error_type": metadata.get("error_type"),
+                        "context": context[:1000],
+                        "solution": metadata.get("solution"),
+                        "success_rate": metadata.get("success_rate"),
+                    }
+                )
+            ]
+        )
+
+    async def upsert_error_patterns_batch(
+        self,
+        errors: List[Dict[str, Any]]
+    ) -> int:
+        """Store multiple error patterns with embeddings."""
+        if not errors:
+            return 0
+
+        # Create context strings for embedding
+        texts = [
+            f"{e.get('error_type', '')} in {e.get('context', '')} solved_by {e.get('solution', '')}"
+            for e in errors
+        ]
+        embeddings = self.embed_batch(texts)
+
+        points = [
+            PointStruct(
+                id=self._generate_id(e.get("id", f"error-{i}"), "error"),
+                vector=emb,
+                payload={
+                    "error_id": e.get("id"),
+                    "error_type": e.get("error_type"),
+                    "context": e.get("context", "")[:1000],
+                    "solution": e.get("solution"),
+                    "success_rate": e.get("success_rate", 0.0),
+                }
+            )
+            for i, (e, emb) in enumerate(zip(errors, embeddings))
+        ]
+
+        await self.async_client.upsert(
+            collection_name="error_patterns",
+            points=points
+        )
+
+        return len(points)
+
+    async def search_error_patterns(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.5,
+        min_success_rate: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for error patterns."""
+        embedding = self.embed_query(query)
+
+        conditions = []
+        if min_success_rate:
+            conditions.append(
+                FieldCondition(key="success_rate", range=models.Range(gte=min_success_rate))
+            )
+
+        search_filter = Filter(must=conditions) if conditions else None
+
+        results = await self.async_client.query_points(
+            collection_name="error_patterns",
+            query=embedding,
+            query_filter=search_filter,
+            limit=limit,
+            score_threshold=min_score
+        )
+
+        return [
+            {
+                "error_id": r.payload.get("error_id"),
+                "error_type": r.payload.get("error_type"),
+                "context": r.payload.get("context"),
+                "solution": r.payload.get("solution"),
+                "success_rate": r.payload.get("success_rate"),
+                "score": r.score,
+            }
+            for r in results.points
+        ]
 
     # --- Unified Search ---
 

@@ -14,8 +14,9 @@ Uses aiosqlite for async operations and connection pooling.
 import aiosqlite
 import json
 import asyncio
+import uuid
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
@@ -23,7 +24,7 @@ from contextlib import asynccontextmanager
 DB_PATH = Path.home() / ".agent-core" / "storage" / "antigravity.db"
 
 # Schema version for migrations
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3  # Phase 4: Added prediction_tracking
 
 SCHEMA = """
 -- Enable WAL mode for concurrent reads/writes
@@ -139,6 +140,63 @@ CREATE TABLE IF NOT EXISTS lineage (
     UNIQUE(source_type, source_id, target_type, target_id, relation)
 );
 
+-- Session outcomes for meta-learning
+CREATE TABLE IF NOT EXISTS session_outcomes (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    intent TEXT NOT NULL,
+    outcome TEXT,  -- 'success', 'partial', 'failed'
+    quality REAL,  -- 1-5
+    model_efficiency REAL,
+    models_used TEXT,  -- JSON
+    date TEXT,
+    messages INTEGER,
+    tools INTEGER,
+    timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Cognitive states for temporal prediction
+CREATE TABLE IF NOT EXISTS cognitive_states (
+    id TEXT PRIMARY KEY,
+    mode TEXT,  -- 'morning', 'peak', 'dip', 'evening', 'deep_night'
+    energy_level REAL,
+    flow_score REAL,
+    hour INTEGER,
+    day TEXT,
+    predictions TEXT,  -- JSON
+    timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Error patterns for preventive action
+CREATE TABLE IF NOT EXISTS error_patterns (
+    id TEXT PRIMARY KEY,
+    error_type TEXT NOT NULL,
+    context TEXT,
+    solution TEXT,
+    success_rate REAL DEFAULT 0.0,
+    occurrences INTEGER DEFAULT 1,
+    last_seen TEXT DEFAULT CURRENT_TIMESTAMP,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Prediction tracking for calibration loop (Phase 4)
+CREATE TABLE IF NOT EXISTS prediction_tracking (
+    id TEXT PRIMARY KEY,
+    intent TEXT NOT NULL,
+    predicted_quality REAL,
+    predicted_success_probability REAL,
+    predicted_optimal_hour INTEGER,
+    actual_quality REAL,
+    actual_outcome TEXT,
+    actual_session_id TEXT,
+    prediction_timestamp TEXT NOT NULL,
+    outcome_timestamp TEXT,
+    cognitive_state TEXT,  -- JSON snapshot of state at prediction time
+    error_magnitude REAL,  -- |predicted - actual| for quality
+    success_match INTEGER,  -- 1 if prediction matched outcome, 0 otherwise
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
@@ -165,6 +223,23 @@ CREATE INDEX IF NOT EXISTS idx_papers_applied ON papers(applied);
 CREATE INDEX IF NOT EXISTS idx_lineage_source ON lineage(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_lineage_target ON lineage(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_lineage_relation ON lineage(relation);
+
+CREATE INDEX IF NOT EXISTS idx_outcomes_session ON session_outcomes(session_id);
+CREATE INDEX IF NOT EXISTS idx_outcomes_outcome ON session_outcomes(outcome);
+CREATE INDEX IF NOT EXISTS idx_outcomes_quality ON session_outcomes(quality);
+CREATE INDEX IF NOT EXISTS idx_outcomes_date ON session_outcomes(date);
+
+CREATE INDEX IF NOT EXISTS idx_cognitive_mode ON cognitive_states(mode);
+CREATE INDEX IF NOT EXISTS idx_cognitive_hour ON cognitive_states(hour);
+CREATE INDEX IF NOT EXISTS idx_cognitive_day ON cognitive_states(day);
+
+CREATE INDEX IF NOT EXISTS idx_errors_type ON error_patterns(error_type);
+CREATE INDEX IF NOT EXISTS idx_errors_success ON error_patterns(success_rate);
+
+CREATE INDEX IF NOT EXISTS idx_predictions_intent ON prediction_tracking(intent);
+CREATE INDEX IF NOT EXISTS idx_predictions_timestamp ON prediction_tracking(prediction_timestamp);
+CREATE INDEX IF NOT EXISTS idx_predictions_session ON prediction_tracking(actual_session_id);
+CREATE INDEX IF NOT EXISTS idx_predictions_match ON prediction_tracking(success_match);
 
 -- Full-text search for content
 CREATE VIRTUAL TABLE IF NOT EXISTS findings_fts USING fts5(
@@ -687,6 +762,375 @@ class SQLiteDB:
 
         return results
 
+    # --- Session Outcome Operations ---
+
+    async def store_outcome(self, outcome: Dict[str, Any]) -> str:
+        """Store a session outcome."""
+        async with self.connection() as db:
+            outcome_id = outcome.get("id", outcome.get("session_id"))
+            await db.execute("""
+                INSERT INTO session_outcomes (id, session_id, intent, outcome, quality,
+                                              model_efficiency, models_used, date, messages, tools)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    intent = excluded.intent,
+                    outcome = excluded.outcome,
+                    quality = excluded.quality,
+                    model_efficiency = excluded.model_efficiency,
+                    models_used = excluded.models_used,
+                    messages = excluded.messages,
+                    tools = excluded.tools
+            """, (
+                outcome_id,
+                outcome.get("session_id"),
+                outcome.get("intent", outcome.get("title", "")),
+                outcome.get("outcome"),
+                outcome.get("quality"),
+                outcome.get("model_efficiency"),
+                json.dumps(outcome.get("models_used", {})),
+                outcome.get("date"),
+                outcome.get("messages"),
+                outcome.get("tools")
+            ))
+            await db.commit()
+            return outcome_id
+
+    async def store_outcomes_batch(self, outcomes: List[Dict[str, Any]]) -> int:
+        """Store multiple outcomes in a single transaction."""
+        async with self.connection() as db:
+            await db.executemany("""
+                INSERT INTO session_outcomes (id, session_id, intent, outcome, quality,
+                                              model_efficiency, models_used, date, messages, tools)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    intent = excluded.intent,
+                    outcome = excluded.outcome,
+                    quality = excluded.quality
+            """, [
+                (
+                    o.get("id", o.get("session_id")),
+                    o.get("session_id"),
+                    o.get("intent", o.get("title", "")),
+                    o.get("outcome"),
+                    o.get("quality"),
+                    o.get("model_efficiency"),
+                    json.dumps(o.get("models_used", {})),
+                    o.get("date"),
+                    o.get("messages"),
+                    o.get("tools")
+                )
+                for o in outcomes
+            ])
+            await db.commit()
+            return len(outcomes)
+
+    async def get_outcomes(
+        self,
+        limit: int = 100,
+        min_quality: Optional[float] = None,
+        outcome_filter: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get session outcomes with filtering."""
+        query = "SELECT * FROM session_outcomes WHERE 1=1"
+        params = []
+
+        if min_quality:
+            query += " AND quality >= ?"
+            params.append(min_quality)
+        if outcome_filter:
+            query += " AND outcome = ?"
+            params.append(outcome_filter)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        async with self.connection() as db:
+            cursor = await db.execute(query, params)
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                d = dict(row)
+                d['models_used'] = json.loads(d['models_used']) if d['models_used'] else {}
+                results.append(d)
+            return results
+
+    # --- Cognitive State Operations ---
+
+    async def store_cognitive_state(self, state: Dict[str, Any]) -> str:
+        """Store a cognitive state."""
+        async with self.connection() as db:
+            state_id = state.get("id", f"state-{state.get('timestamp', datetime.now().isoformat())}")
+            await db.execute("""
+                INSERT INTO cognitive_states (id, mode, energy_level, flow_score, hour, day, predictions)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    mode = excluded.mode,
+                    energy_level = excluded.energy_level,
+                    flow_score = excluded.flow_score
+            """, (
+                state_id,
+                state.get("mode"),
+                state.get("energy_level"),
+                state.get("flow_score"),
+                state.get("hour"),
+                state.get("day"),
+                json.dumps(state.get("predictions", {}))
+            ))
+            await db.commit()
+            return state_id
+
+    async def store_cognitive_states_batch(self, states: List[Dict[str, Any]]) -> int:
+        """Store multiple cognitive states."""
+        async with self.connection() as db:
+            await db.executemany("""
+                INSERT INTO cognitive_states (id, mode, energy_level, flow_score, hour, day, predictions)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO NOTHING
+            """, [
+                (
+                    s.get("id", f"state-{s.get('timestamp', i)}"),
+                    s.get("mode"),
+                    s.get("energy_level"),
+                    s.get("flow_score"),
+                    s.get("hour"),
+                    s.get("day"),
+                    json.dumps(s.get("predictions", {}))
+                )
+                for i, s in enumerate(states)
+            ])
+            await db.commit()
+            return len(states)
+
+    async def get_cognitive_states(
+        self,
+        limit: int = 100,
+        mode: Optional[str] = None,
+        hour: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Get cognitive states with filtering."""
+        query = "SELECT * FROM cognitive_states WHERE 1=1"
+        params = []
+
+        if mode:
+            query += " AND mode = ?"
+            params.append(mode)
+        if hour is not None:
+            query += " AND hour = ?"
+            params.append(hour)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        async with self.connection() as db:
+            cursor = await db.execute(query, params)
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                d = dict(row)
+                d['predictions'] = json.loads(d['predictions']) if d['predictions'] else {}
+                results.append(d)
+            return results
+
+    # --- Error Pattern Operations ---
+
+    async def store_error_pattern(self, error: Dict[str, Any]) -> str:
+        """Store an error pattern."""
+        async with self.connection() as db:
+            error_id = error.get("id", f"error-{uuid.uuid4().hex[:8]}")
+            await db.execute("""
+                INSERT INTO error_patterns (id, error_type, context, solution, success_rate, occurrences)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    occurrences = occurrences + 1,
+                    success_rate = excluded.success_rate,
+                    last_seen = CURRENT_TIMESTAMP
+            """, (
+                error_id,
+                error.get("error_type"),
+                error.get("context"),
+                error.get("solution"),
+                error.get("success_rate", 0.0),
+                error.get("occurrences", 1)
+            ))
+            await db.commit()
+            return error_id
+
+    async def store_error_patterns_batch(self, errors: List[Dict[str, Any]]) -> int:
+        """Store multiple error patterns."""
+        async with self.connection() as db:
+            await db.executemany("""
+                INSERT INTO error_patterns (id, error_type, context, solution, success_rate)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO NOTHING
+            """, [
+                (
+                    e.get("id", f"error-{i}"),
+                    e.get("error_type"),
+                    e.get("context"),
+                    e.get("solution"),
+                    e.get("success_rate", 0.0)
+                )
+                for i, e in enumerate(errors)
+            ])
+            await db.commit()
+            return len(errors)
+
+    async def get_error_patterns(
+        self,
+        limit: int = 100,
+        min_success_rate: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """Get error patterns with filtering."""
+        query = "SELECT * FROM error_patterns WHERE 1=1"
+        params = []
+
+        if min_success_rate:
+            query += " AND success_rate >= ?"
+            params.append(min_success_rate)
+
+        query += " ORDER BY occurrences DESC, success_rate DESC LIMIT ?"
+        params.append(limit)
+
+        async with self.connection() as db:
+            cursor = await db.execute(query, params)
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    # --- Prediction Tracking (Phase 4: Calibration Loop) ---
+
+    async def store_prediction(self, prediction: Dict[str, Any]) -> str:
+        """Store a prediction for later calibration."""
+        prediction_id = prediction.get("id", str(uuid.uuid4()))
+
+        async with self.connection() as db:
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO prediction_tracking
+                (id, intent, predicted_quality, predicted_success_probability,
+                 predicted_optimal_hour, cognitive_state, prediction_timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    prediction_id,
+                    prediction.get("intent", ""),
+                    prediction.get("predicted_quality"),
+                    prediction.get("success_probability"),
+                    prediction.get("optimal_time"),
+                    json.dumps(prediction.get("cognitive_state", {})),
+                    prediction.get("timestamp", datetime.now().isoformat())
+                )
+            )
+            await db.commit()
+
+        return prediction_id
+
+    async def update_prediction_outcome(
+        self,
+        prediction_id: str,
+        actual_quality: float,
+        actual_outcome: str,
+        session_id: str
+    ):
+        """Update a prediction with actual outcome for calibration."""
+        async with self.connection() as db:
+            # Get the prediction
+            cursor = await db.execute(
+                "SELECT predicted_quality, predicted_success_probability FROM prediction_tracking WHERE id = ?",
+                (prediction_id,)
+            )
+            row = await cursor.fetchone()
+
+            if row:
+                predicted_quality = row[0] or 3.0
+                predicted_success = row[1] or 0.5
+
+                # Calculate error and match
+                error_magnitude = abs(predicted_quality - actual_quality)
+                success_match = 1 if (
+                    (predicted_success >= 0.7 and actual_outcome == "success") or
+                    (predicted_success < 0.7 and actual_outcome != "success")
+                ) else 0
+
+                # Update with actual outcome
+                await db.execute(
+                    """
+                    UPDATE prediction_tracking
+                    SET actual_quality = ?,
+                        actual_outcome = ?,
+                        actual_session_id = ?,
+                        outcome_timestamp = ?,
+                        error_magnitude = ?,
+                        success_match = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        actual_quality,
+                        actual_outcome,
+                        session_id,
+                        datetime.now().isoformat(),
+                        error_magnitude,
+                        success_match,
+                        prediction_id
+                    )
+                )
+                await db.commit()
+
+    async def get_prediction_accuracy(self, days: int = 30) -> Dict[str, Any]:
+        """Calculate prediction accuracy metrics."""
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        async with self.connection() as db:
+            # Total predictions with outcomes
+            cursor = await db.execute(
+                """
+                SELECT COUNT(*) FROM prediction_tracking
+                WHERE outcome_timestamp IS NOT NULL
+                AND prediction_timestamp >= ?
+                """,
+                (cutoff,)
+            )
+            total = (await cursor.fetchone())[0]
+
+            if total == 0:
+                return {
+                    "total_predictions": 0,
+                    "accurate_predictions": 0,
+                    "accuracy": 0.0,
+                    "avg_quality_error": 0.0,
+                    "success_prediction_rate": 0.0
+                }
+
+            # Success matches
+            cursor = await db.execute(
+                """
+                SELECT COUNT(*) FROM prediction_tracking
+                WHERE success_match = 1
+                AND prediction_timestamp >= ?
+                """,
+                (cutoff,)
+            )
+            successes = (await cursor.fetchone())[0]
+
+            # Average quality error
+            cursor = await db.execute(
+                """
+                SELECT AVG(error_magnitude) FROM prediction_tracking
+                WHERE error_magnitude IS NOT NULL
+                AND prediction_timestamp >= ?
+                """,
+                (cutoff,)
+            )
+            avg_error = (await cursor.fetchone())[0] or 0.0
+
+            return {
+                "total_predictions": total,
+                "accurate_predictions": successes,
+                "accuracy": successes / total if total > 0 else 0.0,
+                "avg_quality_error": round(avg_error, 2),
+                "success_prediction_rate": round(successes / total, 2) if total > 0 else 0.0,
+                "period_days": days
+            }
+
     # --- Statistics ---
 
     async def get_stats(self) -> Dict[str, Any]:
@@ -716,6 +1160,18 @@ class SQLiteDB:
                 "SELECT COUNT(*) FROM provenance WHERE source_type = 'ucw_trade'"
             )
             stats['ucw_imports'] = (await cursor.fetchone())[0]
+
+            cursor = await db.execute("SELECT COUNT(*) FROM session_outcomes")
+            stats['session_outcomes'] = (await cursor.fetchone())[0]
+
+            cursor = await db.execute("SELECT COUNT(*) FROM cognitive_states")
+            stats['cognitive_states'] = (await cursor.fetchone())[0]
+
+            cursor = await db.execute("SELECT COUNT(*) FROM error_patterns")
+            stats['error_patterns'] = (await cursor.fetchone())[0]
+
+            cursor = await db.execute("SELECT COUNT(*) FROM prediction_tracking")
+            stats['predictions_tracked'] = (await cursor.fetchone())[0]
 
             return stats
 

@@ -132,6 +132,27 @@ if FASTAPI_AVAILABLE:
         min_score: float = 0.4
         collections: Optional[List[str]] = None  # ['findings', 'sessions', 'packs']
 
+    # Phase 5: Meta-Learning Prediction Models
+    class PredictionRequest(BaseModel):
+        intent: str
+        cognitive_state: Optional[dict] = None
+        available_research: Optional[List[str]] = None
+        track_prediction: bool = False  # Whether to store for calibration
+
+    class ErrorPredictionRequest(BaseModel):
+        intent: str
+        include_preventable_only: bool = True
+
+    class OptimalTimeRequest(BaseModel):
+        intent: str
+        current_hour: Optional[int] = None
+
+    class PredictionOutcomeUpdate(BaseModel):
+        prediction_id: str
+        actual_quality: float
+        actual_outcome: str
+        session_id: str
+
 
 # ============================================================
 # Storage Engine (Phase 3a)
@@ -798,6 +819,286 @@ if FASTAPI_AVAILABLE:
 
         network = await get_concept_network(node_id, depth=depth)
         return network
+
+    # ============================================================
+    # Phase 5: Meta-Learning Prediction Endpoints
+    # ============================================================
+
+    @app.post("/api/v2/predict/session")
+    async def predict_session_outcome(request: PredictionRequest):
+        """
+        Predict session outcome based on multi-dimensional correlation.
+
+        Uses historical outcomes, cognitive states, research context, and error patterns
+        to predict quality, success probability, and optimal timing.
+
+        Returns:
+            {
+                "predicted_quality": float (1-5),
+                "success_probability": float (0-1),
+                "optimal_time": int (hour 0-23),
+                "recommended_research": List[Dict],
+                "potential_errors": List[Dict],
+                "similar_sessions": List[Dict],
+                "confidence": float (0-1),
+                "signals": Dict,
+                "prediction_id": str (if track_prediction=True)
+            }
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            # Import meta-learning engine
+            from storage.meta_learning import MetaLearningEngine
+
+            # Initialize engine
+            engine = MetaLearningEngine()
+            await engine.initialize()
+
+            # Make prediction
+            prediction = await engine.predict_session_outcome(
+                intent=request.intent,
+                cognitive_state=request.cognitive_state,
+                available_research=request.available_research
+            )
+
+            # Optionally store for tracking
+            prediction_id = None
+            if request.track_prediction:
+                prediction_id = await engine.store_prediction_for_tracking(
+                    intent=request.intent,
+                    prediction=prediction,
+                    cognitive_state=request.cognitive_state
+                )
+                prediction["prediction_id"] = prediction_id
+
+            await engine.close()
+            return prediction
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+    @app.post("/api/v2/predict/errors")
+    async def predict_errors(request: ErrorPredictionRequest):
+        """
+        Predict potential errors for a task.
+
+        Searches error patterns database for relevant errors with prevention strategies.
+
+        Returns:
+            List of error patterns with:
+            - error_type: str
+            - context: str
+            - solution: str
+            - success_rate: float (prevention effectiveness)
+            - severity: str ('high' or 'medium')
+            - score: float (relevance to query)
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            from storage.meta_learning import MetaLearningEngine
+
+            engine = MetaLearningEngine()
+            await engine.initialize()
+
+            errors = await engine.predict_errors(
+                intent=request.intent,
+                include_preventable_only=request.include_preventable_only
+            )
+
+            await engine.close()
+            return {"errors": errors, "count": len(errors)}
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error prediction failed: {str(e)}")
+
+    @app.post("/api/v2/predict/optimal-time")
+    async def predict_optimal_time(request: OptimalTimeRequest):
+        """
+        Predict the optimal time to work on a task.
+
+        Analyzes historical cognitive patterns and session outcomes to suggest
+        the best time of day for the given task.
+
+        Returns:
+            {
+                "optimal_hour": int (0-23),
+                "is_optimal_now": bool,
+                "wait_hours": int,
+                "reasoning": str
+            }
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            from storage.meta_learning import MetaLearningEngine
+
+            engine = MetaLearningEngine()
+            await engine.initialize()
+
+            result = await engine.predict_optimal_time(
+                intent=request.intent,
+                current_hour=request.current_hour
+            )
+
+            await engine.close()
+            return result
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Optimal time prediction failed: {str(e)}")
+
+    @app.get("/api/v2/predict/accuracy")
+    async def get_prediction_accuracy(days: int = Query(30, ge=1, le=365)):
+        """
+        Get prediction accuracy metrics.
+
+        Analyzes tracked predictions vs actual outcomes to calculate
+        calibration metrics.
+
+        Returns:
+            {
+                "total_predictions": int,
+                "accurate_predictions": int,
+                "accuracy": float (0-1),
+                "avg_quality_error": float,
+                "success_prediction_rate": float,
+                "period_days": int
+            }
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            from storage.meta_learning import MetaLearningEngine
+
+            engine = MetaLearningEngine()
+            await engine.initialize()
+
+            accuracy = await engine.get_prediction_accuracy(days=days)
+
+            await engine.close()
+            return accuracy
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Accuracy calculation failed: {str(e)}")
+
+    @app.post("/api/v2/predict/update-outcome")
+    async def update_prediction_outcome(request: PredictionOutcomeUpdate):
+        """
+        Update a tracked prediction with actual outcome for calibration.
+
+        Used to close the feedback loop: after a session completes,
+        update the stored prediction with actual results.
+
+        Returns:
+            {"status": "updated", "prediction_id": str}
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            from storage.meta_learning import MetaLearningEngine
+
+            engine = MetaLearningEngine()
+            await engine.initialize()
+
+            await engine.update_prediction_with_outcome(
+                prediction_id=request.prediction_id,
+                actual_quality=request.actual_quality,
+                actual_outcome=request.actual_outcome,
+                session_id=request.session_id
+            )
+
+            await engine.close()
+            return {"status": "updated", "prediction_id": request.prediction_id}
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Outcome update failed: {str(e)}")
+
+    @app.get("/api/v2/predict/multi-search")
+    async def multi_vector_search(
+        query: str = Query(..., description="Search query"),
+        limit: int = Query(5, ge=1, le=20)
+    ):
+        """
+        Perform multi-dimensional vector search across all dimensions.
+
+        Searches outcomes, cognitive states, research findings, and error patterns
+        in parallel for comprehensive context.
+
+        Returns:
+            {
+                "outcomes": List[Dict],
+                "cognitive": List[Dict],
+                "research": List[Dict],
+                "errors": List[Dict],
+                "total_results": int
+            }
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            from storage.meta_learning import MetaLearningEngine
+
+            engine = MetaLearningEngine()
+            await engine.initialize()
+
+            results = await engine.multi_vector_search(query=query, limit=limit)
+
+            await engine.close()
+            return results
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Multi-search failed: {str(e)}")
+
+    @app.get("/api/v2/predict/calibrate-weights")
+    async def calibrate_weights():
+        """
+        Get recommended correlation weights based on prediction accuracy.
+
+        Analyzes recent performance to suggest optimal weighting for:
+        - Outcome signal
+        - Cognitive alignment
+        - Research availability
+        - Error probability
+
+        Returns:
+            {
+                "outcome_weight": float,
+                "cognitive_weight": float,
+                "research_weight": float,
+                "error_weight": float,
+                "recommended_update": bool
+            }
+        """
+        storage = await get_storage()
+        if not storage:
+            raise HTTPException(status_code=503, detail="Storage engine not available")
+
+        try:
+            from storage.meta_learning import MetaLearningEngine
+
+            engine = MetaLearningEngine()
+            await engine.initialize()
+
+            weights = await engine.calibrate_weights()
+
+            await engine.close()
+            return weights
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Calibration failed: {str(e)}")
 
     # ============================================================
     # Original Endpoints (backward compatibility)

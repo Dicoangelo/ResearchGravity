@@ -456,6 +456,196 @@ class StorageEngine:
             direction=direction
         )
 
+    # --- Session Outcome Operations ---
+
+    async def store_outcome(
+        self,
+        outcome: Dict[str, Any],
+        source: str = "local"
+    ) -> str:
+        """Store a session outcome in SQLite and index in Qdrant."""
+        # Store in SQLite
+        outcome_id = await self.sqlite.store_outcome(outcome)
+
+        # Index in Qdrant
+        if self._qdrant_enabled:
+            try:
+                await self.qdrant.upsert_outcome(
+                    outcome_id=outcome_id,
+                    intent=outcome.get("intent", outcome.get("title", "")),
+                    metadata=outcome
+                )
+            except Exception as e:
+                print(f"Warning: Failed to index outcome in Qdrant: {e}")
+
+        return outcome_id
+
+    async def store_outcomes_batch(
+        self,
+        outcomes: List[Dict[str, Any]],
+        source: str = "local"
+    ) -> int:
+        """Store multiple outcomes efficiently."""
+        # Batch store in SQLite
+        count = await self.sqlite.store_outcomes_batch(outcomes)
+
+        # Batch index in Qdrant
+        if self._qdrant_enabled and outcomes:
+            try:
+                await self.qdrant.upsert_outcomes_batch(outcomes)
+            except Exception as e:
+                print(f"Warning: Failed to batch index outcomes in Qdrant: {e}")
+
+        return count
+
+    async def search_outcomes(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.5,
+        filter_outcome: Optional[str] = None,
+        min_quality: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for session outcomes."""
+        if self._qdrant_enabled:
+            return await self.qdrant.search_outcomes(
+                query=query,
+                limit=limit,
+                min_score=min_score,
+                filter_outcome=filter_outcome,
+                min_quality=min_quality
+            )
+        else:
+            return await self.sqlite.get_outcomes(
+                limit=limit,
+                min_quality=min_quality,
+                outcome_filter=filter_outcome
+            )
+
+    # --- Cognitive State Operations ---
+
+    async def store_cognitive_state(self, state: Dict[str, Any]) -> str:
+        """Store a cognitive state."""
+        state_id = await self.sqlite.store_cognitive_state(state)
+
+        if self._qdrant_enabled:
+            try:
+                context = f"{state.get('mode', '')} energy_{state.get('energy_level', 0):.2f} flow_{state.get('flow_score', 0):.2f}"
+                await self.qdrant.upsert_cognitive_state(
+                    state_id=state_id,
+                    context=context,
+                    metadata=state
+                )
+            except Exception as e:
+                print(f"Warning: Failed to index cognitive state in Qdrant: {e}")
+
+        return state_id
+
+    async def store_cognitive_states_batch(self, states: List[Dict[str, Any]]) -> int:
+        """Store multiple cognitive states."""
+        count = await self.sqlite.store_cognitive_states_batch(states)
+
+        if self._qdrant_enabled and states:
+            try:
+                await self.qdrant.upsert_cognitive_states_batch(states)
+            except Exception as e:
+                print(f"Warning: Failed to batch index cognitive states in Qdrant: {e}")
+
+        return count
+
+    async def search_cognitive_states(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.5
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for cognitive states."""
+        if self._qdrant_enabled:
+            return await self.qdrant.search_cognitive_states(
+                query=query,
+                limit=limit,
+                min_score=min_score
+            )
+        else:
+            return await self.sqlite.get_cognitive_states(limit=limit)
+
+    # --- Error Pattern Operations ---
+
+    async def store_error_pattern(self, error: Dict[str, Any]) -> str:
+        """Store an error pattern."""
+        error_id = await self.sqlite.store_error_pattern(error)
+
+        if self._qdrant_enabled:
+            try:
+                context = f"{error.get('error_type', '')} in {error.get('context', '')} solved_by {error.get('solution', '')}"
+                await self.qdrant.upsert_error_pattern(
+                    error_id=error_id,
+                    context=context,
+                    metadata=error
+                )
+            except Exception as e:
+                print(f"Warning: Failed to index error pattern in Qdrant: {e}")
+
+        return error_id
+
+    async def store_error_patterns_batch(self, errors: List[Dict[str, Any]]) -> int:
+        """Store multiple error patterns."""
+        count = await self.sqlite.store_error_patterns_batch(errors)
+
+        if self._qdrant_enabled and errors:
+            try:
+                await self.qdrant.upsert_error_patterns_batch(errors)
+            except Exception as e:
+                print(f"Warning: Failed to batch index error patterns in Qdrant: {e}")
+
+        return count
+
+    async def search_error_patterns(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.5,
+        min_success_rate: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for error patterns."""
+        if self._qdrant_enabled:
+            return await self.qdrant.search_error_patterns(
+                query=query,
+                limit=limit,
+                min_score=min_score,
+                min_success_rate=min_success_rate
+            )
+        else:
+            return await self.sqlite.get_error_patterns(
+                limit=limit,
+                min_success_rate=min_success_rate
+            )
+
+    # --- Prediction Tracking (Phase 4: Calibration Loop) ---
+
+    async def store_prediction(self, prediction: Dict[str, Any]) -> str:
+        """Store a prediction for later calibration."""
+        return await self.sqlite.store_prediction(prediction)
+
+    async def update_prediction_outcome(
+        self,
+        prediction_id: str,
+        actual_quality: float,
+        actual_outcome: str,
+        session_id: str
+    ):
+        """Update a prediction with actual outcome."""
+        await self.sqlite.update_prediction_outcome(
+            prediction_id=prediction_id,
+            actual_quality=actual_quality,
+            actual_outcome=actual_outcome,
+            session_id=session_id
+        )
+
+    async def get_prediction_accuracy(self, days: int = 30) -> Dict[str, Any]:
+        """Get prediction accuracy metrics."""
+        return await self.sqlite.get_prediction_accuracy(days=days)
+
     # --- Statistics ---
 
     async def get_stats(self) -> Dict[str, Any]:
