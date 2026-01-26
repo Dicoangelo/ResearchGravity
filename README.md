@@ -46,10 +46,11 @@
 
 | Feature | Description |
 |---------|-------------|
+| **🔮 Meta-Learning Engine** | Predictive session intelligence from 666+ outcomes, 1,014 cognitive states |
 | **🏛️ Storage Triad** | SQLite (WAL mode, FTS5) + Qdrant (semantic search) |
 | **⚖️ Writer-Critic System** | 3 critics validate archives, evidence, and context packs |
 | **🕸️ Graph Intelligence** | 11,579 nodes, 13,744 edges — concept relationships & lineage |
-| **🔌 REST API** | 19 endpoints on port 3847 for cross-app integration |
+| **🔌 REST API** | 22 endpoints on port 3847 for cross-app integration |
 | **📊 Oracle Consensus** | Multi-stream validation for high-stakes outputs |
 | **🎯 Evidence Layer** | Citations, confidence scoring, source validation |
 
@@ -715,6 +716,9 @@ python api/server.py
 | `/api/v2/graph/clusters` | GET | Concept clusters |
 | `/api/v2/graph/timeline` | GET | Research timeline |
 | `/api/v2/graph/network/{id}` | GET | Concept network |
+| **`/api/v2/predict/session`** | **POST** | **Predict session outcome, quality, optimal time** |
+| **`/api/v2/predict/errors`** | **POST** | **Predict potential errors with solutions** |
+| **`/api/v2/predict/optimal-time`** | **POST** | **Suggest best time to work on task** |
 
 ### Example Queries
 
@@ -727,6 +731,21 @@ curl "http://localhost:3847/api/v2/graph/session/my-session-id?depth=2" | jq
 
 # Find concept clusters
 curl "http://localhost:3847/api/v2/graph/clusters?min_size=5" | jq
+
+# Predict session outcome (Meta-Learning Engine)
+curl -X POST http://localhost:3847/api/v2/predict/session \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "implement authentication system", "track_prediction": false}' | jq
+
+# Predict potential errors
+curl -X POST http://localhost:3847/api/v2/predict/errors \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "git commit and push", "include_preventable_only": true}' | jq
+
+# Get optimal work time
+curl -X POST http://localhost:3847/api/v2/predict/optimal-time \
+  -H "Content-Type: application/json" \
+  -d '{"intent": "deep architecture work"}' | jq
 ```
 
 ---
