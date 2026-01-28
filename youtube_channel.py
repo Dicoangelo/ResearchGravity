@@ -8,15 +8,18 @@ Usage:
   python3 youtube_channel.py https://youtube.com/@ChannelName
   python3 youtube_channel.py @ChannelName --tier 1 --category labs
   python3 youtube_channel.py @ChannelName --limit 50 --output-dir ~/custom
+  python3 youtube_channel.py @ChannelName --transcripts --transcript-lang en
 
 Environment:
   YOUTUBE_API_KEY    Required. Get from Google Cloud Console.
                      https://console.cloud.google.com/apis/credentials
 
 Output Files:
-  urls.txt     - One URL per line (for batch processing)
-  videos.txt   - Date + URL + Title (human readable)
-  full.json    - Complete metadata (machine readable)
+  urls.txt               - One URL per line (for batch processing)
+  videos.txt             - Date + URL + Title (human readable)
+  full.json              - Complete metadata (machine readable)
+  transcripts/           - Plain text transcripts per video (with --transcripts)
+  transcripts_index.json - Transcript status index (with --transcripts)
 """
 
 import argparse
@@ -24,6 +27,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.request
 import urllib.error
 from datetime import datetime
@@ -281,6 +285,170 @@ def update_channels_registry(channel: dict, video_count: int) -> None:
     registry_file.write_text(json.dumps(registry, indent=2))
 
 
+def fetch_single_transcript(ytt_api, video_id: str, lang: str) -> dict:
+    """Fetch transcript for a single video with language priority.
+
+    Priority: manual in preferred lang > generated in preferred lang > any available.
+    Returns dict with keys: text, language, type (manual/generated), word_count, status.
+    """
+    try:
+        transcript_list = ytt_api.list(video_id)
+    except Exception:
+        return {"status": "no_captions"}
+
+    # Try manual transcript in preferred language first
+    transcript = None
+    t_type = None
+    t_lang = None
+    try:
+        transcript = transcript_list.find_manually_created_transcript([lang])
+        t_type = "manual"
+        t_lang = lang
+    except Exception:
+        pass
+
+    # Try generated transcript in preferred language
+    if transcript is None:
+        try:
+            transcript = transcript_list.find_generated_transcript([lang])
+            t_type = "generated"
+            t_lang = lang
+        except Exception:
+            pass
+
+    # Fall back to any available transcript
+    if transcript is None:
+        try:
+            for t in transcript_list:
+                transcript = t
+                t_type = "manual" if not t.is_generated else "generated"
+                t_lang = t.language_code
+                break
+        except Exception:
+            return {"status": "no_captions"}
+
+    if transcript is None:
+        return {"status": "no_captions"}
+
+    try:
+        entries = transcript.fetch()
+        text = " ".join(snippet.text for snippet in entries).strip()
+    except Exception:
+        return {"status": "fetch_error"}
+
+    word_count = len(text.split())
+    return {
+        "status": "ok",
+        "text": text,
+        "language": t_lang,
+        "type": t_type,
+        "word_count": word_count,
+    }
+
+
+def fetch_transcripts(videos: list[dict], output_dir: Path, lang: str = "en",
+                      delay: float = 1.5) -> dict:
+    """Fetch transcripts for all videos with rate limiting and resume support.
+
+    Returns index dict mapping video_id -> transcript metadata.
+    """
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+    except ImportError:
+        print("ERROR: youtube-transcript-api not installed.", file=sys.stderr)
+        print("  pip install youtube-transcript-api", file=sys.stderr)
+        sys.exit(1)
+
+    ytt_api = YouTubeTranscriptApi()
+    transcripts_dir = output_dir / "transcripts"
+    transcripts_dir.mkdir(parents=True, exist_ok=True)
+    index_file = output_dir / "transcripts_index.json"
+
+    # Load existing index for resume support
+    if index_file.exists():
+        try:
+            index = json.loads(index_file.read_text())
+        except (json.JSONDecodeError, OSError):
+            index = {}
+    else:
+        index = {}
+
+    consecutive_blocks = 0
+    backoff_delays = [30, 60, 120, 240, 300]
+    total = len(videos)
+    extracted = 0
+    skipped = 0
+
+    for i, video in enumerate(videos):
+        vid = video["id"]
+
+        # Skip already-extracted videos
+        if vid in index and index[vid].get("status") == "ok":
+            skipped += 1
+            continue
+
+        # Rate limiting
+        if i > 0 and consecutive_blocks == 0:
+            time.sleep(delay)
+
+        result = fetch_single_transcript(ytt_api, vid, lang)
+
+        if result["status"] == "ok":
+            consecutive_blocks = 0
+            extracted += 1
+
+            # Write plain text file
+            txt_file = transcripts_dir / f"{vid}.txt"
+            txt_file.write_text(result["text"])
+
+            # Update index
+            index[vid] = {
+                "status": "ok",
+                "language": result["language"],
+                "type": result["type"],
+                "word_count": result["word_count"],
+            }
+        elif result["status"] == "no_captions":
+            consecutive_blocks = 0
+            index[vid] = {"status": "no_captions"}
+        else:
+            # Possible IP block or transient error
+            consecutive_blocks += 1
+            index[vid] = {"status": result["status"]}
+
+            if consecutive_blocks <= len(backoff_delays):
+                wait = backoff_delays[consecutive_blocks - 1]
+                print(f"  Block detected ({consecutive_blocks}x), backing off {wait}s...",
+                      file=sys.stderr)
+                time.sleep(wait)
+            else:
+                print(f"  Aborting after {consecutive_blocks} consecutive blocks. "
+                      f"Progress saved.", file=sys.stderr)
+                break
+
+        # Checkpoint every 25 videos
+        if (i + 1) % 25 == 0 or i == total - 1:
+            index_file.write_text(json.dumps(index, indent=2))
+
+        # Progress
+        done = extracted + skipped
+        status_counts = f"{extracted} extracted, {skipped} resumed"
+        remaining = total - (i + 1)
+        print(f"  Transcripts: [{i+1}/{total}] {status_counts}, {remaining} remaining",
+              file=sys.stderr)
+
+    # Final save
+    index_file.write_text(json.dumps(index, indent=2))
+    print(f"  Transcript index: {index_file}")
+
+    ok_count = sum(1 for v in index.values() if v.get("status") == "ok")
+    no_cap = sum(1 for v in index.values() if v.get("status") == "no_captions")
+    errors = sum(1 for v in index.values() if v.get("status") not in ("ok", "no_captions"))
+    print(f"  Summary: {ok_count} extracted, {no_cap} no captions, {errors} errors")
+
+    return index
+
+
 def log_to_session(channel: dict, video_count: int, tier: int, category: str) -> None:
     """Log to active research session if one exists."""
     local_agent = Path.cwd() / ".agent" / "research"
@@ -338,6 +506,12 @@ Examples:
                         help="Only output urls.txt file")
     parser.add_argument("--log-to-session", action="store_true",
                         help="Add to active research session")
+    parser.add_argument("--transcripts", action="store_true",
+                        help="Extract video transcripts (requires youtube-transcript-api)")
+    parser.add_argument("--transcript-lang", default="en",
+                        help="Preferred transcript language (default: en)")
+    parser.add_argument("--transcript-delay", type=float, default=1.5,
+                        help="Seconds between transcript requests (default: 1.5)")
 
     args = parser.parse_args()
 
@@ -373,6 +547,24 @@ Examples:
         for video in videos:
             if video["id"] in metadata:
                 video.update(metadata[video["id"]])
+
+    # Fetch transcripts if requested
+    if args.transcripts:
+        print("Extracting transcripts...")
+        transcript_index = fetch_transcripts(
+            videos, output_dir, lang=args.transcript_lang, delay=args.transcript_delay
+        )
+        # Merge transcript metadata into video records
+        for video in videos:
+            vid = video["id"]
+            if vid in transcript_index:
+                entry = transcript_index[vid]
+                video["transcript"] = {
+                    "status": entry.get("status"),
+                    "language": entry.get("language"),
+                    "type": entry.get("type"),
+                    "word_count": entry.get("word_count"),
+                }
 
     # Write outputs
     print(f"Writing output files to {output_dir}...")
