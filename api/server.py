@@ -50,17 +50,26 @@ if FASTAPI_AVAILABLE:
     app = FastAPI(
         title="Agent Core API",
         description="REST API for Antigravity Chief of Staff - Knowledge service for OS-App, CareerCoach, and ResearchGravity",
-        version="1.0.0",
+        version="2.0.0",
     )
 
     # CORS for local development
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
+        allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:8080"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=3600,
     )
+
+    # Include intelligence routes (V2)
+    try:
+        from api.routes.intelligence import router as intelligence_router
+        app.include_router(intelligence_router)
+    except ImportError:
+        print("Warning: Intelligence routes not available")
 
 # Data directories
 AGENT_CORE_DIR = Path.home() / ".agent-core"
@@ -878,6 +887,9 @@ if FASTAPI_AVAILABLE:
             return prediction
 
         except Exception as e:
+            import traceback
+            print(f"ERROR in predict_session_outcome: {str(e)}")
+            print(traceback.format_exc())
             raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
     @app.post("/api/v2/predict/errors")

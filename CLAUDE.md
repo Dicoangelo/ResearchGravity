@@ -10,10 +10,19 @@ ResearchGravity is a Python research session tracking framework with auto-captur
 
 | Component | Implementation | Rating |
 |-----------|----------------|--------|
-| **Vector DB** | Qdrant (localhost:6333) | ⭐⭐⭐⭐⭐ |
+| **Vector DB** | Qdrant (primary) + sqlite-vec (fallback) | ⭐⭐⭐⭐⭐ |
 | **Embeddings** | Cohere embed-english-v3.0 (1024d) | ⭐⭐⭐⭐⭐ |
-| **Reranking** | Cohere rerank-v3.5 | ⭐⭐⭐⭐⭐ |
-| **Storage** | SQLite + Qdrant dual-write | ⭐⭐⭐⭐⭐ |
+| **Reranking** | Cohere rerank-v3.5 / Hybrid BM25+cosine | ⭐⭐⭐⭐⭐ |
+| **Storage** | SQLite + dual-write (Qdrant + sqlite-vec) | ⭐⭐⭐⭐⭐ |
+
+### V2 Storage Modes
+
+```
+Priority: Qdrant → sqlite-vec → FTS fallback
+- Qdrant: Full semantic search (requires server)
+- sqlite-vec: Single-file vectors (offline capable)
+- FTS: Full-text search fallback (always available)
+```
 
 ## Commands
 
@@ -91,6 +100,61 @@ python3 -m cpb feedback --list                 # List recent feedback
 python3 -m cpb feedback --interactive          # Interactive feedback collection
 python3 -m cpb feedback --query "Q" --output "A" --rating 4  # Record feedback
 python3 -m cpb feedback --export feedback.json # Export feedback data
+
+# ═══════════════════════════════════════════════════════════
+# V2: INTERACTIVE REPL
+# ═══════════════════════════════════════════════════════════
+python3 repl.py                                # Start interactive REPL
+python3 repl.py --resume SESSION               # Resume existing session
+python3 repl.py --status                       # Show status only
+
+# REPL Commands:
+#   start <topic>     - Initialize session
+#   url <URL>         - Log URL (auto-classify)
+#   finding <text>    - Capture insight
+#   thesis/gap/direction - Set synthesis fields
+#   status            - Show session progress
+#   search <query>    - Semantic search past sessions
+#   predict           - Quality predictions
+#   checkpoint        - Save intermediate state
+#   archive           - Finalize session
+#   quit              - Exit REPL
+
+# ═══════════════════════════════════════════════════════════
+# V2: AUTO-CAPTURE (Enhanced)
+# ═══════════════════════════════════════════════════════════
+python3 auto_capture_v2.py scan                # Scan last 24 hours
+python3 auto_capture_v2.py scan --hours 48     # Scan last 48 hours
+python3 auto_capture_v2.py watch               # Watch mode (daemon)
+python3 auto_capture_v2.py sync                # Sync to storage engine
+python3 auto_capture_v2.py status              # Show capture stats
+
+# ═══════════════════════════════════════════════════════════
+# V2: INTELLIGENCE LAYER
+# ═══════════════════════════════════════════════════════════
+python3 intelligence.py predict "task"         # Session quality prediction
+python3 intelligence.py optimal-time           # Best hour for tasks
+python3 intelligence.py errors "context"       # Likely errors
+python3 intelligence.py research "query"       # Related papers
+python3 intelligence.py patterns               # Session patterns
+python3 intelligence.py calibrate              # Run calibration loop
+python3 intelligence.py status                 # System status
+
+# ═══════════════════════════════════════════════════════════
+# V2: FILE WATCHER (Implicit Sessions)
+# ═══════════════════════════════════════════════════════════
+python3 watcher.py start                       # Start in foreground
+python3 watcher.py daemon                      # Start as background daemon
+python3 watcher.py stop                        # Stop daemon
+python3 watcher.py status                      # Show daemon status
+
+# ═══════════════════════════════════════════════════════════
+# V2: SQLITE-VEC MIGRATION
+# ═══════════════════════════════════════════════════════════
+python3 -m storage.migrate_to_vec --dry-run    # Preview migration
+python3 -m storage.migrate_to_vec              # Run migration
+python3 -m storage.migrate_to_vec --validate   # Validate migration
+python3 -m storage.migrate_to_vec --status     # Show migration status
 ```
 
 ## Architecture

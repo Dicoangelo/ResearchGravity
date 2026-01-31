@@ -10,10 +10,20 @@ uvicorn>=0.20.0
 
 # Storage
 aiofiles>=23.0.0
+aiosqlite>=0.17.0
+
+# Vector Storage (V2)
+sqlite-vec>=0.1.0          # Local vector storage
+cohere>=5.0.0              # Embeddings (optional, for quality)
 
 # Context Packs V2
 sentence-transformers>=2.2.0
 numpy>=1.24.0
+
+# REPL (V2)
+rich>=13.0.0               # Terminal UI
+prompt-toolkit>=3.0.0      # REPL framework (optional)
+watchdog>=3.0.0            # File watcher (optional)
 
 # Include CPB dependencies
 -r cpb/requirements.txt
