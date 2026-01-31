@@ -28,13 +28,17 @@ from contextlib import asynccontextmanager
 
 import aiosqlite
 
+from storage.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 # Try to import sqlite-vec
 try:
     import sqlite_vec
     SQLITE_VEC_AVAILABLE = True
 except ImportError:
     SQLITE_VEC_AVAILABLE = False
-    print("Warning: sqlite-vec not installed. Run: pip install sqlite-vec")
+    logger.warning("sqlite-vec not installed. Run: pip install sqlite-vec")
 
 # Try to import Cohere for embeddings
 try:
@@ -180,7 +184,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             """)
             await db.commit()
         except Exception as e:
-            print(f"Warning: Could not create vec_{name} table: {e}")
+            logger.warning("Could not create vec table", extra={"table": f"vec_{name}", "error": str(e)})
 
     async def embed(self, text: str) -> Optional[List[float]]:
         """Generate embedding for text using Cohere."""
@@ -197,12 +201,16 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             return None
 
         try:
-            response = self._cohere.embed(
-                texts=[text],
-                model="embed-english-v3.0",
-                input_type="search_document",
-                truncate="END"
-            )
+            # Run blocking Cohere API call in thread pool to avoid blocking event loop
+            def _embed():
+                return self._cohere.embed(
+                    texts=[text],
+                    model="embed-english-v3.0",
+                    input_type="search_document",
+                    truncate="END"
+                )
+
+            response = await asyncio.to_thread(_embed)
             embedding = response.embeddings[0]
 
             # Cache it
@@ -212,7 +220,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             return embedding
 
         except Exception as e:
-            print(f"Warning: Embedding failed: {e}")
+            logger.warning("Embedding failed", extra={"error": str(e)})
             return None
 
     async def embed_query(self, text: str) -> Optional[List[float]]:
@@ -221,15 +229,19 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             return None
 
         try:
-            response = self._cohere.embed(
-                texts=[text],
-                model="embed-english-v3.0",
-                input_type="search_query",
-                truncate="END"
-            )
+            # Run blocking Cohere API call in thread pool to avoid blocking event loop
+            def _embed_query():
+                return self._cohere.embed(
+                    texts=[text],
+                    model="embed-english-v3.0",
+                    input_type="search_query",
+                    truncate="END"
+                )
+
+            response = await asyncio.to_thread(_embed_query)
             return response.embeddings[0]
         except Exception as e:
-            print(f"Warning: Query embedding failed: {e}")
+            logger.warning("Query embedding failed", extra={"error": str(e)})
             return None
 
     @asynccontextmanager
@@ -300,7 +312,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                     """, (finding_id, rowid, datetime.now().isoformat()))
 
                 except Exception as e:
-                    print(f"Warning: Vector insert failed: {e}")
+                    logger.warning("Vector insert failed", extra={"error": str(e)})
 
             await db.commit()
             return True
@@ -378,7 +390,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                             break
 
                 except Exception as e:
-                    print(f"Warning: Vector search failed: {e}")
+                    logger.warning("Vector search failed", extra={"error": str(e)})
 
             # Fallback to FTS if no vector results
             if not results:
@@ -446,7 +458,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                     """, (session_id, rowid, datetime.now().isoformat()))
 
                 except Exception as e:
-                    print(f"Warning: Session vector insert failed: {e}")
+                    logger.warning("Session vector insert failed", extra={"error": str(e)})
 
             await db.commit()
             return True
@@ -501,7 +513,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         })
 
                 except Exception as e:
-                    print(f"Warning: Session search failed: {e}")
+                    logger.warning("Session search failed", extra={"error": str(e)})
 
             return results
 
@@ -549,7 +561,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                     """, (pack_id, rowid, datetime.now().isoformat()))
 
                 except Exception as e:
-                    print(f"Warning: Pack vector insert failed: {e}")
+                    logger.warning("Pack vector insert failed", extra={"error": str(e)})
 
             await db.commit()
             return True
@@ -607,7 +619,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         })
 
                 except Exception as e:
-                    print(f"Warning: Pack search failed: {e}")
+                    logger.warning("Pack search failed", extra={"error": str(e)})
 
             return results
 
@@ -683,7 +695,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                             }
 
                 except Exception as e:
-                    print(f"Warning: Hybrid vector search failed: {e}")
+                    logger.warning("Hybrid vector search failed", extra={"error": str(e)})
 
             # Calculate combined scores
             final_results = []

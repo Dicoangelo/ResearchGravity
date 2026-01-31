@@ -12,6 +12,10 @@ V2 Features:
 - sqlite-vec integration for single-file vector storage
 - Hybrid search with BM25 + cosine similarity
 - Automatic fallback between backends
+
+V2.1 Features:
+- Dead-letter queue for failed writes
+- Automatic retry with exponential backoff
 """
 
 from typing import Optional, List, Dict, Any
@@ -20,6 +24,10 @@ import uuid
 
 from .sqlite_db import SQLiteDB, get_db
 from .qdrant_db import QdrantDB, get_qdrant, QDRANT_AVAILABLE
+from .dead_letter_queue import DeadLetterQueue, get_dlq
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Try to import sqlite-vec
 try:
@@ -54,14 +62,16 @@ class StorageEngine:
         - Use prefer_sqlite_vec=True for offline mode
     """
 
-    def __init__(self, prefer_sqlite_vec: bool = False):
+    def __init__(self, prefer_sqlite_vec: bool = False, enable_dlq: bool = True):
         self.sqlite: Optional[SQLiteDB] = None
         self.qdrant: Optional[QdrantDB] = None
         self.sqlite_vec: Optional[SqliteVecDB] = None
+        self.dlq: Optional[DeadLetterQueue] = None
         self._initialized = False
         self._qdrant_enabled = QDRANT_AVAILABLE
         self._sqlite_vec_enabled = SQLITE_VEC_AVAILABLE
         self._prefer_sqlite_vec = prefer_sqlite_vec
+        self._enable_dlq = enable_dlq
 
     async def initialize(self):
         """Initialize all storage backends."""
@@ -93,7 +103,17 @@ class StorageEngine:
 
         # Ensure at least one vector backend is available
         if not self._qdrant_enabled and not self._sqlite_vec_enabled:
-            print("Warning: No vector backend available. Semantic search will use FTS fallback.")
+            logger.warning("No vector backend available. Semantic search will use FTS fallback.")
+
+        # Initialize dead-letter queue for failed writes
+        if self._enable_dlq:
+            try:
+                self.dlq = await get_dlq()
+                self._register_dlq_handlers()
+                logger.info("Dead-letter queue initialized")
+            except Exception as e:
+                logger.error(f"DLQ initialization failed: {e}")
+                self.dlq = None
 
         self._initialized = True
 
@@ -105,6 +125,84 @@ class StorageEngine:
             await self.qdrant.close()
         if self.sqlite_vec:
             await self.sqlite_vec.close()
+
+    def _register_dlq_handlers(self):
+        """Register retry handlers for the dead-letter queue."""
+        if not self.dlq:
+            return
+
+        # Qdrant handlers
+        if self.qdrant:
+            self.dlq.register_retry_handler(
+                "upsert_session", "qdrant",
+                lambda p: self.qdrant.upsert_session(**p)
+            )
+            self.dlq.register_retry_handler(
+                "upsert_finding", "qdrant",
+                lambda p: self.qdrant.upsert_finding(**p)
+            )
+            self.dlq.register_retry_handler(
+                "upsert_pack", "qdrant",
+                lambda p: self.qdrant.upsert_pack(**p)
+            )
+            self.dlq.register_retry_handler(
+                "upsert_outcome", "qdrant",
+                lambda p: self.qdrant.upsert_outcome(**p)
+            )
+            self.dlq.register_retry_handler(
+                "upsert_cognitive_state", "qdrant",
+                lambda p: self.qdrant.upsert_cognitive_state(**p)
+            )
+            self.dlq.register_retry_handler(
+                "upsert_error_pattern", "qdrant",
+                lambda p: self.qdrant.upsert_error_pattern(**p)
+            )
+
+        # sqlite-vec handlers
+        if self.sqlite_vec:
+            self.dlq.register_retry_handler(
+                "upsert_session", "sqlite_vec",
+                lambda p: self.sqlite_vec.upsert_session(**p)
+            )
+            self.dlq.register_retry_handler(
+                "upsert_finding", "sqlite_vec",
+                lambda p: self.sqlite_vec.upsert_finding(**p)
+            )
+
+    async def _add_to_dlq(
+        self,
+        operation: str,
+        target: str,
+        payload: Dict[str, Any],
+        error: Exception
+    ):
+        """Add a failed write operation to the dead-letter queue."""
+        if self.dlq:
+            await self.dlq.add_failed_write(
+                operation=operation,
+                target=target,
+                payload=payload,
+                error=str(error)
+            )
+        else:
+            # Fallback to logging if DLQ not available
+            logger.error(f"Failed {operation}@{target}: {error} (no DLQ)")
+
+    async def retry_failed_writes(
+        self,
+        target: Optional[str] = None,
+        limit: int = 100
+    ) -> Dict[str, int]:
+        """Retry pending entries in the dead-letter queue."""
+        if not self.dlq:
+            return {"attempted": 0, "succeeded": 0, "failed": 0, "error": "DLQ not available"}
+        return await self.dlq.retry_failed_writes(target=target, limit=limit)
+
+    async def get_dlq_stats(self) -> Dict[str, Any]:
+        """Get dead-letter queue statistics."""
+        if not self.dlq:
+            return {"error": "DLQ not available"}
+        return await self.dlq.get_stats()
 
     # --- Session Operations ---
 
@@ -141,7 +239,12 @@ class StorageEngine:
                     metadata=metadata
                 )
             except Exception as e:
-                print(f"Warning: Failed to index session in Qdrant: {e}")
+                logger.warning(f"Failed to index session in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_session", "qdrant",
+                    {"session_id": session_id, "topic": session["topic"], "metadata": metadata},
+                    e
+                )
 
         # Dual-write: Index in sqlite-vec
         if self._sqlite_vec_enabled and self.sqlite_vec and session.get("topic"):
@@ -152,7 +255,12 @@ class StorageEngine:
                     metadata=metadata
                 )
             except Exception as e:
-                print(f"Warning: Failed to index session in sqlite-vec: {e}")
+                logger.warning(f"Failed to index session in sqlite-vec: {e}")
+                await self._add_to_dlq(
+                    "upsert_session", "sqlite_vec",
+                    {"session_id": session_id, "topic": session["topic"], "metadata": metadata},
+                    e
+                )
 
         return session_id
 
@@ -221,7 +329,12 @@ class StorageEngine:
                     metadata=metadata
                 )
             except Exception as e:
-                print(f"Warning: Failed to index finding in Qdrant: {e}")
+                logger.warning(f"Failed to index finding in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_finding", "qdrant",
+                    {"finding_id": finding_id, "content": finding["content"], "metadata": metadata},
+                    e
+                )
 
         # Dual-write: Index in sqlite-vec
         if self._sqlite_vec_enabled and self.sqlite_vec:
@@ -232,7 +345,12 @@ class StorageEngine:
                     metadata=metadata
                 )
             except Exception as e:
-                print(f"Warning: Failed to index finding in sqlite-vec: {e}")
+                logger.warning(f"Failed to index finding in sqlite-vec: {e}")
+                await self._add_to_dlq(
+                    "upsert_finding", "sqlite_vec",
+                    {"finding_id": finding_id, "content": finding["content"], "metadata": metadata},
+                    e
+                )
 
         return finding_id
 
@@ -255,7 +373,15 @@ class StorageEngine:
             try:
                 await self.qdrant.upsert_findings_batch(findings)
             except Exception as e:
-                print(f"Warning: Failed to batch index findings in Qdrant: {e}")
+                logger.warning(f"Failed to batch index findings in Qdrant: {e}")
+                # Add each finding to DLQ for individual retry
+                for f in findings:
+                    await self._add_to_dlq(
+                        "upsert_finding", "qdrant",
+                        {"finding_id": f["id"], "content": f["content"],
+                         "metadata": {"type": f.get("type"), "session_id": f.get("session_id")}},
+                        e
+                    )
 
         return count
 
@@ -332,7 +458,13 @@ class StorageEngine:
                     }
                 )
             except Exception as e:
-                print(f"Warning: Failed to index pack in Qdrant: {e}")
+                logger.warning(f"Failed to index pack in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_pack", "qdrant",
+                    {"pack_id": pack_id, "content": pack["content"][:1000],
+                     "metadata": {"name": pack.get("name"), "type": pack.get("type")}},
+                    e
+                )
 
         return pack_id
 
@@ -566,14 +698,20 @@ class StorageEngine:
 
         # Index in Qdrant
         if self._qdrant_enabled:
+            intent = outcome.get("intent", outcome.get("title", ""))
             try:
                 await self.qdrant.upsert_outcome(
                     outcome_id=outcome_id,
-                    intent=outcome.get("intent", outcome.get("title", "")),
+                    intent=intent,
                     metadata=outcome
                 )
             except Exception as e:
-                print(f"Warning: Failed to index outcome in Qdrant: {e}")
+                logger.warning(f"Failed to index outcome in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_outcome", "qdrant",
+                    {"outcome_id": outcome_id, "intent": intent, "metadata": outcome},
+                    e
+                )
 
         return outcome_id
 
@@ -591,7 +729,14 @@ class StorageEngine:
             try:
                 await self.qdrant.upsert_outcomes_batch(outcomes)
             except Exception as e:
-                print(f"Warning: Failed to batch index outcomes in Qdrant: {e}")
+                logger.warning(f"Failed to batch index outcomes in Qdrant: {e}")
+                # Add each outcome to DLQ for individual retry
+                for o in outcomes:
+                    await self._add_to_dlq(
+                        "upsert_outcome", "qdrant",
+                        {"outcome_id": o.get("id"), "intent": o.get("intent", ""), "metadata": o},
+                        e
+                    )
 
         return count
 
@@ -626,15 +771,20 @@ class StorageEngine:
         state_id = await self.sqlite.store_cognitive_state(state)
 
         if self._qdrant_enabled:
+            context = f"{state.get('mode', '')} energy_{state.get('energy_level', 0):.2f} flow_{state.get('flow_score', 0):.2f}"
             try:
-                context = f"{state.get('mode', '')} energy_{state.get('energy_level', 0):.2f} flow_{state.get('flow_score', 0):.2f}"
                 await self.qdrant.upsert_cognitive_state(
                     state_id=state_id,
                     context=context,
                     metadata=state
                 )
             except Exception as e:
-                print(f"Warning: Failed to index cognitive state in Qdrant: {e}")
+                logger.warning(f"Failed to index cognitive state in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_cognitive_state", "qdrant",
+                    {"state_id": state_id, "context": context, "metadata": state},
+                    e
+                )
 
         return state_id
 
@@ -646,7 +796,15 @@ class StorageEngine:
             try:
                 await self.qdrant.upsert_cognitive_states_batch(states)
             except Exception as e:
-                print(f"Warning: Failed to batch index cognitive states in Qdrant: {e}")
+                logger.warning(f"Failed to batch index cognitive states in Qdrant: {e}")
+                # Add each state to DLQ for individual retry
+                for s in states:
+                    context = f"{s.get('mode', '')} energy_{s.get('energy_level', 0):.2f}"
+                    await self._add_to_dlq(
+                        "upsert_cognitive_state", "qdrant",
+                        {"state_id": s.get("id"), "context": context, "metadata": s},
+                        e
+                    )
 
         return count
 
@@ -673,15 +831,20 @@ class StorageEngine:
         error_id = await self.sqlite.store_error_pattern(error)
 
         if self._qdrant_enabled:
+            context = f"{error.get('error_type', '')} in {error.get('context', '')} solved_by {error.get('solution', '')}"
             try:
-                context = f"{error.get('error_type', '')} in {error.get('context', '')} solved_by {error.get('solution', '')}"
                 await self.qdrant.upsert_error_pattern(
                     error_id=error_id,
                     context=context,
                     metadata=error
                 )
             except Exception as e:
-                print(f"Warning: Failed to index error pattern in Qdrant: {e}")
+                logger.warning(f"Failed to index error pattern in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_error_pattern", "qdrant",
+                    {"error_id": error_id, "context": context, "metadata": error},
+                    e
+                )
 
         return error_id
 
@@ -693,7 +856,15 @@ class StorageEngine:
             try:
                 await self.qdrant.upsert_error_patterns_batch(errors)
             except Exception as e:
-                print(f"Warning: Failed to batch index error patterns in Qdrant: {e}")
+                logger.warning(f"Failed to batch index error patterns in Qdrant: {e}")
+                # Add each error to DLQ for individual retry
+                for err in errors:
+                    context = f"{err.get('error_type', '')} in {err.get('context', '')}"
+                    await self._add_to_dlq(
+                        "upsert_error_pattern", "qdrant",
+                        {"error_id": err.get("id"), "context": context, "metadata": err},
+                        e
+                    )
 
         return count
 

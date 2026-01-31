@@ -287,24 +287,32 @@ END;
 
 
 class SQLiteDB:
-    """Async SQLite database with connection pooling and WAL mode."""
+    """Async SQLite database with connection pooling and WAL mode.
 
-    def __init__(self, db_path: Path = DB_PATH):
+    Features:
+    - Semaphore-guarded connection pool to prevent unbounded growth
+    - Pre-warmed pool for faster initial requests
+    - Proper resource tracking and cleanup
+    """
+
+    def __init__(self, db_path: Path = DB_PATH, pool_size: int = 5):
         self.db_path = db_path
         self._pool: List[aiosqlite.Connection] = []
-        self._pool_size = 5
+        self._pool_size = pool_size
         self._lock = asyncio.Lock()
+        self._semaphore = asyncio.Semaphore(pool_size)  # Limit concurrent connections
         self._initialized = False
+        self._borrowed_count = 0  # Track active connections for diagnostics
 
     async def initialize(self):
-        """Initialize database and create schema."""
+        """Initialize database, create schema, and pre-warm connection pool."""
         if self._initialized:
             return
 
         # Ensure directory exists
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Create schema
+        # Create schema with initial connection
         async with aiosqlite.connect(self.db_path) as db:
             await db.executescript(SCHEMA)
 
@@ -322,33 +330,74 @@ class SQLiteDB:
 
             await db.commit()
 
+        # Pre-warm the connection pool
+        for _ in range(self._pool_size):
+            conn = await aiosqlite.connect(self.db_path)
+            conn.row_factory = aiosqlite.Row
+            self._pool.append(conn)
+
         self._initialized = True
 
     @asynccontextmanager
     async def connection(self):
-        """Get a connection from the pool."""
-        async with self._lock:
-            if self._pool:
-                conn = self._pool.pop()
-            else:
-                conn = await aiosqlite.connect(self.db_path)
-                conn.row_factory = aiosqlite.Row
+        """Get a connection from the pool with semaphore guard.
 
+        Uses semaphore to prevent unbounded connection growth under load.
+        Pre-warmed pool ensures fast initial access.
+        """
+        # Semaphore limits total concurrent connections
+        await self._semaphore.acquire()
+
+        conn = None
         try:
-            yield conn
-        finally:
             async with self._lock:
-                if len(self._pool) < self._pool_size:
-                    self._pool.append(conn)
+                if self._pool:
+                    conn = self._pool.pop()
+                    self._borrowed_count += 1
                 else:
-                    await conn.close()
+                    # Fallback: create new connection (shouldn't happen with pre-warming)
+                    conn = await aiosqlite.connect(self.db_path)
+                    conn.row_factory = aiosqlite.Row
+                    self._borrowed_count += 1
+
+            yield conn
+
+        finally:
+            if conn is not None:
+                async with self._lock:
+                    self._borrowed_count -= 1
+                    if len(self._pool) < self._pool_size:
+                        self._pool.append(conn)
+                    else:
+                        await conn.close()
+
+            self._semaphore.release()
 
     async def close(self):
         """Close all connections in the pool."""
         async with self._lock:
+            # Warn if connections are still borrowed
+            if self._borrowed_count > 0:
+                import logging
+                logging.warning(
+                    f"SQLiteDB.close(): {self._borrowed_count} connections still borrowed"
+                )
+
             for conn in self._pool:
-                await conn.close()
+                try:
+                    await conn.close()
+                except Exception:
+                    pass  # Ignore close errors during shutdown
             self._pool.clear()
+
+    @property
+    def pool_stats(self) -> Dict[str, int]:
+        """Get current pool statistics for monitoring."""
+        return {
+            "pool_size": self._pool_size,
+            "available": len(self._pool),
+            "borrowed": self._borrowed_count,
+        }
 
     # --- Session Operations ---
 

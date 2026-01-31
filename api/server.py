@@ -50,17 +50,75 @@ if FASTAPI_AVAILABLE:
     app = FastAPI(
         title="Agent Core API",
         description="REST API for Antigravity Chief of Staff - Knowledge service for OS-App, CareerCoach, and ResearchGravity",
-        version="2.0.0",
+        version="2.1.0",  # Upgraded with security
     )
+
+    # Security imports
+    try:
+        from api.security import (
+            validate_session_id,
+            validate_project_id,
+            limiter,
+            RequestLoggingMiddleware,
+            RATE_LIMIT_DEFAULT,
+            RATE_LIMIT_SEARCH,
+            RATE_LIMIT_WRITE,
+            get_current_user,
+            optional_auth,
+            create_access_token,
+        )
+        from fastapi import Request, Depends
+        SECURITY_AVAILABLE = True
+        AUTH_AVAILABLE = True
+
+        # Rate limit decorators (conditional on limiter availability)
+        def rate_limit_default(func):
+            if limiter:
+                return limiter.limit(RATE_LIMIT_DEFAULT)(func)
+            return func
+
+        def rate_limit_search(func):
+            if limiter:
+                return limiter.limit(RATE_LIMIT_SEARCH)(func)
+            return func
+
+        def rate_limit_write(func):
+            if limiter:
+                return limiter.limit(RATE_LIMIT_WRITE)(func)
+            return func
+
+    except ImportError:
+        SECURITY_AVAILABLE = False
+        AUTH_AVAILABLE = False
+        print("Warning: Security module not available")
+        # Define dummy fallbacks
+        Request = None
+        Depends = None
+        def rate_limit_default(func): return func
+        def rate_limit_search(func): return func
+        def rate_limit_write(func): return func
+        async def get_current_user(): return {"type": "anonymous"}
+        async def optional_auth(): return None
+
+    # Add request logging middleware
+    if SECURITY_AVAILABLE:
+        app.add_middleware(RequestLoggingMiddleware)
+
+    # Add rate limiting (if slowapi available)
+    if SECURITY_AVAILABLE and limiter:
+        from slowapi import _rate_limit_exceeded_handler
+        from slowapi.errors import RateLimitExceeded
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # CORS for local development
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:8080"],
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods instead of "*"
         allow_headers=["*"],
-        expose_headers=["*"],
+        expose_headers=["X-Request-ID"],  # Expose request ID header
         max_age=3600,
     )
 
@@ -280,10 +338,66 @@ if FASTAPI_AVAILABLE:
         """API root - health check."""
         return {
             "service": "Agent Core API",
-            "version": "1.0.0",
+            "version": "2.1.0",
             "status": "healthy",
+            "auth_enabled": AUTH_AVAILABLE,
             "timestamp": datetime.now().isoformat()
         }
+
+    # ============================================================
+    # Authentication Endpoints
+    # ============================================================
+
+    class TokenRequest(BaseModel):
+        """Request for JWT token generation."""
+        client_id: str
+        scope: str = "read"  # read, write, admin
+
+    class TokenResponse(BaseModel):
+        """JWT token response."""
+        access_token: str
+        token_type: str = "bearer"
+        expires_in: int = 86400  # 24 hours
+
+    if AUTH_AVAILABLE:
+        @app.post("/api/auth/token", response_model=TokenResponse)
+        async def generate_token(request: TokenRequest):
+            """
+            Generate a JWT access token.
+
+            Requires valid client credentials (set via RG_API_KEY env var for validation).
+            For development, tokens are generated freely.
+
+            Returns:
+                JWT token valid for 24 hours
+            """
+            # In production, validate client_id against a database
+            # For now, generate token for any valid request
+            token_data = {
+                "sub": request.client_id,
+                "scope": request.scope,
+                "type": "access_token"
+            }
+
+            token = create_access_token(token_data)
+
+            return TokenResponse(
+                access_token=token,
+                token_type="bearer",
+                expires_in=86400
+            )
+
+        @app.get("/api/auth/me")
+        async def get_current_user_info(user: dict = Depends(get_current_user)):
+            """
+            Get information about the current authenticated user.
+
+            Requires valid JWT token or API key.
+            """
+            return {
+                "authenticated": True,
+                "user": user
+            }
 
     @app.get("/api/sessions", response_model=list[SessionSummary])
     async def list_sessions(
@@ -320,6 +434,10 @@ if FASTAPI_AVAILABLE:
     @app.get("/api/sessions/{session_id}")
     async def get_session(session_id: str):
         """Get detailed session information."""
+        # Validate session ID to prevent path traversal
+        if SECURITY_AVAILABLE:
+            session_id = validate_session_id(session_id)
+
         session_dir = SESSIONS_DIR / session_id
         if not session_dir.exists():
             raise HTTPException(status_code=404, detail="Session not found")
@@ -426,7 +544,8 @@ if FASTAPI_AVAILABLE:
         }
 
     @app.post("/api/search/semantic", response_model=list[SearchResult])
-    async def semantic_search(search: SearchQuery):
+    @rate_limit_search
+    async def semantic_search(request: Request, search: SearchQuery):
         """Semantic search across knowledge base."""
         # Try to use the memory API if available
         try:
@@ -553,7 +672,9 @@ if FASTAPI_AVAILABLE:
     # ============================================================
 
     @app.get("/api/v2/search")
+    @rate_limit_search
     async def semantic_search_v2(
+        request: Request,
         query: str = Query(..., min_length=1),
         limit: int = Query(10, ge=1, le=50),
         min_score: float = Query(0.4, ge=0.0, le=1.0),
@@ -590,7 +711,11 @@ if FASTAPI_AVAILABLE:
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.post("/api/v2/findings/batch")
-    async def store_findings_batch(request: BulkFindingsRequest):
+    @rate_limit_write
+    async def store_findings_batch(
+        http_request: Request,
+        request: BulkFindingsRequest
+    ):
         """
         Store multiple findings in a single transaction.
 
@@ -756,6 +881,10 @@ if FASTAPI_AVAILABLE:
 
         Returns D3.js compatible format for visualization.
         """
+        # Validate session ID to prevent path traversal
+        if SECURITY_AVAILABLE:
+            session_id = validate_session_id(session_id)
+
         if not GRAPH_AVAILABLE:
             raise HTTPException(status_code=503, detail="Graph module not available")
 
@@ -770,6 +899,10 @@ if FASTAPI_AVAILABLE:
 
         Uses shared sources and lineage connections.
         """
+        # Validate session ID to prevent path traversal
+        if SECURITY_AVAILABLE:
+            session_id = validate_session_id(session_id)
+
         if not GRAPH_AVAILABLE:
             raise HTTPException(status_code=503, detail="Graph module not available")
 
@@ -783,6 +916,10 @@ if FASTAPI_AVAILABLE:
 
         Returns ancestors (what it builds on) and descendants (what builds on it).
         """
+        # Validate session ID to prevent path traversal
+        if SECURITY_AVAILABLE:
+            session_id = validate_session_id(session_id)
+
         if not GRAPH_AVAILABLE:
             raise HTTPException(status_code=503, detail="Graph module not available")
 
@@ -834,7 +971,8 @@ if FASTAPI_AVAILABLE:
     # ============================================================
 
     @app.post("/api/v2/predict/session")
-    async def predict_session_outcome(request: PredictionRequest):
+    @rate_limit_search  # Expensive computation, treat like search
+    async def predict_session_outcome(http_request: Request, request: PredictionRequest):
         """
         Predict session outcome based on multi-dimensional correlation.
 
@@ -1119,6 +1257,10 @@ if FASTAPI_AVAILABLE:
     @app.get("/api/reinvigorate/{session_id}")
     async def get_reinvigoration_context(session_id: str):
         """Get full context for session reinvigoration."""
+        # Validate session ID to prevent path traversal
+        if SECURITY_AVAILABLE:
+            session_id = validate_session_id(session_id)
+
         session_dir = SESSIONS_DIR / session_id
         if not session_dir.exists():
             raise HTTPException(status_code=404, detail="Session not found")

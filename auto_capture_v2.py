@@ -32,6 +32,62 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 
+# =============================================================================
+# Pre-compiled Regex Patterns (Performance Optimization)
+# =============================================================================
+
+# URL extraction pattern (RFC 3986 compliant)
+URL_PATTERN = re.compile(
+    r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w\-._~:/?#\[\]@!$&\'()*+,;=%]*'
+)
+
+# Finding extraction patterns (compiled at module level)
+FINDING_PATTERNS = [
+    # Thesis patterns
+    (re.compile(r"thesis[:\s]+([^\n]{30,500})", re.IGNORECASE), "thesis", 0.9),
+    (re.compile(r"main\s+(?:argument|claim|point)[:\s]+([^\n]{30,500})", re.IGNORECASE), "thesis", 0.85),
+    (re.compile(r"core\s+insight[:\s]+([^\n]{30,500})", re.IGNORECASE), "thesis", 0.85),
+
+    # Gap patterns
+    (re.compile(r"gap[:\s]+([^\n]{30,500})", re.IGNORECASE), "gap", 0.9),
+    (re.compile(r"(?:missing|lacking|needs)[:\s]+([^\n]{30,500})", re.IGNORECASE), "gap", 0.75),
+    (re.compile(r"opportunity\s+(?:for|to)[:\s]+([^\n]{30,500})", re.IGNORECASE), "gap", 0.8),
+
+    # Innovation patterns
+    (re.compile(r"innovation\s+(?:opportunity|direction)[:\s]+([^\n]{30,500})", re.IGNORECASE), "innovation", 0.9),
+    (re.compile(r"novel\s+approach[:\s]+([^\n]{30,500})", re.IGNORECASE), "innovation", 0.85),
+    (re.compile(r"new\s+method[:\s]+([^\n]{30,500})", re.IGNORECASE), "innovation", 0.8),
+
+    # General findings
+    (re.compile(r"key\s+(?:finding|insight|takeaway)[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.9),
+    (re.compile(r"important(?:ly)?[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.75),
+    (re.compile(r"(?:we\s+)?(?:found|discovered|identified)[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.8),
+    (re.compile(r"conclusion[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.85),
+    (re.compile(r"summary[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.7),
+
+    # Decision quality patterns
+    (re.compile(r"DQ\s+(?:score|metric)[:\s]+([^\n]{30,300})", re.IGNORECASE), "finding", 0.95),
+    (re.compile(r"decision\s+quality[:\s]+([^\n]{30,300})", re.IGNORECASE), "finding", 0.9),
+]
+
+# Topic detection patterns (compiled at module level)
+TOPIC_PATTERNS = [
+    re.compile(r"research(?:ing)?\s+(?:on\s+)?['\"]?([^'\".\n]{10,80})['\"]?", re.IGNORECASE),
+    re.compile(r"topic[:\s]+['\"]?([^'\".\n]{10,80})['\"]?", re.IGNORECASE),
+    re.compile(r"session[:\s]+['\"]?([^'\".\n]{10,80})['\"]?", re.IGNORECASE),
+    re.compile(r"investigating\s+([^.\n]{10,80})", re.IGNORECASE),
+    re.compile(r"exploring\s+([^.\n]{10,80})", re.IGNORECASE),
+    re.compile(r"looking\s+(?:into|at)\s+([^.\n]{10,80})", re.IGNORECASE),
+]
+
+# URLs to skip (internal/irrelevant)
+SKIP_URL_PATTERNS = frozenset([
+    "localhost", "127.0.0.1", ".local",
+    "chrome://", "file://", "blob:",
+    "placeholder", "example.com"
+])
+
+
 # Paths
 CLAUDE_DIR = Path.home() / ".claude"
 CLAUDE_PROJECTS_DIR = CLAUDE_DIR / "projects"
@@ -300,22 +356,18 @@ def extract_text_from_entry(entry: Dict) -> List[str]:
 
 
 def extract_urls(text: str, session_file: str, state: CaptureState) -> List[CapturedURL]:
-    """Extract URLs with metadata from text."""
-    url_pattern = re.compile(
-        r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w\-._~:/?#\[\]@!$&\'()*+,;=%]*'
-    )
+    """Extract URLs with metadata from text.
 
+    Uses pre-compiled URL_PATTERN and SKIP_URL_PATTERNS for performance.
+    """
     urls = []
 
-    for match in url_pattern.finditer(text):
+    for match in URL_PATTERN.finditer(text):
         url = match.group(0).rstrip('.,;:)"\']>')
 
-        # Skip internal/irrelevant URLs
-        if any(skip in url.lower() for skip in [
-            "localhost", "127.0.0.1", ".local",
-            "chrome://", "file://", "blob:",
-            "placeholder", "example.com"
-        ]):
+        # Skip internal/irrelevant URLs using pre-compiled patterns
+        url_lower = url.lower()
+        if any(skip in url_lower for skip in SKIP_URL_PATTERNS):
             continue
 
         # Check for duplicates
@@ -358,42 +410,16 @@ def extract_urls(text: str, session_file: str, state: CaptureState) -> List[Capt
 
 
 def extract_findings(text: str, session_file: str) -> List[CapturedFinding]:
-    """Extract key findings from text."""
+    """Extract key findings from text.
+
+    Uses pre-compiled FINDING_PATTERNS for performance.
+    """
     findings = []
-
-    # Patterns for different finding types
-    patterns = [
-        # Thesis patterns
-        (r"thesis[:\s]+([^\n]{30,500})", "thesis", 0.9),
-        (r"main\s+(?:argument|claim|point)[:\s]+([^\n]{30,500})", "thesis", 0.85),
-        (r"core\s+insight[:\s]+([^\n]{30,500})", "thesis", 0.85),
-
-        # Gap patterns
-        (r"gap[:\s]+([^\n]{30,500})", "gap", 0.9),
-        (r"(?:missing|lacking|needs)[:\s]+([^\n]{30,500})", "gap", 0.75),
-        (r"opportunity\s+(?:for|to)[:\s]+([^\n]{30,500})", "gap", 0.8),
-
-        # Innovation patterns
-        (r"innovation\s+(?:opportunity|direction)[:\s]+([^\n]{30,500})", "innovation", 0.9),
-        (r"novel\s+approach[:\s]+([^\n]{30,500})", "innovation", 0.85),
-        (r"new\s+method[:\s]+([^\n]{30,500})", "innovation", 0.8),
-
-        # General findings
-        (r"key\s+(?:finding|insight|takeaway)[:\s]+([^\n]{30,500})", "finding", 0.9),
-        (r"important(?:ly)?[:\s]+([^\n]{30,500})", "finding", 0.75),
-        (r"(?:we\s+)?(?:found|discovered|identified)[:\s]+([^\n]{30,500})", "finding", 0.8),
-        (r"conclusion[:\s]+([^\n]{30,500})", "finding", 0.85),
-        (r"summary[:\s]+([^\n]{30,500})", "finding", 0.7),
-
-        # Decision quality patterns
-        (r"DQ\s+(?:score|metric)[:\s]+([^\n]{30,300})", "finding", 0.95),
-        (r"decision\s+quality[:\s]+([^\n]{30,300})", "finding", 0.9),
-    ]
-
     seen_findings = set()
 
-    for pattern, finding_type, base_confidence in patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
+    # Use pre-compiled patterns from module level
+    for pattern, finding_type, base_confidence in FINDING_PATTERNS:
+        matches = pattern.findall(text)
         for match in matches:
             match_text = match.strip()
 
@@ -407,8 +433,8 @@ def extract_findings(text: str, session_file: str) -> List[CapturedFinding]:
                 continue
             seen_findings.add(match_hash)
 
-            # Get broader context
-            pattern_match = re.search(pattern, text, re.IGNORECASE)
+            # Get broader context using pre-compiled pattern
+            pattern_match = pattern.search(text)
             if pattern_match:
                 start = max(0, pattern_match.start() - 100)
                 end = min(len(text), pattern_match.end() + 100)
@@ -429,19 +455,13 @@ def extract_findings(text: str, session_file: str) -> List[CapturedFinding]:
 
 
 def detect_session_topic(text: str) -> Optional[str]:
-    """Detect the research topic from text."""
-    # Look for explicit topic mentions
-    topic_patterns = [
-        r"research(?:ing)?\s+(?:on\s+)?['\"]?([^'\".\n]{10,80})['\"]?",
-        r"topic[:\s]+['\"]?([^'\".\n]{10,80})['\"]?",
-        r"session[:\s]+['\"]?([^'\".\n]{10,80})['\"]?",
-        r"investigating\s+([^.\n]{10,80})",
-        r"exploring\s+([^.\n]{10,80})",
-        r"looking\s+(?:into|at)\s+([^.\n]{10,80})",
-    ]
+    """Detect the research topic from text.
 
-    for pattern in topic_patterns:
-        matches = re.findall(pattern, text[:5000], re.IGNORECASE)
+    Uses pre-compiled TOPIC_PATTERNS for performance.
+    """
+    # Use pre-compiled patterns from module level
+    for pattern in TOPIC_PATTERNS:
+        matches = pattern.findall(text[:5000])
         if matches:
             # Return first reasonable match
             topic = matches[0].strip()

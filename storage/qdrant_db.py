@@ -14,12 +14,17 @@ Environment:
 - COHERE_API_KEY: Required for embeddings and reranking
 """
 
+import asyncio
 import hashlib
+import json
 import os
 import uuid
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-import json
+
+from storage.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 try:
     from qdrant_client import QdrantClient, AsyncQdrantClient
@@ -174,7 +179,7 @@ class QdrantDB:
                             distance=config["distance"]
                         )
                     )
-                    print(f"Created Qdrant collection: {name}")
+                    logger.info("Created Qdrant collection", extra={"collection": name})
                 else:
                     # Check if dimension matches (migration needed if not)
                     info = await self.async_client.get_collection(name)
@@ -184,10 +189,16 @@ class QdrantDB:
                         current_size = info.config.params.size
 
                     if current_size != config["vector_size"]:
-                        print(f"⚠️  Collection '{name}' has dimension {current_size}, expected {config['vector_size']}")
-                        print("   Run migration: python -m storage.migrate --recreate")
+                        logger.warning(
+                            "Collection dimension mismatch - run migration",
+                            extra={
+                                "collection": name,
+                                "current_size": current_size,
+                                "expected_size": config["vector_size"]
+                            }
+                        )
             except Exception as e:
-                print(f"Warning: Could not create collection {name}: {e}")
+                logger.warning("Could not create collection", extra={"collection": name, "error": str(e)})
 
         self._initialized = True
 
@@ -274,6 +285,33 @@ class QdrantDB:
 
         return reranked
 
+    # --- Async Wrappers for Cohere API Calls ---
+    # These prevent blocking the event loop when called from async methods
+
+    async def embed_async(self, text: str) -> List[float]:
+        """Async wrapper for embed() - runs in thread pool to avoid blocking."""
+        return await asyncio.to_thread(self.embed, text)
+
+    async def embed_batch_async(self, texts: List[str]) -> List[List[float]]:
+        """Async wrapper for embed_batch() - runs in thread pool to avoid blocking."""
+        return await asyncio.to_thread(self.embed_batch, texts)
+
+    async def embed_query_async(self, query: str) -> List[float]:
+        """Async wrapper for embed_query() - runs in thread pool to avoid blocking."""
+        return await asyncio.to_thread(self.embed_query, query)
+
+    async def rerank_async(
+        self,
+        query: str,
+        documents: List[Dict[str, Any]],
+        top_n: int = 10,
+        content_key: str = "content"
+    ) -> List[Dict[str, Any]]:
+        """Async wrapper for rerank() - runs in thread pool to avoid blocking."""
+        return await asyncio.to_thread(
+            self.rerank, query, documents, top_n, content_key
+        )
+
     def _generate_id(self, text: str, prefix: str = "") -> str:
         """Generate deterministic ID from text (for deduplication)."""
         content = f"{prefix}:{text}" if prefix else text
@@ -293,7 +331,7 @@ class QdrantDB:
         metadata: Dict[str, Any]
     ):
         """Store a finding with its embedding."""
-        embedding = self.embed(content)
+        embedding = await self.embed_async(content)
 
         await self.async_client.upsert(
             collection_name="findings",
@@ -370,7 +408,7 @@ class QdrantDB:
             rerank_top_n: Number of results after reranking (defaults to limit)
         """
         # Use query-specific embedding
-        embedding = self.embed_query(query)
+        embedding = await self.embed_query_async(query)
 
         # Build filter
         conditions = []
@@ -413,10 +451,10 @@ class QdrantDB:
             for r in results.points
         ]
 
-        # Rerank if enabled and we have results
+        # Rerank if enabled and we have results (async to avoid blocking)
         if rerank and findings:
             rerank_n = rerank_top_n or limit
-            findings = self.rerank(query, findings, top_n=rerank_n)
+            findings = await self.rerank_async(query, findings, top_n=rerank_n)
 
         return findings[:limit]
 
@@ -429,7 +467,7 @@ class QdrantDB:
         metadata: Dict[str, Any]
     ):
         """Store a session with its embedding."""
-        embedding = self.embed(topic)
+        embedding = await self.embed_async(topic)
 
         await self.async_client.upsert(
             collection_name="sessions",
@@ -494,7 +532,7 @@ class QdrantDB:
         rerank: bool = True
     ) -> List[Dict[str, Any]]:
         """Semantic search for sessions with optional reranking."""
-        embedding = self.embed_query(query)
+        embedding = await self.embed_query_async(query)
 
         conditions = []
         if filter_project:
@@ -528,7 +566,7 @@ class QdrantDB:
         ]
 
         if rerank and sessions:
-            sessions = self.rerank(query, sessions, top_n=limit, content_key="topic")
+            sessions = await self.rerank_async(query, sessions, top_n=limit, content_key="topic")
 
         return sessions[:limit]
 
@@ -541,7 +579,7 @@ class QdrantDB:
         metadata: Dict[str, Any]
     ):
         """Store a context pack with its embedding."""
-        embedding = self.embed(content)
+        embedding = await self.embed_async(content)
 
         await self.async_client.upsert(
             collection_name="packs",
@@ -615,7 +653,7 @@ class QdrantDB:
         rerank: bool = True
     ) -> List[Dict[str, Any]]:
         """Semantic search for context packs with optional reranking."""
-        embedding = self.embed_query(query)
+        embedding = await self.embed_query_async(query)
 
         conditions = []
         if filter_type:
@@ -653,7 +691,7 @@ class QdrantDB:
         ]
 
         if rerank and packs:
-            packs = self.rerank(query, packs, top_n=limit, content_key="name")
+            packs = await self.rerank_async(query, packs, top_n=limit, content_key="name")
 
         return packs[:limit]
 
@@ -666,8 +704,8 @@ class QdrantDB:
         metadata: Dict[str, Any]
     ):
         """Store a session outcome with its embedding."""
-        # Embed the intent (what the session was about)
-        embedding = self.embed(intent)
+        # Embed the intent (async to avoid blocking event loop)
+        embedding = await self.embed_async(intent)
 
         await self.async_client.upsert(
             collection_name="session_outcomes",
@@ -750,7 +788,7 @@ class QdrantDB:
             min_quality: Minimum quality score (1-5)
             rerank: Whether to rerank results using Cohere
         """
-        embedding = self.embed_query(query)
+        embedding = await self.embed_query_async(query)
 
         # Build filter
         conditions = []
@@ -794,9 +832,9 @@ class QdrantDB:
             for r in results.points
         ]
 
-        # Rerank if enabled
+        # Rerank if enabled (async to avoid blocking)
         if rerank and outcomes:
-            outcomes = self.rerank(query, outcomes, top_n=limit, content_key="intent")
+            outcomes = await self.rerank_async(query, outcomes, top_n=limit, content_key="intent")
 
         return outcomes[:limit]
 
@@ -809,7 +847,7 @@ class QdrantDB:
         metadata: Dict[str, Any]
     ):
         """Store a cognitive state with its embedding."""
-        embedding = self.embed(context)
+        embedding = await self.embed_async(context)
 
         await self.async_client.upsert(
             collection_name="cognitive_states",
@@ -878,7 +916,7 @@ class QdrantDB:
         min_score: float = 0.5
     ) -> List[Dict[str, Any]]:
         """Semantic search for cognitive states."""
-        embedding = self.embed_query(query)
+        embedding = await self.embed_query_async(query)
 
         results = await self.async_client.query_points(
             collection_name="cognitive_states",
@@ -911,7 +949,7 @@ class QdrantDB:
         metadata: Dict[str, Any]
     ):
         """Store an error pattern with its embedding."""
-        embedding = self.embed(context)
+        embedding = await self.embed_async(context)
 
         await self.async_client.upsert(
             collection_name="error_patterns",
@@ -975,7 +1013,7 @@ class QdrantDB:
         min_success_rate: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """Semantic search for error patterns."""
-        embedding = self.embed_query(query)
+        embedding = await self.embed_query_async(query)
 
         conditions = []
         if min_success_rate:
@@ -1019,7 +1057,7 @@ class QdrantDB:
         if collections is None:
             collections = ["findings", "sessions", "packs"]
 
-        embedding = self.embed_query(query)
+        embedding = await self.embed_query_async(query)
         results = {}
 
         for collection in collections:
@@ -1040,10 +1078,10 @@ class QdrantDB:
                 for r in search_results.points
             ]
 
-            # Rerank each collection
+            # Rerank each collection (async to avoid blocking)
             if rerank and items:
                 content_key = "content" if collection == "findings" else "topic" if collection == "sessions" else "name"
-                items = self.rerank(query, items, top_n=limit, content_key=content_key)
+                items = await self.rerank_async(query, items, top_n=limit, content_key=content_key)
 
             results[collection] = items[:limit]
 
