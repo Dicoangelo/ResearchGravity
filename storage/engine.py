@@ -1,11 +1,17 @@
 """
 Unified Storage Engine
 
-Combines SQLite (relational) and Qdrant (vector) for:
+Combines SQLite (relational), Qdrant (vector), and sqlite-vec for:
 - Concurrent-safe writes from multiple agents
 - Semantic search across all content
 - UCW pack ingestion with provenance tracking
 - Lineage and relationship queries
+- Dual-write to Qdrant and sqlite-vec for migration
+
+V2 Features:
+- sqlite-vec integration for single-file vector storage
+- Hybrid search with BM25 + cosine similarity
+- Automatic fallback between backends
 """
 
 from typing import Optional, List, Dict, Any
@@ -14,6 +20,14 @@ import uuid
 
 from .sqlite_db import SQLiteDB, get_db
 from .qdrant_db import QdrantDB, get_qdrant, QDRANT_AVAILABLE
+
+# Try to import sqlite-vec
+try:
+    from .sqlite_vec import SqliteVecDB, get_vec_db, SQLITE_VEC_AVAILABLE
+except ImportError:
+    SQLITE_VEC_AVAILABLE = False
+    SqliteVecDB = None
+    get_vec_db = None
 
 
 class StorageEngine:
@@ -33,16 +47,24 @@ class StorageEngine:
 
         # UCW pack import
         await engine.ingest_packs(packs, source="ucw_trade", source_id="wallet_xyz")
+
+    V2 Features:
+        - Dual-write to both Qdrant and sqlite-vec
+        - Automatic fallback if one backend is unavailable
+        - Use prefer_sqlite_vec=True for offline mode
     """
 
-    def __init__(self):
+    def __init__(self, prefer_sqlite_vec: bool = False):
         self.sqlite: Optional[SQLiteDB] = None
         self.qdrant: Optional[QdrantDB] = None
+        self.sqlite_vec: Optional[SqliteVecDB] = None
         self._initialized = False
         self._qdrant_enabled = QDRANT_AVAILABLE
+        self._sqlite_vec_enabled = SQLITE_VEC_AVAILABLE
+        self._prefer_sqlite_vec = prefer_sqlite_vec
 
     async def initialize(self):
-        """Initialize both storage backends."""
+        """Initialize all storage backends."""
         if self._initialized:
             return
 
@@ -55,12 +77,23 @@ class StorageEngine:
                 self.qdrant = await get_qdrant()
                 # Test connection
                 if not await self.qdrant.health_check():
-                    print("Warning: Qdrant not responding, semantic search disabled")
+                    print("Warning: Qdrant not responding, will use sqlite-vec")
                     self._qdrant_enabled = False
             except Exception as e:
                 print(f"Warning: Qdrant initialization failed: {e}")
-                print("Semantic search disabled. Run Qdrant to enable.")
                 self._qdrant_enabled = False
+
+        # Initialize sqlite-vec if available
+        if self._sqlite_vec_enabled and get_vec_db:
+            try:
+                self.sqlite_vec = await get_vec_db()
+            except Exception as e:
+                print(f"Warning: sqlite-vec initialization failed: {e}")
+                self._sqlite_vec_enabled = False
+
+        # Ensure at least one vector backend is available
+        if not self._qdrant_enabled and not self._sqlite_vec_enabled:
+            print("Warning: No vector backend available. Semantic search will use FTS fallback.")
 
         self._initialized = True
 
@@ -70,6 +103,8 @@ class StorageEngine:
             await self.sqlite.close()
         if self.qdrant:
             await self.qdrant.close()
+        if self.sqlite_vec:
+            await self.sqlite_vec.close()
 
     # --- Session Operations ---
 
@@ -78,7 +113,7 @@ class StorageEngine:
         session: Dict[str, Any],
         source: str = "local"
     ) -> str:
-        """Store a session in SQLite and index in Qdrant."""
+        """Store a session in SQLite and index in vector backends."""
         # Store in SQLite
         session_id = await self.sqlite.store_session(session)
 
@@ -90,21 +125,34 @@ class StorageEngine:
             metadata={"stored_at": datetime.now().isoformat()}
         )
 
-        # Index in Qdrant for semantic search
+        metadata = {
+            "project": session.get("project"),
+            "status": session.get("status"),
+            "finding_count": session.get("finding_count", 0),
+            "url_count": session.get("url_count", 0),
+        }
+
+        # Dual-write: Index in Qdrant
         if self._qdrant_enabled and session.get("topic"):
             try:
                 await self.qdrant.upsert_session(
                     session_id=session_id,
                     topic=session["topic"],
-                    metadata={
-                        "project": session.get("project"),
-                        "status": session.get("status"),
-                        "finding_count": session.get("finding_count", 0),
-                        "url_count": session.get("url_count", 0),
-                    }
+                    metadata=metadata
                 )
             except Exception as e:
                 print(f"Warning: Failed to index session in Qdrant: {e}")
+
+        # Dual-write: Index in sqlite-vec
+        if self._sqlite_vec_enabled and self.sqlite_vec and session.get("topic"):
+            try:
+                await self.sqlite_vec.upsert_session(
+                    session_id=session_id,
+                    topic=session["topic"],
+                    metadata=metadata
+                )
+            except Exception as e:
+                print(f"Warning: Failed to index session in sqlite-vec: {e}")
 
         return session_id
 
@@ -142,7 +190,7 @@ class StorageEngine:
         finding: Dict[str, Any],
         source: str = "local"
     ) -> str:
-        """Store a finding in SQLite and index in Qdrant."""
+        """Store a finding in SQLite and index in vector backends."""
         # Ensure ID exists
         if "id" not in finding:
             finding["id"] = f"finding-{uuid.uuid4().hex[:12]}"
@@ -157,21 +205,34 @@ class StorageEngine:
             source_type=source
         )
 
-        # Index in Qdrant
+        metadata = {
+            "type": finding.get("type"),
+            "session_id": finding.get("session_id"),
+            "project": finding.get("project"),
+            "confidence": finding.get("confidence"),
+        }
+
+        # Dual-write: Index in Qdrant
         if self._qdrant_enabled:
             try:
                 await self.qdrant.upsert_finding(
                     finding_id=finding_id,
                     content=finding["content"],
-                    metadata={
-                        "type": finding.get("type"),
-                        "session_id": finding.get("session_id"),
-                        "project": finding.get("project"),
-                        "confidence": finding.get("confidence"),
-                    }
+                    metadata=metadata
                 )
             except Exception as e:
                 print(f"Warning: Failed to index finding in Qdrant: {e}")
+
+        # Dual-write: Index in sqlite-vec
+        if self._sqlite_vec_enabled and self.sqlite_vec:
+            try:
+                await self.sqlite_vec.upsert_finding(
+                    finding_id=finding_id,
+                    content=finding["content"],
+                    metadata=metadata
+                )
+            except Exception as e:
+                print(f"Warning: Failed to index finding in sqlite-vec: {e}")
 
         return finding_id
 
@@ -341,23 +402,41 @@ class StorageEngine:
         Semantic search across all content.
 
         Returns results grouped by type (findings, sessions, packs).
-        Falls back to FTS if Qdrant is unavailable.
+        Priority: Qdrant > sqlite-vec > FTS
         """
-        if self._qdrant_enabled:
-            return await self.qdrant.semantic_search(
-                query=query,
-                collections=collections,
-                limit=limit,
-                min_score=min_score
-            )
-        else:
-            # Fallback to SQLite FTS
-            findings = await self.sqlite.search_findings_fts(query, limit)
-            return {
-                "findings": findings,
-                "sessions": [],
-                "packs": [],
-            }
+        # Try Qdrant first (if available and not preferring sqlite-vec)
+        if self._qdrant_enabled and not self._prefer_sqlite_vec:
+            try:
+                return await self.qdrant.semantic_search(
+                    query=query,
+                    collections=collections,
+                    limit=limit,
+                    min_score=min_score
+                )
+            except Exception as e:
+                print(f"Warning: Qdrant search failed, falling back: {e}")
+
+        # Try sqlite-vec
+        if self._sqlite_vec_enabled and self.sqlite_vec:
+            try:
+                findings = await self.sqlite_vec.search_findings(query, limit, min_score)
+                sessions = await self.sqlite_vec.search_sessions(query, limit, min_score)
+                packs = await self.sqlite_vec.search_packs(query, limit, min_score)
+                return {
+                    "findings": findings,
+                    "sessions": sessions,
+                    "packs": packs,
+                }
+            except Exception as e:
+                print(f"Warning: sqlite-vec search failed, falling back to FTS: {e}")
+
+        # Final fallback to SQLite FTS
+        findings = await self.sqlite.search_findings_fts(query, limit)
+        return {
+            "findings": findings,
+            "sessions": [],
+            "packs": [],
+        }
 
     async def search_findings(
         self,
@@ -367,17 +446,35 @@ class StorageEngine:
         filter_type: Optional[str] = None,
         filter_project: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Semantic search for findings."""
-        if self._qdrant_enabled:
-            return await self.qdrant.search_findings(
-                query=query,
-                limit=limit,
-                min_score=min_score,
-                filter_type=filter_type,
-                filter_project=filter_project
-            )
-        else:
-            return await self.sqlite.search_findings_fts(query, limit)
+        """Semantic search for findings. Priority: Qdrant > sqlite-vec > FTS"""
+        # Try Qdrant first
+        if self._qdrant_enabled and not self._prefer_sqlite_vec:
+            try:
+                return await self.qdrant.search_findings(
+                    query=query,
+                    limit=limit,
+                    min_score=min_score,
+                    filter_type=filter_type,
+                    filter_project=filter_project
+                )
+            except Exception:
+                pass
+
+        # Try sqlite-vec
+        if self._sqlite_vec_enabled and self.sqlite_vec:
+            try:
+                return await self.sqlite_vec.search_findings(
+                    query=query,
+                    limit=limit,
+                    min_score=min_score,
+                    filter_type=filter_type,
+                    filter_project=filter_project
+                )
+            except Exception:
+                pass
+
+        # Fallback to FTS
+        return await self.sqlite.search_findings_fts(query, limit)
 
     async def search_sessions(
         self,
