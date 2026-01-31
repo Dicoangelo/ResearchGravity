@@ -57,16 +57,22 @@ except ImportError:
     SBERT_AVAILABLE = False
 
 # Offline model configuration
-SBERT_MODEL = "all-MiniLM-L6-v2"  # Fast, 384 dimensions (will be padded to 1024)
+SBERT_MODEL = "all-MiniLM-L6-v2"  # Fast, 384 dimensions (will be padded)
 SBERT_DIM = 384
 
 
 # Configuration
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
-EMBEDDING_MODEL = "embed-english-v3.0"  # Cohere v3, 1024 dimensions
+
+# Cohere embed-v4: multimodal, 128k context, Matryoshka dimensions [256, 512, 1024, 1536]
+EMBEDDING_MODEL = "embed-v4.0"  # Cohere v4, up to 1536 dimensions
+EMBEDDING_MODEL_V3 = "embed-english-v3.0"  # Legacy fallback
 RERANK_MODEL = "rerank-v3.5"  # Cohere rerank v3.5
-EMBEDDING_DIM = 1024
+
+# Matryoshka embedding dimensions (v4 supports variable dimensions)
+EMBEDDING_DIM = 1024  # Default dimension (balanced quality/storage)
+EMBEDDING_DIM_OPTIONS = [256, 512, 1024, 1536]  # Available dimensions
 
 # Collection definitions
 COLLECTIONS = {
@@ -235,32 +241,60 @@ class QdrantDB:
 
         self._initialized = True
 
-    def embed(self, text: str) -> List[float]:
-        """Generate embedding for text using Cohere, with sbert fallback for offline mode."""
+    def embed(self, text: str, dimension: int = EMBEDDING_DIM) -> List[float]:
+        """Generate embedding for text using Cohere v4, with sbert fallback for offline mode.
+
+        Args:
+            text: Text to embed
+            dimension: Output dimension (256, 512, 1024, or 1536 for Matryoshka)
+        """
         # Try Cohere first (if not in fallback mode)
         if not self._use_sbert_fallback and COHERE_AVAILABLE:
             try:
+                # Cohere embed-v4 API with Matryoshka dimension support
                 response = self.cohere_client.embed(
                     texts=[text],
                     model=EMBEDDING_MODEL,
                     input_type="search_document",
+                    embedding_types=["float"],
                     truncate="END"
                 )
-                return response.embeddings[0]
+                embedding = response.embeddings.float[0]
+
+                # Truncate to requested dimension (Matryoshka)
+                if dimension < len(embedding):
+                    return embedding[:dimension]
+                return embedding
             except Exception as e:
-                logger.warning("Cohere embedding failed, switching to sbert fallback",
-                             extra={"error": str(e)})
-                self._use_sbert_fallback = True
+                # Try v3 fallback if v4 fails
+                try:
+                    logger.info("Trying embed-v3 fallback", extra={"error": str(e)})
+                    response = self.cohere_client.embed(
+                        texts=[text],
+                        model=EMBEDDING_MODEL_V3,
+                        input_type="search_document",
+                        truncate="END"
+                    )
+                    return response.embeddings[0]
+                except Exception as e2:
+                    logger.warning("Cohere embedding failed, switching to sbert fallback",
+                                 extra={"error": str(e2)})
+                    self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
         if SBERT_AVAILABLE:
             embedding = self.sbert_model.encode(text, convert_to_numpy=True).tolist()
-            return self._pad_embedding(embedding)
+            return self._pad_embedding(embedding, dimension)
 
         raise RuntimeError("No embedding provider available (Cohere failed, sbert not installed)")
 
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts, with sbert fallback for offline mode."""
+    def embed_batch(self, texts: List[str], dimension: int = EMBEDDING_DIM) -> List[List[float]]:
+        """Generate embeddings for multiple texts using Cohere v4, with sbert fallback.
+
+        Args:
+            texts: List of texts to embed
+            dimension: Output dimension (256, 512, 1024, or 1536 for Matryoshka)
+        """
         if not texts:
             return []
 
@@ -277,25 +311,51 @@ class QdrantDB:
                         texts=batch,
                         model=EMBEDDING_MODEL,
                         input_type="search_document",
+                        embedding_types=["float"],
                         truncate="END"
                     )
-                    all_embeddings.extend(response.embeddings)
+                    # v4 returns embeddings.float
+                    batch_embeddings = response.embeddings.float
+                    # Truncate to requested dimension (Matryoshka)
+                    if dimension < len(batch_embeddings[0]):
+                        batch_embeddings = [emb[:dimension] for emb in batch_embeddings]
+                    all_embeddings.extend(batch_embeddings)
 
                 return all_embeddings
             except Exception as e:
-                logger.warning("Cohere batch embedding failed, switching to sbert fallback",
-                             extra={"error": str(e), "batch_size": len(texts)})
-                self._use_sbert_fallback = True
+                # Try v3 fallback
+                try:
+                    logger.info("Trying embed-v3 fallback for batch", extra={"error": str(e)})
+                    all_embeddings = []
+                    for i in range(0, len(texts), 96):
+                        batch = texts[i:i + 96]
+                        response = self.cohere_client.embed(
+                            texts=batch,
+                            model=EMBEDDING_MODEL_V3,
+                            input_type="search_document",
+                            truncate="END"
+                        )
+                        all_embeddings.extend(response.embeddings)
+                    return all_embeddings
+                except Exception as e2:
+                    logger.warning("Cohere batch embedding failed, switching to sbert fallback",
+                                 extra={"error": str(e2), "batch_size": len(texts)})
+                    self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
         if SBERT_AVAILABLE:
             embeddings = self.sbert_model.encode(texts, convert_to_numpy=True).tolist()
-            return [self._pad_embedding(emb) for emb in embeddings]
+            return [self._pad_embedding(emb, dimension) for emb in embeddings]
 
         raise RuntimeError("No embedding provider available")
 
-    def embed_query(self, query: str) -> List[float]:
-        """Generate embedding for a search query, with sbert fallback for offline mode."""
+    def embed_query(self, query: str, dimension: int = EMBEDDING_DIM) -> List[float]:
+        """Generate embedding for a search query using Cohere v4, with sbert fallback.
+
+        Args:
+            query: Search query text
+            dimension: Output dimension (256, 512, 1024, or 1536 for Matryoshka)
+        """
         # Try Cohere first (if not in fallback mode)
         if not self._use_sbert_fallback and COHERE_AVAILABLE:
             try:
@@ -303,18 +363,33 @@ class QdrantDB:
                     texts=[query],
                     model=EMBEDDING_MODEL,
                     input_type="search_query",
+                    embedding_types=["float"],
                     truncate="END"
                 )
-                return response.embeddings[0]
+                embedding = response.embeddings.float[0]
+                # Truncate to requested dimension (Matryoshka)
+                if dimension < len(embedding):
+                    return embedding[:dimension]
+                return embedding
             except Exception as e:
-                logger.warning("Cohere query embedding failed, switching to sbert fallback",
-                             extra={"error": str(e)})
-                self._use_sbert_fallback = True
+                # Try v3 fallback
+                try:
+                    response = self.cohere_client.embed(
+                        texts=[query],
+                        model=EMBEDDING_MODEL_V3,
+                        input_type="search_query",
+                        truncate="END"
+                    )
+                    return response.embeddings[0]
+                except Exception as e2:
+                    logger.warning("Cohere query embedding failed, switching to sbert fallback",
+                                 extra={"error": str(e2)})
+                    self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
         if SBERT_AVAILABLE:
             embedding = self.sbert_model.encode(query, convert_to_numpy=True).tolist()
-            return self._pad_embedding(embedding)
+            return self._pad_embedding(embedding, dimension)
 
         raise RuntimeError("No embedding provider available")
 
