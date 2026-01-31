@@ -11,7 +11,7 @@ ResearchGravity is a Python research session tracking framework with auto-captur
 | Component | Implementation | Rating |
 |-----------|----------------|--------|
 | **Vector DB** | Qdrant (primary) + sqlite-vec (fallback) | ⭐⭐⭐⭐⭐ |
-| **Embeddings** | Cohere embed-english-v3.0 (1024d) | ⭐⭐⭐⭐⭐ |
+| **Embeddings** | Cohere embed-english-v3.0 (1024d) + SBERT offline fallback | ⭐⭐⭐⭐⭐ |
 | **Reranking** | Cohere rerank-v3.5 / Hybrid BM25+cosine | ⭐⭐⭐⭐⭐ |
 | **Storage** | SQLite + dual-write (Qdrant + sqlite-vec) | ⭐⭐⭐⭐⭐ |
 
@@ -22,6 +22,10 @@ Priority: Qdrant → sqlite-vec → FTS fallback
 - Qdrant: Full semantic search (requires server)
 - sqlite-vec: Single-file vectors (offline capable)
 - FTS: Full-text search fallback (always available)
+
+Embeddings: Cohere → sentence-transformers fallback
+- Cohere: embed-english-v3.0 (1024d, requires API)
+- SBERT: all-MiniLM-L6-v2 (384d → padded to 1024d, fully offline)
 ```
 
 ### V6.1 Security & Reliability (API v2.1.0)
