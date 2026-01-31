@@ -63,8 +63,11 @@ AGENT_CORE_DIR = Path.home() / ".agent-core"
 VEC_DB_PATH = AGENT_CORE_DIR / "storage" / "antigravity_vec.db"
 CONFIG_PATH = AGENT_CORE_DIR / "config.json"
 
-# Embedding dimensions
-EMBEDDING_DIM = 1024  # Cohere embed-english-v3.0
+# Embedding configuration - Cohere embed-v4 with Matryoshka dimensions
+EMBEDDING_MODEL = "embed-v4.0"
+EMBEDDING_MODEL_V3 = "embed-english-v3.0"  # Legacy fallback
+EMBEDDING_DIM = 1024  # Default dimension (balanced quality/storage)
+EMBEDDING_DIM_OPTIONS = [256, 512, 1024, 1536]  # Matryoshka dimensions
 
 
 def get_cohere_client() -> Optional["cohere.Client"]:
@@ -215,30 +218,39 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         except Exception as e:
             logger.warning("Could not create vec table", extra={"table": f"vec_{name}", "error": str(e)})
 
-    async def embed(self, text: str) -> Optional[List[float]]:
-        """Generate embedding for text, with sbert fallback for offline mode."""
+    async def embed(self, text: str, dimension: int = EMBEDDING_DIM) -> Optional[List[float]]:
+        """Generate embedding for text using Cohere v4, with sbert fallback for offline mode.
+
+        Args:
+            text: Text to embed
+            dimension: Output dimension (256, 512, 1024, or 1536 for Matryoshka)
+        """
         if not text:
             return None
 
         # Check cache
-        cache_key = text[:200]  # Use prefix for cache key
+        cache_key = f"{text[:200]}:{dimension}"
         if cache_key in self._embed_cache:
             return self._embed_cache[cache_key]
 
-        # Try Cohere first (if not in fallback mode)
+        # Try Cohere v4 first (if not in fallback mode)
         if not self._use_sbert_fallback and self._cohere:
             try:
-                # Run blocking Cohere API call in thread pool to avoid blocking event loop
                 def _embed():
                     return self._cohere.embed(
                         texts=[text],
-                        model="embed-english-v3.0",
+                        model=EMBEDDING_MODEL,
                         input_type="search_document",
+                        embedding_types=["float"],
                         truncate="END"
                     )
 
                 response = await asyncio.to_thread(_embed)
-                embedding = response.embeddings[0]
+                embedding = response.embeddings.float[0]
+
+                # Truncate to requested dimension (Matryoshka)
+                if dimension < len(embedding):
+                    embedding = embedding[:dimension]
 
                 # Cache it
                 if len(self._embed_cache) < 1000:
@@ -247,9 +259,25 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                 return embedding
 
             except Exception as e:
-                logger.warning("Cohere embedding failed, switching to sbert fallback",
-                             extra={"error": str(e)})
-                self._use_sbert_fallback = True
+                # Try v3 fallback
+                try:
+                    logger.info("Trying embed-v3 fallback", extra={"error": str(e)})
+                    def _embed_v3():
+                        return self._cohere.embed(
+                            texts=[text],
+                            model=EMBEDDING_MODEL_V3,
+                            input_type="search_document",
+                            truncate="END"
+                        )
+                    response = await asyncio.to_thread(_embed_v3)
+                    embedding = response.embeddings[0]
+                    if len(self._embed_cache) < 1000:
+                        self._embed_cache[cache_key] = embedding
+                    return embedding
+                except Exception as e2:
+                    logger.warning("Cohere embedding failed, switching to sbert fallback",
+                                 extra={"error": str(e2)})
+                    self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
         sbert = self._get_sbert_model()
@@ -257,7 +285,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             try:
                 def _sbert_embed():
                     emb = sbert.encode(text, convert_to_numpy=True).tolist()
-                    return self._pad_embedding(emb)
+                    return self._pad_embedding(emb, dimension)
 
                 embedding = await asyncio.to_thread(_sbert_embed)
 
@@ -271,26 +299,48 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
 
         return None
 
-    async def embed_query(self, text: str) -> Optional[List[float]]:
-        """Generate embedding for a search query, with sbert fallback for offline mode."""
-        # Try Cohere first (if not in fallback mode)
+    async def embed_query(self, text: str, dimension: int = EMBEDDING_DIM) -> Optional[List[float]]:
+        """Generate embedding for a search query using Cohere v4, with sbert fallback.
+
+        Args:
+            text: Search query text
+            dimension: Output dimension (256, 512, 1024, or 1536 for Matryoshka)
+        """
+        # Try Cohere v4 first (if not in fallback mode)
         if not self._use_sbert_fallback and self._cohere:
             try:
-                # Run blocking Cohere API call in thread pool to avoid blocking event loop
                 def _embed_query():
                     return self._cohere.embed(
                         texts=[text],
-                        model="embed-english-v3.0",
+                        model=EMBEDDING_MODEL,
                         input_type="search_query",
+                        embedding_types=["float"],
                         truncate="END"
                     )
 
                 response = await asyncio.to_thread(_embed_query)
-                return response.embeddings[0]
+                embedding = response.embeddings.float[0]
+
+                # Truncate to requested dimension (Matryoshka)
+                if dimension < len(embedding):
+                    return embedding[:dimension]
+                return embedding
             except Exception as e:
-                logger.warning("Cohere query embedding failed, switching to sbert fallback",
-                             extra={"error": str(e)})
-                self._use_sbert_fallback = True
+                # Try v3 fallback
+                try:
+                    def _embed_query_v3():
+                        return self._cohere.embed(
+                            texts=[text],
+                            model=EMBEDDING_MODEL_V3,
+                            input_type="search_query",
+                            truncate="END"
+                        )
+                    response = await asyncio.to_thread(_embed_query_v3)
+                    return response.embeddings[0]
+                except Exception as e2:
+                    logger.warning("Cohere query embedding failed, switching to sbert fallback",
+                                 extra={"error": str(e2)})
+                    self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
         sbert = self._get_sbert_model()
@@ -298,7 +348,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             try:
                 def _sbert_embed():
                     emb = sbert.encode(text, convert_to_numpy=True).tolist()
-                    return self._pad_embedding(emb)
+                    return self._pad_embedding(emb, dimension)
 
                 return await asyncio.to_thread(_sbert_embed)
             except Exception as e:
