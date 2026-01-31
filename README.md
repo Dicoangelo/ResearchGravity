@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-6.0.0-00d9ff?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-6.1.0-00d9ff?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
   <img src="https://img.shields.io/badge/Status-Production-success?style=for-the-badge" alt="Status" />
@@ -37,6 +37,46 @@
 ---
 
 ## Why • What's New • Architecture • Quick Start • Auto-Capture • Sources • Contact
+
+---
+
+## What's New in v6.1 — Security & Reliability (January 2026)
+
+**Production-hardened API with enterprise security.**
+
+| Feature | Description |
+|---------|-------------|
+| **🔐 JWT Authentication** | Token-based auth with `/api/auth/token` endpoint |
+| **⏱️ Rate Limiting** | slowapi integration (10/min search, 30/min write) |
+| **🛡️ Input Validation** | Path traversal prevention, session ID sanitization |
+| **📝 Structured Logging** | JSON/console formats with request context |
+| **🔄 Dead-Letter Queue** | Failed writes queued for retry with exponential backoff |
+| **⚡ Async Cohere** | Non-blocking embedding calls via `asyncio.to_thread` |
+| **🔒 Connection Pool** | Semaphore-guarded SQLite pool (race condition fix) |
+
+### Authentication
+
+```bash
+# Get JWT token
+curl -X POST http://localhost:3847/api/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "my-app", "scope": "write"}'
+
+# Use token
+curl -H "Authorization: Bearer <token>" http://localhost:3847/api/auth/me
+
+# Or use API key
+curl -H "X-API-Key: <your-api-key>" http://localhost:3847/api/v2/stats
+```
+
+### Environment Variables
+
+```bash
+export RG_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
+export RG_API_KEY="your-service-api-key"
+export RG_LOG_LEVEL="INFO"  # DEBUG, INFO, WARNING, ERROR
+export RG_LOG_JSON="true"   # JSON format for production
+```
 
 ---
 
