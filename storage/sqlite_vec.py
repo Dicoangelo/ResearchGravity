@@ -47,6 +47,17 @@ try:
 except ImportError:
     COHERE_AVAILABLE = False
 
+# Sentence-transformers fallback for offline mode
+try:
+    from sentence_transformers import SentenceTransformer
+    SBERT_AVAILABLE = True
+except ImportError:
+    SBERT_AVAILABLE = False
+
+# Offline model configuration
+SBERT_MODEL = "all-MiniLM-L6-v2"  # Fast, 384 dimensions
+SBERT_DIM = 384
+
 # Default paths
 AGENT_CORE_DIR = Path.home() / ".agent-core"
 VEC_DB_PATH = AGENT_CORE_DIR / "storage" / "antigravity_vec.db"
@@ -85,9 +96,27 @@ class SqliteVecDB:
     def __init__(self, db_path: Path = VEC_DB_PATH):
         self.db_path = db_path
         self._cohere = get_cohere_client()
+        self._sbert_model = None
+        self._use_sbert_fallback = False
         self._initialized = False
         self._lock = asyncio.Lock()
         self._embed_cache: Dict[str, List[float]] = {}
+
+    def _get_sbert_model(self):
+        """Lazy-load sentence-transformers model for offline fallback."""
+        if self._sbert_model is None:
+            if not SBERT_AVAILABLE:
+                return None
+            logger.info("Loading sentence-transformers model for offline embeddings",
+                       extra={"model": SBERT_MODEL})
+            self._sbert_model = SentenceTransformer(SBERT_MODEL)
+        return self._sbert_model
+
+    def _pad_embedding(self, embedding: List[float], target_dim: int = EMBEDDING_DIM) -> List[float]:
+        """Pad embedding to target dimension (for sbert compatibility with Cohere's 1024 dims)."""
+        if len(embedding) >= target_dim:
+            return embedding[:target_dim]
+        return embedding + [0.0] * (target_dim - len(embedding))
 
     async def initialize(self):
         """Initialize the vector database."""
@@ -187,7 +216,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             logger.warning("Could not create vec table", extra={"table": f"vec_{name}", "error": str(e)})
 
     async def embed(self, text: str) -> Optional[List[float]]:
-        """Generate embedding for text using Cohere."""
+        """Generate embedding for text, with sbert fallback for offline mode."""
         if not text:
             return None
 
@@ -196,53 +225,86 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         if cache_key in self._embed_cache:
             return self._embed_cache[cache_key]
 
-        if not self._cohere:
-            # Return None if no Cohere client - caller should handle gracefully
-            return None
+        # Try Cohere first (if not in fallback mode)
+        if not self._use_sbert_fallback and self._cohere:
+            try:
+                # Run blocking Cohere API call in thread pool to avoid blocking event loop
+                def _embed():
+                    return self._cohere.embed(
+                        texts=[text],
+                        model="embed-english-v3.0",
+                        input_type="search_document",
+                        truncate="END"
+                    )
 
-        try:
-            # Run blocking Cohere API call in thread pool to avoid blocking event loop
-            def _embed():
-                return self._cohere.embed(
-                    texts=[text],
-                    model="embed-english-v3.0",
-                    input_type="search_document",
-                    truncate="END"
-                )
+                response = await asyncio.to_thread(_embed)
+                embedding = response.embeddings[0]
 
-            response = await asyncio.to_thread(_embed)
-            embedding = response.embeddings[0]
+                # Cache it
+                if len(self._embed_cache) < 1000:
+                    self._embed_cache[cache_key] = embedding
 
-            # Cache it
-            if len(self._embed_cache) < 1000:
-                self._embed_cache[cache_key] = embedding
+                return embedding
 
-            return embedding
+            except Exception as e:
+                logger.warning("Cohere embedding failed, switching to sbert fallback",
+                             extra={"error": str(e)})
+                self._use_sbert_fallback = True
 
-        except Exception as e:
-            logger.warning("Embedding failed", extra={"error": str(e)})
-            return None
+        # Fallback to sentence-transformers (offline mode)
+        sbert = self._get_sbert_model()
+        if sbert:
+            try:
+                def _sbert_embed():
+                    emb = sbert.encode(text, convert_to_numpy=True).tolist()
+                    return self._pad_embedding(emb)
+
+                embedding = await asyncio.to_thread(_sbert_embed)
+
+                # Cache it
+                if len(self._embed_cache) < 1000:
+                    self._embed_cache[cache_key] = embedding
+
+                return embedding
+            except Exception as e:
+                logger.warning("SBERT embedding failed", extra={"error": str(e)})
+
+        return None
 
     async def embed_query(self, text: str) -> Optional[List[float]]:
-        """Generate embedding for a search query."""
-        if not self._cohere:
-            return None
+        """Generate embedding for a search query, with sbert fallback for offline mode."""
+        # Try Cohere first (if not in fallback mode)
+        if not self._use_sbert_fallback and self._cohere:
+            try:
+                # Run blocking Cohere API call in thread pool to avoid blocking event loop
+                def _embed_query():
+                    return self._cohere.embed(
+                        texts=[text],
+                        model="embed-english-v3.0",
+                        input_type="search_query",
+                        truncate="END"
+                    )
 
-        try:
-            # Run blocking Cohere API call in thread pool to avoid blocking event loop
-            def _embed_query():
-                return self._cohere.embed(
-                    texts=[text],
-                    model="embed-english-v3.0",
-                    input_type="search_query",
-                    truncate="END"
-                )
+                response = await asyncio.to_thread(_embed_query)
+                return response.embeddings[0]
+            except Exception as e:
+                logger.warning("Cohere query embedding failed, switching to sbert fallback",
+                             extra={"error": str(e)})
+                self._use_sbert_fallback = True
 
-            response = await asyncio.to_thread(_embed_query)
-            return response.embeddings[0]
-        except Exception as e:
-            logger.warning("Query embedding failed", extra={"error": str(e)})
-            return None
+        # Fallback to sentence-transformers (offline mode)
+        sbert = self._get_sbert_model()
+        if sbert:
+            try:
+                def _sbert_embed():
+                    emb = sbert.encode(text, convert_to_numpy=True).tolist()
+                    return self._pad_embedding(emb)
+
+                return await asyncio.to_thread(_sbert_embed)
+            except Exception as e:
+                logger.warning("SBERT query embedding failed", extra={"error": str(e)})
+
+        return None
 
     @asynccontextmanager
     async def connection(self):
