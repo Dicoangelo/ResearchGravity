@@ -572,7 +572,14 @@ class SQLiteDB:
             return results
 
     async def search_findings_fts(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """Full-text search on findings."""
+        """Full-text search on findings.
+
+        Note: FTS5 interprets hyphens as column operators (e.g., 'multi-agent' becomes 'multi MINUS agent').
+        We sanitize queries by replacing hyphens with spaces.
+        """
+        # Sanitize query: replace hyphens with spaces to avoid FTS5 column operator issues
+        sanitized_query = query.replace('-', ' ')
+
         async with self.connection() as db:
             cursor = await db.execute("""
                 SELECT f.* FROM findings f
@@ -580,7 +587,7 @@ class SQLiteDB:
                 WHERE findings_fts MATCH ?
                 ORDER BY rank
                 LIMIT ?
-            """, (query, limit))
+            """, (sanitized_query, limit))
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
