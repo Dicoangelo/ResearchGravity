@@ -187,7 +187,7 @@ if FASTAPI_AVAILABLE:
     class UCWIngestRequest(BaseModel):
         wallet_id: str
         packs: List[dict]
-        validate: bool = False
+        run_validation: bool = False
 
     class BulkFindingsRequest(BaseModel):
         findings: List[dict]
@@ -762,7 +762,7 @@ if FASTAPI_AVAILABLE:
             result = await ingest_ucw_trade(
                 wallet_id=request.wallet_id,
                 packs=request.packs,
-                validate=request.validate
+                validate=request.run_validation
             )
             return result.to_dict()
         except Exception as e:
