@@ -151,6 +151,16 @@ Priority: Qdrant → sqlite-vec → FTS fallback
 - FTS: Full-text search fallback (always available)
 ```
 
+### Embedding Providers
+
+```
+Priority: Cohere → sentence-transformers fallback
+- Cohere: embed-english-v3.0 (1024d) — high quality, requires API
+- SBERT: all-MiniLM-L6-v2 (384d → 1024d padded) — fully offline
+```
+
+Auto-switches to SBERT on Cohere API failure. No manual configuration needed.
+
 ---
 
 ## What's New in v5.0 — Chief of Staff (January 2026)
