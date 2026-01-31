@@ -151,15 +151,27 @@ Priority: Qdrant → sqlite-vec → FTS fallback
 - FTS: Full-text search fallback (always available)
 ```
 
-### Embedding Providers
+### Embedding Providers (SOTA 2026)
 
 ```
-Priority: Cohere → sentence-transformers fallback
-- Cohere: embed-english-v3.0 (1024d) — high quality, requires API
-- SBERT: all-MiniLM-L6-v2 (384d → 1024d padded) — fully offline
+Priority: Cohere v4 → Cohere v3 → SBERT offline
+
+Cohere embed-v4.0 (default):
+- Multimodal (text + images)
+- 128k context window
+- Matryoshka dimensions: 256, 512, 1024, 1536
+
+Dimension Options:
+- 1536d: Maximum quality
+- 1024d: Balanced (default)
+- 512d:  50% storage savings
+- 256d:  83% storage savings
+
+Fallback Chain:
+- Cohere v4 → Cohere v3 → SBERT (all-MiniLM-L6-v2)
 ```
 
-Auto-switches to SBERT on Cohere API failure. No manual configuration needed.
+Auto-switches on API failure. No manual configuration needed.
 
 ---
 
