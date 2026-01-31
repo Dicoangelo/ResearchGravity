@@ -933,10 +933,32 @@ class StorageEngine:
         health = {
             "sqlite": True,  # SQLite is always available
             "qdrant": False,
+            "sqlite_vec": False,
+            "dlq": False,
         }
 
-        if self._qdrant_enabled:
-            health["qdrant"] = await self.qdrant.health_check()
+        # Check Qdrant if enabled and initialized
+        if self._qdrant_enabled and self.qdrant is not None:
+            try:
+                health["qdrant"] = await self.qdrant.health_check()
+            except Exception as e:
+                logger.warning("Qdrant health check failed", extra={"error": str(e)})
+                health["qdrant"] = False
+
+        # Check sqlite-vec if available
+        if self.sqlite_vec is not None:
+            try:
+                health["sqlite_vec"] = True
+            except Exception:
+                health["sqlite_vec"] = False
+
+        # Check DLQ
+        if self.dlq is not None:
+            try:
+                stats = await self.dlq.get_stats()
+                health["dlq"] = stats is not None
+            except Exception:
+                health["dlq"] = False
 
         return health
 
