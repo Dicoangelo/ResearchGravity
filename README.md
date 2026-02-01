@@ -567,6 +567,61 @@ python3 routing-metrics.py cpb status
 
 ---
 
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- pip or pipenv
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/Dicoangelo/ResearchGravity.git
+cd ResearchGravity
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Configuration
+
+Create `~/.agent-core/config.json` for API keys:
+
+```json
+{
+  "cohere": {
+    "api_key": "your-cohere-api-key"
+  }
+}
+```
+
+Or use environment variables:
+
+```bash
+export COHERE_API_KEY="your-cohere-api-key"
+```
+
+**Optional (for API server):**
+
+```bash
+export RG_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
+export RG_API_KEY="your-service-api-key"
+```
+
+### Verify Installation
+
+```bash
+python3 status.py
+```
+
+---
+
 ## Quick Start
 
 ### 1. Check Session State
