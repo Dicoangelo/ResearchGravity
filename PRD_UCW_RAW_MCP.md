@@ -3,7 +3,7 @@
 **Version:** 1.0.0
 **Date:** 2026-02-07
 **Author:** Dicoangelo + Claude (Opus 4.6)
-**Status:** APPROVED - Ready to build
+**Status:** PHASES 1-7 COMPLETE — Sovereign cognitive infrastructure operational
 
 ---
 
@@ -181,16 +181,26 @@ Cross-platform queries find events with matching signatures within configurable 
 - Research tools ported from SDK server
 - All tools wired into MCP server via PostgreSQL pool injection
 
-### Phase 6: Cross-Platform Integration
-- ChatGPT import ✅ DONE (8,042 sessions, 30,712 findings)
-- ChatGPT live capture (OpenAI API instrumentation) ⬜
-- X/Grok capture (API instrumentation) ⬜
-- Cursor capture (extension) ⬜
+### Phase 6: Cross-Platform Live Capture ✅ COMPLETE
+- `capture/` package — 20 files, 2,300+ lines
+- 5 platform adapters: ChatGPT, Cursor, Grok/X, Claude Code CLI, CCC (claude.db)
+- Foundation: Base adapter ABC, config, normalizer, quality scorer, dedup engine (3 strategies)
+- CaptureManager orchestrates all adapters with per-adapter poll scheduling
+- CLI: `python3 -m capture start|poll-once|status|list-adapters`
+- **140,732 total events** across 5 platforms:
+  - claude-cli: 66,539 (batch import of 491 CLI sessions)
+  - chatgpt: 60,769 (8,119 conversations)
+  - claude-code: 9,463 (live capture of 329 CLI sessions)
+  - claude-desktop: 2,568 (real-time MCP)
+  - ccc: 1,393 (operational data from claude.db — 7 tables)
+- **130,728 embedded vectors** (92.9% coverage, SBERT all-MiniLM-L6-v2)
+- **130 coherence moments** across 4 platform pairs
 
 ### Phase 7: Coherence Detection Engine ✅ COMPLETE
 - 10-file `coherence_engine/` package (config, embeddings, similarity, detector, scorer, alerts, daemon, dashboard, retroactive, CLI)
-- 33,217 events → 31,737 embedded → 104 moments detected
+- 140,732 events → 130,728 embedded → 130 moments detected
 - 3-layer detection: signature match, semantic similarity, synchronicity
+- Cross-platform pairs: claude-desktop↔chatgpt (106), chatgpt↔claude-code (17), chatgpt↔claude-cli (7)
 - Calibrated thresholds (0.65/0.55) for cross-platform format differences
 - TUI dashboard, retroactive analyzer, founding moment validation
 - Real-time daemon (poll + oneshot modes)
@@ -256,20 +266,56 @@ Cross-platform queries find events with matching signatures within configurable 
 │   ├── db.py                        # ✅ SQLite fallback (256 lines)
 │   ├── database.py                  # ✅ PostgreSQL + pgvector (268 lines)
 │   ├── ucw_bridge.py                # ✅ UCW semantic layers (149 lines)
+│   ├── embeddings.py                # ✅ SBERT embeddings (384d)
 │   ├── logger.py                    # ✅ Logging (stderr only, 40 lines)
 │   ├── config.py                    # ✅ Configuration (42 lines)
-│   ├── coherence.py                 # 🔄 Coherence engine (Session B)
-│   ├── tools/                       # Tool implementations
+│   ├── tools/                       # ✅ Tool implementations
 │   │   ├── __init__.py              # ✅ Package stub
-│   │   ├── research_tools.py        # 🔄 Ported from SDK (Session B)
-│   │   ├── ucw_tools.py             # 🔄 UCW-specific tools (Session B)
-│   │   └── coherence_tools.py       # 🔄 Cross-platform queries (Session B)
+│   │   ├── research_tools.py        # ✅ Ported from SDK
+│   │   ├── ucw_tools.py             # ✅ UCW-specific tools
+│   │   └── coherence_tools.py       # ✅ Cross-platform queries
 │   └── claude_desktop_config_snippet.json  # ✅ Config for Claude Desktop
+├── coherence_engine/                # ✅ Cross-platform coherence detection
+│   ├── __init__.py                  # ✅ Package exports
+│   ├── __main__.py                  # ✅ CLI (oneshot, status, daemon, dashboard)
+│   ├── config.py                    # ✅ Thresholds, model config
+│   ├── daemon.py                    # ✅ Real-time poll + oneshot modes
+│   ├── detector.py                  # ✅ 3-layer detection
+│   ├── embeddings.py                # ✅ Batch embedding pipeline
+│   ├── similarity.py                # ✅ pgvector cross-platform search
+│   ├── scorer.py                    # ✅ Multi-signal coherence scoring
+│   ├── alerts.py                    # ✅ Desktop notifications
+│   ├── dashboard.py                 # ✅ TUI dashboard (curses)
+│   └── retroactive.py              # ✅ Retroactive analyzer
+├── capture/                         # ✅ Cross-platform live capture (Phase 6)
+│   ├── __init__.py                  # ✅ Package exports
+│   ├── __main__.py                  # ✅ CLI (start, poll-once, status, list-adapters)
+│   ├── base.py                      # ✅ CapturedEvent, PlatformAdapter ABC
+│   ├── config.py                    # ✅ Environment-based config
+│   ├── normalizer.py                # ✅ UCW layer extraction for external platforms
+│   ├── quality.py                   # ✅ Platform-aware quality scoring
+│   ├── dedup.py                     # ✅ 3-strategy dedup engine
+│   ├── manager.py                   # ✅ CaptureManager orchestrator
+│   ├── chatgpt/                     # ✅ Export-diff polling + OpenAI API
+│   │   ├── adapter.py               # ✅ ChatGPTAdapter
+│   │   └── normalizer.py            # ✅ ChatGPTNormalizer
+│   ├── cursor/                      # ✅ Workspace file watcher
+│   │   ├── adapter.py               # ✅ CursorAdapter
+│   │   └── normalizer.py            # ✅ CursorNormalizer
+│   ├── grok/                        # ✅ X API + Grok polling
+│   │   ├── adapter.py               # ✅ GrokAdapter
+│   │   └── normalizer.py            # ✅ GrokNormalizer
+│   ├── claudecode/                  # ✅ CLI transcript watcher
+│   │   ├── adapter.py               # ✅ ClaudeCodeAdapter
+│   │   └── normalizer.py            # ✅ ClaudeCodeNormalizer
+│   └── ccc/                         # ✅ claude.db operational data
+│       ├── adapter.py               # ✅ CCCAdapter (7 SQLite tables)
+│       └── normalizer.py            # ✅ CCCNormalizer
+├── import_cli_sessions.py           # ✅ Batch CLI transcript importer
 ├── test_mcp_raw.py                  # ✅ Integration tests (26 passing)
 ├── unified_cognitive_schema.sql     # ✅ Full PostgreSQL schema (7 tables)
 ├── chatgpt_quality_scorer.py        # ✅ Built and proven
 ├── chatgpt_importer.py              # ✅ Built, imported
-├── unified_cognitive_schema.sql     # Database schema
 └── PRD_UCW_RAW_MCP.md              # This file
 ```
 
@@ -329,8 +375,8 @@ Cross-platform queries find events with matching signatures within configurable 
 | Database Integration | 2-3 hours | ✅ DONE (db.py, database.py, schema.sql) |
 | Integration Tests | 1 hour | ✅ DONE (26/26 passing) |
 | Tool Port + UCW Tools | 2-3 hours | ✅ DONE (7 MCP tools, PostgreSQL-backed) |
-| Coherence Engine | 2-3 hours | ✅ DONE (10 files, 104 moments, 31K embeddings) |
-| Cross-Platform Live Capture | 4-6 hours | ⬜ NEXT |
+| Coherence Engine | 2-3 hours | ✅ DONE (10 files, 130 moments, 130K embeddings) |
+| Cross-Platform Live Capture | 4-6 hours | ✅ DONE (20 files, 5 adapters, 140K events) |
 | Claude Desktop Integration | 1 hour | ✅ DONE (config live, tools registered) |
 
 ---
