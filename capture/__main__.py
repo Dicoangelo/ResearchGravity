@@ -12,6 +12,7 @@ import asyncio
 import json
 import sys
 import logging
+from pathlib import Path
 
 from .manager import CaptureManager
 from . import config as cfg
@@ -50,6 +51,13 @@ def _build_manager() -> CaptureManager:
         manager.register(adapter)
     except Exception as exc:
         log.warning(f"Grok adapter unavailable: {exc}")
+
+    # Claude Code adapter (watches CLI session transcripts)
+    try:
+        from .claudecode.adapter import ClaudeCodeAdapter
+        manager.register(ClaudeCodeAdapter())
+    except Exception as exc:
+        log.warning(f"Claude Code adapter unavailable: {exc}")
 
     return manager
 
@@ -121,6 +129,7 @@ async def cmd_status():
     print(f"  Cursor poll interval: {cfg.CURSOR_POLL_INTERVAL_S}s")
     print(f"  Grok API: {'configured' if cfg.GROK_API_KEY else 'not configured'}")
     print(f"  Grok poll interval: {cfg.GROK_POLL_INTERVAL_S}s")
+    print(f"  Claude Code transcripts: {Path.home() / '.claude/projects/-Users-dicoangelo'}")
     print(f"  Dedup window: {cfg.DEDUP_WINDOW_HOURS}h")
 
 
@@ -129,10 +138,12 @@ def cmd_list_adapters():
     print("Available Capture Adapters")
     print("=" * 50)
 
+    transcript_dir = str(Path.home() / ".claude/projects/-Users-dicoangelo")
     adapters = [
         ("ChatGPT", "chatgpt", "Export-diff polling + OpenAI API", cfg.CHATGPT_EXPORT_PATH),
         ("Cursor", "cursor", "Workspace file watcher", cfg.CURSOR_DATA_DIR),
         ("Grok/X", "grok", "X API polling", "API key" if cfg.GROK_API_KEY else "not configured"),
+        ("Claude Code", "claude-code", "JSONL transcript watcher", transcript_dir),
     ]
 
     for name, platform, method, source in adapters:
