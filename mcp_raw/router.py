@@ -93,7 +93,7 @@ class Router:
         if method == "initialize":
             return self._handle_initialize(params)
 
-        if method == "initialized":
+        if method in ("initialized", "notifications/initialized"):
             self._initialized = True
             return None  # notification — no response
 
