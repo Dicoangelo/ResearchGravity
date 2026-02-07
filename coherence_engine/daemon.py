@@ -40,8 +40,9 @@ class CoherenceDaemon:
       On new event: embed -> search similar -> score -> alert
     """
 
-    def __init__(self):
-        self._pool: Optional[asyncpg.Pool] = None
+    def __init__(self, pool: Optional[asyncpg.Pool] = None):
+        self._pool: Optional[asyncpg.Pool] = pool
+        self._owns_pool = pool is None  # only close pool if we created it
         self._similarity: Optional[SimilarityIndex] = None
         self._scorer: Optional[CoherenceScorer] = None
         self._alerts = AlertSystem()
@@ -50,21 +51,13 @@ class CoherenceDaemon:
         self._events_processed = 0
         self._moments_detected = 0
 
-    async def start(self):
-        """Initialize database connection and components."""
-        log.info("Coherence daemon starting...")
-
-        self._pool = await asyncpg.create_pool(
-            cfg.PG_DSN,
-            min_size=cfg.PG_MIN_POOL,
-            max_size=cfg.PG_MAX_POOL,
-            command_timeout=30,
-        )
-
+    async def initialize(self):
+        """Initialize components using an existing pool (injected via __init__)."""
+        if not self._pool:
+            raise RuntimeError("No pool available — use start() or pass pool to __init__")
         self._similarity = SimilarityIndex(self._pool)
         self._scorer = CoherenceScorer(self._pool)
 
-        # Find the latest event timestamp we've already processed
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT MAX(timestamp_ns) as max_ts FROM cognitive_events"
@@ -76,6 +69,21 @@ class CoherenceDaemon:
             f"Daemon ready — last event at {self._last_event_ns}, "
             f"polling every {cfg.POLL_INTERVAL_S}s"
         )
+
+    async def start(self):
+        """Initialize database connection and components (creates own pool)."""
+        log.info("Coherence daemon starting...")
+
+        if not self._pool:
+            self._pool = await asyncpg.create_pool(
+                cfg.PG_DSN,
+                min_size=cfg.PG_MIN_POOL,
+                max_size=cfg.PG_MAX_POOL,
+                command_timeout=30,
+            )
+            self._owns_pool = True
+
+        await self.initialize()
 
     async def run(self):
         """Main daemon loop: poll -> process -> sleep -> repeat."""
@@ -110,7 +118,10 @@ class CoherenceDaemon:
 
     async def oneshot(self):
         """Process all unscored events and exit."""
-        await self.start()
+        if not self._similarity:
+            # Not yet initialized — full start
+            await self.start()
+
         log.info("Running one-shot coherence scan...")
 
         processed = await self._poll_and_process(all_unscored=True)
@@ -120,8 +131,10 @@ class CoherenceDaemon:
             f"{self._moments_detected} moments detected"
         )
 
-        await self.stop()
-        return self._moments_detected
+        # Only stop (close pool) if we created it ourselves
+        if self._owns_pool:
+            await self.stop()
+        return processed
 
     async def _poll_and_process(self, all_unscored: bool = False) -> int:
         """Poll for new events and process them."""
@@ -220,7 +233,7 @@ class CoherenceDaemon:
             f"{self._alerts.alert_count} alerts fired"
         )
 
-        if self._pool:
+        if self._pool and self._owns_pool:
             await self._pool.close()
             self._pool = None
 

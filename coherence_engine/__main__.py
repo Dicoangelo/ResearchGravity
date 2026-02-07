@@ -2,14 +2,18 @@
 Coherence Engine — CLI Entry Point
 
 Commands:
-  start     Run daemon in foreground (poll mode)
-  oneshot   Process all events once and exit
-  status    Show engine status
+  start             Run daemon in foreground (poll mode)
+  oneshot           Process all events once and exit
+  status            Show engine status
+  dashboard         Live TUI dashboard
+  retroactive       Run retroactive analysis on historical data
+  founding-moment   Validate the 2026-02-06 founding moment detection
 """
 
 import asyncio
 import logging
 import sys
+from datetime import datetime
 
 from .daemon import CoherenceDaemon
 from . import config as cfg
@@ -32,8 +36,8 @@ async def cmd_start():
 async def cmd_oneshot():
     """Process all events once and exit."""
     daemon = CoherenceDaemon()
-    moments = await daemon.oneshot()
-    print(f"Coherence scan complete: {moments} moments detected")
+    processed = await daemon.oneshot()
+    print(f"Coherence scan complete: {processed} events processed")
 
 
 async def cmd_status():
@@ -84,6 +88,53 @@ async def cmd_status():
     print("=" * 60)
 
 
+async def cmd_dashboard():
+    """Run the live TUI dashboard."""
+    from .dashboard import CoherenceDashboard
+
+    dashboard = CoherenceDashboard()
+    await dashboard.run_live()
+
+
+async def cmd_retroactive():
+    """Run retroactive analysis on historical data."""
+    import asyncpg
+    from .retroactive import RetroactiveAnalyzer, format_report
+
+    since = None
+    if len(sys.argv) > 2 and sys.argv[2] == "--since" and len(sys.argv) > 3:
+        since = datetime.fromisoformat(sys.argv[3])
+    elif len(sys.argv) > 2 and sys.argv[2] == "--all":
+        since = None
+    else:
+        # Default: last 7 days
+        since = datetime.now().replace(hour=0, minute=0, second=0) - __import__("datetime").timedelta(days=7)
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+    analyzer = RetroactiveAnalyzer(pool)
+
+    print(f"Running retroactive analysis{f' since {since}' if since else ' (all time)'}...")
+    report = await analyzer.analyze(since=since)
+    print(format_report(report))
+
+    await pool.close()
+
+
+async def cmd_founding_moment():
+    """Run the Founding Moment Validation test."""
+    import asyncpg
+    from .retroactive import RetroactiveAnalyzer, format_founding_test
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+    analyzer = RetroactiveAnalyzer(pool)
+
+    print("Running Founding Moment Validation Test...")
+    results = await analyzer.founding_moment_test()
+    print(format_founding_test(results))
+
+    await pool.close()
+
+
 def main():
     setup_logging()
 
@@ -91,22 +142,32 @@ def main():
         print("Usage: python3 -m coherence_engine <command>")
         print()
         print("Commands:")
-        print("  start     Run daemon (foreground, polls every 10s)")
-        print("  oneshot   One-shot scan of all embedded events")
-        print("  status    Show engine status")
+        print("  start             Run daemon (foreground, polls every 10s)")
+        print("  oneshot           One-shot scan of all embedded events")
+        print("  status            Show engine status")
+        print("  dashboard         Live TUI dashboard")
+        print("  retroactive       Retroactive analysis (--since YYYY-MM-DD | --all)")
+        print("  founding-moment   Validate 2026-02-06 founding moment detection")
         sys.exit(1)
 
     cmd = sys.argv[1]
 
-    if cmd == "start":
-        asyncio.run(cmd_start())
-    elif cmd == "oneshot":
-        asyncio.run(cmd_oneshot())
-    elif cmd == "status":
-        asyncio.run(cmd_status())
-    else:
+    commands = {
+        "start": cmd_start,
+        "oneshot": cmd_oneshot,
+        "status": cmd_status,
+        "dashboard": cmd_dashboard,
+        "retroactive": cmd_retroactive,
+        "founding-moment": cmd_founding_moment,
+    }
+
+    handler = commands.get(cmd)
+    if not handler:
         print(f"Unknown command: {cmd}")
+        print(f"Available: {', '.join(commands.keys())}")
         sys.exit(1)
+
+    asyncio.run(handler())
 
 
 main()

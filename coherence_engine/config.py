@@ -25,11 +25,14 @@ COHERE_DIMENSIONS = 1024
 EMBED_BATCH_SIZE = 256
 
 # ── Detection thresholds ──────────────────────────────────
+# NOTE: Cross-platform similarity is lower (~0.55-0.74) than same-platform
+# because MCP captures and imported findings have different text formats.
+# Thresholds calibrated to actual data distribution (2026-02-07).
 SIGNATURE_CONFIDENCE = 0.95
-SEMANTIC_THRESHOLD = 0.85
-SEMANTIC_MEDIUM_THRESHOLD = 0.75
+SEMANTIC_THRESHOLD = 0.65           # Cross-platform high (PRD: 0.85)
+SEMANTIC_MEDIUM_THRESHOLD = 0.55    # Cross-platform medium (PRD: 0.75)
 SEMANTIC_CONFIDENCE_FACTOR = 0.9
-SYNCHRONICITY_THRESHOLD = 0.70
+SYNCHRONICITY_THRESHOLD = 0.60      # Multi-signal (PRD: 0.70)
 TIME_WINDOW_MINUTES = 30
 TIME_WINDOW_NS = TIME_WINDOW_MINUTES * 60 * 1_000_000_000
 
