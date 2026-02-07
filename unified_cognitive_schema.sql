@@ -148,7 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_cl_moment        ON coherence_links (moment_id);
 CREATE TABLE IF NOT EXISTS embedding_cache (
     content_hash        TEXT PRIMARY KEY,          -- SHA-256 of content
     content_preview     TEXT,                      -- First 200 chars
-    embedding           vector(1024),              -- Cohere embed-v4 / v3
+    embedding           vector(384),               -- SBERT all-MiniLM-L6-v2 (384d)
     model               TEXT NOT NULL,             -- Model used
     dimensions          INTEGER NOT NULL,          -- Vector dimensions
     source_event_id     TEXT,                      -- Optional FK
