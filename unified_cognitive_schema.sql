@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS cognitive_events (
 
     -- Coherence
     coherence_sig       TEXT,                    -- SHA-256 for cross-platform matching
-    semantic_embedding  vector(1024),            -- For similarity search
+    semantic_embedding  vector(384),            -- For similarity search
 
     -- Classification
     platform            TEXT DEFAULT 'claude-desktop',
@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS supermemory_entries (
     last_reviewed_at    TIMESTAMPTZ,
     ease_factor         REAL DEFAULT 2.5,          -- SM-2 ease factor
     interval_days       INTEGER DEFAULT 1,         -- Current interval
-    embedding           vector(1024),
+    embedding           vector(384),
     tags                TEXT[],
     metadata            JSONB,
     created_at          TIMESTAMPTZ DEFAULT NOW()

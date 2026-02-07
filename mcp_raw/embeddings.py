@@ -283,6 +283,121 @@ class EmbeddingPipeline:
         results.sort(key=lambda r: r["similarity"], reverse=True)
         return results[:limit]
 
+    async def find_similar_pgvector(
+        self,
+        text: str,
+        limit: int = 20,
+        exclude_platform: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Find similar events using pgvector's HNSW index (cosine distance).
+        Much faster than brute-force for large datasets.
+        """
+        if not self._pool:
+            return []
+
+        query_emb = embed_single(text)
+        vec_str = '[' + ','.join(str(x) for x in query_emb) + ']'
+
+        async with self._pool.acquire() as conn:
+            if exclude_platform:
+                rows = await conn.fetch(
+                    """SELECT ec.content_preview, ec.source_event_id,
+                              ce.platform, ce.session_id, ce.coherence_sig,
+                              ce.cognitive_mode,
+                              1 - (ec.embedding <=> $1::vector) AS similarity
+                       FROM embedding_cache ec
+                       JOIN cognitive_events ce ON ec.source_event_id = ce.event_id
+                       WHERE ce.platform != $2
+                       ORDER BY ec.embedding <=> $1::vector
+                       LIMIT $3""",
+                    vec_str, exclude_platform, limit,
+                )
+            else:
+                rows = await conn.fetch(
+                    """SELECT ec.content_preview, ec.source_event_id,
+                              ce.platform, ce.session_id, ce.coherence_sig,
+                              ce.cognitive_mode,
+                              1 - (ec.embedding <=> $1::vector) AS similarity
+                       FROM embedding_cache ec
+                       JOIN cognitive_events ce ON ec.source_event_id = ce.event_id
+                       ORDER BY ec.embedding <=> $1::vector
+                       LIMIT $2""",
+                    vec_str, limit,
+                )
+
+        return [
+            {
+                "event_id": row["source_event_id"],
+                "platform": row["platform"],
+                "session_id": row["session_id"],
+                "similarity": round(float(row["similarity"]), 4),
+                "preview": row["content_preview"],
+                "coherence_sig": row["coherence_sig"],
+                "cognitive_mode": row["cognitive_mode"],
+            }
+            for row in rows
+        ]
+
+    async def find_cross_platform_matches(
+        self,
+        platform: str,
+        threshold: float = 0.70,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """
+        Find the best semantic matches between one platform and all others.
+        Returns pairs of events with high cross-platform similarity.
+        """
+        if not self._pool:
+            return []
+
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """WITH source_events AS (
+                       SELECT ec.embedding, ec.content_preview AS src_preview,
+                              ec.source_event_id AS src_id, ce.cognitive_mode AS src_mode
+                       FROM embedding_cache ec
+                       JOIN cognitive_events ce ON ec.source_event_id = ce.event_id
+                       WHERE ce.platform = $1 AND ce.cognitive_mode IN ('deep_work', 'exploration')
+                       LIMIT 1000
+                   )
+                   SELECT src.src_preview, src.src_id, src.src_mode,
+                          tgt.content_preview AS tgt_preview,
+                          tgt.source_event_id AS tgt_id,
+                          tgt_ce.platform AS tgt_platform,
+                          tgt_ce.cognitive_mode AS tgt_mode,
+                          1 - (src.embedding <=> tgt.embedding) AS similarity
+                   FROM source_events src
+                   CROSS JOIN LATERAL (
+                       SELECT ec2.content_preview, ec2.source_event_id, ec2.embedding
+                       FROM embedding_cache ec2
+                       JOIN cognitive_events ce2 ON ec2.source_event_id = ce2.event_id
+                       WHERE ce2.platform != $1
+                       ORDER BY ec2.embedding <=> src.embedding
+                       LIMIT 1
+                   ) tgt
+                   JOIN cognitive_events tgt_ce ON tgt.source_event_id = tgt_ce.event_id
+                   WHERE 1 - (src.embedding <=> tgt.embedding) >= $2
+                   ORDER BY similarity DESC
+                   LIMIT $3""",
+                platform, threshold, limit,
+            )
+
+        return [
+            {
+                "source_preview": row["src_preview"],
+                "source_id": row["src_id"],
+                "source_mode": row["src_mode"],
+                "target_preview": row["tgt_preview"],
+                "target_id": row["tgt_id"],
+                "target_platform": row["tgt_platform"],
+                "target_mode": row["tgt_mode"],
+                "similarity": round(float(row["similarity"]), 4),
+            }
+            for row in rows
+        ]
+
     async def _store_embedding(
         self,
         ch: str,
