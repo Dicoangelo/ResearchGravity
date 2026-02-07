@@ -93,17 +93,11 @@ async def cmd_status():
         )
 
         async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """SELECT platform, COUNT(*) as cnt
-                   FROM cognitive_events
-                   WHERE platform IN ('chatgpt', 'cursor', 'grok')
-                   GROUP BY platform"""
-            )
             rows = await conn.fetch(
                 """SELECT platform, COUNT(*) as cnt
                    FROM cognitive_events
-                   WHERE platform IN ('chatgpt', 'cursor', 'grok')
-                   GROUP BY platform"""
+                   GROUP BY platform
+                   ORDER BY cnt DESC"""
             )
 
         await pool.close()
