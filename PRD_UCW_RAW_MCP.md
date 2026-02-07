@@ -175,15 +175,11 @@ Cross-platform queries find events with matching signatures within configurable 
 - Dynamic tool module loading, graceful signal handling
 - 26 integration tests passing
 
-### Phase 5: Tool Implementation 🔄 IN PROGRESS (Session B)
-- Port 8 existing ResearchGravity tools from SDK server
-- Add new UCW-specific tools:
-  - `ucw_capture_stats` — Capture session statistics
-  - `ucw_timeline` — Unified cross-platform timeline
-  - `detect_emergence` — Real-time emergence signal detection
-  - `find_coherent_events` — Cross-platform coherence query
-  - `coherence_report` — Coherence summary report
-  - `cross_platform_search` — Multi-platform search
+### Phase 5: Tool Implementation ✅ COMPLETE
+- 4 coherence MCP tools: `coherence_status`, `coherence_moments`, `coherence_search`, `coherence_scan`
+- 3 UCW tools: `ucw_capture_stats`, `ucw_timeline`, `detect_emergence`
+- Research tools ported from SDK server
+- All tools wired into MCP server via PostgreSQL pool injection
 
 ### Phase 6: Cross-Platform Integration
 - ChatGPT import ✅ DONE (8,042 sessions, 30,712 findings)
@@ -191,10 +187,14 @@ Cross-platform queries find events with matching signatures within configurable 
 - X/Grok capture (API instrumentation) ⬜
 - Cursor capture (extension) ⬜
 
-### Phase 7: Coherence Detection Engine 🔄 IN PROGRESS (Session B)
-- `coherence.py` — Temporal alignment, semantic similarity, synchronicity
-- Real-time coherence monitoring ⬜
-- Alert on emergence signals ⬜
+### Phase 7: Coherence Detection Engine ✅ COMPLETE
+- 10-file `coherence_engine/` package (config, embeddings, similarity, detector, scorer, alerts, daemon, dashboard, retroactive, CLI)
+- 33,217 events → 31,737 embedded → 104 moments detected
+- 3-layer detection: signature match, semantic similarity, synchronicity
+- Calibrated thresholds (0.65/0.55) for cross-platform format differences
+- TUI dashboard, retroactive analyzer, founding moment validation
+- Real-time daemon (poll + oneshot modes)
+- Desktop notifications on high-confidence detections
 
 ---
 
@@ -328,10 +328,10 @@ Cross-platform queries find events with matching signatures within configurable 
 | Server Backbone | 2 hours | ✅ DONE (router.py, server.py, __main__.py) |
 | Database Integration | 2-3 hours | ✅ DONE (db.py, database.py, schema.sql) |
 | Integration Tests | 1 hour | ✅ DONE (26/26 passing) |
-| Tool Port + UCW Tools | 2-3 hours | 🔄 IN PROGRESS (Session B) |
-| Coherence Engine | 2-3 hours | 🔄 IN PROGRESS (Session B) |
+| Tool Port + UCW Tools | 2-3 hours | ✅ DONE (7 MCP tools, PostgreSQL-backed) |
+| Coherence Engine | 2-3 hours | ✅ DONE (10 files, 104 moments, 31K embeddings) |
 | Cross-Platform Live Capture | 4-6 hours | ⬜ NEXT |
-| Claude Desktop Integration | 1 hour | ⬜ (config snippet ready) |
+| Claude Desktop Integration | 1 hour | ✅ DONE (config live, tools registered) |
 
 ---
 

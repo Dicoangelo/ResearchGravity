@@ -3,7 +3,7 @@
 **Version:** 1.0.0
 **Date:** 2026-02-07
 **Author:** Dicoangelo + Claude (Opus 4.6)
-**Status:** Ready for Session B
+**Status:** ✅ COMPLETE (P0 + P1, 104 moments detected, MCP tools live)
 **Depends on:** UCW Raw MCP Server (COMPLETE), Cross-Platform Capture (parallel)
 
 ---
@@ -592,16 +592,17 @@ ENGINE_CONFIG = {
 
 | Priority | File | Lines (est) | What |
 |----------|------|------------|------|
-| **P0** | `config.py` | ~50 | Configuration |
-| **P0** | `embeddings.py` | ~150 | SBERT + Cohere embedding pipeline |
-| **P0** | `similarity.py` | ~120 | Cosine similarity + index |
-| **P0** | `detector.py` | ~200 | 3-layer coherence detection |
-| **P0** | `scorer.py` | ~100 | Multi-signal confidence scoring |
-| **P0** | `alerts.py` | ~100 | Alert system (log + desktop + DB) |
-| **P0** | `daemon.py` | ~150 | Background monitoring daemon |
-| **P0** | `__init__.py` + `__main__.py` | ~60 | Package + CLI |
-| **P1** | `retroactive.py` | ~120 | Historical data analysis |
-| **P1** | `dashboard.py` | ~150 | TUI dashboard (rich) |
+| **P0** ✅ | `config.py` | 71 | Configuration (calibrated thresholds) |
+| **P0** ✅ | `embeddings.py` | 172 | SBERT + Cohere embedding pipeline |
+| **P0** ✅ | `similarity.py` | 202 | pgvector HNSW + brute-force fallback |
+| **P0** ✅ | `detector.py` | 279 | 3-layer coherence detection |
+| **P0** ✅ | `scorer.py` | 166 | Multi-signal confidence scoring |
+| **P0** ✅ | `alerts.py` | 124 | Alert system (log + desktop + DB) |
+| **P0** ✅ | `daemon.py` | 250 | Background monitoring daemon (pool-sharing) |
+| **P0** ✅ | `__init__.py` + `__main__.py` | 174 | Package + CLI (6 commands) |
+| **P1** ✅ | `retroactive.py` | 280 | Historical analysis + founding moment validation |
+| **P1** ✅ | `dashboard.py` | 230 | TUI dashboard (ANSI + rich) |
+| **BONUS** ✅ | `mcp_raw/tools/coherence_tools.py` | 490 | 4 MCP tools wired to engine |
 
 **Total: ~1,200 lines across 10 files.**
 
