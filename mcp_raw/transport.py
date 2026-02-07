@@ -25,10 +25,10 @@ class RawStdioTransport:
         self.on_capture = on_capture
         self.running = False
         self._reader: Optional[asyncio.StreamReader] = None
-        self._writer_transport = None
+        self._stdout = None  # raw stdout buffer for synchronous writes
 
     async def start(self):
-        """Initialize async stdin/stdout streams"""
+        """Initialize async stdin reader and direct stdout writer"""
         loop = asyncio.get_event_loop()
 
         # Async reader for stdin
@@ -36,12 +36,10 @@ class RawStdioTransport:
         protocol = asyncio.StreamReaderProtocol(self._reader)
         await loop.connect_read_pipe(lambda: protocol, sys.stdin.buffer)
 
-        # Async writer for stdout
-        w_transport, w_protocol = await loop.connect_write_pipe(
-            lambda: asyncio.streams.FlowControlMixin(),
-            sys.stdout.buffer,
-        )
-        self._writer_transport = w_transport
+        # Direct stdout — synchronous writes are safe and reliable
+        # connect_write_pipe fails when stdout is not a proper pipe
+        # (e.g., when Claude Code CLI spawns the process)
+        self._stdout = sys.stdout.buffer
         self.running = True
         log.info("Transport initialized")
 
@@ -87,7 +85,7 @@ class RawStdioTransport:
 
     async def write_message(self, message: Dict[str, Any], *, request_id: Optional[int] = None):
         """Write a JSON-RPC message to stdout"""
-        if self._writer_transport is None:
+        if self._stdout is None:
             raise RuntimeError("Transport not started")
 
         raw_text = json.dumps(message, separators=(",", ":")) + "\n"
@@ -102,10 +100,9 @@ class RawStdioTransport:
             parent_protocol_id=str(request_id) if request_id is not None else None,
         )
 
-        self._writer_transport.write(raw_bytes)
+        self._stdout.write(raw_bytes)
+        self._stdout.flush()
 
     async def close(self):
         self.running = False
-        if self._writer_transport:
-            self._writer_transport.close()
         log.info("Transport closed")
