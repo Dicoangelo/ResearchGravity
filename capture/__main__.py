@@ -59,6 +59,13 @@ def _build_manager() -> CaptureManager:
     except Exception as exc:
         log.warning(f"Claude Code adapter unavailable: {exc}")
 
+    # CCC adapter (ingests from claude.db operational data)
+    try:
+        from .ccc.adapter import CCCAdapter
+        manager.register(CCCAdapter())
+    except Exception as exc:
+        log.warning(f"CCC adapter unavailable: {exc}")
+
     return manager
 
 
@@ -130,6 +137,7 @@ async def cmd_status():
     print(f"  Grok API: {'configured' if cfg.GROK_API_KEY else 'not configured'}")
     print(f"  Grok poll interval: {cfg.GROK_POLL_INTERVAL_S}s")
     print(f"  Claude Code transcripts: {Path.home() / '.claude/projects/-Users-dicoangelo'}")
+    print(f"  CCC database: {Path.home() / '.claude/data/claude.db'}")
     print(f"  Dedup window: {cfg.DEDUP_WINDOW_HOURS}h")
 
 
@@ -139,11 +147,13 @@ def cmd_list_adapters():
     print("=" * 50)
 
     transcript_dir = str(Path.home() / ".claude/projects/-Users-dicoangelo")
+    ccc_db = str(Path.home() / ".claude/data/claude.db")
     adapters = [
         ("ChatGPT", "chatgpt", "Export-diff polling + OpenAI API", cfg.CHATGPT_EXPORT_PATH),
         ("Cursor", "cursor", "Workspace file watcher", cfg.CURSOR_DATA_DIR),
         ("Grok/X", "grok", "X API polling", "API key" if cfg.GROK_API_KEY else "not configured"),
         ("Claude Code", "claude-code", "JSONL transcript watcher", transcript_dir),
+        ("CCC", "ccc", "SQLite operational data (claude.db)", ccc_db),
     ]
 
     for name, platform, method, source in adapters:
