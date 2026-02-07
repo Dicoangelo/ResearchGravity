@@ -148,7 +148,7 @@ class CognitiveDatabase:
             protocol        TEXT DEFAULT 'mcp',
             quality_score   REAL,
             cognitive_mode  TEXT,
-            semantic_embedding vector(1024),
+            semantic_embedding vector(384),
             created_at      TIMESTAMPTZ DEFAULT NOW()
         );
 
@@ -191,7 +191,7 @@ class CognitiveDatabase:
 
         CREATE TABLE IF NOT EXISTS embedding_cache (
             content_hash    TEXT PRIMARY KEY,
-            embedding       vector(1024),
+            embedding       vector(384),
             model           TEXT NOT NULL,
             dimensions      INTEGER NOT NULL,
             created_at      TIMESTAMPTZ DEFAULT NOW()

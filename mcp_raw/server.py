@@ -34,6 +34,7 @@ from .capture import CaptureEngine
 from .db import CaptureDB
 from .database import CognitiveDatabase
 from .ucw_bridge import extract_layers, coherence_signature
+from .embeddings import EmbeddingPipeline
 
 log = get_logger("server")
 
@@ -74,6 +75,7 @@ class RawMCPServer:
         self._router = Router()
         self._db = None  # CaptureDB (SQLite) or CognitiveDatabase (PostgreSQL)
         self._pg_db: Optional[CognitiveDatabase] = None
+        self._embedding_pipeline: Optional[EmbeddingPipeline] = None
         self._running = False
 
     # ── tool/resource registration (call before run) ─────────────
@@ -115,6 +117,12 @@ class RawMCPServer:
         # Wire components
         self._capture.set_ucw_bridge(UCWBridgeAdapter())
         self._capture.set_db_sink(self._db)
+
+        # Wire real-time embedding (auto-embed every captured event)
+        if self._pg_db and self._pg_db.available:
+            self._embedding_pipeline = EmbeddingPipeline(self._pg_db._pool)
+            self._capture.on_event(self._auto_embed)
+            log.info("Real-time embedding pipeline active")
 
         # Inject shared DB into tool modules
         self._inject_db()
@@ -184,6 +192,17 @@ class RawMCPServer:
             if request_id is not None:
                 error_resp = make_error(request_id, INTERNAL_ERROR, str(exc))
                 await self._transport.write_message(error_resp, request_id=request_id)
+
+    async def _auto_embed(self, event):
+        """Callback: auto-embed each captured event in real-time."""
+        if not self._embedding_pipeline:
+            return
+        # Only embed meaningful events (tool calls, responses with content)
+        if event.direction == "out" and event.light_layer:
+            try:
+                await self._embedding_pipeline.embed_event(event)
+            except Exception as exc:
+                log.debug(f"Auto-embed skipped: {exc}")
 
     def _inject_db(self):
         """Inject shared DB instance into tool modules that need it."""
