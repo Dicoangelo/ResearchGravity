@@ -200,25 +200,31 @@ class EmbeddingPipeline:
 
         # Store in database
         stored = 0
+        skipped_dupes = 0
         async with self._pool.acquire() as conn:
             for eid, text, emb in zip(event_ids, texts, all_embeddings):
                 try:
                     ch = content_hash(text)
                     vec_str = '[' + ','.join(str(x) for x in emb) + ']'
-                    await conn.execute(
+                    result = await conn.execute(
                         """INSERT INTO embedding_cache
                            (content_hash, content_preview, embedding, model, dimensions, source_event_id)
                            VALUES ($1, $2, $3::vector, $4, $5, $6)
                            ON CONFLICT (content_hash) DO NOTHING""",
                         ch, text[:200], vec_str, _model_name, _dimensions, eid,
                     )
-                    stored += 1
+                    # Check if row was actually inserted (not a dupe)
+                    if result and result.endswith("1"):
+                        stored += 1
+                    else:
+                        skipped_dupes += 1
                 except Exception as e:
                     log.error(f"Store error for {eid}: {e}")
 
         elapsed = time.time() - t0
         rate = len(texts) / elapsed if elapsed > 0 else 0
-        log.info(f"Embedded {stored} events in {elapsed:.1f}s ({rate:.0f}/sec)")
+        log.info(f"Embedded {stored} events in {elapsed:.1f}s ({rate:.0f}/sec)"
+                 + (f", {skipped_dupes} content dupes skipped" if skipped_dupes else ""))
         return stored
 
     async def find_similar(

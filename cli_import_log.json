@@ -1,0 +1,22 @@
+{
+  "imported_at": "2026-02-07T06:17:44.068277",
+  "files_processed": 2109,
+  "sessions_imported": 491,
+  "events_imported": 66539,
+  "sessions_skipped": 8,
+  "mode_breakdown": {
+    "casual": 971,
+    "deep_work": 794,
+    "exploration": 336
+  },
+  "folder_breakdown": {
+    "-Users-dicoangelo-Desktop-OS-App": 6,
+    "-Users-dicoangelo": 2048,
+    "-Users-dicoangelo--claude": 2,
+    "-Users-dicoangelo--agent-core-pitch-deck": 5,
+    "-Users-dicoangelo-CareerCoachAntigravity": 28,
+    "-Users-dicoangelo-Documents-New-project": 1,
+    "-Users-dicoangelo-friendlyface": 11
+  },
+  "errors": []
+}
