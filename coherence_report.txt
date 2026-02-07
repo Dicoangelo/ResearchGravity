@@ -1,0 +1,307 @@
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              UNIVERSAL COGNITIVE WALLET — COHERENCE ANALYSIS               ║
+║                         Cross-Platform Intelligence Report                 ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Generated:                                         2026-02-07 11:11:09 UTC  ║
+║  Database:  ucw_cognitive (PostgreSQL + pgvector)                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. PLATFORM DISTRIBUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ── Events by Platform ────────────────────────────────────────────────────────
+  Platform                      Events    Share  Distribution
+  ───────────────────────── ────────── ────────  ────────────────────────────────────────
+  chatgpt                       60,769    81.9%  ████████████████████████████████░░░░░░░░
+  claude-code                    9,463    12.8%  █████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  claude-desktop                 2,568     3.5%  █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  ccc                            1,393     1.9%  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  TOTAL                         74,193
+
+  ── Sessions by Platform ──────────────────────────────────────────────────────
+  Platform                    Sessions    Share    Avg Events/Session
+  ───────────────────────── ────────── ────────  ────────────────────
+  chatgpt                        7,979    95.1%                 7.6
+  claude-code                      329     3.9%                28.8
+  claude-desktop                    76     0.9%                33.8
+  ccc                                5     0.1%               278.6
+  TOTAL                          8,389
+
+  ── Cognitive Modes by Platform ───────────────────────────────────────────────
+
+  [ccc] (1,393 events with mode)
+    casual                  1,393   100.0%  ██████████████████████████████
+
+  [chatgpt] (60,769 events with mode)
+    exploration            33,214    54.7%  ████████████████░░░░░░░░░░░░░░
+    deep_work              13,965    23.0%  ██████░░░░░░░░░░░░░░░░░░░░░░░░
+    casual                 13,590    22.4%  ██████░░░░░░░░░░░░░░░░░░░░░░░░
+
+  [claude-code] (9,463 events with mode)
+    casual                  4,787    50.6%  ███████████████░░░░░░░░░░░░░░░
+    exploration             3,084    32.6%  █████████░░░░░░░░░░░░░░░░░░░░░
+    deep_work               1,592    16.8%  █████░░░░░░░░░░░░░░░░░░░░░░░░░
+
+  [claude-desktop] (2,530 events with mode)
+    exploration             2,530   100.0%  ██████████████████████████████
+
+  ── Embedding Coverage ────────────────────────────────────────────────────────
+  ccc                            374 /    1,393 events embedded (26.8%)
+  chatgpt                     59,885 /   60,769 events embedded (98.5%)
+  claude-code                  9,401 /    9,463 events embedded (99.3%)
+  claude-desktop               1,191 /    2,568 events embedded (46.4%)
+  TOTAL                       70,851 /   74,193 events embedded (95.5%)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  2. TOP CROSS-PLATFORM SEMANTIC MATCHES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Finding strongest semantic bridges between Claude and ChatGPT...
+
+  Found 30 cross-platform matches (similarity >= 0.65)
+
+  Similarity range: 0.7775 — 0.9378
+  Mean similarity:  0.8223
+  Median:           0.8095
+
+  ── Similarity Distribution ───────────────────────────────────────────────────
+    0.90+  (near-identical)           3  ███░░░░░░░░░░░░░░░░░░░░░░░░░░░
+    0.85-0.90 (very high)             4  ████░░░░░░░░░░░░░░░░░░░░░░░░░░
+    0.80-0.85 (high)                  9  █████████░░░░░░░░░░░░░░░░░░░░░
+    0.75-0.80 (strong)               14  ██████████████░░░░░░░░░░░░░░░░
+    0.70-0.75 (moderate)              0  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+    0.65-0.70 (threshold)             0  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+  ── Top 15 Matches (Detailed) ─────────────────────────────────────────────────
+
+  # 1  Similarity: 0.9378  [██████████████████░░]
+      Claude  [exploration ]: explore: general | Analysis (Coming soon)
+      ChatGPT [casual      ]: explore: general | Full analysis
+
+  # 2  Similarity: 0.9211  [██████████████████░░]
+      Claude  [exploration ]: explore: general | ANALYSIS: What's Missing
+      ChatGPT [casual      ]: explore: general | Full analysis
+
+  # 3  Similarity: 0.9095  [██████████████████░░]
+      Claude  [exploration ]: explore: general | analysis, and recommendations.
+      ChatGPT [casual      ]: explore: general | Provide a full analysis
+
+  # 4  Similarity: 0.8835  [█████████████████░░░]
+      Claude  [exploration ]: explore: general | creates a new concept:
+      ChatGPT [casual      ]: explore: general | simplify it to it's core conceptual
+
+  # 5  Similarity: 0.8798  [█████████████████░░░]
+      Claude  [exploration ]: explore: general | analysis, recommendations |
+      ChatGPT [casual      ]: explore: general | Provide a full analysis
+
+  # 6  Similarity: 0.8795  [█████████████████░░░]
+      Claude  [exploration ]: explore: general | is concrete, not vague
+      ChatGPT [casual      ]: explore: general | Provide a full analysis
+
+  # 7  Similarity: 0.8501  [█████████████████░░░]
+      Claude  [exploration ]: explore: ai_agents | Themes: ai, agentic | agent
+      ChatGPT [casual      ]: explore: ai_agents | what is the agent principle mental model | agent
+
+  # 8  Similarity: 0.8403  [████████████████░░░░]
+      Claude  [exploration ]: explore: general | +3                                                                     ...
+      ChatGPT [exploration ]: explore: general | ░░                                                               ██░░  ...
+
+  # 9  Similarity: 0.8347  [████████████████░░░░]
+      Claude  [exploration ]: explore: general | becomes signal for others:
+      ChatGPT [casual      ]: explore: general | Play in the original concept
+
+  #10  Similarity: 0.8341  [████████████████░░░░]
+      Claude  [exploration ]: explore: general | as not receiving feedback earlier.
+      ChatGPT [casual      ]: explore: general | Provide a full analysis
+
+  #11  Similarity: 0.8340  [████████████████░░░░]
+      Claude  [exploration ]: explore: general | Analysis (marked "Coming soon")
+      ChatGPT [casual      ]: explore: general | Full analysis
+
+  #12  Similarity: 0.8213  [████████████████░░░░]
+      Claude  [exploration ]: explore: general | but not yet fixed (investigation ongoing)
+      ChatGPT [casual      ]: explore: general | Now an unhinged analysis’s
+
+  #13  Similarity: 0.8204  [████████████████░░░░]
+      Claude  [exploration ]: explore: general | analysis | ✅ Complete |
+      ChatGPT [casual      ]: explore: general | Full analysis
+
+  #14  Similarity: 0.8128  [████████████████░░░░]
+      Claude  [exploration ]: explore: general | without supporting data"
+      ChatGPT [casual      ]: explore: general | Full analysis
+
+  #15  Similarity: 0.8095  [████████████████░░░░]
+      Claude  [exploration ]: explore: ai_agents | it's actually "Agent Core v2.0" - a research workflow orchestration f...
+      ChatGPT [deep_work   ]: search: ai_agents | i need to reverse engineer how this article was created "think from th...
+
+  ── Cross-Platform Mode Pairings ──────────────────────────────────────────────
+    exploration <-> casual                          24 matches
+    exploration <-> exploration                      4 matches
+    exploration <-> deep_work                        2 matches
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  3. COHERENCE MOMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total coherence moments detected: 106
+
+  ── By Coherence Type ─────────────────────────────────────────────────────────
+  Type                            Count   Avg Conf   Max Conf   Avg Window
+  ────────────────────────────── ────── ────────── ────────── ────────────
+  synchronicity                      56     0.724     0.777    4619350s
+  semantic                           50     0.734     0.788          0s
+
+  ── Confidence Distribution ───────────────────────────────────────────────────
+    0.70-0.80 (solid)                 106  ██████████████████████████████
+
+  ── Platform Combinations ─────────────────────────────────────────────────────
+    claude-desktop + chatgpt                          78
+    chatgpt + claude-desktop                          26
+    chatgpt + claude-code                              2
+
+  ── Top 10 Highest-Confidence Moments ─────────────────────────────────────────
+
+  # 1  Confidence: 0.788  |  Type: semantic  |  Platforms: claude-desktop + chatgpt
+      Window: 0s  |  ID: 3ea430b718d04c47...
+      Desc: Cross-platform semantic match (0.7884)
+
+  # 2  Confidence: 0.786  |  Type: semantic  |  Platforms: claude-desktop + chatgpt
+      Window: 0s  |  ID: 2fbab5913d234471...
+      Desc: Cross-platform semantic match (0.7865)
+
+  # 3  Confidence: 0.781  |  Type: semantic  |  Platforms: claude-desktop + chatgpt
+      Window: 0s  |  ID: 8835474b3f534784...
+      Desc: Cross-platform semantic match (0.7812)
+
+  # 4  Confidence: 0.777  |  Type: synchronicity  |  Platforms: chatgpt + claude-desktop
+      Window: 1550294s  |  ID: cm-608198bb14e7...
+      Desc: Synchronicity: chatgpt <-> claude-desktop | explore: ucw | - Sovereignty: Local-first, user-owned | ...
+
+  # 5  Confidence: 0.777  |  Type: synchronicity  |  Platforms: claude-desktop + chatgpt
+      Window: 1550294s  |  ID: cm-34e2803d10c8...
+      Desc: Synchronicity: claude-desktop <-> chatgpt | create: ucw | Use **both**, but with different jobs:  - ...
+
+  # 6  Confidence: 0.772  |  Type: semantic  |  Platforms: claude-desktop + chatgpt
+      Window: 0s  |  ID: 30ff2ddb3ddb4eae...
+      Desc: Cross-platform semantic match (0.7717)
+
+  # 7  Confidence: 0.764  |  Type: synchronicity  |  Platforms: chatgpt + claude-desktop
+      Window: 1550310s  |  ID: cm-9d6780dfe05c...
+      Desc: Synchronicity: chatgpt <-> claude-desktop | explore: ucw | - Sovereignty: Local-first, user-owned | ...
+
+  # 8  Confidence: 0.764  |  Type: synchronicity  |  Platforms: claude-desktop + chatgpt
+      Window: 1550310s  |  ID: cm-661895b9101f...
+      Desc: Synchronicity: claude-desktop <-> chatgpt | create: ucw | Dico…   Yes.   Everything you’ve been feel...
+
+  # 9  Confidence: 0.764  |  Type: semantic  |  Platforms: claude-desktop + chatgpt
+      Window: 0s  |  ID: c3143337f2fa4f3f...
+      Desc: Cross-platform semantic match (0.7637)
+
+  #10  Confidence: 0.762  |  Type: synchronicity  |  Platforms: chatgpt + claude-desktop
+      Window: 1550294s  |  ID: cm-8832e6c58d05...
+      Desc: Synchronicity: chatgpt <-> claude-desktop | explore: ucw | - Sovereignty: Local-first, user-owned | ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  4. CROSS-PLATFORM TOPIC CLUSTERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Identifying shared themes between platforms via semantic proximity...
+
+  No light_layer topic data found. Analyzing via content keywords...
+
+  ── Shared High-Frequency Keywords (Cross-Platform) ───────────────────────────
+
+  Keyword                  
+  Keyword                           chatgpt    claude-code            ccc claude-desktop      Total
+  ───────────────────────── ──────────────────────────────────────────────────────────── ──────────
+  general                             1,125             88              7             17      1,237
+  research                               91             51              3             12        157
+
+  Total shared keywords (>=3 per platform): 2
+
+  Top keywords unique to [chatgpt]:
+    several(74), while(64), someone(60), philosophy(54), often(53), specific(44), sounds(43), potential(42), seems(42), credit(41), social(41), personal(41), information(40), situation(40), especially(40)
+
+  Top keywords unique to [claude-code]:
+    files(14), claude(10), covers(10), tests(10), continued(9), researchgravity(8), committed(7), commits(5), opus(5), github(5), documentation(5), resets(4), infrastructure(4), investigate(4), errors(4)
+
+  Top keywords unique to [ccc]:
+    sonnet(2), launched(1), usin(1), redis(1), memc(1)
+
+  Top keywords unique to [claude-desktop]:
+    january(2), nobody(1), latent(1), spaces(1), emergent(1), hsrgs(1), gödel(1), archived(1), handoff(1), labs(1), deepseek(1), optimizing(1), logical(1), concre(1), managed(1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  5. COGNITIVE MODE ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ── Mode Comparison: deep_work vs exploration vs casual ───────────────────────
+  Platform             Mode              Events   Sessions  Avg Quality   Avg Length
+  ──────────────────── ─────────────── ──────── ────────── ──────────── ────────────
+  ccc                  casual             1,393          5        0.376          186
+  chatgpt              exploration       33,214      6,536        0.613         2171
+  chatgpt              deep_work         13,965      1,840        0.834         3454
+  chatgpt              casual            13,590      4,797        0.401          326
+  claude-code          casual             4,787        304        0.375          180
+  claude-code          exploration        3,084        302        0.571         1057
+  claude-code          deep_work          1,592        264        0.931         8148
+  claude-desktop       exploration        2,530         67        0.500          149
+
+  ── Quality Score Percentiles by Platform & Mode ──────────────────────────────
+  Platform             Mode                 P25      P50      P75      P95
+  ──────────────────── ─────────────── ──────── ──────── ──────── ────────
+  ccc                  casual            0.347   0.382   0.400   0.424
+  chatgpt              casual            0.328   0.408   0.456   0.491
+  chatgpt              deep_work         0.776   0.810   0.863   1.000
+  chatgpt              exploration       0.555   0.598   0.686   0.733
+  claude-code          casual            0.323   0.353   0.428   0.482
+  claude-code          deep_work         0.922   0.950   1.000   1.000
+  claude-code          exploration       0.516   0.555   0.580   0.695
+  claude-desktop       exploration       0.500   0.500   0.500   0.500
+
+  ── Content Depth Analysis (by length) ────────────────────────────────────────
+  Platform             Mode             Deep(>1K)     Medium  Shallow(<200)    Total
+  ──────────────────── ─────────────── ────────── ────────── ────────────── ────────
+  chatgpt              deep_work           12,906      1,059              0   13,965
+  chatgpt              exploration         26,100      7,100             14   33,214
+  claude-code          deep_work            1,414        176              2    1,592
+  claude-code          exploration          1,088      1,883            113    3,084
+  claude-desktop       exploration              0        607          1,923    2,530
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  6. CROSS-PLATFORM COHERENCE INSIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Coherence links: 50
+  Active coherence entries: 1000
+
+  ── Recent Daily Activity (Last 15 Days) ──────────────────────────────────────
+  Date                        ccc           chatgpt       claude-code    claude-desktop      Total
+  ──────────── ──────────────────────────────────────────────────────────────────────── ──────────
+  2026-02-07                1,393            60,769             9,463             2,568     74,193
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  EXECUTIVE SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  DATA SCALE
+    Total cognitive events:         74,193
+    Total sessions:                  8,389
+    Total embeddings:               70,851
+    Coherence moments detected:        106
+    Cross-platform matches:             30 (at >= 0.65 similarity)
+
+  KEY FINDINGS
+    - Strongest cross-platform similarity: 0.9378
+    - Average cross-platform similarity:   0.8223
+    - Dominant coherence type: synchronicity (56 moments)
+    - High-confidence bridges (>= 0.80): 16
+
+  COHERENCE HEALTH
+    Embedding coverage:  95.5% of events have embeddings
+    Cross-platform link: STRONG
+    Data readiness:      PRODUCTION
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Report generated at 2026-02-07 11:11:13 UTC
+  Database: ucw_cognitive | Platforms: chatgpt, claude-code, claude-desktop, ccc
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
