@@ -1,0 +1,15 @@
+{
+  "_comment": "Add this entry to ~/Library/Application Support/Claude/claude_desktop_config.json under mcpServers",
+  "researchgravity-ucw": {
+    "command": "python3",
+    "args": [
+      "-m",
+      "mcp_raw"
+    ],
+    "cwd": "/Users/dicoangelo/researchgravity",
+    "env": {
+      "UCW_DATABASE_URL": "postgresql://localhost:5432/ucw_cognitive",
+      "PYTHONPATH": "/Users/dicoangelo/researchgravity"
+    }
+  }
+}
