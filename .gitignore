@@ -41,3 +41,16 @@ libs/
 
 # Project-specific research (not general framework)
 sssp_*.md
+
+# Nested repos (own .git)
+frontier-alpha-cvrf/
+
+# Local session/task data
+sessions/
+tasks/
+
+# Ephemeral validation outputs
+validation-results-*.md
+
+# Dashboard build artifacts
+dashboard/screenshot*.png

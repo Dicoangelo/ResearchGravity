@@ -14,7 +14,7 @@ Tracks:
 import json
 import time
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Any, Dict, List, Optional
 
 from .logger import get_logger
@@ -101,7 +101,7 @@ class CaptureEngine:
     """
 
     def __init__(self):
-        self._events: List[CaptureEvent] = []
+        self._events = deque(maxlen=10_000)
         self._turn_counter: int = 0
         self._request_map: Dict[str, CaptureEvent] = {}  # id → inbound event
         self._ucw_bridge = None
@@ -170,6 +170,13 @@ class CaptureEngine:
         self._stats[f"{direction}_{stage}"] += 1
         self._stats["total"] += 1
 
+        # Cleanup stale request map entries (prevent memory leak)
+        if len(self._request_map) > 500:
+            cutoff = time.time_ns() - (5 * 60 * 1_000_000_000)  # 5 minutes
+            stale = [k for k, v in self._request_map.items() if v.timestamp_ns < cutoff]
+            for k in stale:
+                del self._request_map[k]
+
         # Persist to database
         if self._db_sink:
             try:
@@ -199,7 +206,7 @@ class CaptureEngine:
 
     @property
     def event_count(self) -> int:
-        return len(self._events)
+        return self._stats.get("total", 0)
 
     def recent_events(self, limit: int = 20) -> List[Dict]:
         return [e.to_dict() for e in self._events[-limit:]]

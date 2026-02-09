@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from mcp_raw.protocol import tool_result_content, text_content
 from mcp_raw.logger import get_logger
+from mcp_raw.tools.validation import clamp_int, clamp_float
 
 log = get_logger("tools.coherence")
 
@@ -215,9 +216,9 @@ async def _coherence_moments(args: Dict) -> Dict:
             [text_content("PostgreSQL not connected.")], is_error=True
         )
 
-    min_conf = float(args.get("min_confidence", 0.70))
+    min_conf = clamp_float(args.get("min_confidence"), 0.70, 0.0, 1.0)
     topic_filter = args.get("topic")
-    limit = int(args.get("limit", 20))
+    limit = clamp_int(args.get("limit"), 20, 1, 100)
 
     async with _pool.acquire() as conn:
         rows = await conn.fetch("""
@@ -321,8 +322,8 @@ async def _coherence_search(args: Dict) -> Dict:
     query = args["query"]
     platform_filter = args.get("platform")
     cross_only = args.get("cross_platform_only", False)
-    min_sim = float(args.get("min_similarity", 0.45))
-    limit = int(args.get("limit", 20))
+    min_sim = clamp_float(args.get("min_similarity"), 0.45, 0.0, 1.0)
+    limit = clamp_int(args.get("limit"), 20, 1, 100)
 
     # Embed the query
     try:
@@ -425,7 +426,7 @@ async def _coherence_scan(args: Dict) -> Dict:
             [text_content("PostgreSQL not connected.")], is_error=True
         )
 
-    hours = int(args.get("hours", 24))
+    hours = clamp_int(args.get("hours"), 24, 1, 168)
 
     # Get moment count before scan
     async with _pool.acquire() as conn:
@@ -449,7 +450,7 @@ async def _coherence_scan(args: Dict) -> Dict:
         after_count = await conn.fetchval("SELECT COUNT(*) FROM coherence_moments")
         new_moments = after_count - before_count
 
-        # Get the new moments
+        # Get the new moments (cap at 2000)
         new_rows = []
         if new_moments > 0:
             new_rows = await conn.fetch("""
@@ -457,7 +458,7 @@ async def _coherence_scan(args: Dict) -> Dict:
                 FROM coherence_moments
                 ORDER BY created_at DESC
                 LIMIT $1
-            """, new_moments)
+            """, min(new_moments, 2000))
 
     out = f"# Coherence Scan Complete\n\n"
     out += f"**Events processed:** {processed}\n"

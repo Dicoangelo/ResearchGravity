@@ -3,8 +3,30 @@ File-only logger — NEVER writes to stdout (would corrupt MCP protocol)
 """
 
 import logging
+import os
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from .config import Config
+
+
+def _secure_handler(log_path: Path, level: int, fmt: str) -> RotatingFileHandler:
+    """Create a rotating file handler with restricted permissions."""
+    handler = RotatingFileHandler(
+        log_path,
+        maxBytes=10 * 1024 * 1024,  # 10 MB
+        backupCount=3,
+        encoding="utf-8",
+    )
+    handler.setLevel(level)
+    handler.setFormatter(logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S"))
+
+    # Restrict permissions — log files may contain conversation data
+    try:
+        os.chmod(log_path, 0o600)
+    except OSError:
+        pass  # Best-effort; file may not exist yet on first call
+
+    return handler
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -17,21 +39,19 @@ def get_logger(name: str) -> logging.Logger:
 
     logger.setLevel(logging.DEBUG)
 
-    fh = logging.FileHandler(Config.LOG_FILE, encoding="utf-8")
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(logging.Formatter(
+    fh = _secure_handler(
+        Config.LOG_FILE,
+        logging.DEBUG,
         "%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    )
     logger.addHandler(fh)
 
     # Separate error log
-    eh = logging.FileHandler(Config.ERROR_LOG, encoding="utf-8")
-    eh.setLevel(logging.ERROR)
-    eh.setFormatter(logging.Formatter(
+    eh = _secure_handler(
+        Config.ERROR_LOG,
+        logging.ERROR,
         "%(asctime)s %(levelname)-5s [%(name)s] %(message)s\n%(exc_info)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    )
     logger.addHandler(eh)
 
     # Never propagate to root (which might have stdout handlers)

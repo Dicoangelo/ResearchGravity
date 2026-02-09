@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from mcp_raw.embeddings import embed_single, cosine_similarity
+from mcp_raw.embeddings import embed_single, cosine_similarity, _embedding_column
 from . import config as cfg
 
 import logging
@@ -61,32 +61,35 @@ class SimilarityIndex:
         vec_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
         # cosine distance threshold: 1 - similarity
         dist_threshold = 1.0 - threshold
+        col = _embedding_column
 
         try:
             async with self._pool.acquire() as conn:
                 if exclude_platform:
                     rows = await conn.fetch(
-                        """SELECT ec.content_hash, ec.content_preview, ec.source_event_id,
+                        f"""SELECT ec.content_hash, ec.content_preview, ec.source_event_id,
                                   ce.platform, ce.session_id, ce.light_layer,
                                   ce.instinct_layer, ce.coherence_sig, ce.timestamp_ns,
-                                  (ec.embedding <=> $1::vector) AS distance
+                                  (ec.{col} <=> $1::vector) AS distance
                            FROM embedding_cache ec
                            JOIN cognitive_events ce ON ec.source_event_id = ce.event_id
                            WHERE ce.platform != $2
-                             AND (ec.embedding <=> $1::vector) < $3
+                             AND ec.{col} IS NOT NULL
+                             AND (ec.{col} <=> $1::vector) < $3
                            ORDER BY distance
                            LIMIT $4""",
                         vec_str, exclude_platform, dist_threshold, limit,
                     )
                 else:
                     rows = await conn.fetch(
-                        """SELECT ec.content_hash, ec.content_preview, ec.source_event_id,
+                        f"""SELECT ec.content_hash, ec.content_preview, ec.source_event_id,
                                   ce.platform, ce.session_id, ce.light_layer,
                                   ce.instinct_layer, ce.coherence_sig, ce.timestamp_ns,
-                                  (ec.embedding <=> $1::vector) AS distance
+                                  (ec.{col} <=> $1::vector) AS distance
                            FROM embedding_cache ec
                            JOIN cognitive_events ce ON ec.source_event_id = ce.event_id
-                           WHERE (ec.embedding <=> $1::vector) < $2
+                           WHERE ec.{col} IS NOT NULL
+                             AND (ec.{col} <=> $1::vector) < $2
                            ORDER BY distance
                            LIMIT $3""",
                         vec_str, dist_threshold, limit,

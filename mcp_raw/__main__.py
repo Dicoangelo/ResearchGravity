@@ -21,6 +21,7 @@ TOOL_MODULES = [
     "mcp_raw.tools.research_tools",
     "mcp_raw.tools.ucw_tools",
     "mcp_raw.tools.coherence_tools",
+    "mcp_raw.tools.intelligence_tools",
 ]
 
 

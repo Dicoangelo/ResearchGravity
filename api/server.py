@@ -129,6 +129,13 @@ if FASTAPI_AVAILABLE:
     except ImportError:
         print("Warning: Intelligence routes not available")
 
+    # Include coherence dashboard routes
+    try:
+        from api.routes.coherence import router as coherence_router
+        app.include_router(coherence_router)
+    except ImportError:
+        print("Warning: Coherence routes not available")
+
 # Data directories
 AGENT_CORE_DIR = Path.home() / ".agent-core"
 SESSIONS_DIR = AGENT_CORE_DIR / "sessions"
