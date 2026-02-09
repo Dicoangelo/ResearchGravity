@@ -73,9 +73,16 @@ class SignatureDetector:
                 sig, platform,
             )
 
+        # Filter out same-family platforms
+        families = cfg.PLATFORM_FAMILIES
+        event_family = families.get(platform, platform)
+
         results = []
         event_ts = event_row.get("timestamp_ns", 0)
         for row in rows:
+            match_family = families.get(row["platform"], row["platform"])
+            if match_family == event_family:
+                continue
             gap = abs(event_ts - row["timestamp_ns"]) / 1e9
             light = row["light_layer"]
             if isinstance(light, str):
@@ -113,9 +120,14 @@ class SemanticDetector:
         results = []
         platform = event_row.get("platform", "")
         event_ts = event_row.get("timestamp_ns", 0)
+        families = cfg.PLATFORM_FAMILIES
+        event_family = families.get(platform, platform)
 
         for sr in similar_results:
             if sr.platform == platform:
+                continue
+            # Skip same-family platforms
+            if families.get(sr.platform, sr.platform) == event_family:
                 continue
 
             # Check time window
@@ -230,11 +242,11 @@ class SynchronicityDetector:
         )
 
         total = meta_in_event + meta_in_cand + meta_in_text
-        if total >= 4:
+        if total >= 6:
             return 1.0
-        if total >= 2:
+        if total >= 4:
             return 0.7
-        if total >= 1:
+        if total >= 2:
             return 0.3
         return 0.0
 

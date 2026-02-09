@@ -126,6 +126,47 @@ class CoherenceDashboard:
             # Embedded count
             embedded = await conn.fetchval("SELECT COUNT(*) FROM embedding_cache")
 
+            # Knowledge Graph stats (tables may not exist yet)
+            kg_stats = None
+            try:
+                kg_stats = await conn.fetchrow("""
+                    SELECT
+                        (SELECT count(*) FROM cognitive_entities) AS entities,
+                        (SELECT count(*) FROM cognitive_edges) AS edges,
+                        (SELECT count(DISTINCT entity_type) FROM cognitive_entities) AS types
+                """)
+                kg_stats = dict(kg_stats) if kg_stats else None
+            except Exception:
+                kg_stats = None
+
+            # FSRS Insight metrics (table may not exist yet)
+            fsrs_stats = None
+            try:
+                fsrs_stats = await conn.fetchrow("""
+                    SELECT
+                        count(*) AS total_cards,
+                        count(*) FILTER (WHERE next_review <= NOW()) AS due_now,
+                        avg(stability) AS avg_stability,
+                        avg(difficulty) AS avg_difficulty
+                    FROM insight_schedule
+                """)
+                fsrs_stats = dict(fsrs_stats) if fsrs_stats else None
+            except Exception:
+                fsrs_stats = None
+
+            # Coherence Arc summary (table may not exist yet)
+            arc_stats = None
+            try:
+                arc_stats = await conn.fetchrow("""
+                    SELECT count(*) AS arc_count,
+                           avg(arc_strength) AS avg_score,
+                           max(moment_count) AS max_moments
+                    FROM coherence_arcs
+                """)
+                arc_stats = dict(arc_stats) if arc_stats else None
+            except Exception:
+                arc_stats = None
+
         return {
             "platforms": [dict(p) for p in platforms],
             "moments_total": moments_total,
@@ -136,6 +177,9 @@ class CoherenceDashboard:
             "emergence": [dict(e) for e in emergence],
             "top_topics": [dict(t) for t in top_topics],
             "embedded": embedded,
+            "kg_stats": kg_stats,
+            "fsrs_stats": fsrs_stats,
+            "arc_stats": arc_stats,
         }
 
     def render_plain(self, data: Dict) -> str:
@@ -200,6 +244,39 @@ class CoherenceDashboard:
             lines.append("\033[1;33m  EMERGENCE SIGNALS (24h)\033[0m")
             for e in data["emergence"]:
                 lines.append(f"    {e['gut']:25s} {e['cnt']:>6}")
+            lines.append("")
+
+        # Knowledge Graph stats
+        kg = data.get("kg_stats")
+        if kg:
+            lines.append("\033[1;33m  KNOWLEDGE GRAPH\033[0m")
+            lines.append(
+                f"    KG: {kg['entities']:,} entities, {kg['edges']:,} edges, "
+                f"{kg['types']} types"
+            )
+            lines.append("")
+
+        # FSRS Insight metrics
+        fsrs = data.get("fsrs_stats")
+        if fsrs and fsrs.get("total_cards", 0) > 0:
+            avg_stab = fsrs["avg_stability"] or 0.0
+            lines.append("\033[1;33m  FSRS INSIGHTS\033[0m")
+            lines.append(
+                f"    FSRS: {fsrs['total_cards']:,} cards, {fsrs['due_now']:,} due, "
+                f"stability={avg_stab:.2f}"
+            )
+            lines.append("")
+
+        # Coherence Arc summary
+        arc = data.get("arc_stats")
+        if arc and arc.get("arc_count", 0) > 0:
+            avg_score = arc["avg_score"] or 0.0
+            max_moments = arc["max_moments"] or 0
+            lines.append("\033[1;33m  COHERENCE ARCS\033[0m")
+            lines.append(
+                f"    Arcs: {arc['arc_count']:,} detected, avg score={avg_score:.2f}, "
+                f"max moments={max_moments}"
+            )
             lines.append("")
 
         # Recent moments

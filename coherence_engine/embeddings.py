@@ -17,10 +17,14 @@ from . import config as cfg
 # Import core embedding functions from mcp_raw (same repo)
 from mcp_raw.embeddings import (
     build_embed_text,
+    build_embed_text_contextual,
     embed_single,
     embed_texts,
     content_hash,
     cosine_similarity,
+    _model_name,
+    _dimensions,
+    _embedding_column,
 )
 
 import logging
@@ -32,10 +36,14 @@ def event_to_text(event_row: Dict[str, Any]) -> str:
     """
     Convert a database row (dict) to embeddable text.
 
-    Delegates to mcp_raw.embeddings.build_embed_text but handles
-    the coherence engine's dict format.
+    Uses contextual embedding text (includes platform, cognitive mode, topic)
+    for better cross-platform coherence detection.
+    Falls back to base text if contextual produces nothing.
     """
-    return build_embed_text(event_row)
+    text = build_embed_text_contextual(event_row)
+    if not text:
+        text = build_embed_text(event_row)
+    return text
 
 
 async def embed_event_row(pool, event_row: Dict[str, Any]) -> Optional[List[float]]:
@@ -133,11 +141,14 @@ async def batch_embed_events(
                 ch = content_hash(text)
                 vec_str = "[" + ",".join(str(x) for x in emb) + "]"
                 await conn.execute(
-                    """INSERT INTO embedding_cache
-                       (content_hash, content_preview, embedding, model, dimensions, source_event_id)
+                    f"""INSERT INTO embedding_cache
+                       (content_hash, content_preview, {_embedding_column}, model, dimensions, source_event_id)
                        VALUES ($1, $2, $3::vector, $4, $5, $6)
-                       ON CONFLICT (content_hash) DO NOTHING""",
-                    ch, text[:200], vec_str, cfg.SBERT_MODEL, cfg.SBERT_DIMENSIONS, eid,
+                       ON CONFLICT (content_hash) DO UPDATE SET
+                           {_embedding_column} = $3::vector,
+                           model = $4,
+                           dimensions = $5""",
+                    ch, text[:200], vec_str, _model_name, _dimensions, eid,
                 )
                 stored += 1
             except Exception as e:
@@ -161,11 +172,14 @@ async def _store_embedding(
         async with pool.acquire() as conn:
             vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
             await conn.execute(
-                """INSERT INTO embedding_cache
-                   (content_hash, content_preview, embedding, model, dimensions, source_event_id)
+                f"""INSERT INTO embedding_cache
+                   (content_hash, content_preview, {_embedding_column}, model, dimensions, source_event_id)
                    VALUES ($1, $2, $3::vector, $4, $5, $6)
-                   ON CONFLICT (content_hash) DO NOTHING""",
-                ch, preview, vec_str, cfg.SBERT_MODEL, cfg.SBERT_DIMENSIONS, source_event_id,
+                   ON CONFLICT (content_hash) DO UPDATE SET
+                       {_embedding_column} = $3::vector,
+                       model = $4,
+                       dimensions = $5""",
+                ch, preview, vec_str, _model_name, _dimensions, source_event_id,
             )
     except Exception as e:
         log.error(f"Store embedding error: {e}")
