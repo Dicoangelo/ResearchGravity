@@ -54,3 +54,4 @@ validation-results-*.md
 
 # Dashboard build artifacts
 dashboard/screenshot*.png
+tsconfig.tsbuildinfo
