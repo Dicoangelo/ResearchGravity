@@ -1043,7 +1043,7 @@ Dico Angelo
 dicoangelo@metaventionsai.com
 
 <p align="center">
-  <a href="https://metaventions-ai-architected-intelligence-1061986917838.us-west1.run.app/">
+  <a href="https://metaventionsai.com">
     <img src="https://img.shields.io/badge/Metaventions_AI-Website-00d9ff?style=for-the-badge" alt="Website" />
   </a>
   <a href="https://github.com/Dicoangelo">
