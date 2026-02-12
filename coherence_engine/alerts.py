@@ -118,6 +118,45 @@ class AlertSystem:
         except Exception as e:
             log.warning(f"Webhook failed: {e}")
 
+    async def notify_breakthrough(self, bt):
+        """Send alert for a cognitive breakthrough."""
+        self._alert_count += 1
+
+        title = f"UCW Breakthrough: {bt.breakthrough_type}"
+        body = (
+            f"{bt.title}\\n"
+            f"Novelty: {bt.novelty_score:.0%} | Impact: {bt.impact_score:.0%}\\n"
+            f"{', '.join(bt.platforms)}"
+        )
+
+        log.info(f"BREAKTHROUGH: [{bt.breakthrough_type}] {bt.title}")
+
+        # Log to file
+        try:
+            with open(cfg.LOG_FILE, "a") as f:
+                f.write(
+                    f"[BREAKTHROUGH] {bt.breakthrough_type} "
+                    f"| {bt.title} "
+                    f"| novelty={bt.novelty_score:.2f} impact={bt.impact_score:.2f}\n"
+                )
+        except Exception as e:
+            log.error(f"Failed to write breakthrough log: {e}")
+
+        # Desktop notification
+        if cfg.DESKTOP_NOTIFICATIONS:
+            try:
+                import subprocess
+                subprocess.run(
+                    [
+                        "osascript", "-e",
+                        f'display notification "{body}" with title "{title}"',
+                    ],
+                    capture_output=True,
+                    timeout=5,
+                )
+            except Exception as e:
+                log.warning(f"Breakthrough desktop notification failed: {e}")
+
     @property
     def alert_count(self) -> int:
         return self._alert_count
