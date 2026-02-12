@@ -30,6 +30,7 @@ from .insight_extractor import extract_insight_for_moment
 from .session_coherence import generate_session_embedding
 from .emergence_listener import BreakthroughDetector
 from .knowledge_graph import extract_from_events
+from .significance import ArcDetector
 from mcp_raw.embeddings import embed_single, embed_texts
 
 import logging
@@ -66,6 +67,9 @@ class CoherenceDaemon:
         self._last_kg_extract_time = 0
         self._kg_extract_interval = 600  # KG entity extraction every 10 minutes
         self._kg_event_buffer: list = []  # Buffer events for batch KG extraction
+        self._last_arc_detect_time = 0
+        self._arc_detect_interval = 1800  # Arc detection every 30 minutes
+        self._moments_at_last_arc = 0     # Only run when new moments exist
 
     async def initialize(self):
         """Initialize components using an existing pool (injected via __init__)."""
@@ -300,6 +304,13 @@ class CoherenceDaemon:
             if buffered:
                 asyncio.create_task(self._kg_extract_pass(buffered))
 
+        # Periodic arc detection (every 30 min, only if new moments detected)
+        if (now - self._last_arc_detect_time > self._arc_detect_interval
+                and self._moments_detected > self._moments_at_last_arc):
+            self._last_arc_detect_time = now
+            self._moments_at_last_arc = self._moments_detected
+            asyncio.create_task(self._arc_detect_pass())
+
         return processed
 
     async def _kg_extract_pass(self, events: list):
@@ -313,6 +324,21 @@ class CoherenceDaemon:
                 )
         except Exception as e:
             log.warning(f"KG extraction pass failed: {e}")
+
+    async def _arc_detect_pass(self):
+        """Detect coherence arcs from accumulated moments."""
+        try:
+            detector = ArcDetector(pool=self._pool, overlap_threshold=0.15)
+            arcs = await detector.detect_arcs(limit=500)
+            multi = [a for a in arcs if a.moment_count >= 2]
+            if multi:
+                await detector.store_arcs(arcs)
+                log.info(
+                    f"Arc pass: {len(multi)} arcs "
+                    f"({sum(a.moment_count for a in multi)} moments)"
+                )
+        except Exception as e:
+            log.warning(f"Arc detection pass failed: {e}")
 
     async def _session_embed_pass(self):
         """Generate session embeddings for recently completed sessions."""
