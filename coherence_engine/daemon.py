@@ -96,11 +96,15 @@ class CoherenceDaemon:
         log.info("Coherence daemon starting...")
 
         if not self._pool:
+            async def _init_conn(conn):
+                await conn.execute(cfg.PG_INIT_SQL)
+
             self._pool = await asyncpg.create_pool(
                 cfg.PG_DSN,
                 min_size=cfg.PG_MIN_POOL,
                 max_size=cfg.PG_MAX_POOL,
                 command_timeout=30,
+                init=_init_conn,
             )
             self._owns_pool = True
 
