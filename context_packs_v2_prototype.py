@@ -191,17 +191,36 @@ class MultiGraphPackMemory:
         """Convert pack to text for embedding"""
         parts = []
 
-        # Keywords
+        # Keywords (at root in both old and new schemas)
         if 'keywords' in pack_data:
             parts.append(' '.join(pack_data['keywords']))
 
-        # Papers
+        # Description (new schema)
+        if 'description' in pack_data:
+            parts.append(pack_data['description'])
+
+        # Papers — old schema: root 'papers', new schema: context.papers_implemented/papers_adopted
         if 'papers' in pack_data:
             parts.extend([p.get('arxiv_id', '') for p in pack_data['papers']])
+        elif 'context' in pack_data:
+            ctx = pack_data['context']
+            papers = ctx.get('papers_implemented', ctx.get('papers_adopted', {}))
+            if isinstance(papers, dict):
+                parts.extend(papers.keys())
+            elif isinstance(papers, list):
+                parts.extend([p.get('arxiv_id', '') for p in papers])
 
-        # Learnings
+        # Learnings — old schema: root 'learnings', new schema: context.learnings
         if 'learnings' in pack_data:
-            parts.extend(pack_data['learnings'][:5])  # First 5 learnings
+            parts.extend(pack_data['learnings'][:5])
+        elif 'context' in pack_data:
+            ctx_learnings = pack_data['context'].get('learnings', [])
+            parts.extend(ctx_learnings[:5])
+
+        # Relevance triggers from metadata (new schema)
+        triggers = pack_data.get('metadata', {}).get('relevance_triggers', [])
+        if triggers:
+            parts.append(' '.join(triggers))
 
         return ' '.join(parts)
 
@@ -611,9 +630,20 @@ class AttentionPackPruner:
         Returns:
             (pruned_pack, pruning_metrics)
         """
-        # Handle V1 pack structure
+        # Handle V1 ('content') and V2 ('context' + top-level keywords) schemas
         pack_id = pack_data.get('pack_id') or pack_data.get('id')
-        content = pack_data.get('content', pack_data)
+        if 'content' in pack_data:
+            content = pack_data['content']
+        else:
+            ctx = pack_data.get('context', {})
+            papers = ctx.get('papers_implemented', ctx.get('papers_adopted', {}))
+            if isinstance(papers, dict):
+                papers = [{'arxiv_id': k, 'relevance': 5} for k in papers.keys()]
+            content = {
+                'keywords': pack_data.get('keywords', []),
+                'papers': papers if isinstance(papers, list) else [],
+                'learnings': ctx.get('learnings', []),
+            }
 
         # Simulate attention scores for different pack elements
         attention_scores = self._calculate_attention(content, query)
@@ -621,11 +651,12 @@ class AttentionPackPruner:
         # Adaptive threshold
         threshold = self._adaptive_threshold(attention_scores)
 
-        # Prune elements below threshold
+        # Prune elements below threshold (preserve size_tokens for display)
         pruned_pack = {
             'pack_id': pack_id,
             'id': pack_id,
             'type': pack_data.get('type', 'unknown'),
+            'size_tokens': pack_data.get('size_tokens', pack_data.get('metadata', {}).get('estimated_tokens', 0)),
             'papers': [],
             'learnings': [],
             'keywords': []

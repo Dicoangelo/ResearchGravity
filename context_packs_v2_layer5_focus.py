@@ -191,8 +191,20 @@ class FocusAgent:
         # Extract focus tokens
         focus_tokens = self.extract_query_focus(query)
 
-        # Get pack content
-        content = pack_data.get('content', pack_data)
+        # Get pack content — handle both old ('content') and new ('context' + top-level keywords) schemas
+        if 'content' in pack_data:
+            content = pack_data['content']
+        else:
+            # Build content-like dict from new schema
+            ctx = pack_data.get('context', {})
+            papers = ctx.get('papers_implemented', ctx.get('papers_adopted', {}))
+            if isinstance(papers, dict):
+                papers = [{'arxiv_id': k, 'relevance': 5} for k in papers.keys()]
+            content = {
+                'keywords': pack_data.get('keywords', []),
+                'papers': papers if isinstance(papers, list) else [],
+                'learnings': ctx.get('learnings', []),
+            }
 
         # Compute attention scores
         attention_scores = self.compute_attention(focus_tokens, content)
