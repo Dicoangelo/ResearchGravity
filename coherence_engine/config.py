@@ -17,6 +17,9 @@ PG_DSN = os.environ.get(
 PG_MIN_POOL = int(os.environ.get("UCW_PG_MIN_POOL", "2"))
 PG_MAX_POOL = int(os.environ.get("UCW_PG_MAX_POOL", "10"))
 
+# Per-connection init: set pgvector HNSW search depth for better recall
+PG_INIT_SQL = "SET hnsw.ef_search = 100;"
+
 # ── Embedding ─────────────────────────────────────────────
 EMBED_MODEL = "nomic-ai/nomic-embed-text-v1.5"
 EMBED_DIMENSIONS = 768
