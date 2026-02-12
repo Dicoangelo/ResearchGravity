@@ -54,7 +54,10 @@ CREATE TABLE IF NOT EXISTS cognitive_events (
     platform            TEXT DEFAULT 'claude-desktop',
     protocol            TEXT DEFAULT 'mcp',
     quality_score       REAL,                    -- 0.0 - 1.0
-    cognitive_mode      TEXT                     -- deep_work/exploration/casual/garbage
+    cognitive_mode      TEXT,                    -- deep_work/exploration/casual/garbage
+
+    -- Incremental processing
+    coherence_scanned_at TIMESTAMPTZ             -- Set after coherence engine processes event
 );
 
 -- Indexes for cognitive_events
@@ -62,15 +65,15 @@ CREATE INDEX IF NOT EXISTS idx_ce_timestamp     ON cognitive_events (timestamp_n
 CREATE INDEX IF NOT EXISTS idx_ce_session       ON cognitive_events (session_id);
 CREATE INDEX IF NOT EXISTS idx_ce_method        ON cognitive_events (method);
 CREATE INDEX IF NOT EXISTS idx_ce_direction     ON cognitive_events (direction);
-CREATE INDEX IF NOT EXISTS idx_ce_turn          ON cognitive_events (turn);
+-- idx_ce_turn dropped (0 scans) — re-add if needed
 CREATE INDEX IF NOT EXISTS idx_ce_coherence     ON cognitive_events (coherence_sig);
 CREATE INDEX IF NOT EXISTS idx_ce_platform      ON cognitive_events (platform);
 CREATE INDEX IF NOT EXISTS idx_ce_mode          ON cognitive_events (cognitive_mode);
 CREATE INDEX IF NOT EXISTS idx_ce_quality       ON cognitive_events (quality_score);
 
--- GIN index for JSONB queries
-CREATE INDEX IF NOT EXISTS idx_ce_light_gin     ON cognitive_events USING gin (light_layer);
-CREATE INDEX IF NOT EXISTS idx_ce_instinct_gin  ON cognitive_events USING gin (instinct_layer);
+-- Partial index for unscanned events (incremental coherence processing)
+CREATE INDEX IF NOT EXISTS idx_ce_unscanned ON cognitive_events (timestamp_ns ASC)
+    WHERE coherence_scanned_at IS NULL;
 
 -- ============================================================================
 -- 2. cognitive_sessions — Work sessions across platforms
@@ -115,6 +118,7 @@ CREATE TABLE IF NOT EXISTS coherence_moments (
     insight_novelty     REAL,                      -- 0.0 - 1.0 novelty score
     time_window_s       INTEGER,                   -- Window in seconds
     signature           TEXT,                      -- Shared coherence signature
+    window_scale        TEXT,                      -- micro/short/session/block/daily/weekly
     metadata            JSONB,
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
@@ -153,17 +157,25 @@ CREATE INDEX IF NOT EXISTS idx_cl_moment        ON coherence_links (moment_id);
 CREATE TABLE IF NOT EXISTS embedding_cache (
     content_hash        TEXT PRIMARY KEY,          -- SHA-256 of content
     content_preview     TEXT,                      -- First 200 chars
-    embedding           vector(384),               -- SBERT all-MiniLM-L6-v2 (384d)
+    embedding           vector(384),               -- Legacy SBERT all-MiniLM-L6-v2 (384d)
+    embedding_768       vector(768),               -- nomic-embed-text-v1.5 (768d, primary)
     model               TEXT NOT NULL,             -- Model used
     dimensions          INTEGER NOT NULL,          -- Vector dimensions
     source_event_id     TEXT,                      -- Optional FK
+    content_tsv         tsvector,                  -- Full-text search
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
--- HNSW index for fast similarity search
-CREATE INDEX IF NOT EXISTS idx_ec_embedding
-    ON embedding_cache USING hnsw (embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
+-- HNSW index for 768d nomic embeddings (primary search path)
+CREATE INDEX IF NOT EXISTS idx_ec_hnsw_768
+    ON embedding_cache USING hnsw (embedding_768 vector_cosine_ops)
+    WITH (m = 16, ef_construction = 200);
+
+-- Source event lookup (critical for daemon JOIN performance)
+CREATE INDEX IF NOT EXISTS idx_ec_source_event ON embedding_cache (source_event_id);
+
+-- Full-text search
+CREATE INDEX IF NOT EXISTS idx_ec_content_tsv ON embedding_cache USING gin (content_tsv);
 
 -- ============================================================================
 -- 6. cognitive_signatures — Unique patterns for coherence detection
