@@ -24,6 +24,21 @@ AGENT_CORE = Path.home() / ".agent-core"
 PACK_DIR = AGENT_CORE / "context-packs"
 
 
+def _get_content(pack: Dict) -> Dict:
+    """Get pack content dict, compatible with both old ('content') and new ('context' + top-level keywords) schemas."""
+    if 'content' in pack:
+        return pack['content']
+    # Build a content-like dict from new schema
+    result = {}
+    result['keywords'] = pack.get('keywords', pack.get('metadata', {}).get('relevance_triggers', []))
+    result['papers'] = pack.get('context', {}).get('papers_implemented', pack.get('context', {}).get('papers_adopted', {}))
+    if isinstance(result['papers'], dict):
+        result['papers'] = [{'arxiv_id': k, 'relevance': 5} for k in result['papers'].keys()]
+    result['learnings'] = pack.get('context', {}).get('learnings', [])
+    result['implementations'] = pack.get('context', {}).get('implementations', [])
+    return result
+
+
 class DQScorer:
     """DQ Scoring: Validity (40%) + Specificity (30%) + Correctness (30%)"""
 
@@ -43,13 +58,14 @@ class DQScorer:
 
         # Keyword matching
         context_lower = context.lower()
-        keywords = pack['content'].get('keywords', [])
+        content = _get_content(pack)
+        keywords = content.get('keywords', [])
 
         matches = sum(1 for kw in keywords if kw.lower() in context_lower)
         keyword_score = min(matches / len(keywords) if keywords else 0, 1.0)
 
         # Paper relevance (if papers mentioned in context)
-        papers = pack['content'].get('papers', [])
+        papers = content.get('papers', [])
         paper_ids = [p.get('arxiv_id', '') for p in papers]
         paper_matches = sum(1 for pid in paper_ids if pid in context)
         paper_score = min(paper_matches / len(papers) if papers else 0, 1.0)
@@ -69,13 +85,14 @@ class DQScorer:
     def _score_specificity(self, pack: Dict, context: str) -> float:
         """How targeted is this pack (vs generic)?"""
 
-        keywords = pack['content'].get('keywords', [])
+        content = _get_content(pack)
+        keywords = content.get('keywords', [])
 
         # More keywords = more specific
         specificity_from_keywords = min(len(keywords) / 10, 1.0)
 
         # More papers = more specific
-        papers = pack['content'].get('papers', [])
+        papers = content.get('papers', [])
         specificity_from_papers = min(len(papers) / 5, 1.0)
 
         # Pack type specificity
@@ -495,7 +512,7 @@ class PackSelector:
             lines.append(f"- Size: {pack['size_tokens']} tokens")
             lines.append(f"- DQ Score: {dq:.3f}")
             lines.append(f"- Consensus Score: {consensus:.3f}")
-            lines.append(f"- Keywords: {', '.join(pack['content'].get('keywords', []))}\n")
+            lines.append(f"- Keywords: {', '.join(_get_content(pack).get('keywords', []))}\n")
 
         lines.append("\n## ACE Agent Weights\n")
         for agent, weight in metadata['ace_weights'].items():

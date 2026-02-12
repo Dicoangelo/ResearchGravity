@@ -169,7 +169,7 @@ class MultiGraphPackMemory:
             metadata={
                 'created': pack_data.get('created', ''),
                 'version': pack_data.get('version', 1),
-                'tokens': pack_data.get('size_tokens') or pack_data.get('estimated_tokens', 0)
+                'tokens': pack_data.get('size_tokens') or pack_data.get('metadata', {}).get('estimated_tokens', 0) or pack_data.get('estimated_tokens', 0)
             }
         )
 
@@ -511,7 +511,7 @@ class MultiAgentPackRouter:
             # Token efficiency
             for pack_id in all_packs:
                 pack_node = self.memory.packs[pack_id]
-                tokens = pack_node.metadata.get('tokens', 100)
+                tokens = pack_node.metadata.get('tokens', 100) or 100
                 # Lower tokens = higher score
                 votes[pack_id] = 1.0 / (tokens / 100.0)
 

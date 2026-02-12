@@ -127,12 +127,24 @@ class NotebookLMMCPServer:
     # ── API client initialization ───────────────────────────────────
 
     def _init_api_client(self):
-        """Initialize the NotebookLM API client from env cookies."""
+        """Initialize the NotebookLM API client from env or cached cookies."""
         cookies = os.environ.get("NOTEBOOKLM_COOKIES", "")
+        source = "NOTEBOOKLM_COOKIES env"
+
+        # Fall back to disk-cached cookies if env var is empty
+        if not cookies:
+            try:
+                from .tools.notebooklm_tools import _load_cookies_from_disk
+                cookies = _load_cookies_from_disk()
+                if cookies:
+                    source = "cached cookies on disk"
+            except Exception as exc:
+                log.debug(f"Could not load cached cookies: {exc}")
+
         if cookies:
             try:
                 self._api_client = NotebookLMAPIClient(cookies=cookies)
-                log.info("NotebookLM API client initialized from NOTEBOOKLM_COOKIES")
+                log.info(f"NotebookLM API client initialized from {source}")
             except Exception as exc:
                 log.warning(f"Failed to init API client: {exc}")
                 self._api_client = None
