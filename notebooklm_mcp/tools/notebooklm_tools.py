@@ -39,6 +39,8 @@ log = get_logger("notebooklm_tools")
 # Module-level state (injected by server)
 _api_client: Optional[NotebookLMAPIClient] = None
 _cognitive: Optional[CognitiveLayer] = None
+_pg_pool = None  # Set by server when DB is ready
+_embedding_pipeline = None  # Set by server when embeddings are ready
 
 
 def set_api_client(client: NotebookLMAPIClient):
@@ -49,6 +51,36 @@ def set_api_client(client: NotebookLMAPIClient):
 def set_cognitive(layer: CognitiveLayer):
     global _cognitive
     _cognitive = layer
+
+
+def set_db_pool(pool, embedding_pipeline=None):
+    global _pg_pool, _embedding_pipeline
+    _pg_pool = pool
+    _embedding_pipeline = embedding_pipeline
+    # Auto-init cognitive layer in search-only mode when DB arrives
+    _init_cognitive_if_ready()
+
+
+def _init_cognitive_if_ready():
+    """Initialize or upgrade cognitive layer when DB/API become available."""
+    global _cognitive
+    # Need at least DB pool for cognitive search
+    if not _pg_pool:
+        return
+    # Initialize if missing, or upgrade if API client now available
+    needs_init = not _cognitive or not _cognitive.available
+    needs_upgrade = _cognitive and _api_client and not _cognitive._api
+    if needs_init or needs_upgrade:
+        try:
+            _cognitive = CognitiveLayer(
+                api_client=_api_client,  # May be None — search-only mode
+                pg_pool=_pg_pool,
+                embedding_pipeline=_embedding_pipeline,
+            )
+            mode = "full" if _api_client else "search-only"
+            log.info(f"Cognitive layer initialized ({mode})")
+        except Exception as exc:
+            log.warning(f"Cognitive layer init failed: {exc}")
 
 
 def _require_auth() -> NotebookLMAPIClient:
@@ -1071,7 +1103,8 @@ async def _h_note_delete(args: dict) -> dict:
 
 async def _h_save_auth_tokens(args: dict) -> dict:
     import os
-    global _api_client
+    import asyncio
+    global _api_client, _pg_pool
     cookies = args["cookies"]
     # Also save to env for persistence within session
     os.environ["NOTEBOOKLM_COOKIES"] = cookies
@@ -1079,7 +1112,18 @@ async def _h_save_auth_tokens(args: dict) -> dict:
         _api_client = NotebookLMAPIClient(cookies=cookies)
         # Verify by listing notebooks
         nbs = _api_client.list_notebooks()
-        return _ok(f"Authenticated. Found {len(nbs)} notebooks.")
+
+        # Wait for DB background init if not ready yet (up to 5s)
+        if _pg_pool is None:
+            for _ in range(10):
+                await asyncio.sleep(0.5)
+                if _pg_pool is not None:
+                    break
+
+        # Re-initialize cognitive layer now that we have auth + DB may be ready
+        _init_cognitive_if_ready()
+        cognitive_status = "cognitive=active" if (_cognitive and _cognitive.available) else "cognitive=pending"
+        return _ok(f"Authenticated. Found {len(nbs)} notebooks. ({cognitive_status})")
     except Exception as exc:
         _api_client = None
         return _err(f"Authentication failed: {exc}")
@@ -1125,10 +1169,20 @@ async def _h_cognitive_search(args: dict) -> dict:
         return _ok("No results found.")
     lines = [f"Found {len(results)} results:\n"]
     for r in results:
-        score = r.get("score", r.get("relevance_score", 0))
-        platform = r.get("platform", "unknown")
-        content = r.get("content", "")[:200]
-        lines.append(f"  [{score:.3f}] [{platform}] {content}")
+        # Handle both dict and HybridResult objects
+        if isinstance(r, dict):
+            score = r.get("score", r.get("rrf_score", 0)) or 0
+            platform = r.get("platform", "unknown")
+            content = r.get("content", r.get("preview", ""))[:200]
+            session = r.get("session_id", "")[:16]
+            mode = r.get("cognitive_mode", "")
+        else:
+            score = getattr(r, "rrf_score", 0) or 0
+            platform = getattr(r, "platform", "unknown")
+            content = getattr(r, "preview", "")[:200]
+            session = (getattr(r, "session_id", "") or "")[:16]
+            mode = getattr(r, "cognitive_mode", "")
+        lines.append(f"  [{score:.4f}] [{platform}] [{mode}] {content}")
     return _ok("\n".join(lines))
 
 
@@ -1140,7 +1194,11 @@ async def _h_cognitive_insights(args: dict) -> dict:
         return _ok("No insights due for review.")
     lines = [f"Due for review ({len(insights)}):\n"]
     for i in insights:
-        lines.append(f"  - {i.get('content', '')[:200]}")
+        desc = i.get("description", i.get("content", ""))
+        platforms = i.get("platforms", [])
+        ctype = i.get("coherence_type", "")
+        plat_str = f" [{', '.join(platforms)}]" if platforms else ""
+        lines.append(f"  - [{ctype}]{plat_str} {desc[:200]}")
     return _ok("\n".join(lines))
 
 

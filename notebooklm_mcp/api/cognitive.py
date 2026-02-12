@@ -28,7 +28,7 @@ class CognitiveLayer:
     Gracefully degrades when cognitive DB is unavailable.
     """
 
-    def __init__(self, api_client, pg_pool=None, embedding_pipeline=None):
+    def __init__(self, api_client=None, pg_pool=None, embedding_pipeline=None):
         self._api = api_client
         self._pool = pg_pool
         self._embeddings = embedding_pipeline
