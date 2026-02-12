@@ -28,6 +28,7 @@ from .alerts import AlertSystem
 from .temporal import MultiScaleDetector
 from .insight_extractor import extract_insight_for_moment
 from .session_coherence import generate_session_embedding
+from .emergence_listener import BreakthroughDetector
 from mcp_raw.embeddings import embed_single, embed_texts
 
 import logging
@@ -59,6 +60,8 @@ class CoherenceDaemon:
         self._mode = "poll"  # "poll" or "realtime"
         self._last_session_embed_time = 0  # Track when we last ran session embedding
         self._session_embed_interval = 300  # Run every 5 minutes
+        self._last_emergence_scan_time = 0
+        self._emergence_scan_interval = 900  # Scan for breakthroughs every 15 minutes
 
     async def initialize(self):
         """Initialize components using an existing pool (injected via __init__)."""
@@ -275,6 +278,11 @@ class CoherenceDaemon:
             self._last_session_embed_time = now
             asyncio.create_task(self._session_embed_pass())
 
+        # Periodic emergence scan (every 15 minutes)
+        if now - self._last_emergence_scan_time > self._emergence_scan_interval:
+            self._last_emergence_scan_time = now
+            asyncio.create_task(self._emergence_scan())
+
         return processed
 
     async def _session_embed_pass(self):
@@ -348,6 +356,22 @@ class CoherenceDaemon:
                 )
         except Exception as e:
             log.warning(f"Insight extraction failed for {moment_id}: {e}")
+
+    async def _emergence_scan(self):
+        """Periodic scan for cognitive breakthroughs."""
+        try:
+            detector = BreakthroughDetector(self._pool)
+            breakthroughs = await detector.scan_and_store()
+            if breakthroughs:
+                log.info(
+                    f"Emergence scan: {len(breakthroughs)} breakthroughs detected — "
+                    + ", ".join(bt.title for bt in breakthroughs[:3])
+                )
+                # Send alert for each breakthrough
+                for bt in breakthroughs:
+                    await self._alerts.notify_breakthrough(bt)
+        except Exception as e:
+            log.warning(f"Emergence scan failed: {e}")
 
     async def _process_event(self, event: dict):
         """Process a single event through the full coherence pipeline (legacy)."""
