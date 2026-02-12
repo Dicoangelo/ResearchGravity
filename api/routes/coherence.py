@@ -467,6 +467,230 @@ async def list_insights(
     }
 
 
+# ── Capture (Chrome Extension) ──────────────────────────
+
+
+from pydantic import BaseModel
+
+
+class ExtensionEvent(BaseModel):
+    """Event captured by the UCW Chrome extension."""
+    platform: str
+    content: str
+    direction: str = "in"  # "in" (assistant) or "out" (user)
+    url: Optional[str] = None
+    topic: Optional[str] = None
+    intent: Optional[str] = None
+    concepts: Optional[list] = None
+    session_hint: Optional[str] = None
+    metadata: Optional[dict] = None
+
+
+@router.post("/capture/extension")
+async def capture_extension_event(event: ExtensionEvent):
+    """
+    Receive a cognitive event from the UCW Chrome extension.
+
+    Stores the event in cognitive_events with full UCW semantic layers.
+    Returns the created event_id for correlation.
+    """
+    import hashlib
+    import time
+
+    pool = await _get_pool()
+
+    now_ns = time.time_ns()
+    event_id = f"ext-{hashlib.sha256(f'{now_ns}{event.content[:50]}'.encode()).hexdigest()[:16]}"
+
+    # Build session_id from hint or generate
+    session_id = event.session_hint or f"ext-{event.platform}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H')}"
+
+    # Build semantic layers
+    data_layer = json.dumps({"content": event.content[:10000], "source_url": event.url})
+    light_layer = json.dumps({
+        "topic": event.topic or "",
+        "intent": event.intent or "",
+        "concepts": event.concepts or [],
+        "summary": event.content[:200],
+    })
+    instinct_layer = json.dumps({
+        "coherence_potential": 0.5,
+        "gut_signal": "extension_capture",
+    })
+
+    # Compute coherence signature
+    sig_text = f"{event.platform}:{event.topic or ''}:{event.content[:100]}"
+    coherence_sig = hashlib.sha256(sig_text.encode()).hexdigest()[:32]
+
+    async with pool.acquire() as conn:
+        # Upsert session
+        await conn.execute(
+            """INSERT INTO cognitive_sessions
+                   (session_id, platform, started_ns, status, event_count)
+               VALUES ($1, $2, $3, 'active', 1)
+               ON CONFLICT (session_id) DO UPDATE SET
+                   event_count = cognitive_sessions.event_count + 1,
+                   last_event_ns = $3""",
+            session_id, event.platform, now_ns,
+        )
+
+        # Insert event
+        await conn.execute(
+            """INSERT INTO cognitive_events
+                   (event_id, session_id, timestamp_ns, platform,
+                    direction, method,
+                    data_layer, light_layer, instinct_layer,
+                    coherence_sig)
+               VALUES ($1, $2, $3, $4, $5, 'extension',
+                       $6::jsonb, $7::jsonb, $8::jsonb, $9)""",
+            event_id, session_id, now_ns, event.platform,
+            event.direction,
+            data_layer, light_layer, instinct_layer,
+            coherence_sig,
+        )
+
+    return {
+        "status": "captured",
+        "event_id": event_id,
+        "session_id": session_id,
+        "platform": event.platform,
+        "timestamp_ns": now_ns,
+    }
+
+
+@router.post("/capture/extension/batch")
+async def capture_extension_batch(events: list[ExtensionEvent]):
+    """Batch capture multiple events from the Chrome extension."""
+    results = []
+    for event in events[:50]:  # Cap at 50 per batch
+        try:
+            result = await capture_extension_event(event)
+            results.append(result)
+        except Exception as e:
+            results.append({"status": "error", "error": str(e)})
+
+    return {
+        "captured": len([r for r in results if r.get("status") == "captured"]),
+        "errors": len([r for r in results if r.get("status") == "error"]),
+        "results": results,
+    }
+
+
+# ── Session Coherence ──────────────────────────────────
+
+
+@router.get("/session-coherence")
+async def session_coherence(
+    hours: int = Query(168, ge=1, le=8760),
+    min_similarity: float = Query(0.55, ge=0.0, le=1.0),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Find cross-platform session coherence pairs."""
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT
+                a.session_id AS session_a,
+                b.session_id AS session_b,
+                a.platform AS platform_a,
+                b.platform AS platform_b,
+                a.session_summary AS summary_a,
+                b.session_summary AS summary_b,
+                1 - (a.session_embedding <=> b.session_embedding) AS similarity
+            FROM cognitive_sessions a
+            CROSS JOIN cognitive_sessions b
+            WHERE a.session_id < b.session_id
+              AND a.session_embedding IS NOT NULL
+              AND b.session_embedding IS NOT NULL
+              AND a.platform != b.platform
+              AND a.started_ns > EXTRACT(EPOCH FROM (NOW() - make_interval(hours => $1))) * 1e9
+              AND 1 - (a.session_embedding <=> b.session_embedding) >= $2
+            ORDER BY similarity DESC
+            LIMIT $3
+            """,
+            hours,
+            min_similarity,
+            limit,
+        )
+
+    return {
+        "pairs": [
+            {
+                "session_a": r["session_a"],
+                "session_b": r["session_b"],
+                "platform_a": r["platform_a"],
+                "platform_b": r["platform_b"],
+                "summary_a": r["summary_a"],
+                "summary_b": r["summary_b"],
+                "similarity": float(r["similarity"]),
+            }
+            for r in rows
+        ],
+        "total": len(rows),
+    }
+
+
+@router.get("/concept-evolution")
+async def concept_evolution(
+    concept: Optional[str] = Query(None),
+    min_versions: int = Query(2, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Get concept evolution chains from the knowledge graph."""
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        if concept:
+            rows = await conn.fetch(
+                """SELECT concept, version, definition, first_seen_ns,
+                          last_seen_ns, platform, session_id, evolved_from
+                   FROM concept_versions
+                   WHERE concept = $1
+                   ORDER BY version ASC""",
+                concept.lower(),
+            )
+            return {
+                "concept": concept.lower(),
+                "versions": [
+                    {
+                        "version": r["version"],
+                        "definition": r["definition"],
+                        "platform": r["platform"],
+                        "session_id": r["session_id"],
+                        "evolved_from": r["evolved_from"],
+                        "first_seen": _ns_to_iso(r["first_seen_ns"]),
+                        "last_seen": _ns_to_iso(r["last_seen_ns"]),
+                    }
+                    for r in rows
+                ],
+                "total_versions": len(rows),
+            }
+        else:
+            rows = await conn.fetch(
+                """SELECT concept, COUNT(*) AS version_count,
+                          MAX(version) AS latest_version,
+                          COUNT(DISTINCT platform) AS platform_count
+                   FROM concept_versions
+                   GROUP BY concept
+                   HAVING COUNT(*) >= $1
+                   ORDER BY version_count DESC
+                   LIMIT $2""",
+                min_versions, limit,
+            )
+            return {
+                "evolving_concepts": [
+                    {
+                        "concept": r["concept"],
+                        "version_count": r["version_count"],
+                        "latest_version": r["latest_version"],
+                        "platform_count": r["platform_count"],
+                    }
+                    for r in rows
+                ],
+                "total": len(rows),
+            }
+
+
 @router.get("/breakthroughs")
 async def list_breakthroughs(
     limit: int = Query(20, ge=1, le=100),

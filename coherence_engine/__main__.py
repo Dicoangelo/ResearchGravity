@@ -240,6 +240,78 @@ async def cmd_insights():
     await pool.close()
 
 
+async def cmd_concept_evolution():
+    """Show concept evolution chains and auto-track from events."""
+    import asyncpg
+    from .concept_evolution import ConceptEvolutionTracker
+
+    subcmd = sys.argv[2] if len(sys.argv) > 2 else "show"
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+    tracker = ConceptEvolutionTracker(pool)
+
+    if subcmd == "track":
+        limit = 500
+        for arg in sys.argv[3:]:
+            if arg.startswith("--limit="):
+                limit = int(arg.split("=")[1])
+        print(f"Auto-tracking concept evolution from {limit} events...")
+        count = await tracker.auto_track_from_events(limit=limit)
+        print(f"Done: {count} concept versions tracked")
+
+    elif subcmd == "show":
+        hours = 168
+        for arg in sys.argv[3:]:
+            if arg.startswith("--hours="):
+                hours = int(arg.split("=")[1])
+        print(f"Finding evolved concepts (last {hours}h)...")
+        chains = await tracker.detect_evolutions(since_hours=hours, min_versions=2)
+        if chains:
+            print(f"\n{len(chains)} evolving concepts found:\n")
+            for chain in chains[:20]:
+                print(f"  {chain.concept} (v{chain.total_versions}, {chain.time_span_hours:.0f}h)")
+                print(f"    Platforms: {', '.join(chain.platforms_involved)}")
+                for v in chain.versions[:3]:
+                    defn = v.definition[:80] if v.definition else ""
+                    print(f"    v{v.version}: {defn}")
+                print()
+        else:
+            print("No concept evolutions detected yet.")
+            print("Run: python3 -m coherence_engine concept-evolution track")
+
+    else:
+        print("Usage: python3 -m coherence_engine concept-evolution <show|track>")
+        print("  show    Show evolved concepts (--hours=N)")
+        print("  track   Auto-track from events (--limit=N)")
+
+    await pool.close()
+
+
+async def cmd_semantic():
+    """Run LLM-powered semantic entity extraction on cognitive events."""
+    import asyncpg
+    from .knowledge_graph import semantic_extract_batch
+
+    batch_size = 50
+    start_offset = 0
+    for arg in sys.argv[2:]:
+        if arg.startswith("--batch="):
+            batch_size = int(arg.split("=")[1])
+        elif arg.startswith("--offset="):
+            start_offset = int(arg.split("=")[1])
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+
+    print(f"Running semantic extraction (batch={batch_size}, offset={start_offset})...")
+    result = await semantic_extract_batch(pool, limit=batch_size, offset=start_offset)
+    await pool.close()
+
+    print(f"\nSemantic Extraction Complete:")
+    print(f"  Events processed: {result['events_processed']}")
+    print(f"  Entities created: {result['entities_created']}")
+    print(f"  Edges created:    {result['edges_created']}")
+
+
 async def cmd_emergence():
     """Scan for cognitive breakthroughs (emergence signals)."""
     import asyncpg
@@ -347,6 +419,8 @@ def main():
         print("  insights          Extract real insights from moments via LLM (--moment=ID | --limit=N)")
         print("  emergence         Scan for cognitive breakthroughs")
         print("  sessions          Session embeddings + cross-platform coherence (embed|coherence)")
+        print("  semantic          LLM-powered entity + relationship extraction (--batch=N --offset=N)")
+        print("  concept-evolution Concept evolution tracking (show|track) (--hours=N --limit=N)")
         print("  founding-moment   Validate 2026-02-06 founding moment detection")
         sys.exit(1)
 
@@ -364,6 +438,8 @@ def main():
         "insights": cmd_insights,
         "emergence": cmd_emergence,
         "sessions": cmd_sessions,
+        "semantic": cmd_semantic,
+        "concept-evolution": cmd_concept_evolution,
     }
 
     handler = commands.get(cmd)

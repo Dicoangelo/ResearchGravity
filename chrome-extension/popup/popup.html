@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UCW Sovereign Capture</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>UCW Capture</h1>
+      <span id="status" class="status active">Active</span>
+    </header>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-value" id="capture-count">0</span>
+        <span class="stat-label">Captured</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="queue-size">0</span>
+        <span class="stat-label">Queued</span>
+      </div>
+    </div>
+
+    <div class="platforms">
+      <h2>Platforms</h2>
+      <label><input type="checkbox" id="toggle-chatgpt" checked> ChatGPT</label>
+      <label><input type="checkbox" id="toggle-grok" checked> Grok</label>
+      <label><input type="checkbox" id="toggle-gemini" checked> Gemini</label>
+      <label><input type="checkbox" id="toggle-notebooklm" checked> NotebookLM</label>
+      <label><input type="checkbox" id="toggle-youtube" checked> YouTube</label>
+    </div>
+
+    <div class="settings">
+      <h2>Server</h2>
+      <input type="text" id="server-url" placeholder="http://localhost:3847/api/v2/coherence/capture/extension">
+    </div>
+
+    <div class="actions">
+      <button id="btn-flush">Flush Queue</button>
+      <button id="btn-toggle" class="primary">Pause</button>
+    </div>
+
+    <footer>
+      <a href="https://dicoangelo.metaventionsai.com" target="_blank">Metaventions AI</a>
+      <span>v0.1.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -745,6 +745,318 @@ async def spreading_activation(
     return activations
 
 
+# ── Semantic Extractor (LLM-Powered) ─────────────────────
+
+SEMANTIC_EXTRACT_PROMPT = """Extract entities and relationships from this cognitive event.
+
+## Event
+Platform: {platform}
+Direction: {direction}
+Topic: {topic}
+Content:
+{content}
+
+## Instructions
+Extract ALL meaningful entities and the relationships between them. Focus on:
+- **Concepts**: Ideas, theories, approaches, patterns being discussed
+- **Decisions**: Choices made or proposed
+- **Questions**: Open questions or hypotheses
+- **Tools/Technologies**: Specific tools, libraries, frameworks mentioned
+- **Projects**: Named projects or systems
+- **People**: Named individuals
+
+For relationships, use these types:
+- **led_to**: X caused or resulted in Y
+- **builds_on**: X extends or builds upon Y
+- **contradicts**: X conflicts with Y
+- **inspired_by**: X was motivated by Y
+- **evolved_into**: X transformed into Y
+- **co_occurs**: X and Y appear together (use sparingly, prefer specific types)
+
+## Output (JSON)
+```json
+{{
+  "entities": [
+    {{"name": "entity name (lowercase)", "type": "concept|tool|project|person|decision|question", "confidence": 0.0-1.0}}
+  ],
+  "relationships": [
+    {{"source": "entity a", "target": "entity b", "type": "led_to|builds_on|contradicts|inspired_by|evolved_into|co_occurs", "evidence": "brief reason"}}
+  ]
+}}
+```
+
+Return at most 10 entities and 8 relationships. Only extract what's clearly present in the text.
+"""
+
+
+class SemanticExtractor:
+    """
+    LLM-powered entity and relationship extractor.
+
+    Extracts richer entities and meaningful relationship types
+    (led_to, builds_on, contradicts, etc.) instead of just co_occurs.
+
+    Uses the same LLM backend as InsightExtractor (Anthropic or Ollama).
+    """
+
+    VALID_RELATIONS = {
+        "led_to", "builds_on", "contradicts", "inspired_by",
+        "evolved_into", "co_occurs",
+    }
+
+    def __init__(self, provider: str = None):
+        import os
+        self._provider = provider or os.environ.get("UCW_LLM_PROVIDER", "anthropic")
+        self._model = os.environ.get("UCW_INSIGHT_MODEL", "claude-sonnet-4-5-20250929")
+        self._ollama_model = os.environ.get("UCW_OLLAMA_MODEL", "llama3.2")
+        self._ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+
+    async def extract(
+        self, event_row: Dict[str, Any]
+    ) -> Tuple[List[ExtractedEntity], List[Dict[str, str]]]:
+        """
+        Extract entities and relationships from a cognitive event via LLM.
+
+        Returns:
+            Tuple of (entities, relationships) where relationships are dicts
+            with keys: source, target, type, evidence
+        """
+        data_layer = event_row.get("data_layer") or {}
+        if isinstance(data_layer, str):
+            data_layer = json.loads(data_layer)
+        content = data_layer.get("content", "")
+
+        light_layer = event_row.get("light_layer") or {}
+        if isinstance(light_layer, str):
+            light_layer = json.loads(light_layer)
+
+        if not content or len(content) < 20:
+            return [], []
+
+        topic = light_layer.get("topic", "")
+        prompt = SEMANTIC_EXTRACT_PROMPT.format(
+            platform=event_row.get("platform", "unknown"),
+            direction=event_row.get("direction", ""),
+            topic=topic,
+            content=content[:2000],
+        )
+
+        raw = await self._call_llm(prompt)
+        if not raw:
+            return [], []
+
+        return self._parse_response(raw)
+
+    def _parse_response(
+        self, raw: str
+    ) -> Tuple[List[ExtractedEntity], List[Dict[str, str]]]:
+        """Parse the LLM JSON response into entities and relationships."""
+        try:
+            json_str = raw
+            if "```json" in json_str:
+                json_str = json_str.split("```json")[1].split("```")[0]
+            elif "```" in json_str:
+                json_str = json_str.split("```")[1].split("```")[0]
+
+            parsed = json.loads(json_str.strip())
+        except (json.JSONDecodeError, IndexError):
+            log.warning("Failed to parse SemanticExtractor JSON response")
+            return [], []
+
+        entities = []
+        seen_ids = set()
+        for item in parsed.get("entities", [])[:10]:
+            name = str(item.get("name", "")).strip().lower()
+            etype = str(item.get("type", "concept")).strip().lower()
+            if not name or len(name) < 2 or name in STOP_CONCEPTS:
+                continue
+            if etype not in ENTITY_TYPES and etype not in ("decision", "question"):
+                etype = "concept"
+            ent = ExtractedEntity(
+                entity_type=etype,
+                name=name,
+                confidence=float(item.get("confidence", 0.7)),
+                source="semantic_llm",
+            )
+            if ent.entity_id not in seen_ids:
+                seen_ids.add(ent.entity_id)
+                entities.append(ent)
+
+        relationships = []
+        for rel in parsed.get("relationships", [])[:8]:
+            rtype = str(rel.get("type", "co_occurs")).strip().lower()
+            if rtype not in self.VALID_RELATIONS:
+                rtype = "co_occurs"
+            src = str(rel.get("source", "")).strip().lower()
+            tgt = str(rel.get("target", "")).strip().lower()
+            if src and tgt and src != tgt:
+                relationships.append({
+                    "source": src,
+                    "target": tgt,
+                    "type": rtype,
+                    "evidence": str(rel.get("evidence", ""))[:200],
+                })
+
+        return entities, relationships
+
+    async def _call_llm(self, prompt: str) -> str:
+        """Call the configured LLM provider."""
+        if self._provider == "anthropic":
+            return await self._call_anthropic(prompt)
+        else:
+            return await self._call_ollama(prompt)
+
+    async def _call_anthropic(self, prompt: str) -> str:
+        try:
+            import anthropic
+        except ImportError:
+            log.error("anthropic package not installed")
+            return ""
+        client = anthropic.AsyncAnthropic()
+        try:
+            response = await client.messages.create(
+                model=self._model,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.content[0].text
+        except Exception as e:
+            log.error(f"Anthropic API call failed: {e}")
+            return ""
+
+    async def _call_ollama(self, prompt: str) -> str:
+        try:
+            import httpx
+        except ImportError:
+            log.error("httpx not installed")
+            return ""
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(
+                    f"{self._ollama_url}/api/generate",
+                    json={"model": self._ollama_model, "prompt": prompt, "stream": False},
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "")
+        except Exception as e:
+            log.error(f"Ollama call failed: {e}")
+            return ""
+
+
+async def semantic_extract_and_ingest(
+    pool: asyncpg.Pool,
+    event_row: Dict[str, Any],
+    extractor: Optional[SemanticExtractor] = None,
+    graph: Optional[GraphManager] = None,
+) -> Tuple[int, int]:
+    """
+    Extract entities + relationships from an event using LLM and ingest into graph.
+
+    Unlike extract_and_ingest_batch (regex), this uses LLM for deeper extraction
+    and creates typed relationships (led_to, builds_on, etc.) not just co_occurs.
+    """
+    if extractor is None:
+        extractor = SemanticExtractor()
+    if graph is None:
+        graph = GraphManager(pool)
+
+    entities, relationships = await extractor.extract(event_row)
+    if not entities:
+        return 0, 0
+
+    # Ingest entities (reuses existing GraphManager upsert)
+    n_ent, n_edge = await graph.ingest_entities(entities, event_row)
+
+    # Create typed relationship edges
+    typed_edges = 0
+    entity_name_to_id = {e.name: e.entity_id for e in entities}
+
+    for rel in relationships:
+        src_id = entity_name_to_id.get(rel["source"])
+        tgt_id = entity_name_to_id.get(rel["target"])
+        if not src_id or not tgt_id:
+            continue
+
+        # Sort for consistency
+        src_sorted, tgt_sorted = sorted([src_id, tgt_id])
+        edge_id = GraphManager._edge_id(src_sorted, tgt_sorted, rel["type"])
+        ts_ns = event_row.get("timestamp_ns", time.time_ns())
+        event_id = event_row.get("event_id", "")
+
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """INSERT INTO cognitive_edges
+                           (edge_id, source_entity, target_entity,
+                            relation_type, weight, evidence_count,
+                            first_seen_ns, last_seen_ns,
+                            t_valid_from, source_events)
+                       VALUES ($1, $2, $3, $4, 1.0, 1, $5, $5, $5, ARRAY[$6]::text[])
+                       ON CONFLICT (edge_id) DO UPDATE SET
+                           weight = cognitive_edges.weight + 0.2,
+                           evidence_count = cognitive_edges.evidence_count + 1,
+                           last_seen_ns = GREATEST(cognitive_edges.last_seen_ns, EXCLUDED.last_seen_ns)""",
+                    edge_id, src_sorted, tgt_sorted, rel["type"],
+                    ts_ns, event_id,
+                )
+                typed_edges += 1
+        except Exception as e:
+            log.warning(f"Typed edge insert failed: {e}")
+
+    return n_ent, n_edge + typed_edges
+
+
+async def semantic_extract_batch(
+    pool: asyncpg.Pool,
+    limit: int = 100,
+    offset: int = 0,
+) -> Dict[str, int]:
+    """
+    Batch semantic extraction on events. More expensive than regex but
+    produces richer entities and typed relationships.
+    """
+    extractor = SemanticExtractor()
+    graph = GraphManager(pool)
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT event_id, data_layer, light_layer, instinct_layer,
+                      platform, timestamp_ns, direction
+               FROM cognitive_events
+               WHERE light_layer IS NOT NULL
+                 AND (data_layer->>'content') IS NOT NULL
+                 AND length(data_layer->>'content') > 50
+               ORDER BY timestamp_ns DESC
+               LIMIT $1 OFFSET $2""",
+            limit, offset,
+        )
+
+    if not rows:
+        return {"events_processed": 0, "entities_created": 0, "edges_created": 0}
+
+    total_ent, total_edge = 0, 0
+    for i, row in enumerate(rows):
+        event = dict(row)
+        for fld in ("data_layer", "light_layer", "instinct_layer"):
+            if isinstance(event.get(fld), str):
+                event[fld] = json.loads(event[fld])
+
+        n_ent, n_edge = await semantic_extract_and_ingest(
+            pool, event, extractor, graph
+        )
+        total_ent += n_ent
+        total_edge += n_edge
+
+        if (i + 1) % 10 == 0:
+            log.info(f"Semantic extraction: {i+1}/{len(rows)} events, {total_ent} entities, {total_edge} edges")
+
+    return {
+        "events_processed": len(rows),
+        "entities_created": total_ent,
+        "edges_created": total_edge,
+    }
+
+
 # ── Batch Processing ─────────────────────────────────────────
 
 async def extract_and_ingest_batch(
