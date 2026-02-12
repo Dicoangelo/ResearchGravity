@@ -203,6 +203,43 @@ async def cmd_graph():
             print(f"    {e['name']} ({e['entity_type']}) — {e['mention_count']} mentions, {e['platform_count']} platforms")
 
 
+async def cmd_insights():
+    """Extract real insights from coherence moments via LLM synthesis."""
+    import asyncpg
+    from .insight_extractor import extract_insight_for_moment, backfill_insights
+
+    limit = 72
+    moment_id = None
+    for arg in sys.argv[2:]:
+        if arg.startswith("--limit="):
+            limit = int(arg.split("=")[1])
+        elif arg.startswith("--moment="):
+            moment_id = arg.split("=")[1]
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+
+    if moment_id:
+        print(f"Extracting insight for moment {moment_id}...")
+        result = await extract_insight_for_moment(pool, moment_id)
+        if result:
+            print(f"\n{'='*60}")
+            print(f"  Moment:   {result.moment_id}")
+            print(f"  Category: {result.category}")
+            print(f"  Novelty:  {result.novelty:.2f}")
+            print(f"  Summary:  {result.summary}")
+            print(f"{'='*60}")
+        else:
+            print("Failed to extract insight.")
+    else:
+        print(f"Backfilling insights on up to {limit} moments...")
+        results = await backfill_insights(pool, limit=limit)
+        print(f"\nDone: {len(results)} insights extracted")
+        for r in results[:10]:
+            print(f"  [{r.category}] (novelty={r.novelty:.2f}) {r.summary[:80]}...")
+
+    await pool.close()
+
+
 async def cmd_founding_moment():
     """Run the Founding Moment Validation test."""
     import asyncpg
@@ -234,6 +271,7 @@ def main():
         print("  retroactive       Retroactive analysis (--since YYYY-MM-DD | --all)")
         print("  consolidate       Nightly consolidation (arcs, FSRS, significance)")
         print("  graph             Extract entities into knowledge graph (--batch=N)")
+        print("  insights          Extract real insights from moments via LLM (--moment=ID | --limit=N)")
         print("  founding-moment   Validate 2026-02-06 founding moment detection")
         sys.exit(1)
 
@@ -248,6 +286,7 @@ def main():
         "founding-moment": cmd_founding_moment,
         "consolidate": cmd_consolidate,
         "graph": cmd_graph,
+        "insights": cmd_insights,
     }
 
     handler = commands.get(cmd)

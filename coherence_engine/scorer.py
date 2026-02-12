@@ -20,6 +20,7 @@ from .detector import (
 )
 from .similarity import SimilarityResult
 
+import asyncpg
 import logging
 
 log = logging.getLogger("coherence.scorer")
@@ -199,5 +200,7 @@ class CoherenceScorer:
                     metadata,
                     moment.window_scale,
                 )
+        except asyncpg.UniqueViolationError:
+            log.debug(f"Duplicate event pair for moment {moment.moment_id}, skipped")
         except Exception as e:
             log.error(f"Failed to store moment {moment.moment_id}: {e}")

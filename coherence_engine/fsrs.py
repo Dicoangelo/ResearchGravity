@@ -173,14 +173,20 @@ class InsightScheduler:
         # First review: tomorrow
         next_review = datetime.now(timezone.utc) + timedelta(days=1)
 
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                """INSERT INTO insight_schedule
-                   (insight_id, moment_id, difficulty, next_review)
-                   VALUES ($1, $2, $3, $4)
-                   ON CONFLICT (insight_id) DO NOTHING""",
-                insight_id, moment_id, difficulty, next_review,
-            )
+        try:
+            async with self._pool.acquire() as conn:
+                await conn.execute(
+                    """INSERT INTO insight_schedule
+                       (insight_id, moment_id, difficulty, next_review)
+                       VALUES ($1, $2, $3, $4)
+                       ON CONFLICT (insight_id) DO NOTHING""",
+                    insight_id, moment_id, difficulty, next_review,
+                )
+        except Exception as e:
+            if "uq_ins_moment_id" in str(e) or "unique" in str(e).lower():
+                pass  # Moment already scheduled, safe to skip
+            else:
+                raise
 
     async def get_due_insights(self, limit: int = 10) -> List[Dict]:
         """Get insights that are due for review."""
