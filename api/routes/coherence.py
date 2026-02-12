@@ -12,7 +12,9 @@ Endpoints:
     GET /api/v2/coherence/moment/{id}/signals — Signal breakdown
 """
 
+import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -20,6 +22,8 @@ import asyncpg
 from fastapi import APIRouter, Query
 
 from coherence_engine import config as cfg
+
+log = logging.getLogger("coherence.routes")
 
 router = APIRouter(prefix="/api/v2/coherence", tags=["coherence"])
 
@@ -486,93 +490,204 @@ class ExtensionEvent(BaseModel):
     metadata: Optional[dict] = None
 
 
+def _build_extension_event(event: ExtensionEvent):
+    """Build event fields for a single extension capture."""
+    import hashlib
+    import time
+
+    from capture.quality import score_event
+
+    now_ns = time.time_ns()
+
+    # Deterministic event_id from content hash (enables dedup)
+    sig_text = f"{event.platform}:{event.direction}:{event.content[:200]}"
+    coherence_sig = hashlib.sha256(sig_text.encode()).hexdigest()[:32]
+    event_id = f"ext-{coherence_sig[:16]}"
+
+    session_id = (
+        event.session_hint
+        or f"ext-{event.platform}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H')}"
+    )
+
+    content_trimmed = event.content[:10000]
+
+    # Estimate coherence potential from content structure
+    content_len = len(content_trimmed)
+    has_concepts = bool(event.concepts)
+    coherence_potential = min(
+        0.3 + (content_len / 5000) * 0.3 + (0.2 if has_concepts else 0), 0.9
+    )
+
+    data_layer = json.dumps(
+        {"content": content_trimmed, "source_url": event.url}
+    )
+    light_layer = json.dumps({
+        "topic": event.topic or "",
+        "intent": event.intent or "",
+        "concepts": event.concepts or [],
+        "summary": content_trimmed[:200],
+    })
+    instinct_layer = json.dumps({
+        "coherence_potential": round(coherence_potential, 2),
+        "gut_signal": "extension_capture",
+    })
+
+    # Quality score + cognitive mode classification
+    quality_score, cognitive_mode = score_event(
+        content_trimmed, event.direction, event.platform,
+    )
+
+    return {
+        "event_id": event_id,
+        "session_id": session_id,
+        "now_ns": now_ns,
+        "platform": event.platform,
+        "direction": event.direction,
+        "data_layer": data_layer,
+        "light_layer": light_layer,
+        "instinct_layer": instinct_layer,
+        "coherence_sig": coherence_sig,
+        "content_trimmed": content_trimmed,
+        "quality_score": quality_score,
+        "cognitive_mode": cognitive_mode,
+    }
+
+
+async def _store_extension_event(conn, fields: dict) -> dict:
+    """Store a single extension event in a connection (no pool.acquire)."""
+    # Dedup: check coherence_sig before insert (belt-and-suspenders with event_id PK)
+    existing = await conn.fetchval(
+        """SELECT event_id FROM cognitive_events
+           WHERE coherence_sig = $1 LIMIT 1""",
+        fields["coherence_sig"],
+    )
+    if existing:
+        return {
+            "status": "duplicate",
+            "event_id": existing,
+            "session_id": fields["session_id"],
+            "platform": fields["platform"],
+            "timestamp_ns": fields["now_ns"],
+            "quality_score": fields["quality_score"],
+            "cognitive_mode": fields["cognitive_mode"],
+        }
+
+    # Upsert session
+    await conn.execute(
+        """INSERT INTO cognitive_sessions
+               (session_id, platform, started_ns, status, event_count)
+           VALUES ($1, $2, $3, 'active', 1)
+           ON CONFLICT (session_id) DO UPDATE SET
+               event_count = cognitive_sessions.event_count + 1,
+               last_event_ns = $3""",
+        fields["session_id"], fields["platform"], fields["now_ns"],
+    )
+
+    # Insert event with ON CONFLICT for dedup
+    result = await conn.execute(
+        """INSERT INTO cognitive_events
+               (event_id, session_id, timestamp_ns, platform,
+                direction, method,
+                data_layer, light_layer, instinct_layer,
+                coherence_sig, quality_score, cognitive_mode)
+           VALUES ($1, $2, $3, $4, $5, 'extension',
+                   $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11)
+           ON CONFLICT (event_id) DO NOTHING""",
+        fields["event_id"], fields["session_id"], fields["now_ns"],
+        fields["platform"], fields["direction"],
+        fields["data_layer"], fields["light_layer"],
+        fields["instinct_layer"], fields["coherence_sig"],
+        fields["quality_score"], fields["cognitive_mode"],
+    )
+
+    inserted = result != "INSERT 0 0"
+
+    return {
+        "status": "captured" if inserted else "duplicate",
+        "event_id": fields["event_id"],
+        "session_id": fields["session_id"],
+        "platform": fields["platform"],
+        "timestamp_ns": fields["now_ns"],
+        "quality_score": fields["quality_score"],
+        "cognitive_mode": fields["cognitive_mode"],
+    }
+
+
+async def _trigger_embedding(pool, fields: dict):
+    """Fire-and-forget embedding for a captured extension event."""
+    try:
+        from coherence_engine.embeddings import embed_event_row
+        event_row = {
+            "event_id": fields["event_id"],
+            "data_layer": json.loads(fields["data_layer"]),
+            "light_layer": json.loads(fields["light_layer"]),
+            "platform": fields["platform"],
+            "cognitive_mode": fields["cognitive_mode"],
+        }
+        await embed_event_row(pool, event_row)
+    except Exception as e:
+        log.warning(f"Embedding trigger failed for {fields['event_id']}: {e}")
+
+
 @router.post("/capture/extension")
 async def capture_extension_event(event: ExtensionEvent):
     """
     Receive a cognitive event from the UCW Chrome extension.
 
     Stores the event in cognitive_events with full UCW semantic layers.
-    Returns the created event_id for correlation.
+    Uses deterministic event_id for dedup (ON CONFLICT DO NOTHING).
+    Triggers async embedding for immediate hybrid search availability.
     """
-    import hashlib
-    import time
-
     pool = await _get_pool()
-
-    now_ns = time.time_ns()
-    event_id = f"ext-{hashlib.sha256(f'{now_ns}{event.content[:50]}'.encode()).hexdigest()[:16]}"
-
-    # Build session_id from hint or generate
-    session_id = event.session_hint or f"ext-{event.platform}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H')}"
-
-    # Build semantic layers
-    data_layer = json.dumps({"content": event.content[:10000], "source_url": event.url})
-    light_layer = json.dumps({
-        "topic": event.topic or "",
-        "intent": event.intent or "",
-        "concepts": event.concepts or [],
-        "summary": event.content[:200],
-    })
-    instinct_layer = json.dumps({
-        "coherence_potential": 0.5,
-        "gut_signal": "extension_capture",
-    })
-
-    # Compute coherence signature
-    sig_text = f"{event.platform}:{event.topic or ''}:{event.content[:100]}"
-    coherence_sig = hashlib.sha256(sig_text.encode()).hexdigest()[:32]
+    fields = _build_extension_event(event)
 
     async with pool.acquire() as conn:
-        # Upsert session
-        await conn.execute(
-            """INSERT INTO cognitive_sessions
-                   (session_id, platform, started_ns, status, event_count)
-               VALUES ($1, $2, $3, 'active', 1)
-               ON CONFLICT (session_id) DO UPDATE SET
-                   event_count = cognitive_sessions.event_count + 1,
-                   last_event_ns = $3""",
-            session_id, event.platform, now_ns,
-        )
+        result = await _store_extension_event(conn, fields)
 
-        # Insert event
-        await conn.execute(
-            """INSERT INTO cognitive_events
-                   (event_id, session_id, timestamp_ns, platform,
-                    direction, method,
-                    data_layer, light_layer, instinct_layer,
-                    coherence_sig)
-               VALUES ($1, $2, $3, $4, $5, 'extension',
-                       $6::jsonb, $7::jsonb, $8::jsonb, $9)""",
-            event_id, session_id, now_ns, event.platform,
-            event.direction,
-            data_layer, light_layer, instinct_layer,
-            coherence_sig,
-        )
+    # Fire-and-forget embedding (don't block response)
+    if result.get("status") == "captured":
+        asyncio.create_task(_trigger_embedding(pool, fields))
 
-    return {
-        "status": "captured",
-        "event_id": event_id,
-        "session_id": session_id,
-        "platform": event.platform,
-        "timestamp_ns": now_ns,
-    }
+    return result
 
 
 @router.post("/capture/extension/batch")
 async def capture_extension_batch(events: list[ExtensionEvent]):
-    """Batch capture multiple events from the Chrome extension."""
+    """
+    Batch capture multiple events from the Chrome extension.
+
+    Uses a single transaction for atomicity. Deduplicates via coherence_sig.
+    Cap: 50 events per batch.
+    """
+    pool = await _get_pool()
     results = []
-    for event in events[:50]:  # Cap at 50 per batch
-        try:
-            result = await capture_extension_event(event)
-            results.append(result)
-        except Exception as e:
-            results.append({"status": "error", "error": str(e)})
+    captured_fields = []
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for event in events[:50]:
+                try:
+                    fields = _build_extension_event(event)
+                    result = await _store_extension_event(conn, fields)
+                    results.append(result)
+                    if result.get("status") == "captured":
+                        captured_fields.append(fields)
+                except Exception as e:
+                    results.append({"status": "error", "error": str(e)})
+
+    # Fire-and-forget batch embedding (after transaction commits)
+    for fields in captured_fields:
+        asyncio.create_task(_trigger_embedding(pool, fields))
+
+    captured = len([r for r in results if r.get("status") == "captured"])
+    dupes = len([r for r in results if r.get("status") == "duplicate"])
+    errors = len([r for r in results if r.get("status") == "error"])
 
     return {
-        "captured": len([r for r in results if r.get("status") == "captured"]),
-        "errors": len([r for r in results if r.get("status") == "error"]),
-        "results": results,
+        "captured": captured,
+        "duplicates": dupes,
+        "errors": errors,
+        "total": len(results),
     }
 
 
