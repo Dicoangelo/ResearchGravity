@@ -82,7 +82,10 @@ class NotebookLMMCPServer:
         # Core components (reuse mcp_raw infrastructure)
         self._capture = CaptureEngine()
         self._transport = RawStdioTransport(on_capture=self._capture.capture)
-        self._router = Router()
+        self._router = Router(
+            server_name=NotebookLMConfig.SERVER_NAME,
+            server_version=NotebookLMConfig.SERVER_VERSION,
+        )
         self._db = None  # CaptureDB (SQLite) or CognitiveDatabase (PostgreSQL)
         self._pg_db: Optional[CognitiveDatabase] = None
         self._embedding_pipeline: Optional[EmbeddingPipeline] = None
@@ -138,30 +141,37 @@ class NotebookLMMCPServer:
 
     def _init_cognitive_layer(self):
         """Initialize the Cognitive Intelligence Layer."""
-        if self._api_client and self._pg_db and self._pg_db.available:
+        if self._pg_db and self._pg_db.available:
             try:
                 self._cognitive = CognitiveLayer(
-                    self._api_client,
-                    self._pg_db._pool,
-                    self._embedding_pipeline,
+                    api_client=self._api_client,  # May be None — search-only mode
+                    pg_pool=self._pg_db._pool,
+                    embedding_pipeline=self._embedding_pipeline,
                 )
-                log.info("Cognitive Intelligence Layer active (GraphRAG, coherence, FSRS)")
+                mode = "full" if self._api_client else "search-only (no NotebookLM auth)"
+                log.info(f"Cognitive Intelligence Layer active — {mode}")
             except Exception as exc:
                 log.warning(f"Cognitive layer init failed: {exc}")
                 self._cognitive = None
         elif self._api_client:
-            # Cognitive layer without DB (no enrichment, but API still works)
-            self._cognitive = CognitiveLayer(self._api_client)
+            # API client only, no DB — limited functionality
+            self._cognitive = CognitiveLayer(api_client=self._api_client)
             log.info("Cognitive layer active (API only, no DB enrichment)")
 
     def _inject_api_into_tools(self):
-        """Inject API client and cognitive layer into tool module."""
+        """Inject API client, cognitive layer, and DB pool into tool module."""
         try:
             from .tools import notebooklm_tools
             if self._api_client:
                 notebooklm_tools.set_api_client(self._api_client)
             if self._cognitive:
                 notebooklm_tools.set_cognitive(self._cognitive)
+            # Always inject DB pool so tools can init cognitive layer post-auth
+            if self._pg_db and self._pg_db.available:
+                notebooklm_tools.set_db_pool(
+                    self._pg_db._pool,
+                    self._embedding_pipeline,
+                )
         except Exception as exc:
             log.debug(f"Tool injection skipped: {exc}")
 

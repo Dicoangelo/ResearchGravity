@@ -92,13 +92,16 @@ class CognitiveDatabase:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
                 await self._ensure_schema(conn)
 
-            # Start session
-            self._session_id = f"mcp-pg-{int(time.time())}"
+            # Start session (nanosecond precision to avoid collisions)
+            self._session_id = f"mcp-pg-{time.time_ns()}"
             async with self._pool.acquire() as conn:
                 await conn.execute(
                     """INSERT INTO cognitive_sessions
                        (session_id, started_ns, platform, status)
-                       VALUES ($1, $2, $3, 'active')""",
+                       VALUES ($1, $2, $3, 'active')
+                       ON CONFLICT (session_id) DO UPDATE
+                       SET started_ns = EXCLUDED.started_ns,
+                           status = 'active'""",
                     self._session_id, time.time_ns(), Config.PLATFORM,
                 )
 

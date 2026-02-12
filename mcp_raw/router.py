@@ -38,12 +38,14 @@ log = get_logger("router")
 class Router:
     """MCP method dispatcher."""
 
-    def __init__(self):
+    def __init__(self, server_name: Optional[str] = None, server_version: Optional[str] = None):
         self._tools: List[Dict[str, Any]] = []
         self._tool_handlers: List[Callable] = []
         self._resources: List[Dict[str, Any]] = []
         self._resource_handlers: List[Callable] = []
         self._initialized = False
+        self._server_name = server_name or Config.SERVER_NAME
+        self._server_version = server_version or Config.SERVER_VERSION
 
     # ── registration ─────────────────────────────────────────────
 
@@ -125,8 +127,8 @@ class Router:
             f"protocol={params.get('protocolVersion', '?')}"
         )
         return initialize_result(
-            server_name=Config.SERVER_NAME,
-            server_version=Config.SERVER_VERSION,
+            server_name=self._server_name,
+            server_version=self._server_version,
             protocol_version=Config.PROTOCOL_VERSION,
         )
 
