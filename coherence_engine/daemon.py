@@ -26,6 +26,7 @@ from .similarity import SimilarityIndex
 from .scorer import CoherenceScorer
 from .alerts import AlertSystem
 from .temporal import MultiScaleDetector
+from .insight_extractor import extract_insight_for_moment
 from mcp_raw.embeddings import embed_single, embed_texts
 
 import logging
@@ -278,6 +279,10 @@ class CoherenceDaemon:
                     await self._scorer.store_moment(moment)
                     await self._alerts.notify(moment)
                     self._moments_detected += 1
+                    # Fire-and-forget insight extraction (don't block pipeline)
+                    asyncio.create_task(
+                        self._extract_insight_safe(moment.moment_id)
+                    )
 
             self._events_processed += 1
             return
@@ -297,9 +302,24 @@ class CoherenceDaemon:
             if moment.confidence >= cfg.MIN_ALERT_CONFIDENCE:
                 await self._scorer.store_moment(moment)
                 await self._alerts.notify(moment)
+                asyncio.create_task(
+                    self._extract_insight_safe(moment.moment_id)
+                )
                 self._moments_detected += 1
 
         self._events_processed += 1
+
+    async def _extract_insight_safe(self, moment_id: str):
+        """Fire-and-forget insight extraction — never crashes the daemon."""
+        try:
+            result = await extract_insight_for_moment(self._pool, moment_id)
+            if result:
+                log.info(
+                    f"Insight extracted for {moment_id}: "
+                    f"category={result.category} novelty={result.novelty:.2f}"
+                )
+        except Exception as e:
+            log.warning(f"Insight extraction failed for {moment_id}: {e}")
 
     async def _process_event(self, event: dict):
         """Process a single event through the full coherence pipeline (legacy)."""

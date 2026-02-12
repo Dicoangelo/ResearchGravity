@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS cognitive_sessions (
     summary             TEXT,                     -- Session summary
     cognitive_mode      TEXT,                     -- Dominant mode
     quality_score       REAL,                     -- Overall quality
+    session_embedding   vector(768),             -- Mean-pooled event embeddings for session
+    session_summary     TEXT,                     -- LLM-synthesized session summary
     metadata            JSONB,                    -- Extensible metadata
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
@@ -108,6 +110,9 @@ CREATE TABLE IF NOT EXISTS coherence_moments (
     coherence_type      TEXT NOT NULL,             -- temporal/semantic/synchronicity
     confidence          REAL NOT NULL,             -- 0.0 - 1.0
     description         TEXT,                      -- Human-readable description
+    insight_summary     TEXT,                      -- LLM-extracted insight from conversation context
+    insight_category    TEXT,                      -- Category of the insight
+    insight_novelty     REAL,                      -- 0.0 - 1.0 novelty score
     time_window_s       INTEGER,                   -- Window in seconds
     signature           TEXT,                      -- Shared coherence signature
     metadata            JSONB,
@@ -272,3 +277,46 @@ SELECT
     s.summary
 FROM cognitive_sessions s
 ORDER BY s.started_ns DESC;
+
+-- ============================================================================
+-- 10. cognitive_breakthroughs — Detected emergence breakthroughs
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS cognitive_breakthroughs (
+    breakthrough_id     TEXT PRIMARY KEY,
+    detected_at         TIMESTAMPTZ DEFAULT NOW(),
+    breakthrough_type   TEXT NOT NULL,              -- crystallization/synthesis/convergence/acceleration
+    title               TEXT NOT NULL,              -- Human-readable title
+    narrative           TEXT NOT NULL,              -- Full narrative of what happened and why it matters
+    evidence_moment_ids TEXT[],                     -- Coherence moments that contributed
+    evidence_session_ids TEXT[],                    -- Sessions involved
+    platforms           TEXT[],                     -- Platforms involved
+    concepts            TEXT[],                     -- Key concepts
+    novelty_score       REAL,                       -- 0-1: how novel is this breakthrough
+    impact_score        REAL,                       -- 0-1: estimated importance
+    metadata            JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_cb_type       ON cognitive_breakthroughs (breakthrough_type);
+CREATE INDEX IF NOT EXISTS idx_cb_detected   ON cognitive_breakthroughs (detected_at);
+CREATE INDEX IF NOT EXISTS idx_cb_novelty    ON cognitive_breakthroughs (novelty_score);
+
+-- ============================================================================
+-- 11. concept_versions — Track concept evolution over time
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS concept_versions (
+    id                  SERIAL PRIMARY KEY,
+    concept             TEXT NOT NULL,
+    version             INTEGER NOT NULL,
+    definition          TEXT,                       -- What this concept meant at this point
+    first_seen_ns       BIGINT,
+    last_seen_ns        BIGINT,
+    platform            TEXT,
+    session_id          TEXT,
+    evolved_from        TEXT,                       -- Previous concept it evolved from
+    UNIQUE(concept, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cv_concept    ON concept_versions (concept);
+CREATE INDEX IF NOT EXISTS idx_cv_first_seen ON concept_versions (first_seen_ns);

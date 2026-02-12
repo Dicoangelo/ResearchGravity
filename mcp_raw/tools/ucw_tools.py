@@ -19,12 +19,16 @@ log = get_logger("tools.ucw")
 
 # Shared DB instance — injected by server via set_db() after initialization
 _db = None
+_pool = None  # asyncpg.Pool — extracted from _db for direct PostgreSQL queries
 
 
 def set_db(db):
     """Called by server to inject shared database instance."""
-    global _db
+    global _db, _pool
     _db = db
+    if hasattr(db, "_pool") and db._pool is not None:
+        _pool = db._pool
+    log.info("UCW tools: DB injected (pool=%s)", "yes" if _pool else "no")
 
 # ── Tool definitions ─────────────────────────────────────────────────────────
 
@@ -157,33 +161,31 @@ async def _ucw_timeline(args: Dict) -> Dict:
     since_ns = args.get("since_ns")
     limit = int(args.get("limit", 50))
 
-    if not _db:
+    if not _pool:
         return tool_result_content([text_content("Database not initialized.")], is_error=True)
 
-    conn = _db._conn
-    if not conn:
-        return tool_result_content([text_content("Database not initialized.")], is_error=True)
-
-    # Build query
-    query = "SELECT event_id, timestamp_ns, direction, method, platform, light_topic, light_intent, light_summary, instinct_gut_signal, instinct_coherence FROM cognitive_events"
-    conditions = []
+    # Build parameterized query (PostgreSQL $1, $2, ...)
+    query = """SELECT event_id, timestamp_ns, direction, method, platform,
+                      light_topic, light_intent, light_summary,
+                      instinct_gut_signal, instinct_coherence
+               FROM cognitive_events WHERE 1=1"""
     params: list = []
+    idx = 1
 
     if platform:
-        conditions.append("platform = ?")
+        query += f" AND platform = ${idx}"
         params.append(platform)
+        idx += 1
     if since_ns:
-        conditions.append("timestamp_ns > ?")
+        query += f" AND timestamp_ns > ${idx}"
         params.append(int(since_ns))
+        idx += 1
 
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-
-    query += " ORDER BY timestamp_ns DESC LIMIT ?"
+    query += f" ORDER BY timestamp_ns DESC LIMIT ${idx}"
     params.append(limit)
 
-    cur = conn.execute(query, params)
-    rows = cur.fetchall()
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
 
     if not rows:
         return tool_result_content([text_content("No events found matching criteria.")])
@@ -207,22 +209,18 @@ async def _detect_emergence(args: Dict) -> Dict:
     """Scan recent events for emergence signals."""
     limit = int(args.get("limit", 100))
 
-    if not _db:
+    if not _pool:
         return tool_result_content([text_content("Database not initialized.")], is_error=True)
 
-    conn = _db._conn
-    if not conn:
-        return tool_result_content([text_content("Database not initialized.")], is_error=True)
-
-    cur = conn.execute(
-        """SELECT event_id, timestamp_ns, method, platform,
-                  light_topic, light_concepts, light_intent,
-                  instinct_coherence, instinct_indicators, instinct_gut_signal
-           FROM cognitive_events
-           ORDER BY timestamp_ns DESC LIMIT ?""",
-        (limit,),
-    )
-    rows = cur.fetchall()
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT event_id, timestamp_ns, method, platform,
+                      light_topic, light_concepts, light_intent,
+                      instinct_coherence, instinct_indicators, instinct_gut_signal
+               FROM cognitive_events
+               ORDER BY timestamp_ns DESC LIMIT $1""",
+            limit,
+        )
 
     if not rows:
         return tool_result_content([text_content("No events to analyze.")])
@@ -234,8 +232,16 @@ async def _detect_emergence(args: Dict) -> Dict:
     breakthrough_signals = []
 
     for row in rows:
-        (event_id, ts, method, platform, topic, concepts_json,
-         intent, coherence, indicators_json, gut) = row
+        event_id = row["event_id"]
+        ts = row["timestamp_ns"]
+        method = row["method"]
+        platform = row["platform"]
+        topic = row["light_topic"]
+        concepts_json = row["light_concepts"]
+        intent = row["light_intent"]
+        coherence = row["instinct_coherence"]
+        indicators_json = row["instinct_indicators"]
+        gut = row["instinct_gut_signal"]
 
         indicators = _safe_json_list(indicators_json)
         concepts = _safe_json_list(concepts_json)

@@ -136,6 +136,7 @@ async def coherence_moments(
             """
             SELECT moment_id, detected_ns, event_ids, platforms,
                    coherence_type, confidence, description,
+                   insight_summary, insight_category, insight_novelty,
                    time_window_s, metadata, created_at
             FROM coherence_moments
             WHERE created_at > NOW() - make_interval(hours => $1)
@@ -174,6 +175,9 @@ async def coherence_moments(
                 "description": r["description"],
                 "time_window_s": r["time_window_s"],
                 "signals": _extract_signals(r),
+                "insight_summary": r.get("insight_summary"),
+                "insight_category": r.get("insight_category"),
+                "insight_novelty": float(r["insight_novelty"]) if r.get("insight_novelty") else None,
                 "created_at": _dt_to_iso(r["created_at"]),
             }
             for r in rows
@@ -361,4 +365,142 @@ async def moment_signals(moment_id: str):
         "description": row["description"],
         "platforms": row["platforms"],
         "signals": _extract_signals(dict(row)),
+    }
+
+
+# ── Insights ────────────────────────────────────────────
+
+
+@router.get("/moment/{moment_id}/insight")
+async def moment_insight(moment_id: str):
+    """Get the extracted insight for a coherence moment.
+
+    Returns the LLM-synthesized insight summary, category, and novelty score.
+    If no insight exists yet, triggers extraction on-demand.
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT moment_id, coherence_type, confidence, description,
+                   event_ids, platforms, insight_summary, insight_category,
+                   insight_novelty
+            FROM coherence_moments WHERE moment_id = $1
+            """,
+            moment_id,
+        )
+
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Moment not found")
+
+    # If insight doesn't exist yet, extract on-demand
+    if not row["insight_summary"]:
+        from coherence_engine.insight_extractor import extract_insight_for_moment
+        result = await extract_insight_for_moment(pool, moment_id)
+        if result:
+            return {
+                "moment_id": moment_id,
+                "insight_summary": result.summary,
+                "insight_category": result.category,
+                "insight_novelty": result.novelty,
+                "coherence_type": row["coherence_type"],
+                "confidence": float(row["confidence"]),
+                "platforms": row["platforms"],
+                "extracted_now": True,
+            }
+
+    return {
+        "moment_id": row["moment_id"],
+        "insight_summary": row["insight_summary"],
+        "insight_category": row["insight_category"],
+        "insight_novelty": float(row["insight_novelty"]) if row["insight_novelty"] else None,
+        "coherence_type": row["coherence_type"],
+        "confidence": float(row["confidence"]),
+        "platforms": row["platforms"],
+        "extracted_now": False,
+    }
+
+
+@router.get("/insights")
+async def list_insights(
+    limit: int = Query(50, ge=1, le=500),
+    category: Optional[str] = Query(None),
+    min_novelty: float = Query(0.0, ge=0.0, le=1.0),
+):
+    """List all moments that have extracted insights."""
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT moment_id, detected_ns, platforms, coherence_type,
+                   confidence, insight_summary, insight_category,
+                   insight_novelty, created_at
+            FROM coherence_moments
+            WHERE insight_summary IS NOT NULL
+              AND ($1::text IS NULL OR insight_category = $1)
+              AND COALESCE(insight_novelty, 0) >= $2
+            ORDER BY COALESCE(insight_novelty, 0) DESC, confidence DESC
+            LIMIT $3
+            """,
+            category,
+            min_novelty,
+            limit,
+        )
+
+    return {
+        "insights": [
+            {
+                "moment_id": r["moment_id"],
+                "detected_at": _ns_to_iso(r["detected_ns"]),
+                "platforms": r["platforms"],
+                "coherence_type": r["coherence_type"],
+                "confidence": float(r["confidence"]),
+                "insight_summary": r["insight_summary"],
+                "insight_category": r["insight_category"],
+                "insight_novelty": float(r["insight_novelty"]) if r["insight_novelty"] else None,
+                "created_at": _dt_to_iso(r["created_at"]),
+            }
+            for r in rows
+        ],
+        "total": len(rows),
+    }
+
+
+@router.get("/breakthroughs")
+async def list_breakthroughs(
+    limit: int = Query(20, ge=1, le=100),
+):
+    """List detected cognitive breakthroughs."""
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT breakthrough_id, detected_at, breakthrough_type,
+                   title, narrative, evidence_moment_ids, platforms,
+                   concepts, novelty_score, impact_score
+            FROM cognitive_breakthroughs
+            ORDER BY detected_at DESC
+            LIMIT $1
+            """,
+            limit,
+        )
+
+    return {
+        "breakthroughs": [
+            {
+                "breakthrough_id": r["breakthrough_id"],
+                "detected_at": _dt_to_iso(r["detected_at"]),
+                "type": r["breakthrough_type"],
+                "title": r["title"],
+                "narrative": r["narrative"],
+                "evidence_moment_ids": r["evidence_moment_ids"],
+                "platforms": r["platforms"],
+                "concepts": r["concepts"],
+                "novelty_score": float(r["novelty_score"]) if r["novelty_score"] else None,
+                "impact_score": float(r["impact_score"]) if r["impact_score"] else None,
+            }
+            for r in rows
+        ],
+        "total": len(rows),
     }
