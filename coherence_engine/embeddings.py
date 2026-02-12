@@ -63,6 +63,7 @@ async def embed_event_row(pool, event_row: Dict[str, Any]) -> Optional[List[floa
         await _store_embedding(
             pool, ch, text[:200], embedding,
             source_event_id=event_row.get("event_id"),
+            full_text=text,
         )
 
     return embedding
@@ -133,7 +134,7 @@ async def batch_embed_events(
         if done % 1000 < batch_size:
             log.info(f"  Embedded {done}/{len(texts)}")
 
-    # Store in database
+    # Store in database (with content_tsv for hybrid search BM25)
     stored = 0
     async with pool.acquire() as conn:
         for eid, text, emb in zip(event_ids, texts, all_embeddings):
@@ -142,13 +143,16 @@ async def batch_embed_events(
                 vec_str = "[" + ",".join(str(x) for x in emb) + "]"
                 await conn.execute(
                     f"""INSERT INTO embedding_cache
-                       (content_hash, content_preview, {_embedding_column}, model, dimensions, source_event_id)
-                       VALUES ($1, $2, $3::vector, $4, $5, $6)
+                       (content_hash, content_preview, {_embedding_column}, model, dimensions,
+                        source_event_id, content_tsv)
+                       VALUES ($1, $2, $3::vector, $4, $5, $6,
+                               to_tsvector('english', $7))
                        ON CONFLICT (content_hash) DO UPDATE SET
                            {_embedding_column} = $3::vector,
                            model = $4,
-                           dimensions = $5""",
-                    ch, text[:200], vec_str, _model_name, _dimensions, eid,
+                           dimensions = $5,
+                           content_tsv = to_tsvector('english', $7)""",
+                    ch, text[:200], vec_str, _model_name, _dimensions, eid, text,
                 )
                 stored += 1
             except Exception as e:
@@ -166,20 +170,26 @@ async def _store_embedding(
     preview: str,
     embedding: List[float],
     source_event_id: Optional[str] = None,
+    full_text: Optional[str] = None,
 ):
-    """Store a single embedding in the cache."""
+    """Store a single embedding in the cache with content_tsv for hybrid search."""
     try:
         async with pool.acquire() as conn:
             vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
+            tsv_source = full_text or preview
             await conn.execute(
                 f"""INSERT INTO embedding_cache
-                   (content_hash, content_preview, {_embedding_column}, model, dimensions, source_event_id)
-                   VALUES ($1, $2, $3::vector, $4, $5, $6)
+                   (content_hash, content_preview, {_embedding_column}, model, dimensions,
+                    source_event_id, content_tsv)
+                   VALUES ($1, $2, $3::vector, $4, $5, $6,
+                           to_tsvector('english', $7))
                    ON CONFLICT (content_hash) DO UPDATE SET
                        {_embedding_column} = $3::vector,
                        model = $4,
-                       dimensions = $5""",
+                       dimensions = $5,
+                       content_tsv = to_tsvector('english', $7)""",
                 ch, preview, vec_str, _model_name, _dimensions, source_event_id,
+                tsv_source,
             )
     except Exception as e:
         log.error(f"Store embedding error: {e}")

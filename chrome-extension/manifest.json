@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "UCW Sovereign Capture",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Universal Cognitive Wallet — Capture AI conversations from ChatGPT, Grok, Gemini, NotebookLM, and YouTube for sovereign cognitive data ownership.",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
@@ -17,8 +18,7 @@
     "https://www.youtube.com/*"
   ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
@@ -26,35 +26,27 @@
         "https://chatgpt.com/*",
         "https://chat.openai.com/*"
       ],
-      "js": ["interceptors/chatgpt.js"],
+      "js": ["lib/capture.js", "interceptors/chatgpt.js"],
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://grok.x.ai/*"
-      ],
-      "js": ["interceptors/grok.js"],
+      "matches": ["https://grok.x.ai/*"],
+      "js": ["lib/capture.js", "interceptors/grok.js"],
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://gemini.google.com/*"
-      ],
-      "js": ["interceptors/gemini.js"],
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["lib/capture.js", "interceptors/gemini.js"],
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://notebooklm.google.com/*"
-      ],
-      "js": ["interceptors/notebooklm.js"],
+      "matches": ["https://notebooklm.google.com/*"],
+      "js": ["lib/capture.js", "interceptors/notebooklm.js"],
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://www.youtube.com/*"
-      ],
-      "js": ["interceptors/youtube.js"],
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["lib/capture.js", "interceptors/youtube.js"],
       "run_at": "document_idle"
     }
   ],
