@@ -240,6 +240,31 @@ async def cmd_insights():
     await pool.close()
 
 
+async def cmd_emergence():
+    """Scan for cognitive breakthroughs (emergence signals)."""
+    import asyncpg
+    from .emergence_listener import BreakthroughDetector
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+    detector = BreakthroughDetector(pool)
+
+    print("Scanning for emergence signals...")
+    breakthroughs = await detector.scan_and_store()
+
+    if breakthroughs:
+        print(f"\n{len(breakthroughs)} breakthroughs detected:\n")
+        for bt in breakthroughs:
+            print(f"  [{bt.breakthrough_type}] {bt.title}")
+            print(f"    Novelty: {bt.novelty_score:.2f} | Impact: {bt.impact_score:.2f}")
+            print(f"    Platforms: {', '.join(bt.platforms)}")
+            print(f"    {bt.narrative[:200]}...")
+            print()
+    else:
+        print("\nNo breakthroughs detected. Continue working — patterns emerge over time.")
+
+    await pool.close()
+
+
 async def cmd_sessions():
     """Generate session embeddings and find cross-platform session coherence."""
     import asyncpg
@@ -320,6 +345,7 @@ def main():
         print("  consolidate       Nightly consolidation (arcs, FSRS, significance)")
         print("  graph             Extract entities into knowledge graph (--batch=N)")
         print("  insights          Extract real insights from moments via LLM (--moment=ID | --limit=N)")
+        print("  emergence         Scan for cognitive breakthroughs")
         print("  sessions          Session embeddings + cross-platform coherence (embed|coherence)")
         print("  founding-moment   Validate 2026-02-06 founding moment detection")
         sys.exit(1)
@@ -336,6 +362,7 @@ def main():
         "consolidate": cmd_consolidate,
         "graph": cmd_graph,
         "insights": cmd_insights,
+        "emergence": cmd_emergence,
         "sessions": cmd_sessions,
     }
 
