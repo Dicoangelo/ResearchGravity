@@ -1137,3 +1137,37 @@ async def extract_and_ingest_batch(
         "entities_created": total_entities,
         "edges_created": total_edges,
     }
+
+
+async def extract_from_events(
+    pool: asyncpg.Pool,
+    events: List[Dict[str, Any]],
+) -> Dict[str, int]:
+    """
+    Extract entities from pre-parsed events (used by daemon for incremental KG updates).
+
+    Unlike extract_and_ingest_batch which queries the DB, this takes events
+    that are already in memory from the daemon's processing pipeline.
+    """
+    if not events:
+        return {"entities_created": 0, "edges_created": 0}
+
+    extractor = EntityExtractor()
+    graph = GraphManager(pool)
+    total_entities = 0
+    total_edges = 0
+
+    for event in events:
+        entities = extractor.extract(event)
+        if entities:
+            n_ent, n_edge = await graph.ingest_entities(entities, event)
+            total_entities += n_ent
+            total_edges += n_edge
+
+    if total_entities or total_edges:
+        log.info(
+            f"KG incremental: {len(events)} events → "
+            f"{total_entities} entities, {total_edges} edges"
+        )
+
+    return {"entities_created": total_entities, "edges_created": total_edges}

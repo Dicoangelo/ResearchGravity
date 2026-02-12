@@ -385,6 +385,63 @@ async def cmd_sessions():
     await pool.close()
 
 
+async def cmd_review_due():
+    """Check for due insights and optionally send desktop notifications."""
+    import asyncpg
+    from .fsrs import InsightScheduler
+
+    notify = "--notify" in sys.argv
+    limit = 10
+    for arg in sys.argv[2:]:
+        if arg.startswith("--limit="):
+            limit = int(arg.split("=")[1])
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+    scheduler = InsightScheduler(pool=pool)
+    await scheduler.ensure_schema()
+
+    due = await scheduler.get_due_insights(limit=limit)
+
+    if not due:
+        print("No insights due for review.")
+        await pool.close()
+        return
+
+    print(f"\n{len(due)} insights due for review:\n")
+    for i, ins in enumerate(due, 1):
+        platforms = " <-> ".join(ins.get("platforms") or [])
+        desc = (ins.get("description") or "")[:120]
+        conf = ins.get("moment_confidence", 0)
+        stab = ins.get("stability", 1.0)
+        reviews = ins.get("review_count", 0)
+        print(f"  #{i} [{ins['insight_id']}]")
+        print(f"     {ins.get('coherence_type', '?')} | {platforms} | confidence={conf:.0%}")
+        print(f"     stability={stab:.1f}d | reviews={reviews}")
+        print(f"     {desc}")
+        print()
+
+    # Send macOS notification if requested
+    if notify and cfg.DESKTOP_NOTIFICATIONS:
+        import subprocess
+        title = f"UCW: {len(due)} insight{'s' if len(due) != 1 else ''} due for review"
+        top = due[0]
+        body = (
+            f"{top.get('coherence_type', '?')}: "
+            f"{(top.get('description') or '')[:80]}..."
+        )
+        try:
+            subprocess.run(
+                ["osascript", "-e",
+                 f'display notification "{body}" with title "{title}"'],
+                capture_output=True, timeout=5,
+            )
+            print(f"Desktop notification sent.")
+        except Exception as e:
+            print(f"Notification failed: {e}")
+
+    await pool.close()
+
+
 async def cmd_founding_moment():
     """Run the Founding Moment Validation test."""
     import asyncpg
@@ -421,6 +478,7 @@ def main():
         print("  sessions          Session embeddings + cross-platform coherence (embed|coherence)")
         print("  semantic          LLM-powered entity + relationship extraction (--batch=N --offset=N)")
         print("  concept-evolution Concept evolution tracking (show|track) (--hours=N --limit=N)")
+        print("  review-due        Check due insights and notify (--notify --limit=N)")
         print("  founding-moment   Validate 2026-02-06 founding moment detection")
         sys.exit(1)
 
@@ -440,6 +498,7 @@ def main():
         "sessions": cmd_sessions,
         "semantic": cmd_semantic,
         "concept-evolution": cmd_concept_evolution,
+        "review-due": cmd_review_due,
     }
 
     handler = commands.get(cmd)

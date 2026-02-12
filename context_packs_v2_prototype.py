@@ -15,6 +15,7 @@ Based on Jan 2026 research:
 import os
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Tuple, Any, Optional
 from dataclasses import dataclass
@@ -362,14 +363,25 @@ class MultiGraphPackMemory:
         return expanded_list[:max_packs]
 
     def _temporal_retrieve(self, max_packs: int) -> List[Tuple[str, float]]:
-        """Temporal retrieval - most recent packs"""
+        """Temporal retrieval - most recent packs with 6-month linear decay"""
+        now = datetime.now(timezone.utc)
         temporal_scores = []
         for pack_id, pack_node in self.packs.items():
             created = pack_node.metadata.get('created', '')
-            # Simple recency score (in production, use actual timestamps)
-            score = 1.0  # Mock score
+            if created:
+                try:
+                    # Parse ISO timestamp (handles both Z suffix and +00:00)
+                    ts = created.replace('Z', '+00:00')
+                    created_dt = datetime.fromisoformat(ts)
+                    age_days = (now - created_dt).total_seconds() / 86400
+                    score = max(1.0 - (age_days / 180), 0.2)
+                except (ValueError, TypeError):
+                    score = 0.5  # Unparseable timestamp gets neutral score
+            else:
+                score = 0.5  # No timestamp gets neutral score
             temporal_scores.append((pack_id, score))
 
+        temporal_scores.sort(key=lambda x: x[1], reverse=True)
         return temporal_scores[:max_packs]
 
     def _causal_retrieve(self, query: str, max_packs: int) -> List[Tuple[str, float]]:
@@ -433,9 +445,9 @@ class MultiAgentPackRouter:
 
         # Define specialized agents
         self.agents = [
-            Agent('relevance', 'semantic_matcher', 0.35, ['keywords', 'papers', 'embeddings']),
-            Agent('efficiency', 'cost_optimizer', 0.20, ['token_size', 'compression']),
-            Agent('recency', 'temporal_prioritizer', 0.15, ['created', 'updated']),
+            Agent('relevance', 'semantic_matcher', 0.45, ['keywords', 'papers', 'embeddings']),
+            Agent('efficiency', 'cost_optimizer', 0.15, ['token_size', 'compression']),
+            Agent('recency', 'temporal_prioritizer', 0.10, ['created', 'updated']),
             Agent('quality', 'outcome_analyzer', 0.15, ['dq_scores', 'success_rate']),
             Agent('diversity', 'coverage_maximizer', 0.15, ['uniqueness', 'complementarity'])
         ]
@@ -519,12 +531,23 @@ class MultiAgentPackRouter:
         votes = {}
 
         if agent.agent_id == 'relevance':
-            # Semantic matching
+            # Semantic matching + keyword boost
             candidates = self.memory.adaptive_retrieve(
                 query, intent='semantic', max_packs=10
             )
+            query_lower = query.lower()
             for pack_id, score in candidates:
-                votes[pack_id] = score
+                # Keyword overlap boost (handles both V1 and V2 schemas)
+                pack_data = self.memory.packs[pack_id].content
+                keywords = pack_data.get('keywords', [])
+                if not keywords and 'content' in pack_data:
+                    keywords = pack_data['content'].get('keywords', [])
+                if keywords:
+                    matches = sum(1 for kw in keywords if kw.lower() in query_lower)
+                    boost = min(matches / len(keywords), 0.4)
+                else:
+                    boost = 0.0
+                votes[pack_id] = score + boost
 
         elif agent.agent_id == 'efficiency':
             # Token efficiency
@@ -543,26 +566,36 @@ class MultiAgentPackRouter:
                 votes[pack_id] = score
 
         elif agent.agent_id == 'quality':
-            # Historical quality
+            # Historical quality from pack-metrics.json
+            metrics_path = os.path.expanduser('~/.claude/data/pack-metrics.json')
+            pack_dq = {}
+            try:
+                with open(metrics_path, 'r') as f:
+                    metrics_data = json.load(f)
+                for item in metrics_data.get('pack_inventory', []):
+                    name = item.get('name', '')
+                    dq = item.get('avg_dq_score', 0)
+                    pack_dq[name] = dq if dq > 0 else 0.5
+            except (FileNotFoundError, json.JSONDecodeError, KeyError):
+                pass  # Fall through to default
             for pack_id in all_packs:
-                # In prototype, use mock scores
-                # In production, load from metrics.json
-                votes[pack_id] = 0.8  # Mock quality score
+                votes[pack_id] = pack_dq.get(pack_id, 0.5)
 
         elif agent.agent_id == 'diversity':
-            # Coverage maximization
-            # Check what other agents selected
-            already_selected = set()
+            # Type-based coverage: boost packs whose pack_type is underrepresented
+            type_counts = defaultdict(int)
             for other_agent_id, top_picks in self.shared_memory.items():
-                if '_top' in other_agent_id:
-                    already_selected.update([p[0] for p in top_picks])
+                if '_top' in str(other_agent_id):
+                    for pack_id_score in top_picks:
+                        pid = pack_id_score[0]
+                        if pid in self.memory.packs:
+                            ptype = self.memory.packs[pid].pack_type
+                            type_counts[ptype] += 1
 
-            # Prefer packs not yet selected
             for pack_id in all_packs:
-                if pack_id not in already_selected:
-                    votes[pack_id] = 1.0
-                else:
-                    votes[pack_id] = 0.3
+                pack_type = self.memory.packs[pack_id].pack_type
+                count = type_counts.get(pack_type, 0)
+                votes[pack_id] = 1.0 / (1.0 + count)
 
         return votes
 

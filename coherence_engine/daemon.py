@@ -29,6 +29,7 @@ from .temporal import MultiScaleDetector
 from .insight_extractor import extract_insight_for_moment
 from .session_coherence import generate_session_embedding
 from .emergence_listener import BreakthroughDetector
+from .knowledge_graph import extract_from_events
 from mcp_raw.embeddings import embed_single, embed_texts
 
 import logging
@@ -62,6 +63,9 @@ class CoherenceDaemon:
         self._session_embed_interval = 300  # Run every 5 minutes
         self._last_emergence_scan_time = 0
         self._emergence_scan_interval = 900  # Scan for breakthroughs every 15 minutes
+        self._last_kg_extract_time = 0
+        self._kg_extract_interval = 600  # KG entity extraction every 10 minutes
+        self._kg_event_buffer: list = []  # Buffer events for batch KG extraction
 
     async def initialize(self):
         """Initialize components using an existing pool (injected via __init__)."""
@@ -283,7 +287,28 @@ class CoherenceDaemon:
             self._last_emergence_scan_time = now
             asyncio.create_task(self._emergence_scan())
 
+        # Buffer events for periodic KG extraction (every 10 minutes)
+        self._kg_event_buffer.extend(events)
+        if now - self._last_kg_extract_time > self._kg_extract_interval:
+            self._last_kg_extract_time = now
+            buffered = self._kg_event_buffer[:]
+            self._kg_event_buffer.clear()
+            if buffered:
+                asyncio.create_task(self._kg_extract_pass(buffered))
+
         return processed
+
+    async def _kg_extract_pass(self, events: list):
+        """Extract entities from buffered events into the knowledge graph."""
+        try:
+            result = await extract_from_events(self._pool, events)
+            if result["entities_created"] or result["edges_created"]:
+                log.info(
+                    f"KG pass: {result['entities_created']} entities, "
+                    f"{result['edges_created']} edges from {len(events)} events"
+                )
+        except Exception as e:
+            log.warning(f"KG extraction pass failed: {e}")
 
     async def _session_embed_pass(self):
         """Generate session embeddings for recently completed sessions."""
