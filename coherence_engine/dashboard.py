@@ -167,6 +167,63 @@ class CoherenceDashboard:
             except Exception:
                 arc_stats = None
 
+            # Session coherence pairs
+            session_coherence = None
+            try:
+                session_coherence = await conn.fetch("""
+                    SELECT
+                        a.session_id AS session_a,
+                        b.session_id AS session_b,
+                        a.platform AS platform_a,
+                        b.platform AS platform_b,
+                        a.session_summary AS summary_a,
+                        b.session_summary AS summary_b,
+                        1 - (a.session_embedding <=> b.session_embedding) AS similarity
+                    FROM cognitive_sessions a
+                    CROSS JOIN cognitive_sessions b
+                    WHERE a.session_id < b.session_id
+                      AND a.session_embedding IS NOT NULL
+                      AND b.session_embedding IS NOT NULL
+                      AND a.platform != b.platform
+                      AND 1 - (a.session_embedding <=> b.session_embedding) >= 0.50
+                    ORDER BY similarity DESC
+                    LIMIT 5
+                """)
+                session_coherence = [dict(r) for r in session_coherence] if session_coherence else None
+            except Exception:
+                session_coherence = None
+
+            # Concept evolution
+            concept_evolutions = None
+            try:
+                concept_evolutions = await conn.fetch("""
+                    SELECT concept, COUNT(*) AS version_count,
+                           MAX(version) AS latest_version,
+                           COUNT(DISTINCT platform) AS platform_count
+                    FROM concept_versions
+                    GROUP BY concept
+                    HAVING COUNT(*) >= 2
+                    ORDER BY version_count DESC
+                    LIMIT 8
+                """)
+                concept_evolutions = [dict(r) for r in concept_evolutions] if concept_evolutions else None
+            except Exception:
+                concept_evolutions = None
+
+            # Cognitive breakthroughs
+            breakthroughs = None
+            try:
+                breakthroughs = await conn.fetch("""
+                    SELECT breakthrough_id, breakthrough_type, title,
+                           novelty_score, impact_score, platforms, detected_at
+                    FROM cognitive_breakthroughs
+                    ORDER BY detected_at DESC
+                    LIMIT 5
+                """)
+                breakthroughs = [dict(r) for r in breakthroughs] if breakthroughs else None
+            except Exception:
+                breakthroughs = None
+
         return {
             "platforms": [dict(p) for p in platforms],
             "moments_total": moments_total,
@@ -180,6 +237,9 @@ class CoherenceDashboard:
             "kg_stats": kg_stats,
             "fsrs_stats": fsrs_stats,
             "arc_stats": arc_stats,
+            "session_coherence": session_coherence,
+            "concept_evolutions": concept_evolutions,
+            "breakthroughs": breakthroughs,
         }
 
     def render_plain(self, data: Dict) -> str:
@@ -277,6 +337,56 @@ class CoherenceDashboard:
                 f"    Arcs: {arc['arc_count']:,} detected, avg score={avg_score:.2f}, "
                 f"max moments={max_moments}"
             )
+            lines.append("")
+
+        # Session coherence
+        sc = data.get("session_coherence")
+        if sc:
+            lines.append("\033[1;33m  SESSION COHERENCE (Cross-Platform)\033[0m")
+            for pair in sc:
+                sim = pair.get("similarity", 0)
+                pa = pair.get("platform_a", "?")
+                pb = pair.get("platform_b", "?")
+                sa = (pair.get("summary_a") or "")[:40]
+                sb = (pair.get("summary_b") or "")[:40]
+                lines.append(
+                    f"    \033[1m{sim:.0%}\033[0m {pa} <-> {pb}"
+                )
+                if sa:
+                    lines.append(f"          A: {sa}")
+                if sb:
+                    lines.append(f"          B: {sb}")
+            lines.append("")
+
+        # Concept Evolution
+        evos = data.get("concept_evolutions")
+        if evos:
+            lines.append("\033[1;33m  CONCEPT EVOLUTION\033[0m")
+            for evo in evos:
+                concept = evo.get("concept", "?")
+                versions = evo.get("version_count", 0)
+                plat_count = evo.get("platform_count", 0)
+                lines.append(
+                    f"    {concept:25s} v{versions:>2}  ({plat_count} platforms)"
+                )
+            lines.append("")
+
+        # Breakthroughs
+        bts = data.get("breakthroughs")
+        if bts:
+            lines.append("\033[1;35m  COGNITIVE BREAKTHROUGHS\033[0m")
+            for bt in bts:
+                btype = bt.get("breakthrough_type", "?")
+                title = (bt.get("title") or "")[:60]
+                novelty = bt.get("novelty_score") or 0
+                impact = bt.get("impact_score") or 0
+                plats = ", ".join(bt.get("platforms") or [])
+                lines.append(
+                    f"    \033[1;35m[{btype}]\033[0m {title}"
+                )
+                lines.append(
+                    f"          novelty={novelty:.0%} impact={impact:.0%} | {plats}"
+                )
             lines.append("")
 
         # Recent moments

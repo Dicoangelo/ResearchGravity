@@ -1,0 +1,154 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f0f23;
+  color: #e0e0e0;
+  width: 320px;
+  min-height: 400px;
+}
+
+.container {
+  padding: 16px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 18px;
+  color: #818cf8;
+}
+
+h2 {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.status.active {
+  background: #065f46;
+  color: #6ee7b7;
+}
+
+.status.paused {
+  background: #78350f;
+  color: #fbbf24;
+}
+
+.stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  flex: 1;
+  background: #1a1a2e;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #818cf8;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.platforms {
+  margin-bottom: 16px;
+}
+
+.platforms label {
+  display: block;
+  padding: 6px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.platforms input[type="checkbox"] {
+  margin-right: 8px;
+  accent-color: #818cf8;
+}
+
+.settings {
+  margin-bottom: 16px;
+}
+
+.settings input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+button {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: #252540;
+}
+
+button.primary {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: white;
+}
+
+button.primary:hover {
+  background: #4338ca;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+footer a {
+  color: #818cf8;
+  text-decoration: none;
+}
