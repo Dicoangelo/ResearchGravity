@@ -1101,13 +1101,41 @@ async def _h_note_delete(args: dict) -> dict:
 
 # ── Auth Handlers ────────────────────────────────────────────────────────
 
+def _get_cookie_cache_path() -> Path:
+    """Get persistent cookie cache file path."""
+    from .config_notebooklm import NotebookLMConfig
+    return NotebookLMConfig.AUTH_STATE_DIR / "cookies.txt"
+
+
+def _save_cookies_to_disk(cookies: str) -> None:
+    """Persist cookies to disk for cross-session reuse."""
+    cache_path = _get_cookie_cache_path()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(cookies)
+    cache_path.chmod(0o600)  # Owner-only read/write
+    log.info(f"Cookies persisted to {cache_path}")
+
+
+def _load_cookies_from_disk() -> str:
+    """Load persisted cookies from disk. Returns empty string if none."""
+    cache_path = _get_cookie_cache_path()
+    if cache_path.exists():
+        cookies = cache_path.read_text().strip()
+        if cookies:
+            log.info(f"Loaded cached cookies from {cache_path}")
+            return cookies
+    return ""
+
+
 async def _h_save_auth_tokens(args: dict) -> dict:
     import os
     import asyncio
     global _api_client, _pg_pool
     cookies = args["cookies"]
-    # Also save to env for persistence within session
+    # Save to env for current session
     os.environ["NOTEBOOKLM_COOKIES"] = cookies
+    # Persist to disk for future sessions
+    _save_cookies_to_disk(cookies)
     try:
         _api_client = NotebookLMAPIClient(cookies=cookies)
         # Verify by listing notebooks
@@ -1123,7 +1151,7 @@ async def _h_save_auth_tokens(args: dict) -> dict:
         # Re-initialize cognitive layer now that we have auth + DB may be ready
         _init_cognitive_if_ready()
         cognitive_status = "cognitive=active" if (_cognitive and _cognitive.available) else "cognitive=pending"
-        return _ok(f"Authenticated. Found {len(nbs)} notebooks. ({cognitive_status})")
+        return _ok(f"Authenticated. Found {len(nbs)} notebooks. Cookies persisted to disk. ({cognitive_status})")
     except Exception as exc:
         _api_client = None
         return _err(f"Authentication failed: {exc}")
