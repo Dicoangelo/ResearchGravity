@@ -240,6 +240,54 @@ async def cmd_insights():
     await pool.close()
 
 
+async def cmd_sessions():
+    """Generate session embeddings and find cross-platform session coherence."""
+    import asyncpg
+    from .session_coherence import (
+        backfill_session_embeddings,
+        find_session_coherence,
+    )
+
+    subcmd = sys.argv[2] if len(sys.argv) > 2 else "embed"
+
+    pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
+
+    if subcmd == "embed":
+        limit = 5000
+        for arg in sys.argv[3:]:
+            if arg.startswith("--limit="):
+                limit = int(arg.split("=")[1])
+        print(f"Generating session embeddings (limit={limit})...")
+        count = await backfill_session_embeddings(pool, limit=limit)
+        print(f"Done: {count} session embeddings generated")
+
+    elif subcmd == "coherence":
+        hours = 168
+        min_sim = 0.70
+        for arg in sys.argv[3:]:
+            if arg.startswith("--hours="):
+                hours = int(arg.split("=")[1])
+            elif arg.startswith("--min="):
+                min_sim = float(arg.split("=")[1])
+        print(f"Finding cross-platform session coherence (last {hours}h, min={min_sim})...")
+        results = await find_session_coherence(pool, since_hours=hours, min_similarity=min_sim)
+        print(f"\n{len(results)} session coherence pairs found:\n")
+        for sc in results[:20]:
+            print(f"  [{sc.similarity:.2f}] {sc.platform_a} <-> {sc.platform_b}")
+            print(f"    Session A: {sc.session_a_id}")
+            print(f"    Session B: {sc.session_b_id}")
+            if sc.shared_themes:
+                print(f"    Shared: {', '.join(sc.shared_themes[:5])}")
+            print()
+
+    else:
+        print("Usage: python3 -m coherence_engine sessions <embed|coherence>")
+        print("  embed       Generate session embeddings (--limit=N)")
+        print("  coherence   Find cross-platform session pairs (--hours=N --min=0.7)")
+
+    await pool.close()
+
+
 async def cmd_founding_moment():
     """Run the Founding Moment Validation test."""
     import asyncpg
@@ -272,6 +320,7 @@ def main():
         print("  consolidate       Nightly consolidation (arcs, FSRS, significance)")
         print("  graph             Extract entities into knowledge graph (--batch=N)")
         print("  insights          Extract real insights from moments via LLM (--moment=ID | --limit=N)")
+        print("  sessions          Session embeddings + cross-platform coherence (embed|coherence)")
         print("  founding-moment   Validate 2026-02-06 founding moment detection")
         sys.exit(1)
 
@@ -287,6 +336,7 @@ def main():
         "consolidate": cmd_consolidate,
         "graph": cmd_graph,
         "insights": cmd_insights,
+        "sessions": cmd_sessions,
     }
 
     handler = commands.get(cmd)

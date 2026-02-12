@@ -27,6 +27,7 @@ from .scorer import CoherenceScorer
 from .alerts import AlertSystem
 from .temporal import MultiScaleDetector
 from .insight_extractor import extract_insight_for_moment
+from .session_coherence import generate_session_embedding
 from mcp_raw.embeddings import embed_single, embed_texts
 
 import logging
@@ -56,6 +57,8 @@ class CoherenceDaemon:
         self._multi_scale = None
         self._realtime_listener = None
         self._mode = "poll"  # "poll" or "realtime"
+        self._last_session_embed_time = 0  # Track when we last ran session embedding
+        self._session_embed_interval = 300  # Run every 5 minutes
 
     async def initialize(self):
         """Initialize components using an existing pool (injected via __init__)."""
@@ -266,7 +269,32 @@ class CoherenceDaemon:
                     scanned_ids,
                 )
 
+        # Periodic session embedding pass (every 5 minutes)
+        now = time.time()
+        if now - self._last_session_embed_time > self._session_embed_interval:
+            self._last_session_embed_time = now
+            asyncio.create_task(self._session_embed_pass())
+
         return processed
+
+    async def _session_embed_pass(self):
+        """Generate session embeddings for recently completed sessions."""
+        try:
+            async with self._pool.acquire() as conn:
+                # Find sessions that ended recently and don't have embeddings
+                sessions = await conn.fetch(
+                    """SELECT session_id FROM cognitive_sessions
+                       WHERE session_embedding IS NULL
+                         AND event_count > 2
+                         AND status = 'completed'
+                       ORDER BY started_ns DESC LIMIT 10"""
+                )
+            for row in sessions:
+                await generate_session_embedding(self._pool, row["session_id"])
+            if sessions:
+                log.info(f"Session embed pass: processed {len(sessions)} sessions")
+        except Exception as e:
+            log.warning(f"Session embed pass failed: {e}")
 
     async def _process_event_with_embedding(self, event: dict, embedding: list):
         """Process a single event with a pre-computed embedding."""
