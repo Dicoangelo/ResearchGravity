@@ -1,9 +1,12 @@
 /**
- * UCW Sovereign Capture — ChatGPT Interceptor
+ * UCW Sovereign Capture — ChatGPT Interceptor v0.2.0
  *
- * Captures messages from chatgpt.com by observing DOM mutations
- * in the chat container.
+ * Captures messages from chatgpt.com / chat.openai.com
+ * Uses: MutationObserver on [data-message-author-role] elements.
+ * Extracts: content, direction, session_id, conversation title, model.
  */
+
+/* global UCW */
 
 (function () {
   "use strict";
@@ -11,65 +14,59 @@
   const PLATFORM = "chatgpt";
   const seenMessages = new WeakSet();
 
-  function extractMessage(el) {
-    // ChatGPT uses data-message-author-role attribute
-    const role = el.getAttribute("data-message-author-role");
-    if (!role) return null;
+  function extractSessionId() {
+    const match = window.location.pathname.match(/\/(?:c|chat)\/([a-f0-9-]+)/);
+    return match ? `chatgpt-${match[1]}` : null;
+  }
 
-    const direction = role === "user" ? "out" : "in";
-    const contentEl = el.querySelector(".markdown, .whitespace-pre-wrap");
-    const content = contentEl ? contentEl.innerText : el.innerText;
+  function extractTitle() {
+    // ChatGPT shows the conversation title in the nav or header
+    const titleEl =
+      document.querySelector("nav a.bg-token-sidebar-surface-secondary") ||
+      document.querySelector("h1") ||
+      document.querySelector("[data-testid='conversation-title']");
+    return titleEl?.textContent?.trim() || "";
+  }
 
-    if (!content || content.trim().length < 5) return null;
-
-    return { content: content.substring(0, 10000), direction };
+  function extractModel() {
+    // Model selector button often shows current model
+    const modelEl = document.querySelector(
+      "[data-testid='model-switcher'] span, button[aria-label*='model'] span"
+    );
+    return modelEl?.textContent?.trim() || "";
   }
 
   function processMessages() {
-    // ChatGPT renders messages in article or div[data-message-author-role] elements
     const messages = document.querySelectorAll("[data-message-author-role]");
     for (const msg of messages) {
       if (seenMessages.has(msg)) continue;
       seenMessages.add(msg);
 
-      const extracted = extractMessage(msg);
-      if (extracted) {
-        chrome.runtime.sendMessage({
-          type: "UCW_CAPTURE",
-          platform: PLATFORM,
-          event: {
-            platform: PLATFORM,
-            content: extracted.content,
-            direction: extracted.direction,
-            url: window.location.href,
-            session_hint: extractSessionId(),
-          },
-        });
-      }
+      const role = msg.getAttribute("data-message-author-role");
+      if (!role) continue;
+
+      const direction = role === "user" ? "out" : "in";
+      const contentEl = msg.querySelector(".markdown, .whitespace-pre-wrap");
+      const content = contentEl ? contentEl.innerText : msg.innerText;
+
+      if (!content || content.trim().length < 5) continue;
+
+      UCW.captureEvent(PLATFORM, content, direction, {
+        session_hint: extractSessionId(),
+        topic: extractTitle(),
+        metadata: {
+          model: extractModel(),
+          role,
+        },
+      });
     }
   }
 
-  function extractSessionId() {
-    // ChatGPT URL format: /c/uuid or /chat/uuid
-    const match = window.location.pathname.match(/\/(?:c|chat)\/([a-f0-9-]+)/);
-    return match ? `chatgpt-${match[1]}` : null;
-  }
-
-  // Observe for new messages
-  const observer = new MutationObserver(() => {
-    processMessages();
-  });
-
   function init() {
-    processMessages();
-    observer.observe(document.body, { childList: true, subtree: true });
+    UCW.observeChat(document.body, processMessages, 500);
     console.log("[UCW] ChatGPT interceptor active");
   }
 
-  // Wait for page load
-  if (document.readyState === "complete") {
-    init();
-  } else {
-    window.addEventListener("load", init);
-  }
+  if (document.readyState === "complete") init();
+  else window.addEventListener("load", init);
 })();
