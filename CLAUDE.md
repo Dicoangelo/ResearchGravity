@@ -212,6 +212,18 @@ researchgravity/               # Scripts (this repo)
 │   ├── archive_critic.py      # Archive validation
 │   ├── evidence_critic.py     # Evidence validation
 │   └── pack_critic.py         # Pack validation
+├── delegation/                # Intelligent Delegation v0.1.0 (arXiv:2602.11865)
+│   ├── models.py              # 11-dimensional TaskProfile, SubTask, Assignment
+│   ├── taxonomy.py            # Task classification (LLM + heuristic fallback)
+│   ├── decomposer.py          # Contract-first recursive decomposition
+│   ├── router.py              # Capability-weighted agent selection + fallback chains
+│   ├── trust_ledger.py        # Bayesian Beta trust scoring with time decay
+│   ├── coordinator.py         # Async monitoring, trigger detection, escalation
+│   ├── four_ds.py             # Anthropic 4Ds gates (delegation/description/discernment/diligence)
+│   ├── memory_bleed.py        # Supermemory context injection + SM-2 write-back
+│   ├── verifier.py            # 4 verification methods (auto/semantic/human/ground_truth)
+│   ├── evolution.py           # EMA learning from outcomes (agent affinity, quality trends)
+│   └── schema.sql             # 4 tables + 3 views
 ├── cpb/                       # Cognitive Precision Bridge v2.5
 │   ├── precision_orchestrator.py  # 7-agent cascade with ground truth
 │   ├── search_layer.py        # Tiered search (arXiv, GitHub, internal)
@@ -278,6 +290,54 @@ Base URL: `http://localhost:3847`
 | POST | `/api/search/semantic` | Semantic search (Cohere + reranking) |
 | GET | `/api/v2/stats` | Storage stats (Cohere model info) |
 | POST | `/api/v2/findings/batch` | Batch store findings |
+
+## Intelligent Delegation (MCP Tools)
+
+5 delegation tools available via `researchgravity-ucw` MCP server:
+
+| Tool | Description |
+|------|-------------|
+| `delegate_research` | Submit task → classify → decompose → route to agents |
+| `delegation_status` | Check chain progress, per-subtask status, triggers |
+| `get_agent_trust` | Query Bayesian trust scores (Beta distribution) |
+| `delegation_history` | View past delegations with outcomes |
+| `delegation_insights` | Top agents, failure patterns, methodology evolution |
+
+```python
+# Python API
+from delegation import DelegationCoordinator
+
+async with DelegationCoordinator() as coord:
+    chain_id = await coord.submit_chain("Research multi-agent trust calibration")
+    status = await coord.get_chain_status(chain_id)
+
+# Trust ledger
+from delegation.trust_ledger import TrustLedger
+
+async with TrustLedger() as ledger:
+    await ledger.record_outcome("agent-id", "task-type", success=True, quality_score=0.9, duration=5.0)
+    score = await ledger.get_trust_score("agent-id", "task-type")
+
+# 4Ds gates
+from delegation.four_ds import delegation_gate, description_gate, diligence_gate
+
+approved, reason = delegation_gate("task description", profile)
+score, suggestions = description_gate("task description", use_llm=False)
+
+# Evolution
+from delegation.evolution import EvolutionEngine
+
+engine = EvolutionEngine()
+engine.record_outcome("del-123", success=True, quality_score=0.92)
+strategies = engine.evolve_strategies()
+```
+
+**Key Design:**
+- **Bayesian trust**: Beta(α=successes+1, β=failures+1), 0.95 decay per 7 days stale
+- **Contract-first**: Tasks only delegate when verifiability >= 0.3
+- **Complexity floor**: Tasks with complexity < 0.2 bypass delegation
+- **Routing formula**: `score = capability_match × 0.6 + trust_score × 0.3 + cost_efficiency × 0.1`
+- **Escalation chain**: 1st failure → RETRY, 2nd → REROUTE, 3rd → ESCALATE
 
 ## Cold Start Protocol
 
