@@ -151,6 +151,25 @@ TOOLS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "sync_x_trust",
+        "description": (
+            "Sync X/Twitter author trust scores into the delegation trust ledger. "
+            "Both systems use Bayesian Beta distribution, so trust maps exactly. "
+            "Pass the JSON output from top_authors or author_trust. Creates delegation "
+            "agent entries prefixed 'x-author:' that the router can use for research tasks."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "authors_json": {
+                    "type": "string",
+                    "description": "JSON string from X top_authors or author_trust output",
+                },
+            },
+            "required": ["authors_json"],
+        },
+    },
 ]
 
 
@@ -163,6 +182,7 @@ async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         "get_agent_trust": _get_agent_trust,
         "delegation_history": _delegation_history,
         "delegation_insights": _delegation_insights,
+        "sync_x_trust": _sync_x_trust,
     }
 
     handler = handlers.get(name)
@@ -445,6 +465,42 @@ async def _delegation_insights(args: Dict) -> Dict:
         log.error(f"Insights generation failed: {exc}", exc_info=True)
         return tool_result_content(
             [text_content(f"Insights generation failed: {exc}")],
+            is_error=True,
+        )
+
+
+async def _sync_x_trust(args: Dict) -> Dict:
+    """Sync X/Twitter author trust scores into delegation trust ledger."""
+    authors_json = args["authors_json"]
+
+    try:
+        from delegation.x_trust_bridge import XTrustBridge
+
+        async with XTrustBridge() as bridge:
+            results = await bridge.sync_top_authors(authors_json)
+
+        output = f"# X → Delegation Trust Sync\n\n"
+        output += f"**Synced:** {len(results)} authors\n\n"
+
+        if results:
+            output += "| Author | X Trust | Delegation Trust | Agent ID |\n"
+            output += "|--------|---------|------------------|----------|\n"
+
+            for r in results:
+                output += (
+                    f"| @{r['username']} | {r['x_trust']:.3f} | "
+                    f"{r['delegation_trust']:.3f} | {r['agent_id']} |\n"
+                )
+
+            output += f"\n*These authors are now available as delegation agents "
+            output += f"with prefix `x-author:` for research task routing.*\n"
+
+        return tool_result_content([text_content(output)])
+
+    except Exception as exc:
+        log.error(f"X trust sync failed: {exc}", exc_info=True)
+        return tool_result_content(
+            [text_content(f"X trust sync failed: {exc}")],
             is_error=True,
         )
 

@@ -25,5 +25,9 @@ rich>=13.0.0               # Terminal UI
 prompt-toolkit>=3.0.0      # REPL framework (optional)
 watchdog>=3.0.0            # File watcher (optional)
 
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
 # Include CPB dependencies
 -r cpb/requirements.txt
