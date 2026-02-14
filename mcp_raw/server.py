@@ -312,13 +312,15 @@ class RawMCPServer:
     def _inject_db(self):
         """Inject shared DB instance into tool modules that need it."""
         try:
-            from mcp_raw.tools import ucw_tools, coherence_tools, intelligence_tools
+            from mcp_raw.tools import ucw_tools, coherence_tools, intelligence_tools, delegation_tools
             if hasattr(ucw_tools, 'set_db'):
                 ucw_tools.set_db(self._db)
             if hasattr(coherence_tools, 'set_db'):
                 coherence_tools.set_db(self._db)
             if hasattr(intelligence_tools, 'set_db'):
                 intelligence_tools.set_db(self._db)
+            if hasattr(delegation_tools, 'set_db'):
+                delegation_tools.set_db(self._db)
             log.info("DB injected into tool modules")
         except ImportError:
             pass
