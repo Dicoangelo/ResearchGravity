@@ -42,7 +42,7 @@ Usage:
 import aiosqlite
 import time
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
 
@@ -263,30 +263,39 @@ class TrustLedger:
 
         return trust_score
 
-    async def get_top_agents(self, task_type: str, limit: int = 5) -> List[Tuple[str, float]]:
+    async def get_top_agents(self, task_type: str = None, limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Get top-performing agents for a specific task type.
+        Get top-performing agents, optionally filtered by task type.
 
         Applies time decay to all entries before ranking.
 
         Args:
-            task_type: Task type
+            task_type: Optional task type filter (None = all agents)
             limit: Maximum number of agents to return
 
         Returns:
-            List of (agent_id, trust_score) tuples, sorted by trust_score descending
+            List of dicts with agent_id, trust_score, success_count, failure_count,
+            avg_quality, avg_duration — sorted by trust_score descending
         """
-        cursor = await self._db.execute(
-            "SELECT agent_id, trust_score, last_updated FROM trust_entries WHERE task_type = ? ORDER BY trust_score DESC",
-            (task_type,)
-        )
+        if task_type:
+            cursor = await self._db.execute(
+                "SELECT agent_id, trust_score, success_count, failure_count, avg_quality, avg_duration, last_updated "
+                "FROM trust_entries WHERE task_type = ? ORDER BY trust_score DESC",
+                (task_type,)
+            )
+        else:
+            cursor = await self._db.execute(
+                "SELECT agent_id, trust_score, success_count, failure_count, avg_quality, avg_duration, last_updated "
+                "FROM trust_entries ORDER BY trust_score DESC"
+            )
         rows = await cursor.fetchall()
 
         # Apply time decay to all entries
         current_time = time.time()
         decayed_scores = []
 
-        for agent_id, trust_score, last_updated in rows:
+        for row in rows:
+            agent_id, trust_score, success_count, failure_count, avg_quality, avg_duration, last_updated = row
             last_updated_time = time.mktime(time.strptime(last_updated, "%Y-%m-%d %H:%M:%S"))
             days_since_update = (current_time - last_updated_time) / (24 * 3600)
 
@@ -294,10 +303,17 @@ class TrustLedger:
                 trust_score *= self.DECAY_FACTOR
                 trust_score = max(0.0, min(1.0, trust_score))
 
-            decayed_scores.append((agent_id, trust_score))
+            decayed_scores.append({
+                "agent_id": agent_id,
+                "trust_score": trust_score,
+                "success_count": success_count,
+                "failure_count": failure_count,
+                "avg_quality": avg_quality,
+                "avg_duration": avg_duration,
+            })
 
         # Re-sort after decay and limit results
-        decayed_scores.sort(key=lambda x: x[1], reverse=True)
+        decayed_scores.sort(key=lambda x: x["trust_score"], reverse=True)
         return decayed_scores[:limit]
 
     async def get_agent_stats(self, agent_id: str, task_type: str) -> Optional[AgentTrustScore]:

@@ -254,13 +254,13 @@ class TestTopAgents:
             top = await ledger.get_top_agents(task_type, limit=5)
 
             assert len(top) == 3
-            assert top[0][0] == "agent-1"  # Highest trust
-            assert abs(top[0][1] - 0.9) < 0.001
-            assert top[1][0] == "agent-2"
-            assert abs(top[1][1] - 0.857) < 0.01
-            assert top[2][0] == "agent-3"
+            assert top[0]["agent_id"] == "agent-1"  # Highest trust
+            assert abs(top[0]["trust_score"] - 0.9) < 0.001
+            assert top[1]["agent_id"] == "agent-2"
+            assert abs(top[1]["trust_score"] - 0.857) < 0.01
+            assert top[2]["agent_id"] == "agent-3"
             # Beta(4,3) = 4/7 = 0.571
-            assert abs(top[2][1] - 0.571) < 0.01
+            assert abs(top[2]["trust_score"] - 0.571) < 0.01
 
     @pytest.mark.asyncio
     async def test_get_top_agents_respects_limit(self, temp_db):
@@ -277,9 +277,9 @@ class TestTopAgents:
             top = await ledger.get_top_agents(task_type, limit=3)
 
             assert len(top) == 3
-            assert top[0][0] == "agent-9"  # Highest trust (10 successes)
-            assert top[1][0] == "agent-8"
-            assert top[2][0] == "agent-7"
+            assert top[0]["agent_id"] == "agent-9"  # Highest trust (10 successes)
+            assert top[1]["agent_id"] == "agent-8"
+            assert top[2]["agent_id"] == "agent-7"
 
 
 class TestTaskTypeSpecificity:
