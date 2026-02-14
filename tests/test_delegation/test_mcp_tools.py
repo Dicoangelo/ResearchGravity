@@ -27,8 +27,8 @@ class TestToolDefinitions:
     """Test tool definitions are correctly structured."""
 
     def test_tools_list_structure(self):
-        """All 5 tools defined with required fields."""
-        assert len(TOOLS) == 5
+        """All 6 tools defined with required fields."""
+        assert len(TOOLS) == 6
         tool_names = {t["name"] for t in TOOLS}
         assert tool_names == {
             "delegate_research",
@@ -36,6 +36,7 @@ class TestToolDefinitions:
             "get_agent_trust",
             "delegation_history",
             "delegation_insights",
+            "sync_x_trust",
         }
 
     def test_tools_have_descriptions(self):
