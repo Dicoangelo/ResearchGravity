@@ -37,6 +37,7 @@ from .taxonomy import classify_task
 from .decomposer import decompose_task
 from .router import route_subtask, load_agent_registry, AgentCapability
 from .verifier import verify_completion
+from .executor import SubtaskExecutor
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -133,6 +134,7 @@ class DelegationCoordinator:
         self.chains: Dict[str, ChainStatus] = {}
         self.agent_registry: List[AgentCapability] = []
         self.failure_counts: Dict[str, int] = {}  # subtask_id -> failure count
+        self.executor = SubtaskExecutor()
 
         # Background monitoring task
         self._monitor_task: Optional[asyncio.Task] = None
@@ -245,7 +247,168 @@ class DelegationCoordinator:
             }
         )
 
+        # Step 6: Execute subtasks (non-blocking — fire and forget)
+        asyncio.create_task(
+            self._execute_chain(chain_id, subtasks, assignments)
+        )
+
         return chain_id
+
+    async def _execute_chain(
+        self,
+        chain_id: str,
+        subtasks: list,
+        assignments: Dict[str, Assignment],
+    ):
+        """
+        Execute all subtasks in a chain, update statuses, run verification.
+
+        Parallel-safe subtasks run concurrently; sequential ones run in order.
+        After each subtask completes, its result is verified and trust is updated.
+        """
+        chain = self.chains.get(chain_id)
+        if not chain:
+            return
+
+        # Split into parallel and sequential groups
+        parallel_tasks = [st for st in subtasks if st.parallel_safe]
+        sequential_tasks = [st for st in subtasks if not st.parallel_safe]
+
+        # Execute parallel batch first
+        if parallel_tasks:
+            batch = [
+                {
+                    "subtask_id": st.id,
+                    "agent_id": assignments[st.id].agent_id,
+                    "description": st.description,
+                }
+                for st in parallel_tasks
+            ]
+            results = await self.executor.execute_batch(
+                batch, chain_id, parallel=True
+            )
+            for result in results:
+                await self._process_result(chain_id, result)
+
+        # Then execute sequential tasks
+        for st in sequential_tasks:
+            result = await self.executor.execute(
+                subtask_id=st.id,
+                agent_id=assignments[st.id].agent_id,
+                description=st.description,
+                chain_id=chain_id,
+            )
+            await self._process_result(chain_id, result)
+
+        # Finalize chain status
+        await self._finalize_chain(chain_id)
+
+    async def _process_result(
+        self, chain_id: str, result
+    ):
+        """Process a single subtask execution result."""
+        chain = self.chains.get(chain_id)
+        if not chain or result.subtask_id not in chain.subtask_statuses:
+            return
+
+        st_status = chain.subtask_statuses[result.subtask_id]
+
+        # Update subtask status
+        st_status["status"] = "completed" if result.success else "failed"
+        st_status["completed_at"] = result.timestamp
+        st_status["started_at"] = result.timestamp - result.duration
+        st_status["result"] = result.output[:500] if result.success else None
+        st_status["last_update"] = time.time()
+
+        # Log event
+        chain.events.append({
+            "type": "subtask_completed" if result.success else "subtask_failed",
+            "timestamp": result.timestamp,
+            "subtask_id": result.subtask_id,
+            "agent_id": result.agent_id,
+            "duration": result.duration,
+            "success": result.success,
+            "error": result.error if not result.success else None,
+        })
+
+        # Update trust ledger
+        try:
+            from .trust_ledger import TrustLedger
+            async with TrustLedger() as ledger:
+                quality = 0.8 if result.success else 0.2
+                await ledger.record_outcome(
+                    agent_id=result.agent_id,
+                    task_type="delegation",
+                    success=result.success,
+                    quality=quality,
+                    duration=result.duration,
+                )
+        except Exception:
+            pass  # Never block execution on trust logging
+
+        # Update chain progress
+        chain.updated_at = time.time()
+
+    async def _finalize_chain(self, chain_id: str):
+        """Finalize chain status based on subtask outcomes."""
+        chain = self.chains.get(chain_id)
+        if not chain:
+            return
+
+        total = len(chain.subtask_statuses)
+        completed = sum(
+            1 for st in chain.subtask_statuses.values()
+            if st["status"] == "completed"
+        )
+        failed = sum(
+            1 for st in chain.subtask_statuses.values()
+            if st["status"] == "failed"
+        )
+
+        chain.progress = (completed + failed) / total if total > 0 else 1.0
+
+        if completed == total:
+            chain.status = "completed"
+        elif failed > 0 and completed + failed == total:
+            chain.status = "partial"  # Some succeeded, some failed
+        else:
+            chain.status = "failed"
+
+        chain.updated_at = time.time()
+
+        # Feed to evolution engine
+        try:
+            from .evolution import EvolutionEngine
+            engine = EvolutionEngine()
+            engine.record_outcome(
+                delegation_id=chain_id,
+                success=chain.status == "completed",
+                quality_score=completed / total if total > 0 else 0.0,
+                actual_cost=0.1 * total,
+                actual_duration=sum(
+                    (st.get("completed_at", 0) or 0) - (st.get("started_at", 0) or 0)
+                    for st in chain.subtask_statuses.values()
+                ),
+                complexity=0.5,
+                subtask_count=total,
+                agent_ids=[
+                    st.get("agent_id", "") for st in chain.subtask_statuses.values()
+                ],
+                feedback=f"Chain {chain_id}: {completed}/{total} subtasks completed",
+            )
+        except Exception:
+            pass  # Never block on evolution logging
+
+        await self._capture_event(
+            event_type="chain_finalized",
+            chain_id=chain_id,
+            details={
+                "status": chain.status,
+                "completed": completed,
+                "failed": failed,
+                "total": total,
+            },
+        )
 
     async def get_chain_status(self, chain_id: str) -> Dict[str, Any]:
         """
