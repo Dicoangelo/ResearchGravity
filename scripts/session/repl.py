@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Optional
 
 # Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from cli.commands import CommandHandler
 from cli.ui import SessionUI, create_ui, SessionStats

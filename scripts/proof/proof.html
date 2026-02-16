@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResearchGravity — Proof of Credibility</title>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3;
+    --dim: #8b949e; --green: #3fb950; --yellow: #d29922; --cyan: #58a6ff;
+    --mag: #bc8cff; --red: #f85149; --accent: #58a6ff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 14px; line-height: 1.6; padding: 40px 20px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; color: var(--cyan); border-bottom: 2px solid var(--cyan); padding-bottom: 12px;
+    margin-bottom: 8px; letter-spacing: -0.5px; }
+  .subtitle { color: var(--dim); margin-bottom: 32px; font-size: 15px; }
+  .proof { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px 28px; margin-bottom: 24px; }
+  .proof-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .proof-num { background: var(--green); color: #000; font-weight: 700; width: 28px; height: 28px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .proof-title { font-size: 18px; font-weight: 700; }
+  .kv { display: flex; gap: 8px; margin: 6px 0; padding-left: 8px; }
+  .kv-key { color: var(--dim); min-width: 140px; flex-shrink: 0; }
+  .kv-val { color: var(--text); word-break: break-all; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px;
+    font-weight: 600; margin: 0 4px; }
+  .t1 { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .t2 { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+  .source-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+    margin: 4px 0; background: rgba(255,255,255,0.02); }
+  .source-row a { color: var(--cyan); text-decoration: none; }
+  .source-row a:hover { text-decoration: underline; }
+  .claim-box { background: rgba(88,166,255,0.08); border-left: 3px solid var(--cyan);
+    padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 15px; }
+  .bar-container { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+  .bar-label { min-width: 120px; text-align: right; color: var(--dim); font-size: 13px; }
+  .bar-track { flex: 1; height: 24px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;
+    position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease; }
+  .bar-fill.high { background: linear-gradient(90deg, #238636, #3fb950); }
+  .bar-fill.med { background: linear-gradient(90deg, #9e6a03, #d29922); }
+  .bar-score { min-width: 50px; font-weight: 700; font-size: 14px; }
+  .bar-weight { color: var(--dim); font-size: 12px; min-width: 70px; }
+  .reasoning { list-style: none; padding: 0; }
+  .reasoning li { padding: 6px 12px; margin: 4px 0; border-radius: 6px; font-size: 13px; }
+  .reasoning li::before { content: '→'; color: var(--cyan); margin-right: 8px; }
+  .reasoning li.ok { background: rgba(63,185,80,0.08); }
+  .reasoning li.ok::before { content: '✓'; color: var(--green); }
+  .check { color: var(--green); margin-right: 4px; }
+  .json-block { background: #0d1117; border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px; overflow-x: auto; font-size: 12px; line-height: 1.5; max-height: 500px;
+    overflow-y: auto; margin-top: 16px; }
+  .json-key { color: var(--cyan); }
+  .json-str { color: var(--green); }
+  .json-num { color: var(--mag); }
+  .json-bool { color: var(--yellow); }
+  .retrieval-result { background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; margin: 8px 0; }
+  .retrieval-id { color: var(--mag); font-size: 12px; }
+  .retrieval-snippet { color: var(--dim); font-size: 13px; margin-top: 4px; }
+  .confidence-badge { font-size: 12px; padding: 2px 8px; border-radius: 10px;
+    background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .summary { background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(188,140,255,0.08));
+    border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-top: 32px; }
+  .summary-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+  .summary-check { font-size: 18px; }
+  .elapsed { text-align: center; color: var(--dim); margin-top: 20px; font-size: 13px; }
+  .section-label { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    margin: 20px 0 8px 0; }
+</style>
+</head>
+<body>
+
+<h1>ResearchGravity — Proof of Credibility</h1>
+<p class="subtitle">Three proof items that make the framework real. 4.96 seconds.</p>
+
+<!-- PROOF 1: INGEST -->
+<div class="proof">
+  <div class="proof-header">
+    <div class="proof-num">1</div>
+    <div class="proof-title">INGEST — URL/transcript → structured record</div>
+  </div>
+  <div class="kv"><span class="kv-key">Session ID</span><span class="kv-val">proof-1771212924-b77f6402</span></div>
+  <div class="kv"><span class="kv-key">Text Length</span><span class="kv-val">1,246 characters</span></div>
+  <div class="kv"><span class="kv-key">Evidence Extracted</span><span class="kv-val">4 sources</span></div>
+  <div class="kv"><span class="kv-key">URLs Stored</span><span class="kv-val">4 → antigravity.db</span></div>
+
+  <div class="section-label">Extracted Sources</div>
+  <div class="source-row">
+    <span class="tag t1">T1</span>
+    <a href="https://arxiv.org/abs/2602.11865">arXiv:2602.11865</a>
+    <span style="color:var(--dim)">— Bayesian Beta trust scoring for delegation</span>
+  </div>
+  <div class="source-row">
+    <span class="tag t1">T1</span>
+    <a href="https://arxiv.org/abs/2512.05470">arXiv:2512.05470</a>
+    <span style="color:var(--dim)">— Agentic File System, persistent memory layers</span>
+  </div>
+  <div class="source-row">
+    <span class="tag t1">T1</span>
+    <a href="https://arxiv.org/abs/2508.17536">arXiv:2508.17536</a>
+    <span style="color:var(--dim)">— Voting-based consensus approaches</span>
+  </div>
+  <div class="source-row">
+    <span class="tag t2">T2</span>
+    <a href="https://github.com/Dicoangelo/antigravity-coordinator">Dicoangelo/antigravity-coordinator</a>
+    <span style="color:var(--dim)">— 11D task profiles implementation</span>
+  </div>
+</div>
+
+<!-- PROOF 2: FINDING -->
+<div class="proof">
+  <div class="proof-header">
+    <div class="proof-num">2</div>
+    <div class="proof-title">FINDING — claim + evidence + citations + confidence + lineage</div>
+  </div>
+  <div class="kv"><span class="kv-key">Finding ID</span><span class="kv-val" style="color:var(--mag)">finding-1771212924-5c2dc7aba</span></div>
+  <div class="kv"><span class="kv-key">Type</span><span class="kv-val">finding</span></div>
+  <div class="kv"><span class="kv-key">Lineage ID</span><span class="kv-val" style="color:var(--mag)">finding-1771212924-5c2dc7aba</span></div>
+
+  <div class="claim-box">
+    <strong>CLAIM:</strong><br>
+    Bayesian Beta trust scoring (arXiv:2602.11865) outperforms static trust tables by 34% on delegation accuracy.
+  </div>
+
+  <div class="section-label">Citations (4 sources)</div>
+  <div class="source-row">
+    <span style="color:var(--cyan)">→</span>
+    <span>arXiv:2602.11865</span>
+    <span style="color:var(--dim);margin-left:auto">relevance: 0.85</span>
+  </div>
+  <div class="source-row">
+    <span style="color:var(--cyan)">→</span>
+    <span>arXiv:2512.05470</span>
+    <span style="color:var(--dim);margin-left:auto">relevance: 0.85</span>
+  </div>
+  <div class="source-row">
+    <span style="color:var(--cyan)">→</span>
+    <span>arXiv:2508.17536</span>
+    <span style="color:var(--dim);margin-left:auto">relevance: 0.85</span>
+  </div>
+  <div class="source-row">
+    <span style="color:var(--cyan)">→</span>
+    <span>github.com/Dicoangelo/antigravity-coordinator</span>
+    <span style="color:var(--dim);margin-left:auto">relevance: 0.65</span>
+  </div>
+
+  <div style="margin-top:16px">
+    <div class="kv"><span class="kv-key">Confidence</span><span class="kv-val" style="color:var(--green);font-weight:700">92.05%</span></div>
+    <div class="kv"><span class="kv-key">Validated</span><span class="kv-val"><span class="confidence-badge">YES</span> (threshold: 0.70)</span></div>
+  </div>
+
+  <div class="section-label">Reasoning Chain</div>
+  <ul class="reasoning">
+    <li>Extracted 4 citation(s) from input text</li>
+    <li>Source tiers: 3 T1, 1 T2, 0 T3</li>
+    <li>Running 3-stream oracle validation (accuracy, completeness, relevance)</li>
+    <li class="ok">Oracle consensus: 92.05% confidence (VALIDATED)</li>
+  </ul>
+</div>
+
+<!-- PROOF 3: TRACE -->
+<div class="proof">
+  <div class="proof-header">
+    <div class="proof-num">3</div>
+    <div class="proof-title">TRACE — retrieval → critics → justified answer</div>
+  </div>
+
+  <div class="section-label">Retrieval</div>
+  <div class="kv"><span class="kv-key">Query</span><span class="kv-val">"bayesian trust scoring arxiv outperforms"</span></div>
+  <div class="kv"><span class="kv-key">Method</span><span class="kv-val">FTS5 full-text search → LIKE fallback</span></div>
+  <div class="kv"><span class="kv-key">Results</span><span class="kv-val">5 related findings</span></div>
+
+  <div class="retrieval-result">
+    <span class="retrieval-id">finding-1771212924-5c2dc7aba</span>
+    <span class="confidence-badge" style="margin-left:8px">0.92</span>
+    <div class="retrieval-snippet">Bayesian Beta trust scoring (arXiv:2602.11865) outperforms static trust tables by 34%...</div>
+  </div>
+  <div class="retrieval-result">
+    <span class="retrieval-id">finding-1771212871-bbed121ca</span>
+    <span class="confidence-badge" style="margin-left:8px">0.92</span>
+    <div class="retrieval-snippet">Bayesian Beta trust scoring (arXiv:2602.11865) outperforms static trust tables by 34%...</div>
+  </div>
+  <div class="retrieval-result">
+    <span class="retrieval-id">finding-1771212804-538327a80</span>
+    <span class="confidence-badge" style="margin-left:8px">0.92</span>
+    <div class="retrieval-snippet">Bayesian Beta trust scoring (arXiv:2602.11865) outperforms static trust tables by 34%...</div>
+  </div>
+
+  <div class="section-label">Critics (3-Stream Oracle)</div>
+
+  <div class="bar-container">
+    <span class="bar-label">accuracy</span>
+    <div class="bar-track"><div class="bar-fill high" style="width:100%"></div></div>
+    <span class="bar-score" style="color:var(--green)">1.00</span>
+    <span class="bar-weight">weight: 40%</span>
+  </div>
+  <div class="bar-container">
+    <span class="bar-label">completeness</span>
+    <div class="bar-track"><div class="bar-fill high" style="width:93%"></div></div>
+    <span class="bar-score" style="color:var(--green)">0.93</span>
+    <span class="bar-weight">weight: 35%</span>
+  </div>
+  <div class="bar-container">
+    <span class="bar-label">relevance</span>
+    <div class="bar-track"><div class="bar-fill high" style="width:78%"></div></div>
+    <span class="bar-score" style="color:var(--green)">0.78</span>
+    <span class="bar-weight">weight: 25%</span>
+  </div>
+
+  <div class="section-label">Answer Justification</div>
+  <ul class="reasoning">
+    <li>Ingested transcript (1,246 chars)</li>
+    <li class="ok">Extracted 4 evidence sources (3 Tier 1)</li>
+    <li>Oracle accuracy stream: 1.00</li>
+    <li>Oracle completeness stream: 0.93</li>
+    <li>Oracle relevance stream: 0.78</li>
+    <li class="ok">Weighted confidence: 92.05% (above 0.70 threshold)</li>
+    <li>Found 5 related findings in knowledge base</li>
+    <li class="ok">Stored as finding-1771212924-5c2dc7aba with full provenance chain</li>
+  </ul>
+
+  <div class="section-label">Stored Record Retrieval</div>
+  <div style="padding:12px;background:rgba(63,185,80,0.06);border-radius:8px;border:1px solid rgba(63,185,80,0.2)">
+    <span class="check">✓</span> Retrieved <code style="color:var(--mag)">finding-1771212924-5c2dc7aba</code> from antigravity.db<br>
+    <span style="margin-left:24px;color:var(--dim)">Confidence: 92.05% | Sources: 4 | Validated: true</span>
+  </div>
+</div>
+
+<!-- SUMMARY -->
+<div class="summary">
+  <div style="font-size:18px;font-weight:700;margin-bottom:16px">Proof Complete</div>
+  <div class="summary-row">
+    <span class="summary-check" style="color:var(--green)">✓</span>
+    <strong>Proof 1</strong> (Ingest): URL/transcript → 4 sources → stored in antigravity.db
+  </div>
+  <div class="summary-row">
+    <span class="summary-check" style="color:var(--green)">✓</span>
+    <strong>Proof 2</strong> (Finding): claim + 4 citations + 92% confidence + lineage ID
+  </div>
+  <div class="summary-row">
+    <span class="summary-check" style="color:var(--green)">✓</span>
+    <strong>Proof 3</strong> (Trace): retrieval(5) → critics(3) → answer justified
+  </div>
+</div>
+
+<!-- FULL FINDING JSON -->
+<div style="margin-top:32px">
+  <div class="section-label">Full Finding Object (JSON)</div>
+  <div class="json-block"><pre>{
+  <span class="json-key">"id"</span>: <span class="json-str">"finding-1771212924-5c2dc7aba"</span>,
+  <span class="json-key">"session_id"</span>: <span class="json-str">"proof-1771212924-b77f6402"</span>,
+  <span class="json-key">"content"</span>: <span class="json-str">"Bayesian Beta trust scoring (arXiv:2602.11865) outperforms static trust tables by 34% on delegation accuracy"</span>,
+  <span class="json-key">"type"</span>: <span class="json-str">"finding"</span>,
+  <span class="json-key">"evidence"</span>: {
+    <span class="json-key">"sources"</span>: [
+      { <span class="json-key">"url"</span>: <span class="json-str">"https://arxiv.org/abs/2602.11865"</span>, <span class="json-key">"arxiv_id"</span>: <span class="json-str">"2602.11865"</span>, <span class="json-key">"relevance_score"</span>: <span class="json-num">0.85</span>, <span class="json-key">"tier"</span>: <span class="json-num">1</span> },
+      { <span class="json-key">"url"</span>: <span class="json-str">"https://arxiv.org/abs/2512.05470"</span>, <span class="json-key">"arxiv_id"</span>: <span class="json-str">"2512.05470"</span>, <span class="json-key">"relevance_score"</span>: <span class="json-num">0.85</span>, <span class="json-key">"tier"</span>: <span class="json-num">1</span> },
+      { <span class="json-key">"url"</span>: <span class="json-str">"https://arxiv.org/abs/2508.17536"</span>, <span class="json-key">"arxiv_id"</span>: <span class="json-str">"2508.17536"</span>, <span class="json-key">"relevance_score"</span>: <span class="json-num">0.85</span>, <span class="json-key">"tier"</span>: <span class="json-num">1</span> },
+      { <span class="json-key">"url"</span>: <span class="json-str">"https://github.com/Dicoangelo/antigravity-coordinator"</span>, <span class="json-key">"relevance_score"</span>: <span class="json-num">0.65</span>, <span class="json-key">"tier"</span>: <span class="json-num">2</span> }
+    ],
+    <span class="json-key">"confidence"</span>: <span class="json-num">0.9205</span>,
+    <span class="json-key">"reasoning_chain"</span>: [
+      <span class="json-str">"Extracted 4 citation(s) from input text"</span>,
+      <span class="json-str">"Source tiers: 3 T1, 1 T2, 0 T3"</span>,
+      <span class="json-str">"Running 3-stream oracle validation"</span>,
+      <span class="json-str">"Oracle consensus: 92.05% confidence (VALIDATED)"</span>
+    ],
+    <span class="json-key">"validation"</span>: {
+      <span class="json-key">"validated"</span>: <span class="json-bool">true</span>,
+      <span class="json-key">"validated_at"</span>: <span class="json-str">"2026-02-15T22:35:24.375112"</span>,
+      <span class="json-key">"oracle_streams"</span>: [<span class="json-str">"accuracy: 1.00"</span>, <span class="json-str">"completeness: 0.93"</span>, <span class="json-str">"relevance: 0.78"</span>]
+    }
+  },
+  <span class="json-key">"derived_from"</span>: [],
+  <span class="json-key">"enables"</span>: [],
+  <span class="json-key">"tags"</span>: [<span class="json-str">"proof-demo"</span>, <span class="json-str">"multi-agent"</span>],
+  <span class="json-key">"projects"</span>: [<span class="json-str">"researchgravity"</span>],
+  <span class="json-key">"needs_review"</span>: <span class="json-bool">false</span>
+}</pre></div>
+</div>
+
+<p class="elapsed">Pipeline executed in 4.96 seconds against 33,232 findings in antigravity.db</p>
+
+</body>
+</html>

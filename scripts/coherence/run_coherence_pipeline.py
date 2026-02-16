@@ -23,7 +23,7 @@ from collections import defaultdict
 from datetime import datetime
 
 # Add project root to path
-sys.path.insert(0, "/Users/dicoangelo/researchgravity")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 
 async def get_pool():

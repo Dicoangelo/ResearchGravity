@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 import argparse
 
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
 from storage.qdrant_db import QdrantDB
 
 HOME = Path.home()
