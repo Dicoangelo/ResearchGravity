@@ -18,7 +18,7 @@
 
 We introduce Metaventions, a blockchain-native substrate enabling sovereign ownership of cognitive output in the age of artificial intelligence. The Universal Cognitive Wallet (UCW) captures, synthesizes, and values human-AI cognitive production as on-chain assets — creating a new primitive we call **cognitive equity**. Unlike existing AI memory solutions that lock users into platform-controlled silos, the UCW makes innovation itself the owned, compounding, sovereign asset.
 
-This paper presents: (1) the cognitive extraction problem — 400M+ daily AI users generating unprecedented value captured entirely by platforms; (2) the UCW architecture — a five-layer substrate from capture to blockchain ownership; (3) the $META token — a coordination mechanism for cognitive sovereignty; (4) BASIX — the Sovereign AI-Cloud Index tracking the emerging infrastructure layer; and (5) proof of implementation — 140,732 cognitive events captured across 5 platforms, 130,728 semantic embeddings, and 163+ cross-platform coherence moments detected by a working system.
+This paper presents: (1) the cognitive extraction problem — 400M+ daily AI users generating unprecedented value captured entirely by platforms; (2) the UCW architecture — a five-layer substrate from capture to blockchain ownership; (3) the $META token — a coordination mechanism for cognitive sovereignty; (4) BASIX — the Sovereign AI-Cloud Index tracking the emerging infrastructure layer; and (5) proof of implementation — 174,169 cognitive events captured across 5 platforms with 33,240 research findings and 68,341 tool interactions tracked by a working system.
 
 Bitcoin introduced digital scarcity. Ethereum introduced programmable value. Metaventions introduces cognitive equity — where thinking is owning.
 
@@ -252,28 +252,32 @@ The capture layer implements raw STDIO MCP (Model Context Protocol) communicatio
 | CCC | SQLite operational data (7 tables) | 1,393 |
 | **Total** | **5 adapters** | **140,732** |
 
+> **Note (Feb 2026 audit):** Total events in `antigravity.db` now **174,169** including continued capture since initial count. Database path: `~/.agent-core/storage/antigravity.db`.
+
 ### 4.4 Intelligence Layer
 
 The intelligence layer transforms raw capture into structured cognitive value:
 
 - **Quality scoring**: Depth (0.4 weight) + Focus (0.3 weight) + Signal (0.3 weight)
 - **Cognitive mode classification**: deep_work (>0.75), exploration (0.5-0.75), casual (0.3-0.5), garbage (<0.3)
-- **Semantic embeddings**: SBERT all-MiniLM-L6-v2 (384d), with 130,728 vectors generated
+- **Semantic embeddings**: Cohere embed-v4 (1024d), with 43,092 vectors across 5 collections in Qdrant
 - **Coherence detection**: 3-layer detection (signature match, semantic similarity, synchronicity)
 
 ### 4.5 Memory Layer
 
-The memory layer stores cognitive assets in a unified schema:
+The memory layer stores cognitive assets in a unified schema (`~/.agent-core/storage/antigravity.db`):
 
-| Table | Purpose |
-|-------|---------|
-| `cognitive_events` | Every message with UCW layers, nanosecond timestamps, raw bytes |
-| `cognitive_sessions` | Work sessions across platforms with outcomes |
-| `coherence_moments` | Detected cross-platform cognitive alignment |
-| `coherence_links` | Event-to-event coherence relationships |
-| `embedding_cache` | Semantic embeddings for similarity search (pgvector) |
-| `cognitive_signatures` | Unique patterns for coherence detection |
-| `supermemory_entries` | Long-term memory with spaced repetition |
+| Table | Purpose | Rows (Feb 2026) |
+|-------|---------|-----------------|
+| `sessions` | Work sessions across platforms with outcomes | 8,156 |
+| `findings` | Insights and discoveries captured | 33,240 |
+| `tool_events` | Tool usage interactions across sessions | 68,341 |
+| `provenance` | Source attribution and lineage tracking | 38,819 |
+| `urls` | Knowledge sources logged | 8,962 |
+| `cognitive_states` | Cognitive state snapshots | 549 |
+| `dq_scores` | Decision quality routing assessments | 1,604 |
+
+> **Note:** The original design specified `cognitive_events`, `coherence_moments`, and `embedding_cache` (pgvector) tables. Production uses the schema above in SQLite. Embeddings were generated via SBERT into Qdrant (currently offline).
 
 **Database:** PostgreSQL 15+ with pgvector extension, HNSW indexes, GIN indexes for JSONB. SQLite fallback for development.
 
@@ -370,9 +374,9 @@ From the operational system (as of February 2026):
 
 | Metric | Value |
 |--------|-------|
-| Total events analyzed | 140,732 |
-| Embeddings generated | 130,728 (92.9% coverage) |
-| Coherence moments detected | 163+ |
+| Total events captured | 174,169 (growing) |
+| Semantic embeddings | 43,092 vectors (Cohere embed-v4, 1024d) in Qdrant |
+| Coherence moments detected | 163+ (historical analysis; coherence engine paused) |
 | Platform pairs analyzed | 4 active pairs |
 
 **Coherence Moment Distribution:**
@@ -690,18 +694,18 @@ This methodology has produced: UCW, BASIX, CPB (Cognitive Precision Bridge), the
 │                    UCW OPERATIONAL METRICS                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                   │
-│  Total cognitive events:          140,732                        │
+│  Total cognitive events:          174,169 (verified Feb 16)      │
 │  Platforms captured:              5 (Claude CLI, ChatGPT,        │
 │                                     Claude Code, Desktop, CCC)   │
-│  Semantic embeddings:             130,728 (92.9% coverage)       │
-│  Coherence moments:               163+                           │
+│  Semantic embeddings:             43,092 vectors (Qdrant online)  │
+│  Embedding model:                 Cohere embed-v4 (1024d)        │
+│  Coherence moments:               163+ (historical analysis)     │
 │  Cross-platform pairs:            4 active                       │
-│  ChatGPT conversations scored:    8,119 (98% quality rate)       │
-│  Sessions imported:               8,042 (ChatGPT) + 491 (CLI)   │
-│  Findings captured:               30,712                         │
+│  ChatGPT sessions imported:       8,042 (30,663 findings)        │
+│  Total findings:                  33,240                         │
+│  Tool events tracked:             68,341                         │
 │  Quality score average:           0.617                          │
-│  Embedding model:                 SBERT all-MiniLM-L6-v2 (384d) │
-│  Database:                        PostgreSQL 15 + pgvector        │
+│  Database:                        SQLite (antigravity.db)         │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -921,11 +925,11 @@ Metaventions asks: **What if your ideas were yours to own, forever?**
 
 This is not a whitepaper describing a future system. The primitive is proven:
 
-- **140,732 cognitive events** captured across 5 platforms
-- **130,728 semantic embeddings** enabling cross-platform intelligence
-- **163+ coherence moments** detecting distributed cognitive patterns
-- **8,119 conversations** quality-scored with 98% preservation rate
-- **140,000+ lines of code** across the D-Ecosystem
+- **174,169 cognitive events** captured across 5 platforms (and growing)
+- **43,092 semantic embeddings** powering real-time search across 5 Qdrant collections
+- **163+ coherence moments** detected in cross-platform analysis
+- **8,042 ChatGPT sessions** imported with 30,663 findings extracted
+- **900,000+ lines of code** across the D-Ecosystem
 - **Real-time daemons** continuously capturing and analyzing cognitive output
 
 ### The Window
