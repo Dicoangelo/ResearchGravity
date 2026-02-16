@@ -40,6 +40,22 @@
 
 ---
 
+## Proof Deck — See It Work
+
+<p align="center">
+  <img src="proof-deck.gif" alt="ResearchGravity Proof Deck — 9-slide interactive demo" width="100%" />
+</p>
+
+<p align="center">
+  <em>9-slide interactive proof: real DB stats, EvidencedFinding schema, 3-stream oracle critique, and a live pipeline demo that writes real findings to antigravity.db.</em>
+</p>
+
+<p align="center">
+  <a href="proof-deck.html"><strong>Open Interactive Deck</strong></a>
+</p>
+
+---
+
 ## What's New in v6.1 — Security & Reliability (January 2026)
 
 **Production-hardened API with enterprise security.**
