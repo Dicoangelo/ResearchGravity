@@ -42,6 +42,13 @@ try:
 except ImportError:
     CRITIC_SYSTEM_AVAILABLE = False
 
+# Import Visual Intelligence Layer (PaperBanana)
+try:
+    from visual import PaperBananaAdapter, get_visual_config
+    VISUAL_LAYER_AVAILABLE = True
+except ImportError:
+    VISUAL_LAYER_AVAILABLE = False
+
 
 def get_agent_core_dir() -> Path:
     return Path.home() / ".agent-core"
@@ -435,6 +442,55 @@ def archive_session(
     elif not EVIDENCE_LAYER_AVAILABLE:
         print("ℹ  Evidence layer not available (import evidence_extractor for full features)")
 
+    # ═══════════════════════════════════════════════════════════════
+    # VISUAL LAYER: Auto-generate diagrams from findings
+    # Uses PaperBanana 5-agent pipeline (Gemini 2.5 Pro + 4K images)
+    # ═══════════════════════════════════════════════════════════════
+    visual_stats = {
+        "diagrams_generated": 0,
+        "total_cost": 0.0,
+        "asset_ids": [],
+    }
+
+    if VISUAL_LAYER_AVAILABLE and not skip_validation:
+        visual_config = get_visual_config()
+        if visual_config.enabled and visual_config.google_api_key:
+            print("\n🎨 Visual Intelligence Layer...")
+            try:
+                import asyncio as _vis_asyncio
+
+                async def run_visual():
+                    adapter = PaperBananaAdapter()
+                    findings = session.get("findings_captured", [])
+                    if not findings:
+                        print("   ℹ No findings to visualize")
+                        return []
+                    return await adapter.generate_session_diagrams(
+                        session_id=session["session_id"],
+                        session_dir=global_dir,
+                        findings=findings,
+                    )
+
+                visual_results = _vis_asyncio.run(run_visual())
+
+                for vr in visual_results:
+                    visual_stats["diagrams_generated"] += 1
+                    visual_stats["total_cost"] += vr.get("metadata", {}).get("estimated_cost_usd", 0)
+                    visual_stats["asset_ids"].append(vr.get("asset_id", ""))
+
+                if visual_results:
+                    print(f"   ✓ Generated {len(visual_results)} diagram(s)")
+                    print(f"   💰 Cost: ${visual_stats['total_cost']:.4f}")
+                else:
+                    print("   ℹ No diagrammable findings found")
+
+            except Exception as e:
+                print(f"   ⚠ Visual generation failed: {e}")
+        elif not visual_config.google_api_key:
+            print("ℹ  Visual layer: GOOGLE_API_KEY not configured")
+
+    print()
+
     # Extract and save learnings
     learnings_count = 0
     if extract_learnings_flag:
@@ -452,6 +508,7 @@ def archive_session(
         try:
             session_meta = json.loads(session_meta_path.read_text())
             session_meta["evidence_stats"] = evidence_stats
+            session_meta["visual_stats"] = visual_stats
 
             # Add critic validation summary
             if critic_result is not None:
@@ -487,6 +544,11 @@ def archive_session(
         print(f"🔬 Evidence: {evidence_stats['findings_count']} findings, "
               f"{evidence_stats['avg_confidence']:.2f} confidence, "
               f"{evidence_stats['validation_pass_rate']*100:.0f}% validated")
+
+    # Visual layer summary
+    if visual_stats["diagrams_generated"] > 0:
+        print(f"🎨 Visual: {visual_stats['diagrams_generated']} diagram(s), "
+              f"${visual_stats['total_cost']:.4f} cost")
 
     # Critic validation summary
     if critic_result is not None:

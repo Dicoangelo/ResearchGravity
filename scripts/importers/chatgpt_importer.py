@@ -26,7 +26,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 # Add parent to path for storage imports
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from storage.engine import StorageEngine, get_engine
 

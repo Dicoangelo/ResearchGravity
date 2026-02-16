@@ -22,7 +22,7 @@ import uuid
 from pathlib import Path
 
 # Add researchgravity to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from mcp_raw.ucw_bridge import extract_layers, coherence_signature
 

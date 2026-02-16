@@ -58,3 +58,8 @@ tsconfig.tsbuildinfo
 
 # Beads lock files
 .beads/*.lock
+
+# Generated reports
+coherence_report*.txt
+coherence_report*.json
+cli_import_log.json

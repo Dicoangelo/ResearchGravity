@@ -12,6 +12,7 @@ Usage:
 
 import asyncio
 import argparse
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
 from storage.meta_learning import get_meta_engine
 
 

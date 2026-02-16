@@ -71,31 +71,31 @@ python3 -m api.server --port 3847            # Start Chief of Staff API
 # ═══════════════════════════════════════════════════════════
 # SESSION MANAGEMENT
 # ═══════════════════════════════════════════════════════════
-python3 status.py                              # Check session state (always run first)
-python3 init_session.py "topic"                # Start new research session
-python3 init_session.py "topic" --impl-project os-app  # Pre-link to implementation project
+python3 scripts/session/status.py                              # Check session state (always run first)
+python3 scripts/session/init_session.py "topic"                # Start new research session
+python3 scripts/session/init_session.py "topic" --impl-project os-app  # Pre-link to implementation project
 
 # URL logging
-python3 log_url.py <url> --tier 1 --category research --relevance 5 --used
-python3 log_url.py <url> --tier 2 --category industry --relevance 4
+python3 scripts/session/log_url.py <url> --tier 1 --category research --relevance 5 --used
+python3 scripts/session/log_url.py <url> --tier 2 --category industry --relevance 4
 
 # Session lifecycle
-python3 archive_session.py                     # Archive completed session
-python3 session_tracker.py status              # Check auto-capture status
-python3 session_tracker.py link <session-id> <project>  # Link session to project
+python3 scripts/session/archive_session.py                     # Archive completed session
+python3 scripts/session/session_tracker.py status              # Check auto-capture status
+python3 scripts/session/session_tracker.py link <session-id> <project>  # Link session to project
 
 # ═══════════════════════════════════════════════════════════
 # CONTEXT & PREFETCH
 # ═══════════════════════════════════════════════════════════
-python3 project_context.py                     # Auto-detect from current directory
-python3 project_context.py --list              # List all projects
-python3 project_context.py --index             # View unified index
+python3 scripts/session/project_context.py                     # Auto-detect from current directory
+python3 scripts/session/project_context.py --list              # List all projects
+python3 scripts/session/project_context.py --index             # View unified index
 
-python3 prefetch.py                            # Auto-detect project, inject context
-python3 prefetch.py --project os-app --papers  # Specific project with papers
-python3 prefetch.py --topic multi-agent        # Filter by topic
-python3 prefetch.py --clipboard                # Copy to clipboard
-python3 prefetch.py --inject                   # Inject into ~/CLAUDE.md
+python3 scripts/session/prefetch.py                            # Auto-detect project, inject context
+python3 scripts/session/prefetch.py --project os-app --papers  # Specific project with papers
+python3 scripts/session/prefetch.py --topic multi-agent        # Filter by topic
+python3 scripts/session/prefetch.py --clipboard                # Copy to clipboard
+python3 scripts/session/prefetch.py --inject                   # Inject into ~/CLAUDE.md
 
 # ═══════════════════════════════════════════════════════════
 # STORAGE & MIGRATION
@@ -106,10 +106,10 @@ python3 -m storage.migrate --dry-run           # Preview migration
 # ═══════════════════════════════════════════════════════════
 # BACKFILL & LEARNINGS
 # ═══════════════════════════════════════════════════════════
-python3 auto_capture.py scan --hours 48        # Scan recent history
-python3 auto_capture.py backfill <path> --topic "..."  # Recover from old session
-python3 backfill_learnings.py                  # Regenerate learnings.md from all sessions
-python3 backfill_learnings.py --since 7        # Last 7 days only
+python3 scripts/session/auto_capture.py scan --hours 48        # Scan recent history
+python3 scripts/session/auto_capture.py backfill <path> --topic "..."  # Recover from old session
+python3 scripts/backfill/backfill_learnings.py                  # Regenerate learnings.md from all sessions
+python3 scripts/backfill/backfill_learnings.py --since 7        # Last 7 days only
 
 # ═══════════════════════════════════════════════════════════
 # CPB PRECISION MODE v2.5 (Hardened)
@@ -139,9 +139,9 @@ python3 -m cpb feedback --export feedback.json # Export feedback data
 # ═══════════════════════════════════════════════════════════
 # V2: INTERACTIVE REPL
 # ═══════════════════════════════════════════════════════════
-python3 repl.py                                # Start interactive REPL
-python3 repl.py --resume SESSION               # Resume existing session
-python3 repl.py --status                       # Show status only
+python3 scripts/session/repl.py                                # Start interactive REPL
+python3 scripts/session/repl.py --resume SESSION               # Resume existing session
+python3 scripts/session/repl.py --status                       # Show status only
 
 # REPL Commands:
 #   start <topic>     - Initialize session
@@ -158,30 +158,30 @@ python3 repl.py --status                       # Show status only
 # ═══════════════════════════════════════════════════════════
 # V2: AUTO-CAPTURE (Enhanced)
 # ═══════════════════════════════════════════════════════════
-python3 auto_capture_v2.py scan                # Scan last 24 hours
-python3 auto_capture_v2.py scan --hours 48     # Scan last 48 hours
-python3 auto_capture_v2.py watch               # Watch mode (daemon)
-python3 auto_capture_v2.py sync                # Sync to storage engine
-python3 auto_capture_v2.py status              # Show capture stats
+python3 scripts/session/auto_capture_v2.py scan                # Scan last 24 hours
+python3 scripts/session/auto_capture_v2.py scan --hours 48     # Scan last 48 hours
+python3 scripts/session/auto_capture_v2.py watch               # Watch mode (daemon)
+python3 scripts/session/auto_capture_v2.py sync                # Sync to storage engine
+python3 scripts/session/auto_capture_v2.py status              # Show capture stats
 
 # ═══════════════════════════════════════════════════════════
 # V2: INTELLIGENCE LAYER
 # ═══════════════════════════════════════════════════════════
-python3 intelligence.py predict "task"         # Session quality prediction
-python3 intelligence.py optimal-time           # Best hour for tasks
-python3 intelligence.py errors "context"       # Likely errors
-python3 intelligence.py research "query"       # Related papers
-python3 intelligence.py patterns               # Session patterns
-python3 intelligence.py calibrate              # Run calibration loop
-python3 intelligence.py status                 # System status
+python3 scripts/prediction/intelligence.py predict "task"         # Session quality prediction
+python3 scripts/prediction/intelligence.py optimal-time           # Best hour for tasks
+python3 scripts/prediction/intelligence.py errors "context"       # Likely errors
+python3 scripts/prediction/intelligence.py research "query"       # Related papers
+python3 scripts/prediction/intelligence.py patterns               # Session patterns
+python3 scripts/prediction/intelligence.py calibrate              # Run calibration loop
+python3 scripts/prediction/intelligence.py status                 # System status
 
 # ═══════════════════════════════════════════════════════════
 # V2: FILE WATCHER (Implicit Sessions)
 # ═══════════════════════════════════════════════════════════
-python3 watcher.py start                       # Start in foreground
-python3 watcher.py daemon                      # Start as background daemon
-python3 watcher.py stop                        # Stop daemon
-python3 watcher.py status                      # Show daemon status
+python3 scripts/session/watcher.py start                       # Start in foreground
+python3 scripts/session/watcher.py daemon                      # Start as background daemon
+python3 scripts/session/watcher.py stop                        # Stop daemon
+python3 scripts/session/watcher.py status                      # Show daemon status
 
 # ═══════════════════════════════════════════════════════════
 # V2: SQLITE-VEC MIGRATION
@@ -236,16 +236,26 @@ researchgravity/               # Scripts (this repo)
 │   ├── llm_client.py          # Multi-provider LLM client
 │   ├── precision_cli.py       # Precision mode CLI (--status, --dry-run)
 │   └── tests/                 # Test suite (17 tests)
-├── prefetch.py                # Context prefetcher for Claude sessions
-├── backfill_learnings.py      # Extract learnings from archived sessions
-├── init_session.py            # Session initialization
-├── session_tracker.py         # Auto-capture engine
-├── auto_capture.py            # Backfill historical sessions
-├── project_context.py         # Project context loader
-├── log_url.py                 # URL logging
-├── status.py                  # Cold start checker
-├── archive_session.py         # Session archival
-└── evidence_extractor.py      # Extract evidence from transcripts
+├── scripts/
+│   ├── session/               # Session management (status, init, archive, capture, repl)
+│   ├── backfill/              # Backfill & migration scripts
+│   ├── importers/             # Platform importers (ChatGPT, Grok, CLI, Substack, YouTube)
+│   ├── context-packs/         # Context pack build/select/metrics
+│   ├── routing/               # Routing metrics & research sync
+│   ├── prediction/            # Intelligence & prediction engine
+│   ├── evidence/              # Evidence extraction & validation
+│   ├── proof/                 # Demo proof & proof deck
+│   ├── coherence/             # Coherence analysis pipeline
+│   └── visual/                # Visual generation scripts
+├── docs/
+│   ├── context-packs/         # Context pack documentation
+│   ├── meta-learning/         # Meta-learning architecture docs
+│   ├── phases/                # Phase completion records
+│   ├── prds/                  # Product requirement documents
+│   ├── routing/               # Routing workflow docs
+│   ├── ucw/                   # UCW whitepaper & cognitive profile
+│   └── validation/            # Validation results
+└── tests/                     # All test files
 
 ~/.agent-core/                 # Data (single source of truth)
 ├── config.json                # API keys (cohere, youtube, etc.)
@@ -341,7 +351,7 @@ strategies = engine.evolve_strategies()
 
 ## Cold Start Protocol
 
-Always run `status.py` first when starting a session. It shows:
+Always run `scripts/session/status.py` first when starting a session. It shows:
 - Active session state
 - URLs logged, findings count, thesis status
 - Recent archived sessions
@@ -356,7 +366,7 @@ Always run `status.py` first when starting a session. It shows:
 
 ## Research Workflow
 
-1. **Signal Capture (30 min):** Scan Tier 1 sources, log all URLs via `log_url.py`
+1. **Signal Capture (30 min):** Scan Tier 1 sources, log all URLs via `scripts/session/log_url.py`
 2. **Synthesis (20 min):** Group by theme, identify gaps, draft thesis
 3. **Editorial Frame (10 min):** Write summary, link findings with rationale
 
@@ -364,8 +374,8 @@ Always run `status.py` first when starting a session. It shows:
 
 Link research sessions to implementation projects for traceability:
 ```bash
-python3 init_session.py "topic" --impl-project os-app
-python3 session_tracker.py link <session-id> <project>
+python3 scripts/session/init_session.py "topic" --impl-project os-app
+python3 scripts/session/session_tracker.py link <session-id> <project>
 ```
 
 ## Integration

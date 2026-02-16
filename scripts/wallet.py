@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ucw.export import build_wallet_from_agent_core, export_wallet, export_wallet_summary
 from ucw.value import (
