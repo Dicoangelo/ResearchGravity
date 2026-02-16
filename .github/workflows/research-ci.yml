@@ -23,30 +23,31 @@ jobs:
       - name: Validate Scripts
         run: |
           echo "🔍 Validating Python syntax..."
-          python -m py_compile init_session.py
-          python -m py_compile log_url.py
-          python -m py_compile status.py
-          python -m py_compile archive_session.py
-          python -m py_compile sync_environments.py
+          python -m py_compile scripts/session/init_session.py
+          python -m py_compile scripts/session/log_url.py
+          python -m py_compile scripts/session/status.py
+          python -m py_compile scripts/session/archive_session.py
+          python -m py_compile scripts/session/sync_environments.py
           echo "✅ All scripts valid"
 
       - name: Test Init Session (Dry Run)
         run: |
           echo "🧪 Testing init_session.py --help..."
-          python init_session.py --help
+          python scripts/session/init_session.py --help
 
       - name: Test Status Script
         run: |
           echo "🧪 Testing status.py..."
-          python status.py || true  # May fail without session, that's ok
+          python scripts/session/status.py || true  # May fail without session, that's ok
 
       - name: Framework Health Check
         run: |
           echo "📊 Framework Health Check"
           echo "========================="
-          echo "SKILL.md exists: $(test -f SKILL.md && echo '✅' || echo '❌')"
           echo "README.md exists: $(test -f README.md && echo '✅' || echo '❌')"
-          echo "Core scripts: $(ls -1 *.py 2>/dev/null | wc -l) files"
+          echo "SKILL.md exists: $(test -f docs/SKILL.md && echo '✅' || echo '❌')"
+          echo "Scripts: $(find scripts -name '*.py' | wc -l) files"
+          echo "Modules: $(ls -1d */ 2>/dev/null | wc -l) directories"
           echo "========================="
           echo "✅ ResearchGravity — Metaventions AI"
 
@@ -64,19 +65,19 @@ jobs:
           echo "📝 Checking documentation standards..."
 
           # Check SKILL.md has required sections
-          if grep -q "Cold Start Protocol" SKILL.md; then
+          if grep -q "Cold Start Protocol" docs/SKILL.md; then
             echo "✅ Cold Start Protocol documented"
           else
             echo "⚠️ Missing Cold Start Protocol"
           fi
 
-          if grep -q "Source Hierarchy" SKILL.md; then
+          if grep -q "Source Hierarchy" docs/SKILL.md; then
             echo "✅ Source Hierarchy documented"
           else
             echo "⚠️ Missing Source Hierarchy"
           fi
 
-          if grep -q "Quality Checklist" SKILL.md; then
+          if grep -q "Quality Checklist" docs/SKILL.md; then
             echo "✅ Quality Checklist documented"
           else
             echo "⚠️ Missing Quality Checklist"
@@ -92,7 +93,7 @@ jobs:
             echo "✅ Brand present in README"
           fi
 
-          if grep -q "dicoangelo@metaventionsai.com" SKILL.md; then
+          if grep -q "dicoangelo@metaventionsai.com" docs/SKILL.md; then
             echo "✅ Contact info present"
           fi
 
