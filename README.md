@@ -43,7 +43,7 @@
 ## Proof Deck — See It Work
 
 <p align="center">
-  <img src="proof-deck.gif" alt="ResearchGravity Proof Deck — 9-slide interactive demo" width="100%" />
+  <img src="scripts/proof/proof-deck.gif" alt="ResearchGravity Proof Deck — 9-slide interactive demo" width="100%" />
 </p>
 
 <p align="center">
@@ -51,7 +51,7 @@
 </p>
 
 <p align="center">
-  <a href="proof-deck.html"><strong>Open Interactive Deck</strong></a>
+  <a href="scripts/proof/proof-deck.html"><strong>Open Interactive Deck</strong></a>
 </p>
 
 ---
@@ -112,7 +112,7 @@ export RG_LOG_JSON="true"   # JSON format for production
 ### Interactive REPL
 
 ```bash
-python3 repl.py
+python3 scripts/session/repl.py
 
 # Commands:
 rg> start "multi-agent orchestration"   # Initialize session
@@ -126,18 +126,18 @@ rg> archive                             # Finalize session
 ### Auto-Capture V2
 
 ```bash
-python3 auto_capture_v2.py scan         # Scan last 24 hours
-python3 auto_capture_v2.py scan --hours 48
-python3 auto_capture_v2.py status       # Show capture stats
+python3 scripts/session/auto_capture_v2.py scan         # Scan last 24 hours
+python3 scripts/session/auto_capture_v2.py scan --hours 48
+python3 scripts/session/auto_capture_v2.py status       # Show capture stats
 ```
 
 ### Intelligence CLI
 
 ```bash
-python3 intelligence.py predict "task"   # Session quality prediction
-python3 intelligence.py optimal-time     # Best hour for deep work
-python3 intelligence.py errors "context" # Likely errors + prevention
-python3 intelligence.py patterns         # Session patterns
+python3 scripts/prediction/intelligence.py predict "task"   # Session quality prediction
+python3 scripts/prediction/intelligence.py optimal-time     # Best hour for deep work
+python3 scripts/prediction/intelligence.py errors "context" # Likely errors + prevention
+python3 scripts/prediction/intelligence.py patterns         # Session patterns
 ```
 
 ### Intelligence API
@@ -153,9 +153,9 @@ python3 intelligence.py patterns         # Session patterns
 ### File Watcher
 
 ```bash
-python3 watcher.py daemon   # Start as background daemon
-python3 watcher.py status   # Check daemon status
-python3 watcher.py stop     # Stop daemon
+python3 scripts/session/watcher.py daemon   # Start as background daemon
+python3 scripts/session/watcher.py status   # Check daemon status
+python3 scripts/session/watcher.py stop     # Stop daemon
 ```
 
 ### Storage Modes
@@ -338,8 +338,8 @@ python3 -m cpb precision "your research question" --verbose
 
 | Feature | Description |
 |---------|-------------|
-| **Context Prefetcher** | `prefetch.py` — Inject relevant learnings into Claude sessions |
-| **Learnings Backfill** | `backfill_learnings.py` — Extract learnings from all archived sessions |
+| **Context Prefetcher** | `scripts/session/prefetch.py` — Inject relevant learnings into Claude sessions |
+| **Learnings Backfill** | `scripts/backfill/backfill_learnings.py` — Extract learnings from all archived sessions |
 | **Memory Injection** | Auto-load project context, papers, and lineage at session start |
 | **Shell Integration** | `prefetch`, `prefetch-clip`, `prefetch-inject` shell commands |
 
@@ -347,7 +347,7 @@ python3 -m cpb precision "your research question" --verbose
 
 | Feature | Description |
 |---------|-------------|
-| **YouTube Research** | `youtube_channel.py` — Channel analysis and transcript extraction |
+| **YouTube Research** | `scripts/importers/youtube_channel.py` — Channel analysis and transcript extraction |
 | **Enhanced Backfill** | Improved session recovery with better transcript parsing |
 | **Ecosystem Sync** | Deeper integration with Agent Core orchestration |
 
@@ -404,95 +404,56 @@ Traditional research workflows fail at the frontier:
 ### Directory Structure
 
 ```
-ResearchGravity/                    # SCRIPTS (git repo)
-│
-├── repl.py                         # 🆕 Interactive REPL (v6.0)
-├── auto_capture_v2.py              # 🆕 Enhanced auto-capture (v6.0)
-├── intelligence.py                 # 🆕 CLI intelligence layer (v6.0)
-├── watcher.py                      # 🆕 File watcher daemon (v6.0)
-│
-├── cli/                            # 🆕 CLI Package (v6.0)
-│   ├── __init__.py                 # Package exports
-│   ├── commands.py                 # REPL command handlers
-│   └── ui.py                       # Rich terminal components
+ResearchGravity/
 │
 ├── api/                            # REST API Server (v5.0+)
 │   ├── server.py                   # FastAPI on port 3847 — 25 endpoints
-│   └── routes/
-│       └── intelligence.py         # 🆕 Intelligence endpoints (v6.0)
+│   └── routes/                     # API route modules
 │
-├── storage/                        # Storage Engine (v5.0+)
-│   ├── __init__.py                 # Package exports
-│   ├── sqlite_db.py                # SQLite with WAL mode, FTS5
-│   ├── sqlite_vec.py               # 🆕 sqlite-vec vector storage (v6.0)
-│   ├── qdrant_db.py                # Vector search (Cohere embeddings)
-│   ├── engine.py                   # Unified storage interface (dual-write)
-│   ├── migrate.py                  # JSON → relational migration
-│   ├── migrate_to_vec.py           # 🆕 Qdrant → sqlite-vec migration (v6.0)
-│   └── ucw_ingestion.py            # UCW pack imports
+├── capture/                        # Event capture & normalization
+├── chrome-extension/               # Browser extension for URL capture
+├── cli/                            # CLI Package (v6.0) — REPL commands & UI
 │
-├── critic/                         # 🆕 Writer-Critic System (v5.0)
-│   ├── __init__.py                 # Package exports
-│   ├── base.py                     # CriticBase, ValidationResult, OracleConsensus
-│   ├── archive_critic.py           # Validates archive completeness
-│   ├── evidence_critic.py          # Validates citation accuracy
-│   └── pack_critic.py              # Validates context pack relevance
-│
-├── graph/                          # 🆕 Graph Intelligence (v5.0)
-│   ├── __init__.py                 # Package exports
-│   ├── lineage.py                  # LineageNode, LineageEdge, LineageGraph
-│   ├── concept_graph.py            # ConceptGraph — relationship traversal
-│   └── queries.py                  # Convenience query functions
-│
+├── coherence_engine/               # Cross-platform coherence detection
 ├── cpb/                            # Cognitive Precision Bridge (v4.0)
-│   ├── __init__.py                 # Package exports
-│   ├── types.py                    # Path types, configs, DQScore
-│   ├── router.py                   # Complexity analysis, path selection
-│   ├── orchestrator.py             # 5-agent ACE consensus, learning
-│   ├── dq_scorer.py                # DQ quality measurement
-│   └── cli.py                      # CLI interface
+├── critic/                         # Writer-Critic validation system (v5.0)
+├── dashboard/                      # Web dashboard UI
+├── delegation/                     # Intelligent delegation (arXiv:2602.11865)
 │
-├── evidence_extractor.py           # Extract citations from findings
-├── evidence_validator.py           # Writer-Critic evidence validation
-├── reinvigorate.py                 # Session context reconstruction
-├── sync_to_ccc.py                  # CCC dashboard sync
-├── prefetch.py                     # Context prefetcher for Claude sessions
-├── backfill_learnings.py           # Extract learnings from archived sessions
-├── init_session.py                 # Initialize + auto-register sessions
-├── session_tracker.py              # Auto-capture engine
-├── auto_capture.py                 # Backfill historical sessions
-├── archive_session.py              # Archive with critic validation
-├── log_url.py                      # Manual URL logging
-├── status.py                       # Cold start session checker
-└── SKILL.md                        # Agent Core documentation
-
-~/.agent-core/                      # DATA (single source of truth)
-├── projects.json                   # Project registry (v3.2)
-├── session_tracker.json            # Auto-capture state
-├── research/                       # Project research files
-│   ├── INDEX.md                    # Unified cross-reference index
-│   ├── careercoach/
-│   ├── os-app/
-│   └── metaventions/
-├── sessions/                       # Archived sessions
-│   └── [session-id]/
-│       ├── session.json
-│       ├── full_transcript.txt
-│       ├── urls_captured.json
-│       ├── findings_captured.json
-│       └── lineage.json
-├── memory/
-│   ├── learnings.md                # Extracted learnings archive (v3.4)
-│   ├── global.md
-│   └── projects/
-└── workflows/
-
-~/.claude/                          # CPB DATA
-├── data/
-│   ├── cpb-patterns.jsonl          # CPB execution patterns
-│   └── routing-metrics.jsonl       # Routing performance history
-└── kernel/
-    └── dq-scores.jsonl             # DQ score history
+├── docs/                           # All documentation
+│   ├── context-packs/              # Context pack design & implementation docs
+│   ├── meta-learning/              # Meta-learning architecture docs
+│   ├── phases/                     # Phase completion records
+│   ├── prds/                       # Product requirement documents
+│   ├── routing/                    # Routing workflow docs
+│   └── ucw/                        # UCW whitepaper & cognitive profile
+│
+├── graph/                          # Graph Intelligence (v5.0) — 11K nodes
+├── mcp_raw/                        # MCP protocol & embeddings layer
+├── methods/                        # Research methodology definitions
+├── notebooklm_mcp/                 # NotebookLM MCP server (37 tools)
+│
+├── scripts/                        # All utility scripts
+│   ├── backfill/                   # Backfill & migration (9 scripts)
+│   ├── coherence/                  # Coherence analysis pipeline
+│   ├── context-packs/              # Context pack build/select/metrics
+│   ├── evidence/                   # Evidence extraction & validation
+│   ├── importers/                  # Platform importers (ChatGPT, Grok, CLI)
+│   ├── prediction/                 # Intelligence & prediction engine
+│   ├── proof/                      # Demo proof & interactive deck
+│   ├── routing/                    # Routing metrics & research sync
+│   ├── session/                    # Session management (status, init, REPL)
+│   └── visual/                     # Visual generation scripts
+│
+├── storage/                        # Storage Engine — SQLite + Qdrant + sqlite-vec
+├── tests/                          # All test files
+├── ucw/                            # Universal Cognitive Wallet
+├── webhook/                        # Webhook event receiver
+│
+├── mcp_server.py                   # MCP server entry point
+├── setup.sh                        # Bootstrap script
+├── requirements.txt                # Python dependencies
+└── ruff.toml                       # Linter config
 ```
 
 ---
@@ -537,8 +498,8 @@ python3 -m cpb.cli stats --days 30
 python3 -m cpb.cli status
 
 # Via routing-metrics
-python3 routing-metrics.py cpb analyze "Your query"
-python3 routing-metrics.py cpb status
+python3 scripts/routing/routing-metrics.py cpb analyze "Your query"
+python3 scripts/routing/routing-metrics.py cpb status
 ```
 
 ### ELITE TIER Configuration
@@ -620,7 +581,7 @@ export RG_API_KEY="your-service-api-key"
 ### Verify Installation
 
 ```bash
-python3 status.py
+python3 scripts/session/status.py
 ```
 
 ---
@@ -629,49 +590,49 @@ python3 status.py
 
 ### 1. Check Session State
 ```bash
-python3 status.py
+python3 scripts/session/status.py
 ```
 
 ### 2. Initialize New Session
 ```bash
 # Basic session
-python3 init_session.py "your research topic"
+python3 scripts/session/init_session.py "your research topic"
 
 # Pre-link to implementation project (v3.1)
-python3 init_session.py "multi-agent consensus" --impl-project os-app
+python3 scripts/session/init_session.py "multi-agent consensus" --impl-project os-app
 ```
 
 ### 3. Research & Log URLs
 ```bash
 # Log a Tier 1 research paper
-python3 log_url.py https://arxiv.org/abs/2601.05918 \
+python3 scripts/session/log_url.py https://arxiv.org/abs/2601.05918 \
   --tier 1 --category research --relevance 5 --used
 
 # Log industry news
-python3 log_url.py https://techcrunch.com/... \
+python3 scripts/session/log_url.py https://techcrunch.com/... \
   --tier 1 --category industry --relevance 4 --used
 ```
 
 ### 4. Archive When Complete
 ```bash
-python3 archive_session.py
+python3 scripts/session/archive_session.py
 ```
 
 ### 5. Check Tracker Status (v3.1)
 ```bash
-python3 session_tracker.py status
+python3 scripts/session/session_tracker.py status
 ```
 
 ### 6. Load Project Context (v3.2)
 ```bash
 # Auto-detect from current directory
-python3 project_context.py
+python3 scripts/session/project_context.py
 
 # List all projects
-python3 project_context.py --list
+python3 scripts/session/project_context.py --list
 
 # View unified index
-python3 project_context.py --index
+python3 scripts/session/project_context.py --index
 ```
 
 ---
@@ -743,7 +704,7 @@ Before archiving a session, verify:
 
 ## Cold Start Protocol
 
-When invoking ResearchGravity, always run `status.py` first:
+When invoking ResearchGravity, always run `scripts/session/status.py` first:
 
 ```
 ==================================================
@@ -787,10 +748,10 @@ Link research sessions to implementation projects:
 
 ```bash
 # Pre-link at session start
-python3 init_session.py "multi-agent DQ" --impl-project os-app
+python3 scripts/session/init_session.py "multi-agent DQ" --impl-project os-app
 
 # Manual link after research
-python3 session_tracker.py link [session-id] [project]
+python3 scripts/session/session_tracker.py link [session-id] [project]
 ```
 
 ### Backfill Historical Sessions
@@ -799,10 +760,10 @@ Recover research from old Claude sessions:
 
 ```bash
 # Scan recent history
-python3 auto_capture.py scan --hours 48
+python3 scripts/session/auto_capture.py scan --hours 48
 
 # Backfill specific session
-python3 auto_capture.py backfill ~/.claude/projects/.../session.jsonl --topic "..."
+python3 scripts/session/auto_capture.py backfill ~/.claude/projects/.../session.jsonl --topic "..."
 ```
 
 ---
@@ -815,19 +776,19 @@ python3 auto_capture.py backfill ~/.claude/projects/.../session.jsonl --topic ".
 
 ```bash
 # Auto-detect project from current directory
-python3 prefetch.py
+python3 scripts/session/prefetch.py
 
 # Specific project with papers
-python3 prefetch.py --project os-app --papers
+python3 scripts/session/prefetch.py --project os-app --papers
 
 # Filter by topic
-python3 prefetch.py --topic multi-agent --days 30
+python3 scripts/session/prefetch.py --topic multi-agent --days 30
 
 # Copy to clipboard
-python3 prefetch.py --project os-app --clipboard
+python3 scripts/session/prefetch.py --project os-app --clipboard
 
 # Inject into ~/CLAUDE.md
-python3 prefetch.py --project os-app --inject
+python3 scripts/session/prefetch.py --project os-app --inject
 ```
 
 ### Shell Commands
@@ -863,16 +824,16 @@ Extract learnings from all archived sessions:
 
 ```bash
 # Process all sessions
-python3 backfill_learnings.py
+python3 scripts/backfill/backfill_learnings.py
 
 # Last 7 days only
-python3 backfill_learnings.py --since 7
+python3 scripts/backfill/backfill_learnings.py --since 7
 
 # Specific session
-python3 backfill_learnings.py --session <session-id>
+python3 scripts/backfill/backfill_learnings.py --session <session-id>
 
 # Preview without writing
-python3 backfill_learnings.py --dry-run
+python3 scripts/backfill/backfill_learnings.py --dry-run
 ```
 
 ### What Gets Injected
