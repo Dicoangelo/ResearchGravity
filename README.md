@@ -386,33 +386,20 @@ Traditional research workflows fail at the frontier:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         RESEARCHGRAVITY SYSTEM                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    CPB (Cognitive Precision Bridge)                  │   │
-│  │                                                                      │   │
-│  │   Query ──→ Complexity Router ──→ Path Selection ──→ DQ Scoring     │   │
-│  │                   │                      │               │           │   │
-│  │           ┌───────┴───────┐      ┌──────┴──────┐   ┌───┴───┐       │   │
-│  │           │ Code: +0.25   │      │ ACE 5-Agent │   │ V:40% │       │   │
-│  │           │ Reason: +0.20 │      │ Consensus   │   │ S:30% │       │   │
-│  │           │ Nav: -0.30    │      │ Engine      │   │ C:30% │       │   │
-│  │           └───────────────┘      └─────────────┘   └───────┘       │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                        │                                    │
-│                                        ▼                                    │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────┐   │
-│  │  SESSION TRACKER  │  │  ROUTING METRICS  │  │  CONFIDENCE SCORER    │   │
-│  │  Auto-capture     │  │  DQ history       │  │  Source validation    │   │
-│  │  URL logging      │  │  A/B testing      │  │  Evidence scoring     │   │
-│  │  Lineage          │  │  Performance      │  │  Quality thresholds   │   │
-│  └───────────────────┘  └───────────────────┘  └───────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/architecture-light.png" />
+    <img src="docs/architecture-dark.png" alt="ResearchGravity v6.1 — 6-Tier Sovereign Research Intelligence System" width="100%" />
+  </picture>
+</p>
+
+<details>
+<summary>View light mode architecture</summary>
+<p align="center">
+  <img src="docs/architecture-light.png" alt="ResearchGravity v6.1 Architecture — Light Mode" width="100%" />
+</p>
+</details>
 
 ### Directory Structure
 
