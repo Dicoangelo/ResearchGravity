@@ -387,17 +387,17 @@ Traditional research workflows fail at the frontier:
 ## Architecture
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png" />
-    <source media="(prefers-color-scheme: light)" srcset="docs/architecture-light.png" />
-    <img src="docs/architecture-dark.png" alt="ResearchGravity v6.1 — 6-Tier Sovereign Research Intelligence System" width="100%" />
-  </picture>
+  <a href="docs/architecture-dark.png">
+    <img src="docs/architecture-dark.png" alt="ResearchGravity v6.1 — 6-Tier Sovereign Research Intelligence System (Dark)" width="100%" />
+  </a>
 </p>
 
 <details>
 <summary>View light mode architecture</summary>
 <p align="center">
-  <img src="docs/architecture-light.png" alt="ResearchGravity v6.1 Architecture — Light Mode" width="100%" />
+  <a href="docs/architecture-light.png">
+    <img src="docs/architecture-light.png" alt="ResearchGravity v6.1 Architecture — Light Mode" width="100%" />
+  </a>
 </p>
 </details>
 
