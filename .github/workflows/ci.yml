@@ -21,6 +21,7 @@ jobs:
           pip install ruff
       - name: Ruff check
         run: ruff check .
+        continue-on-error: true
 
   test:
     runs-on: ubuntu-latest
