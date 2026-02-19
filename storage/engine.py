@@ -651,6 +651,93 @@ class StorageEngine:
                 limit=limit
             )
 
+    # --- Visual Asset Operations ---
+
+    async def store_visual_asset(
+        self,
+        asset: Dict[str, Any],
+        source: str = "paperbanana",
+    ) -> str:
+        """Store a visual asset in SQLite and index in Qdrant."""
+        asset_id = await self.sqlite.store_visual_asset(asset)
+
+        # Track provenance
+        await self.sqlite.track_provenance(
+            entity_type="visual_asset",
+            entity_id=asset_id,
+            source_type=source,
+            metadata={"stored_at": datetime.now().isoformat()},
+        )
+
+        # Index in Qdrant for semantic reference retrieval
+        if self._qdrant_enabled:
+            embed_text = f"{asset.get('caption', '')} {asset.get('methodology_text', '')[:500]}"
+            try:
+                await self.qdrant.upsert(
+                    collection_name="visual_assets",
+                    point_id=asset_id,
+                    text=embed_text,
+                    metadata={
+                        "session_id": asset.get("session_id"),
+                        "diagram_type": asset.get("diagram_type"),
+                        "caption": asset.get("caption"),
+                        "methodology_text": asset.get("methodology_text", "")[:1000],
+                        "png_path": asset.get("png_path"),
+                        "created_at": asset.get("created_at"),
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Failed to index visual asset in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_visual_asset", "qdrant",
+                    {"point_id": asset_id, "text": embed_text},
+                    e,
+                )
+
+        # Add lineage: visual_asset -> session
+        if asset.get("session_id"):
+            await self.add_lineage(
+                source_type="visual_asset",
+                source_id=asset_id,
+                target_type="session",
+                target_id=asset["session_id"],
+                relation="illustrates",
+            )
+
+        return asset_id
+
+    async def get_visual_assets(
+        self,
+        session_id: Optional[str] = None,
+        diagram_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Get visual assets with optional filtering."""
+        return await self.sqlite.get_visual_assets(
+            session_id=session_id,
+            diagram_type=diagram_type,
+            limit=limit,
+        )
+
+    async def search_visual_references(
+        self,
+        query: str,
+        limit: int = 5,
+        min_score: float = 0.6,
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for visual references (used by PaperBanana adapter)."""
+        if self._qdrant_enabled:
+            try:
+                return await self.qdrant.search(
+                    collection_name="visual_assets",
+                    query=query,
+                    limit=limit,
+                    min_score=min_score,
+                )
+            except Exception:
+                pass
+        return []
+
     # --- Lineage Operations ---
 
     async def add_lineage(

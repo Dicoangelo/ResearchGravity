@@ -15,6 +15,8 @@ Core Components:
 - memory_bleed: Cross-conversation knowledge transfer
 - evolution: Learning from delegation outcomes
 - verifier: Result verification and quality assessment
+- permissions: Risk-adaptive permission handling (Section 4.7)
+- ethical_delegation: Human oversight, accountability chains, service tiers (Sections 5.1-5.3)
 
 Usage:
     from delegation import TaskProfile, decompose_task, assign_agent
@@ -60,6 +62,23 @@ from .verifier import (
     feed_to_trust_ledger,
     feed_to_memory_bleed,
 )
+from .permissions import (
+    PermissionManager,
+    PermissionScope,
+    AccessLevel,
+    PermissionState,
+)
+from .ethical_delegation import (
+    HumanOversight,
+    OversightDecision,
+    OversightLevel,
+    AccountabilityChain,
+    HandoffRecord,
+    ServiceTier,
+    ServiceTierName,
+    get_service_tier,
+    enforce_safety_floor,
+)
 
 __all__ = [
     "TaskProfile",
@@ -93,4 +112,17 @@ __all__ = [
     "verify_completion",
     "feed_to_trust_ledger",
     "feed_to_memory_bleed",
+    "PermissionManager",
+    "PermissionScope",
+    "AccessLevel",
+    "PermissionState",
+    "HumanOversight",
+    "OversightDecision",
+    "OversightLevel",
+    "AccountabilityChain",
+    "HandoffRecord",
+    "ServiceTier",
+    "ServiceTierName",
+    "get_service_tier",
+    "enforce_safety_floor",
 ]

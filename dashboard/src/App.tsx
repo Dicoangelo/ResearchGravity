@@ -6,6 +6,7 @@ import type {
   NetworkData,
   PulseData,
   Signals,
+  Breakthrough,
 } from "./types";
 import StatsBar from "./components/StatsBar";
 import CognitiveSyncPulse from "./components/CognitiveSyncPulse";
@@ -13,6 +14,9 @@ import CoherenceTimeline from "./components/CoherenceTimeline";
 import PlatformNetwork from "./components/PlatformNetwork";
 import ConfidenceDistribution from "./components/ConfidenceDistribution";
 import SignalRadar from "./components/SignalRadar";
+import InsightsPanel from "./components/InsightsPanel";
+import BreakthroughsFeed from "./components/BreakthroughsFeed";
+import CoherenceByType from "./components/CoherenceByType";
 
 const REFRESH_MS = 30_000;
 
@@ -24,22 +28,25 @@ export default function App() {
   const [selectedMoment, setSelectedMoment] =
     useState<CoherenceMoment | null>(null);
   const [selectedSignals, setSelectedSignals] = useState<Signals | null>(null);
+  const [breakthroughs, setBreakthroughs] = useState<Breakthrough[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchAll = useCallback(async () => {
-    const [ov, mom, net, pul] = await Promise.allSettled([
+    const [ov, mom, net, pul, bt] = await Promise.allSettled([
       api.overview(),
       api.moments({ limit: 200, since_hours: 720 }),
       api.network(),
       api.pulse(24),
+      api.breakthroughs(),
     ]);
     if (ov.status === "fulfilled") setOverview(ov.value);
     if (mom.status === "fulfilled") setMoments(mom.value.moments);
     if (net.status === "fulfilled") setNetwork(net.value);
     if (pul.status === "fulfilled") setPulse(pul.value);
+    if (bt.status === "fulfilled") setBreakthroughs(bt.value.breakthroughs);
 
-    const failed = [ov, mom, net, pul].filter(
+    const failed = [ov, mom, net, pul, bt].filter(
       (r) => r.status === "rejected",
     );
     setError(
@@ -139,14 +146,12 @@ export default function App() {
         <PlatformNetwork data={network} />
       </div>
 
-      {/* ═══ CHARTS ROW 2 ═══ */}
+      {/* ═══ INSIGHT + SIGNALS ROW ═══ */}
       <div
         className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5 animate-fade-in"
         style={{ animationDelay: "0.4s" }}
       >
-        <ConfidenceDistribution
-          data={overview?.confidence_distribution ?? null}
-        />
+        <InsightsPanel moment={selectedMoment} />
         <SignalRadar
           signals={selectedSignals}
           label={
@@ -155,6 +160,25 @@ export default function App() {
               : "Select a moment from the timeline"
           }
         />
+      </div>
+
+      {/* ═══ BY TYPE + CONFIDENCE ROW ═══ */}
+      <div
+        className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5 animate-fade-in"
+        style={{ animationDelay: "0.5s" }}
+      >
+        <CoherenceByType data={overview?.by_type ?? null} />
+        <ConfidenceDistribution
+          data={overview?.confidence_distribution ?? null}
+        />
+      </div>
+
+      {/* ═══ BREAKTHROUGHS ═══ */}
+      <div
+        className="mt-5 animate-fade-in"
+        style={{ animationDelay: "0.6s" }}
+      >
+        <BreakthroughsFeed breakthroughs={breakthroughs} />
       </div>
 
       {/* ═══ FOOTER ═══ */}

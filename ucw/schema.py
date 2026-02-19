@@ -17,6 +17,13 @@ import hashlib
 import json
 
 
+class VisualAssetType(Enum):
+    """Types of visual assets."""
+    METHODOLOGY = "methodology"
+    STATISTICAL_PLOT = "statistical_plot"
+    EVALUATION = "evaluation"
+
+
 class ConceptType(Enum):
     """Types of concepts that can be captured."""
     FINDING = "finding"
@@ -162,6 +169,7 @@ class Session:
     project: Optional[str] = None
     status: str = "archived"
     transcript_hash: Optional[str] = None
+    visual_assets: List[VisualAsset] = field(default_factory=list)
     metadata: Dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -175,6 +183,7 @@ class Session:
             "project": self.project,
             "status": self.status,
             "transcript_hash": self.transcript_hash,
+            "visual_assets": [v.to_dict() for v in self.visual_assets],
             "metadata": self.metadata,
         }
 
@@ -190,7 +199,49 @@ class Session:
             project=data.get("project"),
             status=data.get("status", "archived"),
             transcript_hash=data.get("transcript_hash"),
+            visual_assets=[VisualAsset.from_dict(v) for v in data.get("visual_assets", [])],
             metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass
+class VisualAsset:
+    """A generated visual asset (diagram or plot) captured as cognitive equity."""
+    id: str
+    diagram_type: VisualAssetType
+    methodology: str
+    caption: str
+    png_path: str
+    critic_scores: Dict[str, float] = field(default_factory=dict)  # {faithfulness, readability, conciseness, aesthetics}
+    provenance: Dict[str, Any] = field(default_factory=dict)  # {agents_used, iterations, costs, reference_count}
+    session_id: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "diagram_type": self.diagram_type.value,
+            "methodology": self.methodology,
+            "caption": self.caption,
+            "png_path": self.png_path,
+            "critic_scores": self.critic_scores,
+            "provenance": self.provenance,
+            "session_id": self.session_id,
+            "created_at": self.created_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "VisualAsset":
+        return cls(
+            id=data["id"],
+            diagram_type=VisualAssetType(data.get("diagram_type", "methodology")),
+            methodology=data.get("methodology", ""),
+            caption=data.get("caption", ""),
+            png_path=data.get("png_path", ""),
+            critic_scores=data.get("critic_scores", {}),
+            provenance=data.get("provenance", {}),
+            session_id=data.get("session_id"),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
         )
 
 
@@ -260,6 +311,7 @@ class CognitiveWallet:
     sessions: Dict[str, Session] = field(default_factory=dict)
     connections: List[Connection] = field(default_factory=list)
     papers: Dict[str, Dict] = field(default_factory=dict)  # arXiv ID -> metadata
+    visual_assets: Dict[str, VisualAsset] = field(default_factory=dict)  # asset_id -> VisualAsset
     value_metrics: ValueMetrics = field(default_factory=lambda: ValueMetrics(
         total_value=0.0,
         concept_count=0,
@@ -304,6 +356,7 @@ class CognitiveWallet:
             "sessions": {k: v.to_dict() for k, v in self.sessions.items()},
             "connections": [c.to_dict() for c in self.connections],
             "papers": self.papers,
+            "visual_assets": {k: v.to_dict() for k, v in self.visual_assets.items()},
             "value_metrics": self.value_metrics.to_dict(),
             "integrity_hash": self.integrity_hash,
             "metadata": self.metadata,
@@ -320,6 +373,7 @@ class CognitiveWallet:
             sessions={k: Session.from_dict(v) for k, v in data.get("sessions", {}).items()},
             connections=[Connection.from_dict(c) for c in data.get("connections", [])],
             papers=data.get("papers", {}),
+            visual_assets={k: VisualAsset.from_dict(v) for k, v in data.get("visual_assets", {}).items()},
             value_metrics=ValueMetrics.from_dict(data["value_metrics"]) if data.get("value_metrics") else ValueMetrics(
                 total_value=0.0, concept_count=0, connection_count=0,
                 session_count=0, paper_count=0, url_count=0
@@ -337,6 +391,7 @@ class CognitiveWallet:
             "concepts": len(self.concepts),
             "connections": len(self.connections),
             "papers": len(self.papers),
+            "visual_assets": len(self.visual_assets),
             "urls": total_urls,
             "value": self.value_metrics.total_value,
             "domains": self.value_metrics.domains,

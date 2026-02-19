@@ -2,7 +2,8 @@
 -- Intelligent Delegation Schema
 -- ResearchGravity Delegation Module — SQLite 3.35+
 --
--- Tables: 4 (delegation_chains, delegation_events, trust_entries, verification_results)
+-- Tables: 6 (delegation_chains, delegation_events, trust_entries, verification_results,
+--             permission_scopes, accountability_records)
 -- Version: 0.1.0
 -- Date: 2026-02-14
 -- Research: arXiv:2602.11865
@@ -172,6 +173,82 @@ CREATE INDEX IF NOT EXISTS idx_vr_delegation ON verification_results (delegation
 CREATE INDEX IF NOT EXISTS idx_vr_timestamp ON verification_results (timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_vr_method ON verification_results (method);
 CREATE INDEX IF NOT EXISTS idx_vr_passed ON verification_results (passed);
+
+-- ============================================================================
+-- 5. permission_scopes — Scoped permission grants (Section 4.7)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS permission_scopes (
+    -- Identity
+    scope_id            TEXT PRIMARY KEY,
+    agent_id            TEXT NOT NULL,
+    chain_id            TEXT NOT NULL,
+
+    -- Permission details
+    tools_allowed       TEXT NOT NULL,               -- JSON array of tool names
+    access_level        TEXT NOT NULL,               -- none/read/execute/execute_write/full
+    semantic_constraints TEXT,                        -- JSON: tool -> constraint
+    state               TEXT DEFAULT 'active',       -- active/suspended/revoked/expired
+
+    -- Lifecycle
+    granted_at          INTEGER NOT NULL,
+    expires_at          INTEGER NOT NULL,
+    granted_by          TEXT DEFAULT 'system',        -- "system" or human approver ID
+
+    -- Attenuation chain
+    parent_scope_id     TEXT,                         -- For privilege attenuation tracking
+
+    -- Metadata
+    metadata            TEXT,                         -- JSON metadata
+
+    -- Constraints
+    CHECK (access_level IN ('none', 'read', 'execute', 'execute_write', 'full')),
+    CHECK (state IN ('active', 'suspended', 'revoked', 'expired')),
+
+    -- Foreign keys
+    FOREIGN KEY (chain_id) REFERENCES delegation_chains(delegation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ps_agent ON permission_scopes (agent_id);
+CREATE INDEX IF NOT EXISTS idx_ps_chain ON permission_scopes (chain_id);
+CREATE INDEX IF NOT EXISTS idx_ps_state ON permission_scopes (state);
+CREATE INDEX IF NOT EXISTS idx_ps_expires ON permission_scopes (expires_at);
+
+-- ============================================================================
+-- 6. accountability_records — Delegation handoff provenance (Section 5.2)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS accountability_records (
+    -- Identity
+    handoff_id          TEXT PRIMARY KEY,
+    chain_id            TEXT NOT NULL,
+
+    -- Handoff details
+    from_agent          TEXT NOT NULL,
+    to_agent            TEXT NOT NULL,
+    subtask_id          TEXT NOT NULL,
+    timestamp           INTEGER NOT NULL,
+    depth               INTEGER NOT NULL DEFAULT 0,
+
+    -- Permissions at handoff
+    permissions_granted TEXT NOT NULL,               -- JSON array of tool names
+    access_level        TEXT NOT NULL,
+
+    -- Rationale
+    rationale           TEXT,
+
+    -- Liability firebreak
+    is_firebreak        INTEGER DEFAULT 0,           -- Boolean
+    human_approved      INTEGER DEFAULT 0,           -- Boolean
+
+    -- Foreign keys
+    FOREIGN KEY (chain_id) REFERENCES delegation_chains(delegation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ar_chain ON accountability_records (chain_id);
+CREATE INDEX IF NOT EXISTS idx_ar_from ON accountability_records (from_agent);
+CREATE INDEX IF NOT EXISTS idx_ar_to ON accountability_records (to_agent);
+CREATE INDEX IF NOT EXISTS idx_ar_depth ON accountability_records (depth);
 
 -- ============================================================================
 -- Views

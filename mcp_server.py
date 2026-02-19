@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+import asyncio as _asyncio
 
 # MCP SDK imports
 try:
@@ -305,7 +306,257 @@ async def list_tools() -> List[Tool]:
                 "type": "object",
                 "properties": {}
             }
-        )
+        ),
+        # ── Visual Intelligence Layer ──
+        # PaperBanana 5-agent pipeline (academic diagrams)
+        Tool(
+            name="visualize_research",
+            description="Generate a publication-quality diagram from methodology text using PaperBanana 5-agent pipeline with switchable profiles (max/balanced/fast/budget)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "methodology": {
+                        "type": "string",
+                        "description": "Research methodology or system architecture text to visualize"
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Diagram caption (concise, descriptive)"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional: Session ID to associate diagram with"
+                    },
+                    "profile": {
+                        "type": "string",
+                        "description": "Quality profile: max, balanced, fast, budget (default: from config)",
+                        "enum": ["max", "balanced", "fast", "budget"]
+                    }
+                },
+                "required": ["methodology", "caption"]
+            }
+        ),
+        Tool(
+            name="diagram_from_session",
+            description="Auto-generate diagrams from a session's findings (extracts methodology-relevant content)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session ID to generate diagrams for"
+                    },
+                    "finding_filter": {
+                        "type": "string",
+                        "description": "Optional: Filter findings by type (innovation, implementation, thesis)"
+                    },
+                    "profile": {
+                        "type": "string",
+                        "description": "Quality profile: max, balanced, fast, budget",
+                        "enum": ["max", "balanced", "fast", "budget"]
+                    }
+                },
+                "required": ["session_id"]
+            }
+        ),
+        Tool(
+            name="illustrate_finding",
+            description="Generate a diagram for a specific finding text",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "finding_text": {
+                        "type": "string",
+                        "description": "The finding text to illustrate"
+                    },
+                    "diagram_type": {
+                        "type": "string",
+                        "description": "Diagram type: methodology or statistical_plot",
+                        "enum": ["methodology", "statistical_plot"]
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Diagram caption"
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional: Session ID"
+                    },
+                    "profile": {
+                        "type": "string",
+                        "description": "Quality profile: max, balanced, fast, budget",
+                        "enum": ["max", "balanced", "fast", "budget"]
+                    }
+                },
+                "required": ["finding_text", "diagram_type", "caption"]
+            }
+        ),
+        Tool(
+            name="evaluate_paper_figures",
+            description="Evaluate diagram quality using PaperBanana 4-dimension scoring (faithfulness, readability, conciseness, aesthetics)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "generated_path": {
+                        "type": "string",
+                        "description": "Path to generated diagram"
+                    },
+                    "reference_path": {
+                        "type": "string",
+                        "description": "Path to human reference diagram"
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Methodology text for evaluation context"
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Diagram caption"
+                    }
+                },
+                "required": ["generated_path", "reference_path", "context", "caption"]
+            }
+        ),
+        # ── Gemini Native Image Generation (direct google-genai SDK) ──
+        Tool(
+            name="generate_image",
+            description="Generate an image using Google Gemini native image generation (gemini-3-pro-image-preview). Supports 1K-4K resolution, aspect ratios, multi-image editing, and Google Search grounding. The same engine used for logos, brand assets, and scene generation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "Image generation prompt — describe what you want to create"
+                    },
+                    "resolution": {
+                        "type": "string",
+                        "description": "Output resolution: 1K, 2K, or 4K (default: from quality tier or config)",
+                        "enum": ["1K", "2K", "4K"]
+                    },
+                    "aspect_ratio": {
+                        "type": "string",
+                        "description": "Aspect ratio: 1:1, 3:4, 4:3, 5:4, 9:16, 16:9",
+                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"]
+                    },
+                    "quality": {
+                        "type": "string",
+                        "description": "Quality tier: max (4K + quality suffix), high (2K), fast (1K)",
+                        "enum": ["max", "high", "fast"]
+                    },
+                    "input_images": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Paths to input images for editing/composition (up to 14)"
+                    },
+                    "use_search_grounding": {
+                        "type": "boolean",
+                        "description": "Enable Google Search grounding for factual image content",
+                        "default": False
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional: Session ID for UCW capture"
+                    }
+                },
+                "required": ["prompt"]
+            }
+        ),
+        Tool(
+            name="edit_image",
+            description="Edit or compose images using Gemini native — combine, transform, or modify up to 14 input images with a text prompt",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "Edit instruction — what to do with the input images"
+                    },
+                    "input_images": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Paths to images to edit/compose (1-14 images, required)"
+                    },
+                    "resolution": {
+                        "type": "string",
+                        "description": "Output resolution: 1K, 2K, or 4K",
+                        "enum": ["1K", "2K", "4K"]
+                    },
+                    "aspect_ratio": {
+                        "type": "string",
+                        "description": "Output aspect ratio",
+                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"]
+                    },
+                    "quality": {
+                        "type": "string",
+                        "description": "Quality tier: max, high, fast",
+                        "enum": ["max", "high", "fast"]
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional: Session ID"
+                    }
+                },
+                "required": ["prompt", "input_images"]
+            }
+        ),
+        # ── Refined Pipeline (PaperBanana-style 5-agent) ──
+        Tool(
+            name="generate_refined",
+            description="Generate a high-quality technical diagram using the PaperBanana-style refined pipeline: Planner → Stylist → [Visualizer → Critic] × T rounds. The critic produces a refined TEXTUAL DESCRIPTION and each round regenerates from scratch — eliminating layout drift from edit-based approaches. Best for architecture diagrams, technical illustrations, and complex visualizations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "source_context": {
+                        "type": "string",
+                        "description": "The source material to visualize — architecture description, methodology, system specification, etc."
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "What the diagram should show (communicative intent)"
+                    },
+                    "resolution": {
+                        "type": "string",
+                        "description": "Output resolution: 1K, 2K, or 4K",
+                        "enum": ["1K", "2K", "4K"]
+                    },
+                    "aspect_ratio": {
+                        "type": "string",
+                        "description": "Aspect ratio: 1:1, 3:4, 4:3, 5:4, 9:16, 16:9",
+                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"]
+                    },
+                    "quality": {
+                        "type": "string",
+                        "description": "Quality tier: max (4K, 5 iterations), high (2K, 3 iterations), fast (1K, 2 iterations)",
+                        "enum": ["max", "high", "fast"]
+                    },
+                    "iterations": {
+                        "type": "integer",
+                        "description": "Number of Critique→Refine→Regenerate rounds (default: from config/quality tier, recommended: 3)",
+                        "minimum": 1,
+                        "maximum": 5
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional: Session ID for UCW capture"
+                    },
+                    "skip_planning": {
+                        "type": "boolean",
+                        "description": "Skip Planner+Stylist stages (use source_context directly as image prompt)",
+                        "default": False
+                    }
+                },
+                "required": ["source_context", "caption"]
+            }
+        ),
+        # ── Visual Config & Profiles ──
+        Tool(
+            name="list_visual_profiles",
+            description="List all available visual generation profiles with models, resolutions, costs, and estimated times. Also lists all available VLM and image generation models.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
     ]
 
 
@@ -503,6 +754,323 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
 """
 
         return [TextContent(type="text", text=output)]
+
+    # ── Visual Intelligence Layer Tools ──
+
+    elif name == "visualize_research":
+        try:
+            from visual import PaperBananaAdapter, get_visual_config
+            config = get_visual_config()
+            profile = arguments.get("profile")
+            if profile:
+                config.apply_profile(profile)
+            adapter = PaperBananaAdapter(config=config)
+            result = await adapter.generate_diagram(
+                methodology=arguments["methodology"],
+                caption=arguments["caption"],
+                session_id=arguments.get("session_id"),
+            )
+            if "error" in result:
+                return [TextContent(type="text", text=f"❌ {result['error']}")]
+
+            output = f"""✅ Diagram generated
+
+**Asset ID:** {result['asset_id']}
+**Path:** {result['png_path']}
+**Type:** {result['diagram_type']}
+**Profile:** {config.profile}
+**Cost:** ${result['metadata']['estimated_cost_usd']:.4f}
+**Iterations:** {result['metadata']['iterations']}
+**Model:** {result['metadata']['vlm_model']} + {result['metadata']['image_model']}
+**Resolution:** {result['metadata']['resolution']}
+**Time:** {result['metadata']['elapsed_seconds']}s"""
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Visual generation failed: {e}")]
+
+    elif name == "diagram_from_session":
+        try:
+            session_id = arguments["session_id"]
+            finding_filter = arguments.get("finding_filter")
+
+            session = get_session_by_id(session_id)
+            if not session:
+                return [TextContent(type="text", text=f"Session not found: {session_id}")]
+
+            findings = session.get("findings_captured", [])
+            if finding_filter:
+                findings = [f for f in findings if f.get("type") == finding_filter]
+
+            if not findings:
+                return [TextContent(type="text", text=f"No findings in session {session_id}")]
+
+            from visual import PaperBananaAdapter, get_visual_config
+            config = get_visual_config()
+            profile = arguments.get("profile")
+            if profile:
+                config.apply_profile(profile)
+            adapter = PaperBananaAdapter(config=config)
+
+            session_dir = SESSIONS_DIR / session_id
+            session_dir.mkdir(parents=True, exist_ok=True)
+
+            results = await adapter.generate_session_diagrams(
+                session_id=session_id,
+                session_dir=session_dir,
+                findings=findings,
+            )
+
+            if not results:
+                return [TextContent(type="text", text="No diagrams generated (findings may be too short)")]
+
+            output = f"✅ Generated {len(results)} diagram(s) for session {session_id}\n\n"
+            for r in results:
+                output += f"- **{r['asset_id']}**: {r['caption'][:60]}... → {r['png_path']}\n"
+            output += f"\n**Profile:** {config.profile}\n**Total cost:** ${adapter.get_session_cost():.4f}"
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Session diagram generation failed: {e}")]
+
+    elif name == "illustrate_finding":
+        try:
+            from visual import PaperBananaAdapter, get_visual_config
+            config = get_visual_config()
+            profile = arguments.get("profile")
+            if profile:
+                config.apply_profile(profile)
+            adapter = PaperBananaAdapter(config=config)
+
+            if arguments["diagram_type"] == "statistical_plot":
+                result = await adapter.generate_plot(
+                    data_json=arguments["finding_text"],
+                    intent=arguments["caption"],
+                    session_id=arguments.get("session_id"),
+                )
+            else:
+                result = await adapter.generate_diagram(
+                    methodology=arguments["finding_text"],
+                    caption=arguments["caption"],
+                    session_id=arguments.get("session_id"),
+                )
+
+            if "error" in result:
+                return [TextContent(type="text", text=f"❌ {result['error']}")]
+
+            output = f"✅ Diagram generated: {result['png_path']}\n**Profile:** {config.profile}\n**Cost:** ${result['metadata']['estimated_cost_usd']:.4f}"
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Illustration failed: {e}")]
+
+    elif name == "evaluate_paper_figures":
+        try:
+            from visual import PaperBananaAdapter
+            adapter = PaperBananaAdapter()
+            scores = await adapter.evaluate_diagram(
+                generated_path=arguments["generated_path"],
+                reference_path=arguments["reference_path"],
+                context=arguments["context"],
+                caption=arguments["caption"],
+            )
+
+            if "error" in scores:
+                return [TextContent(type="text", text=f"❌ {scores['error']}")]
+
+            output = f"""📊 Diagram Evaluation
+
+| Dimension | Score |
+|-----------|-------|
+| Faithfulness | {scores.get('faithfulness', 0):.2f} |
+| Readability | {scores.get('readability', 0):.2f} |
+| Conciseness | {scores.get('conciseness', 0):.2f} |
+| Aesthetics | {scores.get('aesthetics', 0):.2f} |
+| **Overall** | **{scores.get('overall', 0):.2f}** |"""
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Evaluation failed: {e}")]
+
+    # ── Gemini Native Image Generation Tools ──
+
+    elif name == "generate_image":
+        try:
+            from visual import GeminiImageGenerator
+            gen = GeminiImageGenerator()
+            result = await gen.generate(
+                prompt=arguments["prompt"],
+                resolution=arguments.get("resolution"),
+                aspect_ratio=arguments.get("aspect_ratio"),
+                quality=arguments.get("quality"),
+                input_images=arguments.get("input_images"),
+                use_search_grounding=arguments.get("use_search_grounding", False),
+                session_id=arguments.get("session_id"),
+            )
+            if "error" in result:
+                return [TextContent(type="text", text=f"❌ {result['error']}")]
+
+            meta = result["metadata"]
+            output = f"""✅ Image generated (Gemini Native)
+
+**Asset ID:** {result['asset_id']}
+**Path:** {result['png_path']}
+**Engine:** gemini_native
+**Model:** {meta['model']}
+**Resolution:** {meta['resolution']}
+**Aspect Ratio:** {meta.get('aspect_ratio') or 'auto'}
+**Quality:** {meta['quality']}
+**Cost:** ${meta['estimated_cost_usd']:.4f}
+**Time:** {meta['elapsed_seconds']}s
+**File Size:** {meta['file_size_bytes'] // 1024}KB"""
+            if meta.get("input_images", 0) > 0:
+                output += f"\n**Input Images:** {meta['input_images']}"
+            if result.get("model_text"):
+                output += f"\n**Model Response:** {result['model_text'][:200]}"
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Native image generation failed: {e}")]
+
+    elif name == "edit_image":
+        try:
+            from visual import GeminiImageGenerator
+            gen = GeminiImageGenerator()
+            result = await gen.edit_image(
+                prompt=arguments["prompt"],
+                input_images=arguments["input_images"],
+                resolution=arguments.get("resolution"),
+                aspect_ratio=arguments.get("aspect_ratio"),
+                quality=arguments.get("quality"),
+                session_id=arguments.get("session_id"),
+            )
+            if "error" in result:
+                return [TextContent(type="text", text=f"❌ {result['error']}")]
+
+            meta = result["metadata"]
+            output = f"""✅ Image edited (Gemini Native)
+
+**Asset ID:** {result['asset_id']}
+**Path:** {result['png_path']}
+**Input Images:** {meta['input_images']}
+**Resolution:** {meta['resolution']}
+**Cost:** ${meta['estimated_cost_usd']:.4f}
+**Time:** {meta['elapsed_seconds']}s"""
+            if result.get("model_text"):
+                output += f"\n**Model Response:** {result['model_text'][:200]}"
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Image editing failed: {e}")]
+
+    elif name == "generate_refined":
+        try:
+            from visual import RefinedPipeline
+            pipeline = RefinedPipeline()
+            result = await pipeline.generate(
+                source_context=arguments["source_context"],
+                caption=arguments["caption"],
+                resolution=arguments.get("resolution"),
+                aspect_ratio=arguments.get("aspect_ratio"),
+                quality=arguments.get("quality"),
+                iterations=arguments.get("iterations"),
+                session_id=arguments.get("session_id"),
+                skip_planning=arguments.get("skip_planning", False),
+            )
+            if "error" in result:
+                return [TextContent(type="text", text=f"❌ {result['error']}")]
+
+            meta = result["metadata"]
+            output = f"""✅ Refined Pipeline Complete
+
+**Asset ID:** {result['asset_id']}
+**Path:** {result['png_path']}
+**Engine:** refined_pipeline (Plan → Style → [Generate → Critique] × T)
+**VLM Model:** {meta['vlm_model']}
+**Image Model:** {meta['model']}
+**Resolution:** {meta['resolution']}
+**Iterations:** {meta['iterations_run']}/{meta['iterations_planned']}
+**Total Cost:** ${meta['estimated_cost_usd']:.4f}
+**Total Time:** {meta['elapsed_seconds']}s
+**File Size:** {meta['file_size_bytes'] // 1024}KB
+
+## Pipeline Trace"""
+            for stage in result.get("pipeline_trace", []):
+                s_name = stage.get("stage", "?")
+                s_status = stage.get("status", "")
+                s_time = stage.get("elapsed_s", "")
+                if s_status:
+                    output += f"\n- **{s_name}**: {s_status}"
+                elif s_time:
+                    output += f"\n- **{s_name}**: {s_time}s"
+
+            output += "\n\n## Iteration Details"
+            for ir in result.get("iteration_results", []):
+                output += f"\n\n### Round {ir['iteration']}"
+                output += f"\n- Generation: {ir.get('gen_elapsed_s', '?')}s"
+                if ir.get("critic_elapsed_s"):
+                    output += f"\n- Critique: {ir['critic_elapsed_s']}s"
+                if ir.get("text_errors"):
+                    output += f"\n- Text errors found: {', '.join(ir['text_errors'][:5])}"
+                if ir.get("hallucinated_content"):
+                    output += f"\n- Hallucinations flagged: {', '.join(ir['hallucinated_content'][:5])}"
+                if ir.get("duplicated_elements"):
+                    output += f"\n- Duplicates: {', '.join(ir['duplicated_elements'][:5])}"
+                if ir.get("description_refined"):
+                    output += "\n- Description refined for next round"
+                if ir.get("early_stop"):
+                    output += "\n- **Early stop**: Critic found no issues"
+
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Refined pipeline failed: {e}")]
+
+    elif name == "list_visual_profiles":
+        try:
+            from visual import list_profiles, list_models, get_visual_config
+
+            config = get_visual_config()
+            profiles = list_profiles()
+            models = list_models()
+
+            output = f"# Visual Intelligence Layer\n\n"
+            output += f"**Active Profile:** {config.profile}\n"
+            output += f"**Estimated Cost/Diagram:** ${config.estimate_diagram_cost():.4f}\n\n"
+
+            output += "## Profiles\n\n"
+            output += "| Profile | VLM | Image Gen | Resolution | Iterations | Est. Cost | Est. Time |\n"
+            output += "|---------|-----|-----------|------------|------------|-----------|----------|\n"
+            for name_p, p in profiles.items():
+                marker = " **[active]**" if name_p == config.profile else ""
+                output += (
+                    f"| {name_p}{marker} | {p['vlm_model']} | {p['image_model']} | "
+                    f"{p['image_resolution']} | {p['max_iterations']} | "
+                    f"${p.get('est_cost_per_diagram', 0):.2f} | {p.get('est_time_seconds', 0)}s |\n"
+                )
+
+            output += "\n## VLM Models\n\n"
+            output += "| Model | Description | Input $/1M | Output $/1M | Context |\n"
+            output += "|-------|-------------|-----------|------------|--------|\n"
+            for m_name, m_info in models["vlm_models"].items():
+                output += (
+                    f"| {m_name} | {m_info['description']} | "
+                    f"${m_info['input_cost_per_1m']:.2f} | ${m_info['output_cost_per_1m']:.2f} | "
+                    f"{m_info['context_window']:,} |\n"
+                )
+
+            output += "\n## Image Generation Models\n\n"
+            output += "| Model | Description | 1K | 2K | 4K |\n"
+            output += "|-------|-------------|----|----|----|\n"
+            for m_name, m_info in models["image_models"].items():
+                c1k = f"${m_info['cost_1k']:.3f}" if m_info.get("cost_1k") else "N/A"
+                c2k = f"${m_info['cost_2k']:.3f}" if m_info.get("cost_2k") else "N/A"
+                c4k = f"${m_info['cost_4k']:.3f}" if m_info.get("cost_4k") else "N/A"
+                output += f"| {m_name} | {m_info['description']} | {c1k} | {c2k} | {c4k} |\n"
+
+            output += "\n## Engines\n\n"
+            output += "| Engine | Best For | Method | Tool |\n"
+            output += "|--------|----------|--------|------|\n"
+            output += "| **Refined Pipeline** | Architecture diagrams, technical illustrations | Plan→Style→[Gen→Critique]×T | `generate_refined` |\n"
+            output += "| **Gemini Native** | Brand assets, logos, scenes, image editing | Single-shot generation | `generate_image` |\n"
+            output += "| **PaperBanana** | Academic diagrams (when package installed) | 5-agent pipeline | `visualize_research` |\n"
+
+            return [TextContent(type="text", text=output)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Failed to list profiles: {e}")]
 
     else:
         return [TextContent(

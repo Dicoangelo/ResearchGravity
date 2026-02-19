@@ -241,6 +241,22 @@ CREATE INDEX IF NOT EXISTS idx_predictions_timestamp ON prediction_tracking(pred
 CREATE INDEX IF NOT EXISTS idx_predictions_session ON prediction_tracking(actual_session_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_match ON prediction_tracking(success_match);
 
+-- Visual assets (PaperBanana integration)
+CREATE TABLE IF NOT EXISTS visual_assets (
+    id TEXT PRIMARY KEY,
+    session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+    diagram_type TEXT NOT NULL,  -- 'methodology', 'statistical_plot', 'evaluation'
+    methodology_text TEXT,
+    caption TEXT NOT NULL,
+    png_path TEXT NOT NULL,
+    metadata TEXT,  -- JSON: {iterations, vlm_model, image_model, resolution, cost}
+    critic_scores TEXT,  -- JSON: {faithfulness, readability, conciseness, aesthetics}
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_visual_session ON visual_assets(session_id);
+CREATE INDEX IF NOT EXISTS idx_visual_type ON visual_assets(diagram_type);
+
 -- Full-text search for content
 CREATE VIRTUAL TABLE IF NOT EXISTS findings_fts USING fts5(
     id,
@@ -1187,6 +1203,67 @@ class SQLiteDB:
                 "period_days": days
             }
 
+    # --- Visual Asset Operations ---
+
+    async def store_visual_asset(self, asset: Dict[str, Any]) -> str:
+        """Store a visual asset (diagram/plot from PaperBanana)."""
+        async with self.connection() as db:
+            asset_id = asset.get("asset_id", asset.get("id", f"visual-{uuid.uuid4().hex[:12]}"))
+            await db.execute("""
+                INSERT INTO visual_assets (id, session_id, diagram_type, methodology_text, caption, png_path, metadata, critic_scores, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    critic_scores = COALESCE(excluded.critic_scores, critic_scores)
+            """, (
+                asset_id,
+                asset.get("session_id"),
+                asset.get("diagram_type", "methodology"),
+                asset.get("methodology_text"),
+                asset.get("caption", ""),
+                asset.get("png_path", ""),
+                json.dumps(asset.get("metadata", {})),
+                json.dumps(asset.get("critic_scores")) if asset.get("critic_scores") else None,
+                asset.get("created_at", datetime.now().isoformat()),
+            ))
+            await db.commit()
+            return asset_id
+
+    async def get_visual_assets(
+        self,
+        session_id: Optional[str] = None,
+        diagram_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Get visual assets with optional filtering."""
+        async with self.connection() as db:
+            conditions = []
+            params = []
+            if session_id:
+                conditions.append("session_id = ?")
+                params.append(session_id)
+            if diagram_type:
+                conditions.append("diagram_type = ?")
+                params.append(diagram_type)
+
+            where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            params.append(limit)
+
+            cursor = await db.execute(
+                f"SELECT * FROM visual_assets {where} ORDER BY created_at DESC LIMIT ?",
+                params,
+            )
+            rows = await cursor.fetchall()
+            columns = [d[0] for d in cursor.description]
+            results = []
+            for row in rows:
+                d = dict(zip(columns, row))
+                if d.get("metadata"):
+                    d["metadata"] = json.loads(d["metadata"])
+                if d.get("critic_scores"):
+                    d["critic_scores"] = json.loads(d["critic_scores"])
+                results.append(d)
+            return results
+
     # --- Statistics ---
 
     async def get_stats(self) -> Dict[str, Any]:
@@ -1228,6 +1305,12 @@ class SQLiteDB:
 
             cursor = await db.execute("SELECT COUNT(*) FROM prediction_tracking")
             stats['predictions_tracked'] = (await cursor.fetchone())[0]
+
+            try:
+                cursor = await db.execute("SELECT COUNT(*) FROM visual_assets")
+                stats['visual_assets'] = (await cursor.fetchone())[0]
+            except Exception:
+                stats['visual_assets'] = 0
 
             return stats
 
