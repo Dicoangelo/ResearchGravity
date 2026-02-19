@@ -38,6 +38,21 @@ from .decomposer import decompose_task
 from .router import route_subtask, load_agent_registry, AgentCapability
 from .verifier import verify_completion
 from .executor import SubtaskExecutor
+from .four_ds import delegation_gate, description_gate, diligence_gate
+from .memory_bleed import inject_context
+from .permissions import PermissionManager
+from .ethical_delegation import (
+    HumanOversight, AccountabilityChain, get_service_tier, enforce_safety_floor
+)
+
+# UCW capture integration (graceful degradation)
+try:
+    from mcp_raw.capture import CaptureEngine
+    _capture_engine = CaptureEngine()
+    HAS_UCW_CAPTURE = True
+except ImportError:
+    _capture_engine = None
+    HAS_UCW_CAPTURE = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -136,6 +151,11 @@ class DelegationCoordinator:
         self.failure_counts: Dict[str, int] = {}  # subtask_id -> failure count
         self.executor = SubtaskExecutor()
 
+        # Google DeepMind framework (arXiv:2602.11865 Sections 4.7, 5.1-5.3)
+        self.permission_manager = PermissionManager()
+        self.human_oversight = HumanOversight()
+        self.accountability_chains: Dict[str, AccountabilityChain] = {}  # chain_id -> chain
+
         # Background monitoring task
         self._monitor_task: Optional[asyncio.Task] = None
         self._running = False
@@ -188,13 +208,71 @@ class DelegationCoordinator:
         """
         chain_id = f"chain-{uuid.uuid4().hex[:12]}"
 
-        # Step 1: Classify task
+        # Step 0a: 4Ds Safety Gates (arXiv:2602.11865 + Anthropic 4Ds)
+        # Classify first to get profile for gate checks
         profile = classify_task(task, context=context)
+
+        # Gate 1: Delegation — block high-risk tasks
+        approved, gate_reason = delegation_gate(task, profile)
+        if not approved:
+            chain_status = ChainStatus(
+                chain_id=chain_id, status="blocked", progress=0.0,
+                events=[{"type": "gate_blocked", "gate": "delegation",
+                         "reason": gate_reason, "timestamp": time.time()}],
+            )
+            self.chains[chain_id] = chain_status
+            await self._capture_event("delegation_gate_blocked", chain_id,
+                                      {"reason": gate_reason})
+            return chain_id
+
+        # Gate 4: Diligence — ethical/safety check
+        safe, warnings = diligence_gate(task, profile)
+        if not safe:
+            chain_status = ChainStatus(
+                chain_id=chain_id, status="blocked", progress=0.0,
+                events=[{"type": "gate_blocked", "gate": "diligence",
+                         "warnings": warnings, "timestamp": time.time()}],
+            )
+            self.chains[chain_id] = chain_status
+            await self._capture_event("diligence_gate_blocked", chain_id,
+                                      {"warnings": warnings})
+            return chain_id
+
+        # Gate 2: Description — score task clarity (log warning if low)
+        desc_score, desc_suggestions = description_gate(task, use_llm=False)
+        if desc_score < 0.4:
+            await self._capture_event("description_gate_warning", chain_id,
+                                      {"score": desc_score, "suggestions": desc_suggestions})
+
+        # Step 1: Classification already done above
 
         # Step 2: Decompose into subtasks
         subtasks = decompose_task(task, profile)
 
-        # Step 3: Route subtasks to agents
+        # Step 2b: Memory injection — enrich subtasks with supermemory context
+        try:
+            inject_context(subtasks, context_limit=3)
+        except Exception:
+            pass  # Never block delegation on memory injection failure
+
+        # Step 3: Service tier + human oversight (Sections 5.1, 5.3)
+        service_tier = get_service_tier(profile)
+        oversight_decision = self.human_oversight.evaluate(
+            profile=profile, chain_depth=0, agent_trust=0.5
+        )
+
+        if oversight_decision.requires_human:
+            await self._capture_event("human_oversight_required", chain_id, {
+                "level": oversight_decision.oversight_level.value,
+                "friction": oversight_decision.cognitive_friction_score,
+                "reason": oversight_decision.reason,
+            })
+
+        # Step 3b: Initialize accountability chain (Section 5.2)
+        accountability = AccountabilityChain(chain_id=chain_id)
+        self.accountability_chains[chain_id] = accountability
+
+        # Step 4: Route subtasks to agents
         assignments = {}
         for subtask in subtasks:
             assignment = route_subtask(
@@ -204,7 +282,25 @@ class DelegationCoordinator:
             )
             assignments[subtask.id] = assignment
 
-        # Step 4: Create chain status
+            # Grant scoped permissions (Section 4.7)
+            scope = self.permission_manager.grant_permissions(
+                agent_id=assignment.agent_id,
+                subtask=subtask,
+                trust_score=assignment.trust_score,
+                chain_id=chain_id,
+            )
+
+            # Record handoff for accountability (Section 5.2)
+            accountability.record_handoff(
+                from_agent="coordinator",
+                to_agent=assignment.agent_id,
+                subtask_id=subtask.id,
+                permissions=list(scope.tools_allowed) if scope else [],
+                access_level=scope.access_level.value if scope else "none",
+                rationale=assignment.assignment_reasoning,
+            )
+
+        # Step 5: Create chain status
         chain_status = ChainStatus(
             chain_id=chain_id,
             status="running",
@@ -227,6 +323,10 @@ class DelegationCoordinator:
                 "timestamp": time.time(),
                 "task": task,
                 "subtask_count": len(subtasks),
+                "service_tier": service_tier.name.value,
+                "safety_floor": service_tier.safety_floor,
+                "oversight_level": oversight_decision.oversight_level.value,
+                "cognitive_friction": oversight_decision.cognitive_friction_score,
                 "profile": {
                     "complexity": profile.complexity,
                     "criticality": profile.criticality,
@@ -236,7 +336,7 @@ class DelegationCoordinator:
 
         self.chains[chain_id] = chain_status
 
-        # Step 5: Capture as cognitive event
+        # Step 6: Capture as cognitive event
         await self._capture_event(
             event_type="delegation_chain_submitted",
             chain_id=chain_id,
@@ -247,7 +347,7 @@ class DelegationCoordinator:
             }
         )
 
-        # Step 6: Execute subtasks (non-blocking — fire and forget)
+        # Step 7: Execute subtasks (non-blocking — fire and forget)
         asyncio.create_task(
             self._execute_chain(chain_id, subtasks, assignments)
         )
@@ -375,6 +475,10 @@ class DelegationCoordinator:
             chain.status = "failed"
 
         chain.updated_at = time.time()
+
+        # Revoke all permissions for this chain (Section 4.7)
+        self.permission_manager.revoke_chain(chain_id)
+        self.permission_manager.cleanup_expired()
 
         # Feed to evolution engine
         try:
@@ -685,8 +789,7 @@ class DelegationCoordinator:
             chain_id: Chain identifier
             details: Event details dict
         """
-        # TODO: Integrate with mcp_raw.capture.CaptureEngine
-        # For now, just log the event structure
+        import json as _json
         event = {
             "event_type": event_type,
             "chain_id": chain_id,
@@ -694,14 +797,18 @@ class DelegationCoordinator:
             "details": details,
         }
 
-        # Future integration point:
-        # await capture_engine.capture(
-        #     raw_bytes=json.dumps(event).encode(),
-        #     parsed=event,
-        #     direction="internal",
-        #     stage="coordination"
-        # )
+        # UCW capture — delegation events become permanent cognitive events
+        if HAS_UCW_CAPTURE and _capture_engine:
+            try:
+                await _capture_engine.capture(
+                    raw_bytes=_json.dumps(event).encode(),
+                    parsed=event,
+                    direction="internal",
+                    stage="coordination",
+                )
+            except Exception:
+                pass  # Never block coordination on capture failure
 
-        # For now, store in chain events
+        # Also store in chain events (in-memory)
         if chain_id and chain_id in self.chains:
             self.chains[chain_id].events.append(event)

@@ -1,0 +1,15 @@
+{
+  "id": "35463bde-006e-4b9d-9962-7756728cd6d0",
+  "status": "completed",
+  "startedAt": "2026-02-14T18:27:44.721Z",
+  "updatedAt": "2026-02-14T19:32:34.115Z",
+  "agentPlugin": "claude",
+  "trackerPlugin": "json",
+  "prdPath": "./tasks/prd-intelligent-delegation.json",
+  "currentIteration": 10,
+  "maxIterations": 0,
+  "totalTasks": 0,
+  "tasksCompleted": 10,
+  "cwd": "/Users/dicoangelo/projects/apps/researchgravity",
+  "endedAt": "2026-02-14T19:32:34.115Z"
+}

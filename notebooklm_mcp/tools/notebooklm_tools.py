@@ -84,8 +84,31 @@ def _init_cognitive_if_ready():
 
 
 def _require_auth() -> NotebookLMAPIClient:
+    global _api_client
     if _api_client is None:
-        raise AuthenticationError("Not authenticated. Call save_auth_tokens first with your NotebookLM cookies.")
+        # Try auto-recovery: load from disk cache first
+        cached = _load_cookies_from_disk()
+        if cached:
+            try:
+                _api_client = NotebookLMAPIClient(cookies=cached)
+                log.info("Auto-recovered auth from cached cookies")
+                return _api_client
+            except Exception:
+                log.debug("Cached cookies expired, trying browser extraction")
+        # Try auto-extract from Chrome
+        try:
+            from .cookie_extractor import auto_refresh
+            cookie_string = auto_refresh()
+            _api_client = NotebookLMAPIClient(cookies=cookie_string)
+            log.info("Auto-recovered auth from Chrome cookies")
+            return _api_client
+        except Exception as e:
+            log.debug(f"Chrome auto-extract failed: {e}")
+        raise AuthenticationError(
+            "Not authenticated. Either:\n"
+            "1. Run `auto_auth` (extracts from Chrome automatically)\n"
+            "2. Run `save_auth_tokens` with cookies from browser DevTools"
+        )
     return _api_client
 
 
@@ -550,6 +573,25 @@ TOOLS = [
         "name": "refresh_auth",
         "description": "Refresh CSRF token and session ID by fetching the NotebookLM homepage.",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "auto_auth",
+        "description": (
+            "Auto-extract NotebookLM cookies from Chrome's cookie database. "
+            "No manual DevTools needed — reads encrypted cookies directly. "
+            "First run requires macOS Keychain approval (click 'Always Allow'). "
+            "Specify chrome_profile to use a non-default Chrome profile."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "chrome_profile": {
+                    "type": "string",
+                    "description": "Chrome profile directory name (default: 'Default'). Use 'Profile 1', 'Profile 2' etc. for additional profiles.",
+                },
+            },
+            "required": [],
+        },
     },
 
     # ── Cognitive Intelligence ───────────────────────────────────────────
@@ -1103,7 +1145,7 @@ async def _h_note_delete(args: dict) -> dict:
 
 def _get_cookie_cache_path() -> Path:
     """Get persistent cookie cache file path."""
-    from .config_notebooklm import NotebookLMConfig
+    from ..config_notebooklm import NotebookLMConfig
     return NotebookLMConfig.AUTH_STATE_DIR / "cookies.txt"
 
 
@@ -1165,6 +1207,55 @@ async def _h_refresh_auth(args: dict) -> dict:
         return _ok("Auth tokens refreshed.")
     except Exception as exc:
         return _err(f"Refresh failed: {exc}")
+
+
+async def _h_auto_auth(args: dict) -> dict:
+    """Auto-extract cookies from Chrome and authenticate."""
+    import os
+    import asyncio
+    global _api_client, _pg_pool
+
+    chrome_profile = args.get("chrome_profile", "Default")
+
+    try:
+        from .cookie_extractor import extract_chrome_cookies, cookies_to_header, save_cookies, CHROME_COOKIE_DB
+
+        # Override DB path if non-default profile
+        if chrome_profile != "Default":
+            from .cookie_extractor import CHROME_COOKIE_DB as _default_db
+            import notebooklm_mcp.tools.cookie_extractor as ce
+            ce.CHROME_COOKIE_DB = _default_db.parent.parent / chrome_profile / "Cookies"
+
+        cookies = extract_chrome_cookies()
+        cookie_string = cookies_to_header(cookies)
+        save_cookies(cookie_string)
+        os.environ["NOTEBOOKLM_COOKIES"] = cookie_string
+
+        _api_client = NotebookLMAPIClient(cookies=cookie_string)
+        nbs = _api_client.list_notebooks()
+
+        # Wait for DB background init if not ready yet (up to 5s)
+        if _pg_pool is None:
+            for _ in range(10):
+                await asyncio.sleep(0.5)
+                if _pg_pool is not None:
+                    break
+
+        _init_cognitive_if_ready()
+        cognitive_status = "cognitive=active" if (_cognitive and _cognitive.available) else "cognitive=pending"
+
+        return _ok(
+            f"Auto-authenticated from Chrome ({chrome_profile}). "
+            f"Extracted {len(cookies)} cookies. "
+            f"Found {len(nbs)} notebooks. ({cognitive_status})"
+        )
+    except PermissionError as e:
+        return _err(str(e))
+    except FileNotFoundError as e:
+        return _err(f"Chrome cookie DB not found: {e}")
+    except Exception as exc:
+        _api_client = None
+        return _err(f"Auto-auth failed: {exc}")
 
 
 # ── Cognitive Handlers ───────────────────────────────────────────────────
@@ -1336,6 +1427,7 @@ _HANDLERS = {
     # Auth
     "save_auth_tokens": _h_save_auth_tokens,
     "refresh_auth": _h_refresh_auth,
+    "auto_auth": _h_auto_auth,
     # Cognitive Intelligence
     "cognitive_enrich_query": _h_cognitive_enrich_query,
     "cognitive_search": _h_cognitive_search,

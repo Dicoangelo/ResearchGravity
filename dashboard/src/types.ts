@@ -46,7 +46,27 @@ export interface CoherenceMoment {
   description: string;
   time_window_s: number;
   signals: Signals;
+  insight_summary: string | null;
+  insight_category: string | null;
+  insight_novelty: number | null;
   created_at: string;
+}
+
+export interface Breakthrough {
+  breakthrough_id: string;
+  detected_at: string;
+  type: string;
+  title: string;
+  narrative: string;
+  evidence_moment_ids: string[];
+  platforms: string[];
+  concepts: string[];
+  novelty_score: number;
+  impact_score: number;
+}
+
+export interface BreakthroughsResponse {
+  breakthroughs: Breakthrough[];
 }
 
 export interface MomentsResponse {

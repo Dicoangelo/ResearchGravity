@@ -74,33 +74,36 @@ RERANK_MODEL = "rerank-v3.5"  # Cohere rerank v3.5
 EMBEDDING_DIM = 1024  # Default dimension (balanced quality/storage)
 EMBEDDING_DIM_OPTIONS = [256, 512, 1024, 1536]  # Available dimensions
 
-# Collection definitions
-COLLECTIONS = {
-    "findings": {
-        "vector_size": EMBEDDING_DIM,
-        "distance": Distance.COSINE,
-    },
-    "sessions": {
-        "vector_size": EMBEDDING_DIM,
-        "distance": Distance.COSINE,
-    },
-    "packs": {
-        "vector_size": EMBEDDING_DIM,
-        "distance": Distance.COSINE,
-    },
-    "session_outcomes": {
-        "vector_size": EMBEDDING_DIM,
-        "distance": Distance.COSINE,
-    },
-    "cognitive_states": {
-        "vector_size": EMBEDDING_DIM,
-        "distance": Distance.COSINE,
-    },
-    "error_patterns": {
-        "vector_size": EMBEDDING_DIM,
-        "distance": Distance.COSINE,
-    },
-}
+# Collection definitions (only if Qdrant is available)
+if QDRANT_AVAILABLE:
+    COLLECTIONS = {
+        "findings": {
+            "vector_size": EMBEDDING_DIM,
+            "distance": Distance.COSINE,
+        },
+        "sessions": {
+            "vector_size": EMBEDDING_DIM,
+            "distance": Distance.COSINE,
+        },
+        "packs": {
+            "vector_size": EMBEDDING_DIM,
+            "distance": Distance.COSINE,
+        },
+        "session_outcomes": {
+            "vector_size": EMBEDDING_DIM,
+            "distance": Distance.COSINE,
+        },
+        "cognitive_states": {
+            "vector_size": EMBEDDING_DIM,
+            "distance": Distance.COSINE,
+        },
+        "error_patterns": {
+            "vector_size": EMBEDDING_DIM,
+            "distance": Distance.COSINE,
+        },
+    }
+else:
+    COLLECTIONS = {}
 
 
 def get_cohere_api_key() -> str:

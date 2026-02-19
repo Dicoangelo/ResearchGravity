@@ -20,6 +20,7 @@ from .base import CriticBase, ValidationResult
 from .archive_critic import ArchiveCritic
 from .evidence_critic import EvidenceCritic
 from .pack_critic import PackCritic
+from .paperbanana_critic import PaperBananaCritic
 
 __all__ = [
     'CriticBase',
@@ -27,4 +28,5 @@ __all__ = [
     'ArchiveCritic',
     'EvidenceCritic',
     'PackCritic',
+    'PaperBananaCritic',
 ]

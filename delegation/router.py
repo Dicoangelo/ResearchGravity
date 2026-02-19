@@ -58,6 +58,30 @@ CAPABILITY_WEIGHT = 0.6  # How well agent matches task requirements
 TRUST_WEIGHT = 0.3       # Historical performance
 COST_WEIGHT = 0.1        # Resource efficiency
 
+# Evolution feedback — load learned agent affinity if available
+try:
+    from .evolution import EvolutionEngine
+    _evolution_engine = EvolutionEngine()
+    HAS_EVOLUTION = True
+except Exception:
+    _evolution_engine = None
+    HAS_EVOLUTION = False
+
+
+def _get_affinity_boost(agent_id: str) -> float:
+    """Get learned affinity boost for an agent from evolution engine."""
+    if not HAS_EVOLUTION or not _evolution_engine:
+        return 0.0
+    try:
+        strategies = _evolution_engine.evolve_strategies()
+        affinity = strategies.get("agent_affinity", {})
+        agent_data = affinity.get(agent_id, {})
+        # Boost high-performing agents by up to 0.1
+        success_rate = agent_data.get("success_rate", 0.5)
+        return max(0.0, (success_rate - 0.5) * 0.2)  # -0.1 to +0.1
+    except Exception:
+        return 0.0
+
 
 @dataclass
 class AgentCapability:
@@ -382,12 +406,17 @@ def route_subtask(
         else:
             cost_efficiency = 0.5
 
-        # Weighted final score
+        # Evolution affinity boost (learned from past outcomes)
+        affinity_boost = _get_affinity_boost(agent.agent_id)
+
+        # Weighted final score + evolution feedback
         final_score = (
             capability_match * CAPABILITY_WEIGHT +
             trust_score * TRUST_WEIGHT +
-            cost_efficiency * COST_WEIGHT
+            cost_efficiency * COST_WEIGHT +
+            affinity_boost
         )
+        final_score = max(0.0, min(1.0, final_score))
 
         scored_agents.append({
             "agent": agent,

@@ -4,6 +4,7 @@ import type {
   NetworkData,
   PulseData,
   SignalData,
+  BreakthroughsResponse,
 } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
@@ -34,4 +35,6 @@ export const api = {
   pulse: (hours = 24) => get<PulseData>(`/api/v2/coherence/pulse?hours=${hours}`, 30_000),
   signals: (momentId: string) =>
     get<SignalData>(`/api/v2/coherence/moment/${momentId}/signals`),
+  breakthroughs: () =>
+    get<BreakthroughsResponse>("/api/v2/coherence/breakthroughs", 30_000),
 };

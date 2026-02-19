@@ -443,5 +443,6 @@ def feed_to_memory_bleed(
     # Write to supermemory reviews table
     write_delegation_outcome(
         task=subtask.description,
-        outcome=f"Verification: {verification.method.value} | Passed: {verification.passed} | Score: {verification.quality_score:.3f}\nResult: {result[:500]}"
+        outcome=f"Verification: {verification.method.value} | Passed: {verification.passed} | Score: {verification.quality_score:.3f}\nResult: {result[:500]}",
+        quality=verification.quality_score,
     )
