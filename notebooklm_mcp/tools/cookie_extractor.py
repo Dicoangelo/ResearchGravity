@@ -83,11 +83,17 @@ def _get_chrome_encryption_key() -> bytes:
 
 
 def _decrypt_cookie_value(encrypted_value: bytes, derived_key: bytes) -> str:
-    """Decrypt a Chrome cookie value (v10 format on macOS)."""
+    """Decrypt a Chrome cookie value (v10 format on macOS).
+
+    Chrome prepends a 16-byte prefix to cookie values before AES-128-CBC
+    encryption. After decryption, the first 2 blocks (32 bytes) contain
+    garbled prefix data (the prepended block + IV-corrupted first block).
+    The actual cookie value starts at byte 32 of the decrypted output.
+    """
     if not encrypted_value:
         return ""
 
-    # v10 = Chrome macOS encryption
+    # v10 = Chrome macOS encryption (AES-128-CBC)
     if encrypted_value[:3] == b"v10":
         from Crypto.Cipher import AES
         iv = b" " * 16
@@ -97,7 +103,12 @@ def _decrypt_cookie_value(encrypted_value: bytes, derived_key: bytes) -> str:
         padding = decrypted[-1]
         if isinstance(padding, int) and 1 <= padding <= 16:
             decrypted = decrypted[:-padding]
-        return decrypted.decode("utf-8", errors="replace")
+        # Skip 32-byte Chrome prefix (16-byte prepended block + garbled
+        # first CBC block). The actual cookie value is pure ASCII after this.
+        if len(decrypted) > 32:
+            return decrypted[32:].decode("ascii", errors="ignore")
+        # Short values: fall back to stripping non-ASCII bytes
+        return decrypted.decode("ascii", errors="ignore")
 
     # Unencrypted (rare)
     return encrypted_value.decode("utf-8", errors="replace")
@@ -115,9 +126,12 @@ def extract_chrome_cookies() -> dict[str, str]:
     # Get encryption key
     raw_key = _get_chrome_encryption_key()
 
-    # Derive AES key (Chrome uses PBKDF2 with 'saltysalt' and 1003 iterations)
-    from Crypto.Protocol.KDF import PBKDF2
-    derived_key = PBKDF2(raw_key, b"saltysalt", dkLen=16, count=1003)
+    # Derive AES key (Chrome uses PBKDF2-SHA1 with 'saltysalt' and 1003 iterations)
+    # Use hashlib (stdlib) instead of pycryptodome for reliability
+    import hashlib
+    if isinstance(raw_key, str):
+        raw_key = raw_key.encode("utf-8")
+    derived_key = hashlib.pbkdf2_hmac("sha1", raw_key, b"saltysalt", 1003, dklen=16)
 
     # Copy DB to temp (Chrome holds a lock on it)
     tmp_path = tempfile.mktemp(suffix=".db")

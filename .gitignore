@@ -63,3 +63,6 @@ tsconfig.tsbuildinfo
 coherence_report*.txt
 coherence_report*.json
 cli_import_log.json
+
+# Large generated visual assets (refined pipeline iterations)
+visual_assets/

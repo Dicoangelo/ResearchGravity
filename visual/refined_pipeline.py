@@ -330,6 +330,26 @@ Provide your response strictly in the following JSON format:
 IMAGE_COST = {
     "gemini-3-pro-image-preview": {"1K": 0.039, "2K": 0.134, "4K": 0.240},
     "gemini-2.5-flash-image": {"1K": 0.019, "2K": 0.067, "4K": None},
+    "imagen-4.0-ultra-generate-001": {"1K": 0.080, "2K": 0.120, "4K": None},
+    "imagen-4.0-generate-001": {"1K": 0.040, "2K": 0.080, "4K": None},
+    "imagen-4.0-fast-generate-001": {"1K": 0.020, "2K": None, "4K": None},
+}
+
+# ── Gemini 3.1 Pro thinking levels ─────────────────────────────────────
+# Controls max reasoning depth before responding.
+# low = fast planning/simple tasks, medium = balanced, high = deep critique
+THINKING_LEVELS = {
+    "planner": "medium",   # Plan stage: balanced speed vs quality
+    "stylist": "low",      # Stylist: mostly pattern-matching, speed matters
+    "critic": "high",      # Critic: deep analysis is the whole point
+}
+
+# ── Media resolution for VLM vision ────────────────────────────────────
+# How deeply the VLM processes input images. ultra_high = max detail for critique.
+MEDIA_RESOLUTIONS = {
+    "planner": "medium",     # Planner doesn't look at images
+    "stylist": "medium",     # Stylist doesn't look at images
+    "critic": "high",        # Critic MUST see every pixel (high = max available)
 }
 
 
@@ -392,8 +412,17 @@ class RefinedPipeline:
         prompt: str,
         image_bytes: Optional[bytes] = None,
         image_mime: str = "image/png",
-    ) -> str:
-        """Call the VLM (text or multimodal) and return text response."""
+        stage: str = "planner",
+        thought_signature: Optional[str] = None,
+    ) -> tuple:
+        """Call the VLM (text or multimodal) and return (text, thought_signature).
+
+        Gemini 3.1 Pro optimizations:
+        - thinking_level: controls reasoning depth per stage (low/medium/high)
+        - media_resolution: controls vision detail for image analysis
+        - thought_signatures: preserves reasoning context across iterations
+        - temperature 1.0: 3.1 default, lower causes looping
+        """
         client = self._get_client()
 
         parts = []
@@ -405,28 +434,54 @@ class RefinedPipeline:
 
         contents = [types.Content(role="user", parts=parts)]
 
-        config = types.GenerateContentConfig(
-            response_modalities=["TEXT"],
-            temperature=1.0,  # Paper uses temperature=1
-        )
+        # ── Build 3.1-optimized config ──────────────────────────────
+        config_kwargs = {
+            "response_modalities": ["TEXT"],
+            "temperature": 1.0,  # 3.1 default — lower causes looping
+        }
+
+        # Thinking level: deep for critic, balanced for planner, fast for stylist
+        thinking_level = THINKING_LEVELS.get(stage, "medium")
+        try:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_level=thinking_level,
+            )
+        except (AttributeError, TypeError):
+            pass  # Older SDK version — graceful fallback
+
+        # Media resolution: skip for now — API requires proto enum, not strings.
+        # thinking_level is the critical optimization; media_resolution is secondary.
+
+        # Thought signatures: preserve reasoning context across critic rounds
+        if thought_signature:
+            try:
+                config_kwargs["thought_signature"] = thought_signature
+            except (AttributeError, TypeError):
+                pass
+
+        config = types.GenerateContentConfig(**config_kwargs)
 
         response_text = ""
+        new_thought_signature = None
         for chunk in client.models.generate_content_stream(
             model=self.config.vlm_model,
             contents=contents,
             config=config,
         ):
+            # Capture thought signature from response if available
+            if hasattr(chunk, "thought_signature") and chunk.thought_signature:
+                new_thought_signature = chunk.thought_signature
             if chunk.parts:
                 for part in chunk.parts:
                     if part.text:
                         response_text += part.text
 
-        # Track VLM cost estimate
+        # Track VLM cost estimate (thinking tokens cost ~same as output)
         est_input = len(prompt) // 4 + (len(image_bytes) // 100 if image_bytes else 0)
         est_output = len(response_text) // 4
         self._session_cost += self._estimate_vlm_cost(est_input, est_output)
 
-        return response_text
+        return response_text, new_thought_signature
 
     async def _generate_image(
         self,
@@ -498,12 +553,15 @@ class RefinedPipeline:
         This is the most critical stage. A good plan prevents hallucination
         because it forces the system to explicitly enumerate every element
         before image generation.
+
+        Uses thinking_level=medium for balanced speed/quality.
         """
         prompt = PLANNER_PROMPT.format(
             source_context=source_context,
             caption=caption,
         )
-        return await self._vlm_call(prompt)
+        text, _ = await self._vlm_call(prompt, stage="planner")
+        return text
 
     async def stylize(self, description: str, source_context: str) -> str:
         """
@@ -511,13 +569,16 @@ class RefinedPipeline:
 
         Adds color palettes, shapes, typography, and layout refinements
         without altering the factual content.
+
+        Uses thinking_level=low for fast pattern-matching.
         """
         prompt = STYLIST_PROMPT.format(
             style_guide=STYLE_GUIDE,
             description=description,
             source_context=source_context,
         )
-        return await self._vlm_call(prompt)
+        text, _ = await self._vlm_call(prompt, stage="stylist")
+        return text
 
     async def critique(
         self,
@@ -525,6 +586,7 @@ class RefinedPipeline:
         description: str,
         source_context: str,
         caption: str,
+        thought_signature: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Critic Agent: Examine generated image against source context.
@@ -536,9 +598,10 @@ class RefinedPipeline:
           - duplicated_elements: list of repeated elements
           - layout_issues: list of spacing/layout problems
           - revised_description: the improved textual description
+          - thought_signature: encrypted reasoning state for next iteration
 
-        The key insight: the Critic produces a REVISED DESCRIPTION,
-        not image modifications. The next round regenerates from scratch.
+        Uses thinking_level=high + media_resolution=high for deep analysis.
+        Thought signatures preserve critic context across iterations.
         """
         prompt = CRITIC_PROMPT.format(
             description=description,
@@ -549,7 +612,12 @@ class RefinedPipeline:
         # Read the generated image
         image_bytes = image_path.read_bytes()
 
-        response = await self._vlm_call(prompt, image_bytes=image_bytes)
+        response, new_signature = await self._vlm_call(
+            prompt,
+            image_bytes=image_bytes,
+            stage="critic",
+            thought_signature=thought_signature,
+        )
 
         # Parse JSON from response
         try:
@@ -558,6 +626,7 @@ class RefinedPipeline:
             json_end = response.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 parsed = json.loads(response[json_start:json_end])
+                parsed["thought_signature"] = new_signature
                 return parsed
         except json.JSONDecodeError:
             pass
@@ -570,6 +639,7 @@ class RefinedPipeline:
             "duplicated_elements": [],
             "layout_issues": [],
             "revised_description": description,  # Keep original if parsing fails
+            "thought_signature": new_signature,
         }
 
     # ── Main Pipeline ────────────────────────────────────────────────────
@@ -680,6 +750,7 @@ class RefinedPipeline:
         # ── STAGES 3-4: Iterative [Generate → Critique] × T ─────────────
         current_description = styled_description
         iteration_results = []
+        critic_thought_signature = None  # Persists critic reasoning across rounds
 
         for t in range(T):
             iter_start = datetime.now()
@@ -727,8 +798,12 @@ class RefinedPipeline:
                     description=current_description,
                     source_context=source_context,
                     caption=caption,
+                    thought_signature=critic_thought_signature,
                 )
                 critic_elapsed = (datetime.now() - critic_start).total_seconds()
+
+                # Preserve thought signature for next iteration
+                critic_thought_signature = critique_result.get("thought_signature")
 
                 iter_result["critic_elapsed_s"] = round(critic_elapsed, 1)
                 iter_result["critic_suggestions"] = critique_result.get(

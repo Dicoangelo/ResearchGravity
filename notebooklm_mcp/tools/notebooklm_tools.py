@@ -1218,15 +1218,17 @@ async def _h_auto_auth(args: dict) -> dict:
     chrome_profile = args.get("chrome_profile", "Default")
 
     try:
-        from .cookie_extractor import extract_chrome_cookies, cookies_to_header, save_cookies, CHROME_COOKIE_DB
+        import notebooklm_mcp.tools.cookie_extractor as ce
+        from .cookie_extractor import cookies_to_header, save_cookies
 
         # Override DB path if non-default profile
         if chrome_profile != "Default":
-            from .cookie_extractor import CHROME_COOKIE_DB as _default_db
-            import notebooklm_mcp.tools.cookie_extractor as ce
-            ce.CHROME_COOKIE_DB = _default_db.parent.parent / chrome_profile / "Cookies"
+            ce.CHROME_COOKIE_DB = (
+                Path.home() / "Library/Application Support/Google/Chrome"
+                / chrome_profile / "Cookies"
+            )
 
-        cookies = extract_chrome_cookies()
+        cookies = ce.extract_chrome_cookies()
         cookie_string = cookies_to_header(cookies)
         save_cookies(cookie_string)
         os.environ["NOTEBOOKLM_COOKIES"] = cookie_string
