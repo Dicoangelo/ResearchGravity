@@ -2,14 +2,16 @@
 Visual Intelligence Layer configuration.
 
 Reads from ~/.agent-core/config.json and environment variables.
-Supports switchable model profiles across the full Google Gemini ecosystem.
+Supports switchable model profiles across the full Google Gemini + Imagen ecosystem.
 
 Profiles:
-  max       — gemini-3-pro-preview + gemini-3-pro-image-preview @ 4K, 5 iters
-  balanced  — gemini-2.5-pro + gemini-3-pro-image-preview @ 2k, 3 iters
-  fast      — gemini-3-flash-preview + gemini-2.5-flash-image @ 2k, 3 iters
-  budget    — gemini-2.5-flash-lite + gemini-2.5-flash-image @ 1k, 2 iters
-  custom    — user-defined models from config.json
+  max         — gemini-3.1-pro-preview + Nano Banana Pro (4K), 5 iters
+  max-imagen  — gemini-3.1-pro-preview + Imagen 4 Ultra (2K), 5 iters
+  balanced    — gemini-3-pro-preview + Nano Banana Pro (2K), 3 iters
+  fast        — gemini-3-flash-preview + Nano Banana (2K), 3 iters
+  fast-imagen — gemini-3-flash-preview + Imagen 4 Fast (1K), 2 iters
+  budget      — gemini-2.5-flash-lite + Nano Banana (1K), 2 iters
+  custom      — user-defined models from config.json
 """
 
 import json
@@ -25,24 +27,35 @@ from typing import Dict, Optional
 
 PROFILES: Dict[str, dict] = {
     "max": {
-        "vlm_model": "gemini-3-pro-preview",
+        "vlm_model": "gemini-3.1-pro-preview",
         "image_model": "gemini-3-pro-image-preview",
         "image_resolution": "4k",
         "max_iterations": 5,
         "cost_budget_per_diagram": 0.50,
         "cost_budget_per_session": 5.00,
-        "description": "Maximum quality — Gemini 3 Pro VLM + 4K image gen, 5 critic rounds",
+        "description": "Maximum quality — Gemini 3.1 Pro VLM + Nano Banana Pro 4K, 5 critic rounds",
         "est_cost_per_diagram": 0.35,
         "est_time_seconds": 90,
     },
+    "max-imagen": {
+        "vlm_model": "gemini-3.1-pro-preview",
+        "image_model": "imagen-4.0-ultra-generate-001",
+        "image_resolution": "2k",
+        "max_iterations": 5,
+        "cost_budget_per_diagram": 0.60,
+        "cost_budget_per_session": 6.00,
+        "description": "Maximum photorealism — Gemini 3.1 Pro VLM + Imagen 4 Ultra 2K, 5 rounds",
+        "est_cost_per_diagram": 0.40,
+        "est_time_seconds": 95,
+    },
     "balanced": {
-        "vlm_model": "gemini-2.5-pro",
+        "vlm_model": "gemini-3-pro-preview",
         "image_model": "gemini-3-pro-image-preview",
         "image_resolution": "2k",
         "max_iterations": 3,
         "cost_budget_per_diagram": 0.30,
         "cost_budget_per_session": 3.00,
-        "description": "Best value — Gemini 2.5 Pro VLM + 3 Pro image gen, 3 rounds",
+        "description": "Best value — Gemini 3 Pro VLM + Nano Banana Pro 2K, 3 rounds",
         "est_cost_per_diagram": 0.18,
         "est_time_seconds": 55,
     },
@@ -53,9 +66,20 @@ PROFILES: Dict[str, dict] = {
         "max_iterations": 3,
         "cost_budget_per_diagram": 0.15,
         "cost_budget_per_session": 2.00,
-        "description": "Fast — Gemini 3 Flash VLM + Flash image gen, 3 rounds",
+        "description": "Fast — Gemini 3 Flash VLM + Nano Banana 2K, 3 rounds",
         "est_cost_per_diagram": 0.06,
         "est_time_seconds": 30,
+    },
+    "fast-imagen": {
+        "vlm_model": "gemini-3-flash-preview",
+        "image_model": "imagen-4.0-fast-generate-001",
+        "image_resolution": "1k",
+        "max_iterations": 2,
+        "cost_budget_per_diagram": 0.10,
+        "cost_budget_per_session": 1.50,
+        "description": "Fast Imagen — Gemini 3 Flash VLM + Imagen 4 Fast 1K, 2 rounds",
+        "est_cost_per_diagram": 0.04,
+        "est_time_seconds": 20,
     },
     "budget": {
         "vlm_model": "gemini-2.5-flash-lite",
@@ -64,7 +88,7 @@ PROFILES: Dict[str, dict] = {
         "max_iterations": 2,
         "cost_budget_per_diagram": 0.08,
         "cost_budget_per_session": 1.00,
-        "description": "Budget — Gemini 2.5 Flash Lite + Flash image, 2 rounds",
+        "description": "Budget — Gemini 2.5 Flash Lite + Nano Banana 1K, 2 rounds",
         "est_cost_per_diagram": 0.02,
         "est_time_seconds": 15,
     },
@@ -72,8 +96,14 @@ PROFILES: Dict[str, dict] = {
 
 # All available models for custom profiles
 AVAILABLE_VLM_MODELS = {
+    "gemini-3.1-pro-preview": {
+        "description": "Latest — advanced agentic intelligence (Gemini 3.1 Pro)",
+        "input_cost_per_1m": 2.50,
+        "output_cost_per_1m": 15.00,
+        "context_window": 1_000_000,
+    },
     "gemini-3-pro-preview": {
-        "description": "Best reasoning & multimodal (Gemini 3 Pro)",
+        "description": "State-of-the-art reasoning & multimodal (Gemini 3 Pro)",
         "input_cost_per_1m": 2.00,
         "output_cost_per_1m": 12.00,
         "context_window": 1_000_000,
@@ -105,19 +135,62 @@ AVAILABLE_VLM_MODELS = {
 }
 
 AVAILABLE_IMAGE_MODELS = {
+    # ── Nano Banana family (native Gemini image gen) ──
     "gemini-3-pro-image-preview": {
-        "description": "Best quality image generation (Gemini 3 Pro)",
+        "description": "Nano Banana Pro — best native quality (Gemini 3 Pro)",
+        "family": "nano-banana",
         "resolutions": ["1k", "2k", "4k"],
         "cost_1k": 0.039,
         "cost_2k": 0.134,
         "cost_4k": 0.240,
+        "max_reference_images": 14,  # 6 objects + 5 humans + extras
+        "supports_thinking": True,
+        "supports_search_grounding": True,
     },
     "gemini-2.5-flash-image": {
-        "description": "Fast image generation (Gemini 2.5 Flash)",
+        "description": "Nano Banana — fast native image gen (Gemini 2.5 Flash)",
+        "family": "nano-banana",
         "resolutions": ["1k", "2k"],
         "cost_1k": 0.019,
         "cost_2k": 0.067,
-        "cost_4k": None,  # Not supported
+        "cost_4k": None,
+        "max_reference_images": 14,
+        "supports_thinking": False,
+        "supports_search_grounding": False,
+    },
+    # ── Imagen 4 family (dedicated image generation) ──
+    "imagen-4.0-ultra-generate-001": {
+        "description": "Imagen 4 Ultra — maximum photorealism & fidelity",
+        "family": "imagen",
+        "resolutions": ["1k", "2k"],
+        "cost_1k": 0.080,
+        "cost_2k": 0.120,
+        "cost_4k": None,
+        "max_reference_images": 0,  # Text-to-image only
+        "supports_thinking": False,
+        "supports_search_grounding": False,
+    },
+    "imagen-4.0-generate-001": {
+        "description": "Imagen 4 Standard — high quality text-to-image",
+        "family": "imagen",
+        "resolutions": ["1k", "2k"],
+        "cost_1k": 0.040,
+        "cost_2k": 0.080,
+        "cost_4k": None,
+        "max_reference_images": 0,
+        "supports_thinking": False,
+        "supports_search_grounding": False,
+    },
+    "imagen-4.0-fast-generate-001": {
+        "description": "Imagen 4 Fast — ultra-fast budget image gen ($0.02/img)",
+        "family": "imagen",
+        "resolutions": ["1k"],
+        "cost_1k": 0.020,
+        "cost_2k": None,
+        "cost_4k": None,
+        "max_reference_images": 0,
+        "supports_thinking": False,
+        "supports_search_grounding": False,
     },
 }
 
