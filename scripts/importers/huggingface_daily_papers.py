@@ -20,6 +20,7 @@ API Docs:
 """
 
 import argparse
+import asyncio
 import json
 import sqlite3
 import sys
@@ -288,6 +289,86 @@ def get_stats() -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# VECTOR INDEXING
+# ═══════════════════════════════════════════════════════════════════════════
+
+RG_ROOT = Path.home() / "projects" / "apps" / "researchgravity"
+
+
+def index_papers_to_qdrant(
+    papers: list[dict],
+    batch_size: int = 50,
+) -> int:
+    """Index papers into Qdrant via the StorageEngine.
+
+    Args:
+        papers: List of paper dicts (from normalize_paper or from SQLite).
+        batch_size: Papers per embedding batch (Cohere limit is 96).
+
+    Returns:
+        Number of papers indexed.
+    """
+    # Add researchgravity to path for imports
+    if str(RG_ROOT) not in sys.path:
+        sys.path.insert(0, str(RG_ROOT))
+
+    async def _index():
+        from storage.engine import StorageEngine
+        engine = StorageEngine()
+        await engine.initialize()
+
+        total = 0
+        for i in range(0, len(papers), batch_size):
+            batch = papers[i:i + batch_size]
+            count = await engine.store_papers_batch(batch)
+            total += count
+
+        await engine.close()
+        return total
+
+    return asyncio.run(_index())
+
+
+def index_all_from_db(
+    min_relevance: int = 1,
+    source_filter: Optional[str] = None,
+    batch_size: int = 50,
+) -> int:
+    """Read all papers from SQLite and index them into Qdrant.
+
+    Used for initial backfill or re-indexing.
+    """
+    if not DB_PATH.exists():
+        print("  No database found.")
+        return 0
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    try:
+        query = "SELECT id, title, authors, abstract, url, relevance, metadata FROM papers WHERE relevance >= ?"
+        params: list = [min_relevance]
+
+        if source_filter:
+            query += " AND metadata LIKE ?"
+            params.append(f"%{source_filter}%")
+
+        query += " ORDER BY relevance DESC"
+        rows = conn.execute(query, params).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        print("  No papers match criteria.")
+        return 0
+
+    papers = [dict(r) for r in rows]
+    print(f"  Indexing {len(papers)} papers into Qdrant...")
+
+    total = index_papers_to_qdrant(papers, batch_size=batch_size)
+    return total
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -302,6 +383,8 @@ Examples:
   %(prog)s --days 7                # Last 7 days backfill
   %(prog)s --status                # Show ingestion stats
   %(prog)s --min-relevance 4       # Only store high-relevance papers
+  %(prog)s --index                 # Index all DB papers into Qdrant
+  %(prog)s --index --min-relevance 3  # Index only rel>=3 papers
         """
     )
 
@@ -312,6 +395,10 @@ Examples:
     parser.add_argument("--dry-run", action="store_true", help="Preview without storing")
     parser.add_argument("--status", action="store_true", help="Show ingestion statistics")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument("--index", action="store_true",
+                        help="Index all papers from DB into Qdrant for semantic search")
+    parser.add_argument("--no-vectors", action="store_true",
+                        help="Skip vector indexing during fetch (SQLite only)")
 
     args = parser.parse_args()
 
@@ -333,6 +420,20 @@ Examples:
                 print(f"  Recent dates:        {', '.join(stats['recent_dates'][:5])}")
         return
 
+    # Index mode — backfill all existing papers into Qdrant
+    if args.index:
+        print(f"Indexing papers into Qdrant (min_relevance={args.min_relevance})...")
+        try:
+            count = index_all_from_db(
+                min_relevance=args.min_relevance,
+                source_filter="huggingface_daily_papers" if args.min_relevance > 1 else None,
+            )
+            print(f"Done: {count} papers indexed into Qdrant for semantic search")
+        except Exception as e:
+            print(f"Indexing failed: {e}", file=sys.stderr)
+            print("  Is Qdrant running? Start with: docker start qdrant", file=sys.stderr)
+        return
+
     # Build date list
     dates = []
     if args.days:
@@ -349,6 +450,7 @@ Examples:
     total_updated = 0
     total_skipped = 0
     total_fetched = 0
+    all_stored_papers = []  # Accumulate for vector indexing
 
     for date in dates:
         label = date or "today"
@@ -383,7 +485,16 @@ Examples:
             inserted, updated = store_papers(papers)
             total_inserted += inserted
             total_updated += updated
+            all_stored_papers.extend(papers)
             print(f"  {len(raw_papers)} fetched → {len(papers)} qualify → {inserted} new, {updated} updated")
+
+    # Auto-index new papers into Qdrant (unless --no-vectors or --dry-run)
+    if not args.dry_run and not args.no_vectors and all_stored_papers:
+        try:
+            indexed = index_papers_to_qdrant(all_stored_papers)
+            print(f"Indexed {indexed} papers into Qdrant")
+        except Exception as e:
+            print(f"Vector indexing skipped: {e}", file=sys.stderr)
 
     # Summary
     print(f"\nDone: {total_fetched} fetched, {total_inserted} new, {total_updated} updated, {total_skipped} below relevance threshold")

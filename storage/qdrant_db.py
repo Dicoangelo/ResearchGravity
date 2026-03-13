@@ -101,6 +101,10 @@ if QDRANT_AVAILABLE:
             "vector_size": EMBEDDING_DIM,
             "distance": Distance.COSINE,
         },
+        "papers": {
+            "vector_size": EMBEDDING_DIM,
+            "distance": Distance.COSINE,
+        },
     }
 else:
     COLLECTIONS = {}
@@ -848,6 +852,158 @@ class QdrantDB:
 
         return packs[:limit]
 
+    # --- Paper Operations ---
+
+    async def upsert_paper(
+        self,
+        paper_id: str,
+        content: str,
+        metadata: Dict[str, Any]
+    ):
+        """Store a paper with its embedding.
+
+        Args:
+            paper_id: arXiv ID or DOI
+            content: Concatenation of title + abstract for embedding
+            metadata: title, authors, relevance, source, url, etc.
+        """
+        embedding = await self.embed_async(content)
+
+        await self.async_client.upsert(
+            collection_name="papers",
+            points=[
+                PointStruct(
+                    id=self._generate_id(paper_id, "paper"),
+                    vector=embedding,
+                    payload={
+                        "paper_id": paper_id,
+                        "content": content[:2000],
+                        "title": metadata.get("title", "")[:500],
+                        "authors": metadata.get("authors"),
+                        "relevance": metadata.get("relevance"),
+                        "source": metadata.get("source"),
+                        "url": metadata.get("url"),
+                        "ai_keywords": metadata.get("ai_keywords"),
+                        "upvotes": metadata.get("upvotes"),
+                        "github_repo": metadata.get("github_repo"),
+                    }
+                )
+            ]
+        )
+
+    async def upsert_papers_batch(
+        self,
+        papers: List[Dict[str, Any]]
+    ) -> int:
+        """Store multiple papers with embeddings."""
+        if not papers:
+            return 0
+
+        # Build embedding text: title + abstract
+        texts = []
+        for p in papers:
+            title = p.get("title", "")
+            abstract = p.get("abstract", "")
+            texts.append(f"{title}\n\n{abstract}" if abstract else title)
+
+        embeddings = self.embed_batch(texts)
+
+        points = [
+            PointStruct(
+                id=self._generate_id(p["id"], "paper"),
+                vector=emb,
+                payload={
+                    "paper_id": p["id"],
+                    "content": texts[i][:2000],
+                    "title": p.get("title", "")[:500],
+                    "authors": p.get("authors"),
+                    "relevance": p.get("relevance"),
+                    "source": p.get("source"),
+                    "url": p.get("url"),
+                    "ai_keywords": p.get("ai_keywords"),
+                    "upvotes": p.get("upvotes"),
+                    "github_repo": p.get("github_repo"),
+                }
+            )
+            for i, (p, emb) in enumerate(zip(papers, embeddings))
+        ]
+
+        await self.async_client.upsert(
+            collection_name="papers",
+            points=points
+        )
+
+        return len(points)
+
+    async def search_papers(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.4,
+        min_relevance: Optional[int] = None,
+        filter_source: Optional[str] = None,
+        rerank: bool = True,
+        rerank_top_n: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for papers with optional reranking.
+
+        Args:
+            query: Search query
+            limit: Number of results
+            min_score: Minimum vector similarity
+            min_relevance: Minimum relevance score (1-5)
+            filter_source: Filter by source (e.g., 'huggingface_daily_papers')
+            rerank: Whether to rerank with Cohere
+        """
+        embedding = await self.embed_query_async(query)
+
+        conditions = []
+        if min_relevance is not None:
+            conditions.append(
+                models.FieldCondition(
+                    key="relevance",
+                    range=models.Range(gte=min_relevance)
+                )
+            )
+        if filter_source:
+            conditions.append(
+                FieldCondition(key="source", match=MatchValue(value=filter_source))
+            )
+
+        search_filter = Filter(must=conditions) if conditions else None
+        fetch_limit = limit * 3 if rerank else limit
+
+        results = await self.async_client.query_points(
+            collection_name="papers",
+            query=embedding,
+            query_filter=search_filter,
+            limit=fetch_limit,
+            score_threshold=min_score
+        )
+
+        papers = [
+            {
+                "paper_id": r.payload.get("paper_id"),
+                "title": r.payload.get("title"),
+                "content": r.payload.get("content"),
+                "authors": r.payload.get("authors"),
+                "relevance": r.payload.get("relevance"),
+                "source": r.payload.get("source"),
+                "url": r.payload.get("url"),
+                "ai_keywords": r.payload.get("ai_keywords"),
+                "upvotes": r.payload.get("upvotes"),
+                "github_repo": r.payload.get("github_repo"),
+                "score": r.score,
+            }
+            for r in results.points
+        ]
+
+        if rerank and papers:
+            rerank_n = rerank_top_n or limit
+            papers = await self.rerank_async(query, papers, top_n=rerank_n)
+
+        return papers[:limit]
+
     # --- Session Outcome Operations ---
 
     async def upsert_outcome(
@@ -1208,7 +1364,7 @@ class QdrantDB:
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Search across multiple collections with optional reranking."""
         if collections is None:
-            collections = ["findings", "sessions", "packs"]
+            collections = ["findings", "sessions", "packs", "papers"]
 
         embedding = await self.embed_query_async(query)
         results = {}
@@ -1233,7 +1389,7 @@ class QdrantDB:
 
             # Rerank each collection (async to avoid blocking)
             if rerank and items:
-                content_key = "content" if collection == "findings" else "topic" if collection == "sessions" else "name"
+                content_key = {"findings": "content", "sessions": "topic", "papers": "content"}.get(collection, "name")
                 items = await self.rerank_async(query, items, top_n=limit, content_key=content_key)
 
             results[collection] = items[:limit]

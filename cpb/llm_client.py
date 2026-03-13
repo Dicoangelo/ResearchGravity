@@ -58,13 +58,13 @@ CONFIG_FILE = HOME / ".agent-core" / "config.json"
 # Model mappings
 ANTHROPIC_MODELS = {
     'opus': 'claude-opus-4-20250514',
-    'sonnet': 'claude-sonnet-4-20250514',
+    'sonnet': 'claude-sonnet-4-6',
     'haiku': 'claude-3-5-haiku-20241022',
-    'default': 'claude-sonnet-4-20250514',
+    'default': 'claude-sonnet-4-6',
 }
 
 OPENAI_MODELS = {
-    'gpt4': 'gpt-4-turbo-preview',
+    'gpt4': 'gpt-4o',
     'gpt4o': 'gpt-4o',
     'gpt4o-mini': 'gpt-4o-mini',
     'default': 'gpt-4o',
@@ -79,7 +79,7 @@ GEMINI_MODELS = {
 # Cost per 1M tokens (input/output)
 MODEL_COSTS = {
     'claude-opus-4-20250514': (15.0, 75.0),
-    'claude-sonnet-4-20250514': (3.0, 15.0),
+    'claude-sonnet-4-6': (3.0, 15.0),
     'claude-3-5-haiku-20241022': (0.25, 1.25),
     'gpt-4o': (2.5, 10.0),
     'gpt-4o-mini': (0.15, 0.6),

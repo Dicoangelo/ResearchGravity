@@ -292,6 +292,27 @@ def init_session(
     sources_path = Path(session["paths"]["sources"])
     sources_path.write_text("name,url,tier,category,signal,relevance,used,notes,timestamp\n")
 
+    # Surface MetaLearning prediction
+    try:
+        import asyncio
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+        from storage.meta_learning import MetaLearningEngine
+        _engine = MetaLearningEngine()
+        _loop = asyncio.new_event_loop()
+        _engine_init = _loop.run_until_complete(_engine.initialize())
+        _outcomes = _loop.run_until_complete(_engine.engine.search_outcomes(query=topic, limit=10, min_score=0.3))
+        if len(_outcomes) >= 10:
+            _pred = _loop.run_until_complete(_engine.predict_session_outcome(intent=topic))
+            session["prediction"] = {"quality": _pred["predicted_quality"], "confidence": _pred["confidence"], "success_prob": _pred["success_probability"]}
+            _pred_id = _loop.run_until_complete(_engine.store_prediction_for_tracking(topic, _pred))
+            session["prediction"]["tracking_id"] = _pred_id
+            print(f"[MetaLearning] Predicted quality: {_pred['predicted_quality']:.1f}/5 | Success: {_pred['success_probability']:.0%} | Confidence: {_pred['confidence']:.0%}")
+        _loop.run_until_complete(_engine.close())
+        _loop.close()
+    except Exception:
+        pass  # Prediction engine unavailable — skip silently
+
     # Save session metadata
     metadata_path = local_dir / "session.json"
     metadata_path.write_text(json.dumps(session, indent=2))

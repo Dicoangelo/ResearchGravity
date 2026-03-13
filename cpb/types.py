@@ -49,7 +49,7 @@ class CPBPhase(str, Enum):
 class ReasoningModel(str, Enum):
     """Model selection preferences"""
     GEMINI_FLASH = 'gemini-flash'
-    GEMINI_PRO = 'gemini-pro'
+    GEMINI_PRO = 'gemini-2.0-flash'
     CLAUDE_HAIKU = 'claude-haiku'
     CLAUDE_SONNET = 'claude-sonnet'
     CLAUDE_OPUS = 'claude-opus'
