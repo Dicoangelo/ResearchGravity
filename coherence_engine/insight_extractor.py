@@ -28,7 +28,7 @@ CONTEXT_WINDOW = 5
 
 # LLM provider: "anthropic" (Claude API) or "local" (ollama)
 LLM_PROVIDER = os.environ.get("UCW_LLM_PROVIDER", "anthropic")
-ANTHROPIC_MODEL = os.environ.get("UCW_INSIGHT_MODEL", "claude-sonnet-4-5-20250929")
+ANTHROPIC_MODEL = os.environ.get("UCW_INSIGHT_MODEL", "claude-sonnet-4-6")
 OLLAMA_MODEL = os.environ.get("UCW_OLLAMA_MODEL", "llama3.2")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 

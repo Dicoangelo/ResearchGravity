@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from intelligence import (
+from scripts.prediction.intelligence import (
     predict_session_quality,
     get_likely_errors,
     get_related_research,

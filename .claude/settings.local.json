@@ -1,0 +1,13 @@
+{
+  "enabledMcpjsonServers": [
+    "supabase",
+    "github",
+    "researchgravity",
+    "researchgravity-ucw",
+    "notebooklm",
+    "powerpoint",
+    "chrome-devtools",
+    "x-twitter"
+  ],
+  "enableAllProjectMcpServers": true
+}

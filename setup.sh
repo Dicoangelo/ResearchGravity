@@ -153,7 +153,7 @@ if [ ! -f "$AGENT_CORE/config.json" ] || [ "$UPDATE" = true ]; then
   "version": "2.0",
   "defaults": {
     "auto_accept": true,
-    "model": "claude-opus-4-5-20251101",
+    "model": "claude-opus-4-6",
     "thinking": true,
     "max_parallel_sessions": 5
   },

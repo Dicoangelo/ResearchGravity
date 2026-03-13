@@ -6,15 +6,20 @@ Verifies that all tools work correctly.
 """
 
 import asyncio
+import pytest
 from pathlib import Path
 
 try:
     from mcp.client import ClientSession, stdio_client
 except ImportError:
-    print("ERROR: MCP SDK not installed. Install with: pip install mcp")
-    exit(1)
+    ClientSession = None
+    stdio_client = None
 
 
+@pytest.mark.skipif(
+    ClientSession is None or stdio_client is None,
+    reason="MCP SDK not installed"
+)
 async def test_mcp_server():
     """Test ResearchGravity MCP server"""
 
@@ -125,5 +130,8 @@ async def test_mcp_server():
 
 
 if __name__ == "__main__":
+    if ClientSession is None or stdio_client is None:
+        print("ERROR: MCP SDK not installed. Install with: pip install mcp")
+        exit(1)
     success = asyncio.run(test_mcp_server())
     exit(0 if success else 1)

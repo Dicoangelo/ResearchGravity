@@ -157,6 +157,10 @@ class StorageEngine:
                 "upsert_error_pattern", "qdrant",
                 lambda p: self.qdrant.upsert_error_pattern(**p)
             )
+            self.dlq.register_retry_handler(
+                "upsert_paper", "qdrant",
+                lambda p: self.qdrant.upsert_paper(**p)
+            )
 
         # sqlite-vec handlers
         if self.sqlite_vec:
@@ -410,6 +414,140 @@ class StorageEngine:
         """Store multiple URLs."""
         return await self.sqlite.store_urls_batch(urls)
 
+    # --- Paper Operations ---
+
+    async def store_paper(
+        self,
+        paper: Dict[str, Any],
+    ) -> str:
+        """Store a paper in SQLite and index in Qdrant for semantic search."""
+        import json as _json
+
+        paper_id = paper.get("id", "")
+        title = paper.get("title", "")
+        abstract = paper.get("abstract", "")
+        embed_text = f"{title}\n\n{abstract}" if abstract else title
+
+        metadata = paper.get("metadata")
+        if isinstance(metadata, str):
+            try:
+                meta_dict = _json.loads(metadata)
+            except _json.JSONDecodeError:
+                meta_dict = {}
+        else:
+            meta_dict = metadata or {}
+
+        # Index in Qdrant
+        if self._qdrant_enabled and embed_text.strip():
+            try:
+                await self.qdrant.upsert_paper(
+                    paper_id=paper_id,
+                    content=embed_text,
+                    metadata={
+                        "title": title,
+                        "authors": paper.get("authors"),
+                        "relevance": paper.get("relevance"),
+                        "source": meta_dict.get("source"),
+                        "url": paper.get("url"),
+                        "ai_keywords": meta_dict.get("ai_keywords"),
+                        "upvotes": meta_dict.get("upvotes"),
+                        "github_repo": meta_dict.get("github_repo"),
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to index paper in Qdrant: {e}")
+                await self._add_to_dlq(
+                    "upsert_paper", "qdrant",
+                    {"paper_id": paper_id, "content": embed_text,
+                     "metadata": {"title": title, "relevance": paper.get("relevance")}},
+                    e
+                )
+
+        return paper_id
+
+    async def store_papers_batch(
+        self,
+        papers: List[Dict[str, Any]],
+    ) -> int:
+        """Store multiple papers with vector indexing."""
+        import json as _json
+
+        if self._qdrant_enabled and papers:
+            # Build payload list for batch upsert
+            qdrant_papers = []
+            for p in papers:
+                title = p.get("title", "")
+                abstract = p.get("abstract", "")
+
+                metadata = p.get("metadata")
+                if isinstance(metadata, str):
+                    try:
+                        meta_dict = _json.loads(metadata)
+                    except _json.JSONDecodeError:
+                        meta_dict = {}
+                else:
+                    meta_dict = metadata or {}
+
+                qdrant_papers.append({
+                    "id": p.get("id", ""),
+                    "title": title,
+                    "abstract": abstract,
+                    "authors": p.get("authors"),
+                    "relevance": p.get("relevance"),
+                    "source": meta_dict.get("source"),
+                    "url": p.get("url"),
+                    "ai_keywords": meta_dict.get("ai_keywords"),
+                    "upvotes": meta_dict.get("upvotes"),
+                    "github_repo": meta_dict.get("github_repo"),
+                })
+
+            try:
+                return await self.qdrant.upsert_papers_batch(qdrant_papers)
+            except Exception as e:
+                logger.warning(f"Failed to batch index papers in Qdrant: {e}")
+                for p in qdrant_papers:
+                    await self._add_to_dlq(
+                        "upsert_paper", "qdrant",
+                        {"paper_id": p["id"], "content": f"{p['title']}\n\n{p.get('abstract', '')}",
+                         "metadata": {"title": p["title"], "relevance": p.get("relevance")}},
+                        e
+                    )
+
+        return 0
+
+    async def search_papers(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.4,
+        min_relevance: Optional[int] = None,
+        filter_source: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Semantic search for papers."""
+        if self._qdrant_enabled:
+            return await self.qdrant.search_papers(
+                query=query,
+                limit=limit,
+                min_score=min_score,
+                min_relevance=min_relevance,
+                filter_source=filter_source,
+            )
+        # Fallback: SQLite FTS on papers table
+        if self.sqlite:
+            async with self.sqlite._get_db() as db:
+                rows = await db.execute_fetchall(
+                    "SELECT id, title, abstract, authors, relevance, url, metadata "
+                    "FROM papers WHERE title LIKE ? OR abstract LIKE ? "
+                    "ORDER BY relevance DESC LIMIT ?",
+                    (f"%{query}%", f"%{query}%", limit)
+                )
+                return [
+                    {"paper_id": r[0], "title": r[1], "content": r[2],
+                     "authors": r[3], "relevance": r[4], "url": r[5]}
+                    for r in rows
+                ]
+        return []
+
     # --- Pack Operations ---
 
     async def store_pack(
@@ -533,7 +671,7 @@ class StorageEngine:
         """
         Semantic search across all content.
 
-        Returns results grouped by type (findings, sessions, packs).
+        Returns results grouped by type (findings, sessions, packs, papers).
         Priority: Qdrant > sqlite-vec > FTS
         """
         # Try Qdrant first (if available and not preferring sqlite-vec)
