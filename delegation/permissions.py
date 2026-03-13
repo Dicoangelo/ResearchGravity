@@ -44,19 +44,21 @@ from .models import TaskProfile, SubTask
 
 class AccessLevel(str, Enum):
     """Permission access levels (ordered by privilege)."""
+
     NONE = "none"
-    READ = "read"              # Read-only access to tool outputs
-    EXECUTE = "execute"        # Execute tool with constraints
+    READ = "read"  # Read-only access to tool outputs
+    EXECUTE = "execute"  # Execute tool with constraints
     EXECUTE_WRITE = "execute_write"  # Execute + write results
-    FULL = "full"              # Unrestricted access (human-approved only)
+    FULL = "full"  # Unrestricted access (human-approved only)
 
 
 class PermissionState(str, Enum):
     """Permission lifecycle states."""
+
     ACTIVE = "active"
-    SUSPENDED = "suspended"    # Temporarily suspended (under review)
-    REVOKED = "revoked"        # Permanently revoked
-    EXPIRED = "expired"        # TTL expired
+    SUSPENDED = "suspended"  # Temporarily suspended (under review)
+    REVOKED = "revoked"  # Permanently revoked
+    EXPIRED = "expired"  # TTL expired
 
 
 @dataclass
@@ -69,17 +71,18 @@ class PermissionScope:
     - Sub-delegated agents get strict subset
     - Semantic constraints limit operations within tools
     """
+
     scope_id: str
     agent_id: str
     chain_id: str
-    tools_allowed: Set[str]               # Tool names this agent can call
+    tools_allowed: Set[str]  # Tool names this agent can call
     access_level: AccessLevel
-    semantic_constraints: Dict[str, str]   # tool_name -> operation constraint
+    semantic_constraints: Dict[str, str]  # tool_name -> operation constraint
     granted_at: float
-    expires_at: float                      # TTL: permissions auto-expire
+    expires_at: float  # TTL: permissions auto-expire
     state: PermissionState = PermissionState.ACTIVE
     parent_scope_id: Optional[str] = None  # For privilege attenuation tracking
-    granted_by: str = "system"             # "system" or human approver ID
+    granted_by: str = "system"  # "system" or human approver ID
     metadata: Dict = field(default_factory=dict)
 
     @property
@@ -114,8 +117,7 @@ class PermissionScope:
             tools_allowed=allowed,
             access_level=child_level,
             semantic_constraints={
-                k: v for k, v in self.semantic_constraints.items()
-                if k in allowed
+                k: v for k, v in self.semantic_constraints.items() if k in allowed
             },
             granted_at=time.time(),
             expires_at=min(self.expires_at, time.time() + 300),  # Max 5min for child
@@ -126,20 +128,20 @@ class PermissionScope:
 
 # Trust tier thresholds for graduated authority (Section 4.6 enhancement)
 TRUST_TIERS = {
-    "untrusted": (0.0, 0.2),    # No delegation allowed
-    "supervised": (0.2, 0.4),   # Read-only, human-approved execution
-    "standard": (0.4, 0.7),     # Execute with constraints
-    "trusted": (0.7, 0.9),      # Execute + write
-    "autonomous": (0.9, 1.0),   # Full access (still scoped to task)
+    "untrusted": (0.0, 0.2),  # No delegation allowed
+    "supervised": (0.2, 0.4),  # Read-only, human-approved execution
+    "standard": (0.4, 0.7),  # Execute with constraints
+    "trusted": (0.7, 0.9),  # Execute + write
+    "autonomous": (0.9, 1.0),  # Full access (still scoped to task)
 }
 
 # TTL per trust tier (seconds)
 SCOPE_TTL = {
-    "untrusted": 0,             # No grant
-    "supervised": 60,           # 1 minute
-    "standard": 300,            # 5 minutes
-    "trusted": 600,             # 10 minutes
-    "autonomous": 1800,         # 30 minutes
+    "untrusted": 0,  # No grant
+    "supervised": 60,  # 1 minute
+    "standard": 300,  # 5 minutes
+    "trusted": 600,  # 10 minutes
+    "autonomous": 1800,  # 30 minutes
 }
 
 # Circuit breaker: trust drop threshold that triggers immediate revocation
@@ -180,7 +182,7 @@ class PermissionManager:
 
     def __init__(self):
         self.active_scopes: Dict[str, PermissionScope] = {}  # scope_id -> scope
-        self.agent_scopes: Dict[str, List[str]] = {}          # agent_id -> [scope_ids]
+        self.agent_scopes: Dict[str, List[str]] = {}  # agent_id -> [scope_ids]
         self.revocation_log: List[Dict] = []
 
     def grant_permissions(
@@ -310,11 +312,19 @@ class PermissionManager:
                 "full": AccessLevel.FULL,
             }.get(operation, AccessLevel.EXECUTE)
 
-            level_order = [AccessLevel.NONE, AccessLevel.READ, AccessLevel.EXECUTE,
-                           AccessLevel.EXECUTE_WRITE, AccessLevel.FULL]
+            level_order = [
+                AccessLevel.NONE,
+                AccessLevel.READ,
+                AccessLevel.EXECUTE,
+                AccessLevel.EXECUTE_WRITE,
+                AccessLevel.FULL,
+            ]
 
             if level_order.index(scope.access_level) >= level_order.index(required):
-                return True, f"Permitted via scope {scope_id} (tier: {scope.access_level.value})"
+                return (
+                    True,
+                    f"Permitted via scope {scope_id} (tier: {scope.access_level.value})",
+                )
 
         return False, f"No active scope permits {operation} on {tool_name}"
 
@@ -352,15 +362,17 @@ class PermissionManager:
                 scope.state = PermissionState.REVOKED
                 revoked.append(scope_id)
 
-                self.revocation_log.append({
-                    "scope_id": scope_id,
-                    "agent_id": agent_id,
-                    "timestamp": time.time(),
-                    "reason": f"Circuit breaker: trust dropped {drop:.3f} "
-                              f"({old_trust:.3f} → {new_trust:.3f})",
-                    "old_trust": old_trust,
-                    "new_trust": new_trust,
-                })
+                self.revocation_log.append(
+                    {
+                        "scope_id": scope_id,
+                        "agent_id": agent_id,
+                        "timestamp": time.time(),
+                        "reason": f"Circuit breaker: trust dropped {drop:.3f} "
+                        f"({old_trust:.3f} → {new_trust:.3f})",
+                        "old_trust": old_trust,
+                        "new_trust": new_trust,
+                    }
+                )
 
         return revoked
 
@@ -384,8 +396,7 @@ class PermissionManager:
     def cleanup_expired(self) -> int:
         """Remove expired scopes from active tracking."""
         expired = [
-            sid for sid, scope in self.active_scopes.items()
-            if not scope.is_active
+            sid for sid, scope in self.active_scopes.items() if not scope.is_active
         ]
         for sid in expired:
             del self.active_scopes[sid]

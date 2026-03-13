@@ -35,13 +35,16 @@ from dataclasses import dataclass, asdict
 # Paths
 AGENT_CORE_DIR = Path.home() / ".agent-core"
 CLAUDE_DATA_DIR = Path.home() / ".claude" / "data"
-COGNITIVE_STATE_FILE = Path.home() / ".claude" / "kernel" / "cognitive-os" / "state.json"
+COGNITIVE_STATE_FILE = (
+    Path.home() / ".claude" / "kernel" / "cognitive-os" / "state.json"
+)
 SESSION_OUTCOMES_FILE = CLAUDE_DATA_DIR / "session-outcomes.jsonl"
 
 
 @dataclass
 class SessionPrediction:
     """Prediction for a session."""
+
     intent: str
     predicted_quality: float  # 1-5
     success_probability: float  # 0-1
@@ -106,13 +109,15 @@ def load_session_outcomes(days: int = 30) -> List[Dict[str, Any]]:
 
     if SESSION_OUTCOMES_FILE.exists():
         try:
-            with open(SESSION_OUTCOMES_FILE, 'r') as f:
+            with open(SESSION_OUTCOMES_FILE, "r") as f:
                 for line in f:
                     try:
                         outcome = json.loads(line.strip())
                         date_str = outcome.get("date", "")
                         if date_str:
-                            outcome_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                            outcome_date = datetime.fromisoformat(
+                                date_str.replace("Z", "+00:00")
+                            )
                             if outcome_date.replace(tzinfo=None) >= cutoff:
                                 outcomes.append(outcome)
                     except (json.JSONDecodeError, ValueError):
@@ -124,8 +129,7 @@ def load_session_outcomes(days: int = 30) -> List[Dict[str, Any]]:
 
 
 async def predict_session_quality(
-    intent: str,
-    storage_engine=None
+    intent: str, storage_engine=None
 ) -> SessionPrediction:
     """
     Predict session quality based on intent and context.
@@ -150,7 +154,9 @@ async def predict_session_quality(
     # Start with average from similar hour outcomes
     hour_outcomes = [o for o in outcomes if o.get("hour") == hour]
     if hour_outcomes:
-        avg_quality = sum(o.get("quality", 3) for o in hour_outcomes) / len(hour_outcomes)
+        avg_quality = sum(o.get("quality", 3) for o in hour_outcomes) / len(
+            hour_outcomes
+        )
     else:
         # Default based on cognitive mode
         mode_quality = {
@@ -190,7 +196,7 @@ async def predict_session_quality(
     if hour_success:
         optimal_hour = max(
             hour_success.keys(),
-            key=lambda h: hour_success[h]["success"] / max(hour_success[h]["total"], 1)
+            key=lambda h: hour_success[h]["success"] / max(hour_success[h]["total"], 1),
         )
     else:
         optimal_hour = 10  # Default peak hour
@@ -218,10 +224,7 @@ async def predict_session_quality(
     )
 
 
-async def get_likely_errors(
-    context: str,
-    storage_engine=None
-) -> List[Dict[str, str]]:
+async def get_likely_errors(context: str, storage_engine=None) -> List[Dict[str, str]]:
     """Get likely errors based on context."""
     errors = []
 
@@ -232,44 +235,80 @@ async def get_likely_errors(
                 context, limit=5, min_success_rate=0.5
             )
             for r in results:
-                errors.append({
-                    "error_type": r.get("error_type", "unknown"),
-                    "context": r.get("context", "")[:100],
-                    "solution": r.get("solution", "")[:200],
-                    "success_rate": r.get("success_rate", 0),
-                })
+                errors.append(
+                    {
+                        "error_type": r.get("error_type", "unknown"),
+                        "context": r.get("context", "")[:100],
+                        "solution": r.get("solution", "")[:200],
+                        "success_rate": r.get("success_rate", 0),
+                    }
+                )
         except Exception:
             pass
 
     # Fallback to common patterns based on context keywords
     if not errors:
         patterns = [
-            ("git", "merge_conflict", "git conflicts during merge", "Use git status, resolve conflicts manually"),
-            ("git", "push_rejected", "push rejected by remote", "Pull first with rebase: git pull --rebase"),
-            ("npm", "node_modules_issue", "node_modules corruption", "Delete node_modules and package-lock.json, then npm install"),
-            ("python", "import_error", "module not found", "Check virtual environment activation"),
-            ("docker", "container_stopped", "container exits immediately", "Check logs with docker logs <container>"),
-            ("test", "flaky_test", "inconsistent test results", "Add retry logic or fix race conditions"),
-            ("build", "cache_stale", "stale build cache", "Clear build cache and rebuild"),
+            (
+                "git",
+                "merge_conflict",
+                "git conflicts during merge",
+                "Use git status, resolve conflicts manually",
+            ),
+            (
+                "git",
+                "push_rejected",
+                "push rejected by remote",
+                "Pull first with rebase: git pull --rebase",
+            ),
+            (
+                "npm",
+                "node_modules_issue",
+                "node_modules corruption",
+                "Delete node_modules and package-lock.json, then npm install",
+            ),
+            (
+                "python",
+                "import_error",
+                "module not found",
+                "Check virtual environment activation",
+            ),
+            (
+                "docker",
+                "container_stopped",
+                "container exits immediately",
+                "Check logs with docker logs <container>",
+            ),
+            (
+                "test",
+                "flaky_test",
+                "inconsistent test results",
+                "Add retry logic or fix race conditions",
+            ),
+            (
+                "build",
+                "cache_stale",
+                "stale build cache",
+                "Clear build cache and rebuild",
+            ),
         ]
 
         context_lower = context.lower()
         for keyword, error_type, ctx, solution in patterns:
             if keyword in context_lower:
-                errors.append({
-                    "error_type": error_type,
-                    "context": ctx,
-                    "solution": solution,
-                    "success_rate": 0.8,
-                })
+                errors.append(
+                    {
+                        "error_type": error_type,
+                        "context": ctx,
+                        "solution": solution,
+                        "success_rate": 0.8,
+                    }
+                )
 
     return errors
 
 
-async def get_related_research(
-    query: str,
-    storage_engine=None
-) -> List[Dict[str, str]]:
+async def get_related_research(query: str, storage_engine=None) -> List[Dict[str, str]]:
     """Get related research papers/findings."""
     research = []
 
@@ -279,11 +318,13 @@ async def get_related_research(
                 query, limit=5, filter_type="research"
             )
             for r in results:
-                research.append({
-                    "content": r.get("content", "")[:200],
-                    "score": r.get("score", 0),
-                    "session_id": r.get("session_id", ""),
-                })
+                research.append(
+                    {
+                        "content": r.get("content", "")[:200],
+                        "score": r.get("score", 0),
+                        "session_id": r.get("session_id", ""),
+                    }
+                )
         except Exception:
             pass
 
@@ -317,13 +358,15 @@ def get_optimal_time(task_type: str = "general") -> Dict[str, Any]:
         success_rate = stats["success"] / stats["total"]
         avg_quality = stats["quality_sum"] / stats["total"]
         score = success_rate * 0.5 + (avg_quality / 5) * 0.5
-        scored_hours.append({
-            "hour": hour,
-            "success_rate": round(success_rate, 2),
-            "avg_quality": round(avg_quality, 2),
-            "score": round(score, 2),
-            "sample_size": stats["total"],
-        })
+        scored_hours.append(
+            {
+                "hour": hour,
+                "success_rate": round(success_rate, 2),
+                "avg_quality": round(avg_quality, 2),
+                "score": round(score, 2),
+                "sample_size": stats["total"],
+            }
+        )
 
     scored_hours.sort(key=lambda x: x["score"], reverse=True)
 
@@ -331,7 +374,9 @@ def get_optimal_time(task_type: str = "general") -> Dict[str, Any]:
         "task_type": task_type,
         "current_hour": get_current_hour(),
         "optimal_hours": scored_hours[:5],
-        "recommendation": scored_hours[0] if scored_hours else {"hour": 10, "note": "insufficient data"},
+        "recommendation": scored_hours[0]
+        if scored_hours
+        else {"hour": 10, "note": "insufficient data"},
     }
 
 
@@ -379,7 +424,10 @@ def get_session_patterns() -> Dict[str, Any]:
     # Find dominant pattern
     if patterns["by_mode"]:
         dominant_mode = max(patterns["by_mode"].items(), key=lambda x: x[1])
-        patterns["dominant_mode"] = {"mode": dominant_mode[0], "count": dominant_mode[1]}
+        patterns["dominant_mode"] = {
+            "mode": dominant_mode[0],
+            "count": dominant_mode[1],
+        }
 
     return patterns
 
@@ -421,9 +469,7 @@ async def get_status() -> Dict[str, Any]:
 
 
 async def main():
-    parser = argparse.ArgumentParser(
-        description="ResearchGravity Intelligence Layer"
-    )
+    parser = argparse.ArgumentParser(description="ResearchGravity Intelligence Layer")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Predict
@@ -431,7 +477,9 @@ async def main():
     predict_parser.add_argument("intent", help="Task/intent description")
 
     # Optimal time
-    time_parser = subparsers.add_parser("optimal-time", help="Get optimal time for tasks")
+    time_parser = subparsers.add_parser(
+        "optimal-time", help="Get optimal time for tasks"
+    )
     time_parser.add_argument("--task-type", default="general", help="Task type")
 
     # Errors
@@ -457,6 +505,7 @@ async def main():
     storage_engine = None
     try:
         from storage.engine import get_engine
+
         storage_engine = await get_engine()
     except ImportError:
         pass

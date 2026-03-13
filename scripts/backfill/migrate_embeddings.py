@@ -33,7 +33,9 @@ def log(msg: str):
 
 async def get_status(conn):
     total = await conn.fetchval("SELECT COUNT(*) FROM embedding_cache")
-    migrated = await conn.fetchval("SELECT COUNT(*) FROM embedding_cache WHERE embedding_768 IS NOT NULL")
+    migrated = await conn.fetchval(
+        "SELECT COUNT(*) FROM embedding_cache WHERE embedding_768 IS NOT NULL"
+    )
     remaining = total - migrated
     return total, migrated, remaining
 
@@ -53,7 +55,10 @@ async def migrate(limit: int = 0, batch_size: int = 256, chunk_size: int = 2000)
     log("Loading nomic-embed-text-v1.5...")
     t0 = time.time()
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+
+    model = SentenceTransformer(
+        "nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True
+    )
     log(f"Model loaded in {time.time() - t0:.1f}s")
 
     target = min(remaining, limit) if limit > 0 else remaining
@@ -80,7 +85,9 @@ async def migrate(limit: int = 0, batch_size: int = 256, chunk_size: int = 2000)
             texts = [f"search_document: {r['content_preview']}" for r in batch]
             hashes = [r["content_hash"] for r in batch]
 
-            embeddings = model.encode(texts, batch_size=batch_size, show_progress_bar=False)
+            embeddings = model.encode(
+                texts, batch_size=batch_size, show_progress_bar=False
+            )
 
             # Batch update using executemany
             updates = []
@@ -104,7 +111,9 @@ async def migrate(limit: int = 0, batch_size: int = 256, chunk_size: int = 2000)
             eta_m = eta_s / 60
 
             if total_processed % 1000 < batch_size:
-                log(f"  {total_processed:,}/{target:,} ({total_processed/target*100:.1f}%) | {rate:.0f}/sec | ETA: {eta_m:.0f}min")
+                log(
+                    f"  {total_processed:,}/{target:,} ({total_processed / target * 100:.1f}%) | {rate:.0f}/sec | ETA: {eta_m:.0f}min"
+                )
 
     elapsed = time.time() - t_start
     rate = total_processed / elapsed if elapsed > 0 else 0
@@ -119,7 +128,7 @@ async def status_only():
     conn = await asyncpg.connect("postgresql://localhost/ucw_cognitive")
     total, migrated, remaining = await get_status(conn)
     pct = (migrated / total * 100) if total > 0 else 0
-    print(f"Embedding migration status:")
+    print("Embedding migration status:")
     print(f"  Total:     {total:,}")
     print(f"  Migrated:  {migrated:,} ({pct:.1f}%)")
     print(f"  Remaining: {remaining:,}")
@@ -127,14 +136,28 @@ async def status_only():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Migrate embeddings to nomic-embed-text-v1.5")
-    parser.add_argument("--limit", type=int, default=0, help="Limit rows to migrate (0 = all)")
-    parser.add_argument("--batch-size", type=int, default=256, help="Batch size for encoding")
-    parser.add_argument("--chunk-size", type=int, default=2000, help="Rows fetched per DB round-trip")
-    parser.add_argument("--status", action="store_true", help="Show migration status only")
+    parser = argparse.ArgumentParser(
+        description="Migrate embeddings to nomic-embed-text-v1.5"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=0, help="Limit rows to migrate (0 = all)"
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=256, help="Batch size for encoding"
+    )
+    parser.add_argument(
+        "--chunk-size", type=int, default=2000, help="Rows fetched per DB round-trip"
+    )
+    parser.add_argument(
+        "--status", action="store_true", help="Show migration status only"
+    )
     args = parser.parse_args()
 
     if args.status:
         asyncio.run(status_only())
     else:
-        asyncio.run(migrate(limit=args.limit, batch_size=args.batch_size, chunk_size=args.chunk_size))
+        asyncio.run(
+            migrate(
+                limit=args.limit, batch_size=args.batch_size, chunk_size=args.chunk_size
+            )
+        )

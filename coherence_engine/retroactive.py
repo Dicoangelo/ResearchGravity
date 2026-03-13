@@ -35,6 +35,7 @@ log = logging.getLogger("coherence.retroactive")
 @dataclass
 class CoherenceReport:
     """Summary of retroactive coherence analysis."""
+
     total_events: int = 0
     events_embedded: int = 0
     events_with_matches: int = 0
@@ -91,7 +92,9 @@ class RetroactiveAnalyzer:
 
         for i, event in enumerate(events):
             if i % 100 == 0 and i > 0:
-                log.info(f"Progress: {i}/{len(events)} events, {len(moments_by_id)} moments")
+                log.info(
+                    f"Progress: {i}/{len(events)} events, {len(moments_by_id)} moments"
+                )
 
             text = event_to_text(event)
             if not text or len(text) < 10:
@@ -139,12 +142,16 @@ class RetroactiveAnalyzer:
 
         # Aggregate stats
         for moment in moments_by_id.values():
-            report.by_type[moment.coherence_type] = report.by_type.get(moment.coherence_type, 0) + 1
+            report.by_type[moment.coherence_type] = (
+                report.by_type.get(moment.coherence_type, 0) + 1
+            )
             pair = " <-> ".join(sorted(moment.platforms))
             report.platform_pairs[pair] = report.platform_pairs.get(pair, 0) + 1
 
         # Top moments by confidence
-        all_moments = sorted(moments_by_id.values(), key=lambda m: m.confidence, reverse=True)
+        all_moments = sorted(
+            moments_by_id.values(), key=lambda m: m.confidence, reverse=True
+        )
         report.top_moments = [
             {
                 "confidence": m.confidence,
@@ -211,21 +218,23 @@ class RetroactiveAnalyzer:
 
             cross_platform = len(platforms) > 1
 
-            results["queries"].append({
-                "query": query,
-                "matches": len(matches),
-                "platforms": list(platforms),
-                "cross_platform": cross_platform,
-                "top_similarity": matches[0].similarity if matches else 0,
-                "top_matches": [
-                    {
-                        "platform": m.platform,
-                        "similarity": m.similarity,
-                        "preview": m.preview[:150],
-                    }
-                    for m in matches[:5]
-                ],
-            })
+            results["queries"].append(
+                {
+                    "query": query,
+                    "matches": len(matches),
+                    "platforms": list(platforms),
+                    "cross_platform": cross_platform,
+                    "top_similarity": matches[0].similarity if matches else 0,
+                    "top_matches": [
+                        {
+                            "platform": m.platform,
+                            "similarity": m.similarity,
+                            "preview": m.preview[:150],
+                        }
+                        for m in matches[:5]
+                    ],
+                }
+            )
 
         # Check coherence_moments table for UCW/sovereignty moments
         async with self._pool.acquire() as conn:
@@ -241,12 +250,16 @@ class RetroactiveAnalyzer:
             """)
 
             for m in ucw_moments:
-                results["founding_moments_found"].append({
-                    "confidence": m["confidence"],
-                    "type": m["coherence_type"],
-                    "platforms": list(m["platforms"]),
-                    "description": m["description"][:200] if m["description"] else "",
-                })
+                results["founding_moments_found"].append(
+                    {
+                        "confidence": m["confidence"],
+                        "type": m["coherence_type"],
+                        "platforms": list(m["platforms"]),
+                        "description": m["description"][:200]
+                        if m["description"]
+                        else "",
+                    }
+                )
 
         # Pass criteria: found cross-platform moments with UCW/sovereignty themes
         has_cross_platform = any(q["cross_platform"] for q in results["queries"])
@@ -255,9 +268,12 @@ class RetroactiveAnalyzer:
             q["top_similarity"] > 0.60 for q in results["queries"]
         )
 
-        results["passed"] = has_cross_platform and has_ucw_moments and has_high_similarity
+        results["passed"] = (
+            has_cross_platform and has_ucw_moments and has_high_similarity
+        )
         results["verdict"] = (
-            "FOUNDING MOMENT VALIDATED" if results["passed"]
+            "FOUNDING MOMENT VALIDATED"
+            if results["passed"]
             else "Founding moment not fully detected — may need more data or lower thresholds"
         )
 
@@ -273,32 +289,44 @@ class RetroactiveAnalyzer:
         async with self._pool.acquire() as conn:
             if since and platform:
                 since_ns = int(since.timestamp() * 1_000_000_000)
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT event_id, session_id, timestamp_ns, platform,
                            data_layer, light_layer, instinct_layer, coherence_sig
                     FROM cognitive_events
                     WHERE timestamp_ns >= $1 AND platform = $2
                     ORDER BY timestamp_ns ASC
                     LIMIT $3
-                """, since_ns, platform, limit)
+                """,
+                    since_ns,
+                    platform,
+                    limit,
+                )
             elif since:
                 since_ns = int(since.timestamp() * 1_000_000_000)
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT event_id, session_id, timestamp_ns, platform,
                            data_layer, light_layer, instinct_layer, coherence_sig
                     FROM cognitive_events
                     WHERE timestamp_ns >= $1
                     ORDER BY timestamp_ns ASC
                     LIMIT $2
-                """, since_ns, limit)
+                """,
+                    since_ns,
+                    limit,
+                )
             else:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT event_id, session_id, timestamp_ns, platform,
                            data_layer, light_layer, instinct_layer, coherence_sig
                     FROM cognitive_events
                     ORDER BY timestamp_ns ASC
                     LIMIT $1
-                """, limit)
+                """,
+                    limit,
+                )
 
         return [dict(r) for r in rows]
 
@@ -369,7 +397,7 @@ def format_founding_test(results: Dict) -> str:
     out += "## Semantic Search Probes\n\n"
     for q in results["queries"]:
         status = "CROSS-PLATFORM" if q["cross_platform"] else "single-platform"
-        out += f"### \"{q['query']}\"\n"
+        out += f'### "{q["query"]}"\n'
         out += f"Matches: {q['matches']} | Platforms: {q['platforms']} | {status}\n"
         out += f"Top similarity: {q['top_similarity']:.0%}\n\n"
 

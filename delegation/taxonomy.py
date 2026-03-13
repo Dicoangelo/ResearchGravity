@@ -36,6 +36,7 @@ from .models import TaskProfile
 # Import LLM client from cpb
 try:
     from cpb.llm_client import get_llm_client
+
     HAS_LLM_CLIENT = True
 except ImportError:
     HAS_LLM_CLIENT = False
@@ -54,8 +55,8 @@ SCORING_RUBRICS = {
             0.4: "Multi-step task requiring planning",
             0.6: "Complex task with dependencies",
             0.8: "Highly complex requiring expertise",
-            1.0: "Novel synthesis or groundbreaking work"
-        }
+            1.0: "Novel synthesis or groundbreaking work",
+        },
     },
     "criticality": {
         "description": "Impact of failure on system/user",
@@ -65,8 +66,8 @@ SCORING_RUBRICS = {
             0.4: "Noticeable but not critical",
             0.6: "Important feature affected",
             0.8: "Major system impact",
-            1.0: "Mission-critical, catastrophic if failed"
-        }
+            1.0: "Mission-critical, catastrophic if failed",
+        },
     },
     "uncertainty": {
         "description": "Ambiguity in requirements or approach",
@@ -76,8 +77,8 @@ SCORING_RUBRICS = {
             0.4: "Some ambiguity in approach",
             0.6: "Significant uncertainty in requirements",
             0.8: "Highly ambiguous, exploratory",
-            1.0: "Complete unknown, research required"
-        }
+            1.0: "Complete unknown, research required",
+        },
     },
     "duration": {
         "description": "Estimated time to complete",
@@ -87,8 +88,8 @@ SCORING_RUBRICS = {
             0.4: "Short (15-60 minutes)",
             0.6: "Medium (1-4 hours)",
             0.8: "Long (4-24 hours)",
-            1.0: "Very long (>1 day)"
-        }
+            1.0: "Very long (>1 day)",
+        },
     },
     "cost": {
         "description": "Resource consumption (compute, API calls, etc.)",
@@ -98,8 +99,8 @@ SCORING_RUBRICS = {
             0.4: "Low cost",
             0.6: "Moderate cost",
             0.8: "High cost",
-            1.0: "Very expensive"
-        }
+            1.0: "Very expensive",
+        },
     },
     "resource_requirements": {
         "description": "External dependencies needed",
@@ -109,8 +110,8 @@ SCORING_RUBRICS = {
             0.4: "Some dependencies (3-5)",
             0.6: "Many dependencies (6-10)",
             0.8: "Complex dependency graph",
-            1.0: "Extensive dependencies or rare resources"
-        }
+            1.0: "Extensive dependencies or rare resources",
+        },
     },
     "constraints": {
         "description": "Hard constraints on solution approach",
@@ -120,8 +121,8 @@ SCORING_RUBRICS = {
             0.4: "Some constraints",
             0.6: "Multiple constraints",
             0.8: "Heavily constrained",
-            1.0: "Extremely constrained, narrow solution space"
-        }
+            1.0: "Extremely constrained, narrow solution space",
+        },
     },
     "verifiability": {
         "description": "Ease of verifying correctness (inverted: 0=hard, 1=easy)",
@@ -131,8 +132,8 @@ SCORING_RUBRICS = {
             0.4: "Moderately difficult",
             0.6: "Can verify with effort",
             0.8: "Easy to verify",
-            1.0: "Trivially verifiable (automated tests)"
-        }
+            1.0: "Trivially verifiable (automated tests)",
+        },
     },
     "reversibility": {
         "description": "Ease of undoing or rolling back (0=irreversible, 1=easy)",
@@ -142,8 +143,8 @@ SCORING_RUBRICS = {
             0.4: "Difficult but possible",
             0.6: "Reversible with effort",
             0.8: "Easily reversible",
-            1.0: "Trivially reversible (version control)"
-        }
+            1.0: "Trivially reversible (version control)",
+        },
     },
     "contextuality": {
         "description": "Dependence on external context",
@@ -153,8 +154,8 @@ SCORING_RUBRICS = {
             0.4: "Some context required",
             0.6: "Significant context needed",
             0.8: "Highly contextual",
-            1.0: "Completely context-dependent"
-        }
+            1.0: "Completely context-dependent",
+        },
     },
     "subjectivity": {
         "description": "Degree of subjective judgment required",
@@ -164,9 +165,9 @@ SCORING_RUBRICS = {
             0.4: "Some subjective elements",
             0.6: "Balanced objective/subjective",
             0.8: "Highly subjective",
-            1.0: "Purely subjective judgment"
-        }
-    }
+            1.0: "Purely subjective judgment",
+        },
+    },
 }
 
 
@@ -176,21 +177,38 @@ SCORING_RUBRICS = {
 
 # Keyword patterns for heuristic scoring
 COMPLEXITY_KEYWORDS = {
-    "high": ["implement", "design", "architect", "optimize", "refactor", "research", "analyze", "synthesize"],
+    "high": [
+        "implement",
+        "design",
+        "architect",
+        "optimize",
+        "refactor",
+        "research",
+        "analyze",
+        "synthesize",
+    ],
     "medium": ["update", "modify", "integrate", "configure", "debug", "test"],
-    "low": ["read", "check", "view", "list", "display", "print", "get", "fetch"]
+    "low": ["read", "check", "view", "list", "display", "print", "get", "fetch"],
 }
 
 CRITICALITY_KEYWORDS = {
-    "high": ["security", "authentication", "payment", "data loss", "crash", "production", "critical"],
+    "high": [
+        "security",
+        "authentication",
+        "payment",
+        "data loss",
+        "crash",
+        "production",
+        "critical",
+    ],
     "medium": ["user experience", "performance", "feature", "important"],
-    "low": ["cosmetic", "minor", "optional", "nice to have"]
+    "low": ["cosmetic", "minor", "optional", "nice to have"],
 }
 
 UNCERTAINTY_KEYWORDS = {
     "high": ["explore", "investigate", "research", "unclear", "ambiguous", "unknown"],
     "medium": ["figure out", "decide", "choose", "determine"],
-    "low": ["implement", "following spec", "as described", "specified"]
+    "low": ["implement", "following spec", "as described", "specified"],
 }
 
 
@@ -254,7 +272,9 @@ def _heuristic_score_dimension(task_description: str, dimension: str) -> float:
 
     elif dimension == "reversibility":
         # Low reversibility for destructive operations
-        if any(kw in desc_lower for kw in ["delete", "drop", "remove", "deploy", "publish"]):
+        if any(
+            kw in desc_lower for kw in ["delete", "drop", "remove", "deploy", "publish"]
+        ):
             return 0.3
         # High for code changes (version control)
         if any(kw in desc_lower for kw in ["code", "implement", "refactor", "update"]):
@@ -275,35 +295,49 @@ def _heuristic_score_dimension(task_description: str, dimension: str) -> float:
 
     elif dimension == "resource_requirements":
         # Count implied dependencies
-        if any(kw in desc_lower for kw in ["integrate", "connect", "api", "database", "service"]):
+        if any(
+            kw in desc_lower
+            for kw in ["integrate", "connect", "api", "database", "service"]
+        ):
             return 0.6
         return 0.4  # Default low-medium
 
     elif dimension == "constraints":
         # Look for constraint keywords
-        if any(kw in desc_lower for kw in ["must", "required", "constraint", "limitation"]):
+        if any(
+            kw in desc_lower for kw in ["must", "required", "constraint", "limitation"]
+        ):
             return 0.6
         return 0.3  # Default low
 
     elif dimension == "contextuality":
         # High if mentions existing system
-        if any(kw in desc_lower for kw in ["existing", "current", "integrate with", "based on"]):
+        if any(
+            kw in desc_lower
+            for kw in ["existing", "current", "integrate with", "based on"]
+        ):
             return 0.7
         return 0.4  # Default low-medium
 
     elif dimension == "subjectivity":
         # High for design/UX tasks
-        if any(kw in desc_lower for kw in ["design", "ux", "ui", "choose", "aesthetic"]):
+        if any(
+            kw in desc_lower for kw in ["design", "ux", "ui", "choose", "aesthetic"]
+        ):
             return 0.7
         # Low for technical tasks
-        if any(kw in desc_lower for kw in ["implement", "algorithm", "optimize", "test"]):
+        if any(
+            kw in desc_lower for kw in ["implement", "algorithm", "optimize", "test"]
+        ):
             return 0.3
         return 0.5  # Default medium
 
     return 0.5  # Fallback
 
 
-def _heuristic_classify(task_description: str, context: Optional[Dict] = None) -> TaskProfile:
+def _heuristic_classify(
+    task_description: str, context: Optional[Dict] = None
+) -> TaskProfile:
     """
     Classify task using keyword heuristics (fallback when LLM unavailable).
 
@@ -335,7 +369,10 @@ def _heuristic_classify(task_description: str, context: Optional[Dict] = None) -
 # LLM-BASED CLASSIFICATION
 # =============================================================================
 
-def _build_classification_prompt(task_description: str, context: Optional[Dict] = None) -> Dict[str, str]:
+
+def _build_classification_prompt(
+    task_description: str, context: Optional[Dict] = None
+) -> Dict[str, str]:
     """
     Build LLM prompt for task classification.
 
@@ -389,8 +426,10 @@ Do NOT include any explanation, markdown formatting, or additional text. Output 
     # Build detailed rubric for user prompt
     rubric_str = ""
     for dim, rubric in SCORING_RUBRICS.items():
-        rubric_str += f"\n**{dim.replace('_', ' ').title()}** — {rubric['description']}\n"
-        for score, desc in sorted(rubric['scale'].items()):
+        rubric_str += (
+            f"\n**{dim.replace('_', ' ').title()}** — {rubric['description']}\n"
+        )
+        for score, desc in sorted(rubric["scale"].items()):
             rubric_str += f"  - {score}: {desc}\n"
 
     user_prompt = f"""## Task to Classify
@@ -416,13 +455,12 @@ Score the task across all 11 dimensions. Consider:
 
 Output ONLY the JSON object with scores. No other text."""
 
-    return {
-        "system_prompt": system_prompt,
-        "user_prompt": user_prompt
-    }
+    return {"system_prompt": system_prompt, "user_prompt": user_prompt}
 
 
-async def _llm_classify(task_description: str, context: Optional[Dict] = None) -> TaskProfile:
+async def _llm_classify(
+    task_description: str, context: Optional[Dict] = None
+) -> TaskProfile:
     """
     Classify task using LLM.
 
@@ -449,7 +487,7 @@ async def _llm_classify(task_description: str, context: Optional[Dict] = None) -
         user_prompt=prompts["user_prompt"],
         model="haiku",  # Use fast model for classification
         max_tokens=512,
-        temperature=0.3  # Low temperature for consistent scoring
+        temperature=0.3,  # Low temperature for consistent scoring
     )
 
     # Parse JSON response
@@ -458,7 +496,7 @@ async def _llm_classify(task_description: str, context: Optional[Dict] = None) -
     # Handle markdown code blocks
     if content.startswith("```"):
         # Extract JSON from code block
-        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
         if match:
             content = match.group(1)
         else:
@@ -468,7 +506,9 @@ async def _llm_classify(task_description: str, context: Optional[Dict] = None) -
     try:
         scores = json.loads(content)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse LLM response as JSON: {e}\nResponse: {content}")
+        raise RuntimeError(
+            f"Failed to parse LLM response as JSON: {e}\nResponse: {content}"
+        )
 
     # Validate all dimensions present
     missing = set(SCORING_RUBRICS.keys()) - set(scores.keys())
@@ -486,11 +526,12 @@ async def _llm_classify(task_description: str, context: Optional[Dict] = None) -
 # PUBLIC API
 # =============================================================================
 
+
 def classify_task(
     description: str,
     context: Optional[Dict] = None,
     use_llm: bool = True,
-    timeout: float = 3.0
+    timeout: float = 3.0,
 ) -> TaskProfile:
     """
     Classify a task across 11 dimensions for intelligent delegation.
@@ -530,8 +571,7 @@ def classify_task(
         try:
             # Run with timeout
             profile = asyncio.wait_for(
-                _llm_classify(description, context),
-                timeout=timeout
+                _llm_classify(description, context), timeout=timeout
             )
             return asyncio.run(profile)
         except (asyncio.TimeoutError, RuntimeError, Exception):
@@ -545,6 +585,7 @@ def classify_task(
 # =============================================================================
 # TASK PROFILE EXTENSIONS
 # =============================================================================
+
 
 def compute_delegation_overhead(profile: TaskProfile) -> float:
     """
@@ -568,9 +609,7 @@ def compute_delegation_overhead(profile: TaskProfile) -> float:
 
     # Overhead is lower for complex, long-duration, high-cost tasks
     overhead = 1.0 - (
-        profile.complexity * 0.5 +
-        profile.duration * 0.3 +
-        profile.cost * 0.2
+        profile.complexity * 0.5 + profile.duration * 0.3 + profile.cost * 0.2
     )
 
     return max(0.0, min(1.0, overhead))
@@ -593,14 +632,16 @@ def compute_risk_score(profile: TaskProfile) -> float:
     # Weighted combination emphasizing criticality
     # Use multiplication for risk (all factors must be high for high risk)
     risk = (
-        profile.criticality * 0.5 +
-        (1.0 - profile.reversibility) * 0.3 +
-        profile.uncertainty * 0.2
+        profile.criticality * 0.5
+        + (1.0 - profile.reversibility) * 0.3
+        + profile.uncertainty * 0.2
     )
 
     return max(0.0, min(1.0, risk))
 
 
 # Extend TaskProfile with computed properties
-TaskProfile.delegation_overhead = property(lambda self: compute_delegation_overhead(self))
+TaskProfile.delegation_overhead = property(
+    lambda self: compute_delegation_overhead(self)
+)
 TaskProfile.risk_score = property(lambda self: compute_risk_score(self))

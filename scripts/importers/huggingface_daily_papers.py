@@ -41,17 +41,37 @@ USER_AGENT = "ResearchGravity/1.0 (sovereign-research-agent)"
 # Topics that boost relevance for this ecosystem
 RELEVANCE_KEYWORDS = {
     5: [
-        "multi-agent", "agent orchestration", "cognitive", "sovereign",
-        "self-improving", "routing", "model selection", "agentic",
+        "multi-agent",
+        "agent orchestration",
+        "cognitive",
+        "sovereign",
+        "self-improving",
+        "routing",
+        "model selection",
+        "agentic",
     ],
     4: [
-        "reinforcement learning", "tool use", "code generation",
-        "rag", "retrieval", "embeddings", "fine-tuning", "reasoning",
-        "planning", "knowledge graph", "memory",
+        "reinforcement learning",
+        "tool use",
+        "code generation",
+        "rag",
+        "retrieval",
+        "embeddings",
+        "fine-tuning",
+        "reasoning",
+        "planning",
+        "knowledge graph",
+        "memory",
     ],
     3: [
-        "language model", "llm", "transformer", "attention",
-        "benchmark", "evaluation", "alignment", "safety",
+        "language model",
+        "llm",
+        "transformer",
+        "attention",
+        "benchmark",
+        "evaluation",
+        "alignment",
+        "safety",
     ],
 }
 
@@ -59,6 +79,7 @@ RELEVANCE_KEYWORDS = {
 # ═══════════════════════════════════════════════════════════════════════════
 # API CLIENT
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def fetch_daily_papers(date: Optional[str] = None) -> list[dict]:
     """Fetch papers from HuggingFace Daily Papers API.
@@ -94,6 +115,7 @@ def fetch_daily_papers(date: Optional[str] = None) -> list[dict]:
 # ═══════════════════════════════════════════════════════════════════════════
 # SCORING
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def score_relevance(paper: dict) -> int:
     """Score paper relevance (1-5) based on keywords and community signal.
@@ -171,6 +193,7 @@ def normalize_paper(raw: dict) -> dict:
 # DATABASE
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def ensure_db() -> sqlite3.Connection:
     """Open DB connection, ensure papers table exists."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -207,7 +230,9 @@ def store_papers(papers: list[dict], dry_run: bool = False) -> tuple[int, int]:
 
     try:
         for p in papers:
-            cursor = conn.execute("SELECT id, metadata FROM papers WHERE id = ?", (p["id"],))
+            cursor = conn.execute(
+                "SELECT id, metadata FROM papers WHERE id = ?", (p["id"],)
+            )
             existing = cursor.fetchone()
 
             if existing:
@@ -216,7 +241,8 @@ def store_papers(papers: list[dict], dry_run: bool = False) -> tuple[int, int]:
                 new_meta = json.loads(p["metadata"])
                 # Keep old source if not HF, add HF data
                 old_meta.update(new_meta)
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE papers SET
                         title = COALESCE(?, title),
                         authors = COALESCE(?, authors),
@@ -225,20 +251,37 @@ def store_papers(papers: list[dict], dry_run: bool = False) -> tuple[int, int]:
                         relevance = MAX(relevance, ?),
                         metadata = ?
                     WHERE id = ?
-                """, (
-                    p["title"], p["authors"], p["abstract"], p["url"],
-                    p["relevance"], json.dumps(old_meta), p["id"]
-                ))
+                """,
+                    (
+                        p["title"],
+                        p["authors"],
+                        p["abstract"],
+                        p["url"],
+                        p["relevance"],
+                        json.dumps(old_meta),
+                        p["id"],
+                    ),
+                )
                 updated += 1
             else:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO papers (id, title, authors, abstract, url, relevance, applied, session_ids, metadata, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    p["id"], p["title"], p["authors"], p["abstract"], p["url"],
-                    p["relevance"], p["applied"], p["session_ids"], p["metadata"],
-                    datetime.now(tz=None).isoformat()
-                ))
+                """,
+                    (
+                        p["id"],
+                        p["title"],
+                        p["authors"],
+                        p["abstract"],
+                        p["url"],
+                        p["relevance"],
+                        p["applied"],
+                        p["session_ids"],
+                        p["metadata"],
+                        datetime.now(tz=None).isoformat(),
+                    ),
+                )
                 inserted += 1
 
         conn.commit()
@@ -314,12 +357,13 @@ def index_papers_to_qdrant(
 
     async def _index():
         from storage.engine import StorageEngine
+
         engine = StorageEngine()
         await engine.initialize()
 
         total = 0
         for i in range(0, len(papers), batch_size):
-            batch = papers[i:i + batch_size]
+            batch = papers[i : i + batch_size]
             count = await engine.store_papers_batch(batch)
             total += count
 
@@ -372,6 +416,7 @@ def index_all_from_db(
 # CLI
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="HuggingFace Daily Papers → ResearchGravity",
@@ -385,20 +430,35 @@ Examples:
   %(prog)s --min-relevance 4       # Only store high-relevance papers
   %(prog)s --index                 # Index all DB papers into Qdrant
   %(prog)s --index --min-relevance 3  # Index only rel>=3 papers
-        """
+        """,
     )
 
     parser.add_argument("--date", type=str, help="Specific date (YYYY-MM-DD)")
     parser.add_argument("--days", type=int, help="Fetch last N days")
-    parser.add_argument("--min-relevance", type=int, default=1, choices=[1, 2, 3, 4, 5],
-                        help="Minimum relevance score to store (default: 1)")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without storing")
-    parser.add_argument("--status", action="store_true", help="Show ingestion statistics")
+    parser.add_argument(
+        "--min-relevance",
+        type=int,
+        default=1,
+        choices=[1, 2, 3, 4, 5],
+        help="Minimum relevance score to store (default: 1)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without storing"
+    )
+    parser.add_argument(
+        "--status", action="store_true", help="Show ingestion statistics"
+    )
     parser.add_argument("--json", action="store_true", help="Output as JSON")
-    parser.add_argument("--index", action="store_true",
-                        help="Index all papers from DB into Qdrant for semantic search")
-    parser.add_argument("--no-vectors", action="store_true",
-                        help="Skip vector indexing during fetch (SQLite only)")
+    parser.add_argument(
+        "--index",
+        action="store_true",
+        help="Index all papers from DB into Qdrant for semantic search",
+    )
+    parser.add_argument(
+        "--no-vectors",
+        action="store_true",
+        help="Skip vector indexing during fetch (SQLite only)",
+    )
 
     args = parser.parse_args()
 
@@ -408,13 +468,15 @@ Examples:
         if args.json:
             print(json.dumps(stats, indent=2))
         else:
-            print(f"HuggingFace Daily Papers — Ingestion Stats")
+            print("HuggingFace Daily Papers — Ingestion Stats")
             print(f"{'=' * 45}")
             print(f"  Total papers in DB:  {stats['total_papers']}")
             print(f"  From HF Daily:       {stats['hf_papers']}")
             print(f"  Last ingested:       {stats.get('last_ingested', 'never')}")
-            print(f"  By relevance:")
-            for rel, count in sorted(stats.get("by_relevance", {}).items(), reverse=True):
+            print("  By relevance:")
+            for rel, count in sorted(
+                stats.get("by_relevance", {}).items(), reverse=True
+            ):
                 print(f"    {'*' * int(rel)} ({rel}): {count}")
             if stats.get("recent_dates"):
                 print(f"  Recent dates:        {', '.join(stats['recent_dates'][:5])}")
@@ -426,12 +488,16 @@ Examples:
         try:
             count = index_all_from_db(
                 min_relevance=args.min_relevance,
-                source_filter="huggingface_daily_papers" if args.min_relevance > 1 else None,
+                source_filter="huggingface_daily_papers"
+                if args.min_relevance > 1
+                else None,
             )
             print(f"Done: {count} papers indexed into Qdrant for semantic search")
         except Exception as e:
             print(f"Indexing failed: {e}", file=sys.stderr)
-            print("  Is Qdrant running? Start with: docker start qdrant", file=sys.stderr)
+            print(
+                "  Is Qdrant running? Start with: docker start qdrant", file=sys.stderr
+            )
         return
 
     # Build date list
@@ -473,7 +539,9 @@ Examples:
                 total_skipped += 1
 
         if not papers:
-            print(f"  {len(raw_papers)} papers fetched, none above min relevance {args.min_relevance}")
+            print(
+                f"  {len(raw_papers)} papers fetched, none above min relevance {args.min_relevance}"
+            )
             continue
 
         if args.dry_run:
@@ -486,7 +554,9 @@ Examples:
             total_inserted += inserted
             total_updated += updated
             all_stored_papers.extend(papers)
-            print(f"  {len(raw_papers)} fetched → {len(papers)} qualify → {inserted} new, {updated} updated")
+            print(
+                f"  {len(raw_papers)} fetched → {len(papers)} qualify → {inserted} new, {updated} updated"
+            )
 
     # Auto-index new papers into Qdrant (unless --no-vectors or --dry-run)
     if not args.dry_run and not args.no_vectors and all_stored_papers:
@@ -497,15 +567,21 @@ Examples:
             print(f"Vector indexing skipped: {e}", file=sys.stderr)
 
     # Summary
-    print(f"\nDone: {total_fetched} fetched, {total_inserted} new, {total_updated} updated, {total_skipped} below relevance threshold")
+    print(
+        f"\nDone: {total_fetched} fetched, {total_inserted} new, {total_updated} updated, {total_skipped} below relevance threshold"
+    )
 
     if args.json:
-        print(json.dumps({
-            "fetched": total_fetched,
-            "inserted": total_inserted,
-            "updated": total_updated,
-            "skipped": total_skipped,
-        }))
+        print(
+            json.dumps(
+                {
+                    "fetched": total_fetched,
+                    "inserted": total_inserted,
+                    "updated": total_updated,
+                    "skipped": total_skipped,
+                }
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ log = logging.getLogger("coherence.concept_evolution")
 @dataclass
 class ConceptVersion:
     """A versioned snapshot of a concept."""
+
     concept: str
     version: int
     definition: str
@@ -42,6 +43,7 @@ class ConceptVersion:
 @dataclass
 class EvolutionChain:
     """A chain of concept versions showing evolution over time."""
+
     concept: str
     versions: List[ConceptVersion]
     total_versions: int
@@ -92,7 +94,9 @@ class ConceptEvolutionTracker:
                     """UPDATE concept_versions
                        SET last_seen_ns = $2
                        WHERE concept = $1 AND version = $3""",
-                    concept.lower(), ts, latest["version"],
+                    concept.lower(),
+                    ts,
+                    latest["version"],
                 )
                 return ConceptVersion(
                     concept=concept.lower(),
@@ -115,8 +119,13 @@ class ConceptEvolutionTracker:
                    VALUES ($1, $2, $3, $4, $4, $5, $6, $7)
                    ON CONFLICT (concept, version) DO UPDATE SET
                        last_seen_ns = GREATEST(concept_versions.last_seen_ns, EXCLUDED.last_seen_ns)""",
-                concept.lower(), new_version, definition,
-                ts, platform, session_id, evolved,
+                concept.lower(),
+                new_version,
+                definition,
+                ts,
+                platform,
+                session_id,
+                evolved,
             )
 
             log.info(f"Concept '{concept}' evolved to v{new_version} on {platform}")
@@ -194,7 +203,8 @@ class ConceptEvolutionTracker:
                    HAVING COUNT(*) >= $2
                    ORDER BY version_count DESC
                    LIMIT 50""",
-                cutoff_ns, min_versions,
+                cutoff_ns,
+                min_versions,
             )
 
         chains = []

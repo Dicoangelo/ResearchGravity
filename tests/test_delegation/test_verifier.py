@@ -8,7 +8,12 @@ import pytest
 import time
 from unittest.mock import Mock, patch, MagicMock
 
-from delegation.models import SubTask, VerificationResult, VerificationMethod, TaskProfile
+from delegation.models import (
+    SubTask,
+    VerificationResult,
+    VerificationMethod,
+    TaskProfile,
+)
 from delegation.verifier import (
     verify_completion,
     feed_to_trust_ledger,
@@ -24,6 +29,7 @@ from delegation.verifier import (
 # Test Automated Test Verification
 # ============================================================================
 
+
 class TestAutomatedTestVerification:
     """Test automated test verification method."""
 
@@ -35,7 +41,7 @@ class TestAutomatedTestVerification:
             verification_method=VerificationMethod.AUTOMATED_TEST,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         # Validation function that always passes
@@ -58,7 +64,7 @@ class TestAutomatedTestVerification:
             verification_method=VerificationMethod.AUTOMATED_TEST,
             estimated_cost=0.4,
             estimated_duration=0.3,
-            parallel_safe=False
+            parallel_safe=False,
         )
 
         # Validation function that always fails
@@ -81,7 +87,7 @@ class TestAutomatedTestVerification:
             verification_method=VerificationMethod.AUTOMATED_TEST,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         result = verify_completion(subtask, "test output")  # No validation_fn
@@ -99,14 +105,16 @@ class TestAutomatedTestVerification:
             verification_method=VerificationMethod.AUTOMATED_TEST,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         # Validation function that raises exception
         def buggy_validator(result: str) -> bool:
             raise ValueError("Validator bug")
 
-        result = verify_completion(subtask, "test output", validation_fn=buggy_validator)
+        result = verify_completion(
+            subtask, "test output", validation_fn=buggy_validator
+        )
 
         assert result.passed is False
         assert result.quality_score == 0.0
@@ -117,6 +125,7 @@ class TestAutomatedTestVerification:
 # ============================================================================
 # Test Semantic Similarity Verification
 # ============================================================================
+
 
 class TestSemanticSimilarityVerification:
     """Test semantic similarity verification method."""
@@ -129,7 +138,7 @@ class TestSemanticSimilarityVerification:
             verification_method=VerificationMethod.SEMANTIC_SIMILARITY,
             estimated_cost=0.5,
             estimated_duration=0.4,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         # High overlap (same words)
@@ -152,7 +161,7 @@ class TestSemanticSimilarityVerification:
             verification_method=VerificationMethod.SEMANTIC_SIMILARITY,
             estimated_cost=0.5,
             estimated_duration=0.4,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         # Low overlap (completely different words)
@@ -174,7 +183,7 @@ class TestSemanticSimilarityVerification:
             verification_method=VerificationMethod.SEMANTIC_SIMILARITY,
             estimated_cost=0.5,
             estimated_duration=0.4,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         result = verify_completion(subtask, "some output")  # No expected_output
@@ -198,10 +207,12 @@ class TestSemanticSimilarityVerification:
             verification_method=VerificationMethod.SEMANTIC_SIMILARITY,
             estimated_cost=0.5,
             estimated_duration=0.4,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
-        result = verify_completion(subtask, "result text", expected_output="expected text")
+        result = verify_completion(
+            subtask, "result text", expected_output="expected text"
+        )
 
         assert result.passed is True  # 0.85 >= 0.75
         assert result.quality_score == 0.85
@@ -214,6 +225,7 @@ class TestSemanticSimilarityVerification:
 # Test Human Review Verification
 # ============================================================================
 
+
 class TestHumanReviewVerification:
     """Test human review verification method."""
 
@@ -225,7 +237,7 @@ class TestHumanReviewVerification:
             verification_method=VerificationMethod.HUMAN_REVIEW,
             estimated_cost=0.6,
             estimated_duration=0.5,
-            parallel_safe=False
+            parallel_safe=False,
         )
 
         result = verify_completion(subtask, "UX design output")
@@ -244,7 +256,7 @@ class TestHumanReviewVerification:
             verification_method=VerificationMethod.HUMAN_REVIEW,
             estimated_cost=0.6,
             estimated_duration=0.5,
-            parallel_safe=False
+            parallel_safe=False,
         )
 
         long_result = "A" * 300  # Long result
@@ -258,6 +270,7 @@ class TestHumanReviewVerification:
 # Test Ground Truth Verification
 # ============================================================================
 
+
 class TestGroundTruthVerification:
     """Test ground truth verification method."""
 
@@ -269,7 +282,7 @@ class TestGroundTruthVerification:
             verification_method=VerificationMethod.GROUND_TRUTH,
             estimated_cost=0.7,
             estimated_duration=0.6,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         with patch("delegation.verifier.HAS_GROUND_TRUTH", False):
@@ -299,7 +312,7 @@ class TestGroundTruthVerification:
             estimated_cost=0.7,
             estimated_duration=0.6,
             parallel_safe=True,
-            metadata={"sources": [{"url": "https://arxiv.org/abs/1234.5678"}]}
+            metadata={"sources": [{"url": "https://arxiv.org/abs/1234.5678"}]},
         )
 
         result = verify_completion(subtask, "factual output")
@@ -327,7 +340,7 @@ class TestGroundTruthVerification:
             verification_method=VerificationMethod.GROUND_TRUTH,
             estimated_cost=0.7,
             estimated_duration=0.6,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         result = verify_completion(subtask, "factual output")
@@ -341,6 +354,7 @@ class TestGroundTruthVerification:
 # Test Verification Metadata
 # ============================================================================
 
+
 class TestVerificationMetadata:
     """Test verification result metadata and timing."""
 
@@ -352,7 +366,7 @@ class TestVerificationMetadata:
             verification_method=VerificationMethod.HUMAN_REVIEW,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         start = time.time()
@@ -371,7 +385,7 @@ class TestVerificationMetadata:
             verification_method=VerificationMethod.HUMAN_REVIEW,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         result = verify_completion(subtask, "output")
@@ -386,7 +400,7 @@ class TestVerificationMetadata:
             verification_method=VerificationMethod.HUMAN_REVIEW,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         before = time.time()
@@ -399,6 +413,7 @@ class TestVerificationMetadata:
 # ============================================================================
 # Test Integration Points
 # ============================================================================
+
 
 class TestTrustLedgerIntegration:
     """Test trust ledger integration."""
@@ -413,7 +428,7 @@ class TestTrustLedgerIntegration:
             passed=True,
             quality_score=0.9,
             feedback="Test passed",
-            evidence={"duration_seconds": 0.5}
+            evidence={"duration_seconds": 0.5},
         )
 
         # Mock the async function
@@ -435,7 +450,7 @@ class TestMemoryBleedIntegration:
             verification_method=VerificationMethod.AUTOMATED_TEST,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         verification = VerificationResult(
@@ -445,7 +460,7 @@ class TestMemoryBleedIntegration:
             passed=True,
             quality_score=0.9,
             feedback="Test passed",
-            evidence={}
+            evidence={},
         )
 
         feed_to_memory_bleed(verification, subtask, "test result")
@@ -462,6 +477,7 @@ class TestMemoryBleedIntegration:
 # Test Edge Cases
 # ============================================================================
 
+
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
@@ -474,7 +490,7 @@ class TestEdgeCases:
             verification_method="fake_method",  # type: ignore
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         result = verify_completion(subtask, "output")
@@ -492,7 +508,7 @@ class TestEdgeCases:
             verification_method=VerificationMethod.HUMAN_REVIEW,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         result = verify_completion(subtask, "")  # Empty result
@@ -508,7 +524,7 @@ class TestEdgeCases:
             verification_method=VerificationMethod.AUTOMATED_TEST,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         def always_pass(result: str) -> bool:
@@ -524,6 +540,7 @@ class TestEdgeCases:
 # Performance Tests
 # ============================================================================
 
+
 class TestPerformance:
     """Test performance targets."""
 
@@ -535,7 +552,7 @@ class TestPerformance:
             verification_method=VerificationMethod.AUTOMATED_TEST,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         def fast_validator(result: str) -> bool:
@@ -556,7 +573,7 @@ class TestPerformance:
             verification_method=VerificationMethod.HUMAN_REVIEW,
             estimated_cost=0.3,
             estimated_duration=0.2,
-            parallel_safe=True
+            parallel_safe=True,
         )
 
         start = time.time()

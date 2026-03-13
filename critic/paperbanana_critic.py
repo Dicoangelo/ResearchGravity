@@ -15,6 +15,7 @@ from .base import CriticBase, Issue, Severity, ValidationResult
 VISUAL_AVAILABLE = False
 try:
     from visual import PaperBananaAdapter, get_visual_config
+
     VISUAL_AVAILABLE = True
 except ImportError:
     pass
@@ -71,7 +72,6 @@ class PaperBananaCritic(CriticBase):
             return evidence
 
         # Try to load visual assets from session directory
-        from pathlib import Path
         sessions_dir = Path.home() / ".agent-core" / "sessions" / target_id
         diagrams_dir = sessions_dir / "diagrams"
 
@@ -84,6 +84,7 @@ class PaperBananaCritic(CriticBase):
         session_meta = sessions_dir / "session.json"
         if session_meta.exists():
             import json
+
             try:
                 meta = json.loads(session_meta.read_text())
                 evidence["visual_stats"] = meta.get("visual_stats", {})
@@ -97,21 +98,25 @@ class PaperBananaCritic(CriticBase):
         issues = []
 
         if not VISUAL_AVAILABLE:
-            issues.append(self.add_issue(
-                code="VIS_UNAVAILABLE",
-                message="Visual layer (PaperBanana) not installed",
-                severity=Severity.INFO,
-                suggestion="Install with: pip install paperbanana",
-            ))
+            issues.append(
+                self.add_issue(
+                    code="VIS_UNAVAILABLE",
+                    message="Visual layer (PaperBanana) not installed",
+                    severity=Severity.INFO,
+                    suggestion="Install with: pip install paperbanana",
+                )
+            )
             return issues
 
         if not evidence.get("has_diagrams"):
-            issues.append(self.add_issue(
-                code="VIS_NO_DIAGRAMS",
-                message="No diagrams found in session archive",
-                severity=Severity.INFO,
-                suggestion="Session may not have had diagrammable findings",
-            ))
+            issues.append(
+                self.add_issue(
+                    code="VIS_NO_DIAGRAMS",
+                    message="No diagrams found in session archive",
+                    severity=Severity.INFO,
+                    suggestion="Session may not have had diagrammable findings",
+                )
+            )
             return issues
 
         visual_stats = evidence.get("visual_stats", {})
@@ -119,25 +124,31 @@ class PaperBananaCritic(CriticBase):
         # Check diagram count
         count = visual_stats.get("diagrams_generated", 0)
         if count == 0:
-            issues.append(self.add_issue(
-                code="VIS_ZERO_GENERATED",
-                message="Visual layer ran but generated 0 diagrams",
-                severity=Severity.WARNING,
-                suggestion="Check if findings have sufficient methodology text (>50 chars)",
-            ))
+            issues.append(
+                self.add_issue(
+                    code="VIS_ZERO_GENERATED",
+                    message="Visual layer ran but generated 0 diagrams",
+                    severity=Severity.WARNING,
+                    suggestion="Check if findings have sufficient methodology text (>50 chars)",
+                )
+            )
 
         # Check cost
         cost = visual_stats.get("total_cost", 0)
         if cost > 2.0:
-            issues.append(self.add_issue(
-                code="VIS_BUDGET_HIGH",
-                message=f"Visual generation cost (${cost:.2f}) exceeds session budget ($2.00)",
-                severity=Severity.WARNING,
-            ))
+            issues.append(
+                self.add_issue(
+                    code="VIS_BUDGET_HIGH",
+                    message=f"Visual generation cost (${cost:.2f}) exceeds session budget ($2.00)",
+                    severity=Severity.WARNING,
+                )
+            )
 
         return issues
 
-    def _calculate_confidence(self, evidence: Dict[str, Any], issues: List[Issue]) -> float:
+    def _calculate_confidence(
+        self, evidence: Dict[str, Any], issues: List[Issue]
+    ) -> float:
         """Calculate confidence based on visual quality."""
         if not evidence.get("has_diagrams"):
             return 0.5  # Neutral — no diagrams isn't a failure
@@ -145,7 +156,9 @@ class PaperBananaCritic(CriticBase):
         # Start from high confidence and deduct for issues
         confidence = 0.9
 
-        error_count = sum(1 for i in issues if i.severity in (Severity.ERROR, Severity.CRITICAL))
+        error_count = sum(
+            1 for i in issues if i.severity in (Severity.ERROR, Severity.CRITICAL)
+        )
         warning_count = sum(1 for i in issues if i.severity == Severity.WARNING)
 
         confidence -= error_count * 0.2

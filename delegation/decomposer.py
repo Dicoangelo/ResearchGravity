@@ -38,6 +38,7 @@ from .models import TaskProfile, SubTask, VerificationMethod
 # Import LLM client from cpb
 try:
     from cpb.llm_client import get_llm_client
+
     HAS_LLM_CLIENT = True
 except ImportError:
     HAS_LLM_CLIENT = False
@@ -56,7 +57,10 @@ DEFAULT_TIMEOUT = 5.0  # LLM timeout in seconds
 # LLM-BASED DECOMPOSITION
 # =============================================================================
 
-def _build_decomposition_prompt(task: str, profile: TaskProfile, depth: int) -> Dict[str, str]:
+
+def _build_decomposition_prompt(
+    task: str, profile: TaskProfile, depth: int
+) -> Dict[str, str]:
     """
     Build LLM prompt for task decomposition.
 
@@ -129,17 +133,11 @@ Break this task into 2-6 subtasks that:
 
 Output the JSON object with subtasks."""
 
-    return {
-        "system_prompt": system_prompt,
-        "user_prompt": user_prompt
-    }
+    return {"system_prompt": system_prompt, "user_prompt": user_prompt}
 
 
 async def _llm_decompose(
-    task: str,
-    profile: TaskProfile,
-    parent_id: Optional[str],
-    depth: int
+    task: str, profile: TaskProfile, parent_id: Optional[str], depth: int
 ) -> List[SubTask]:
     """
     Decompose task using LLM.
@@ -169,7 +167,7 @@ async def _llm_decompose(
         user_prompt=prompts["user_prompt"],
         model="sonnet",  # Use sonnet for better decomposition quality
         max_tokens=2048,
-        temperature=0.4  # Moderate temperature for creativity with structure
+        temperature=0.4,  # Moderate temperature for creativity with structure
     )
 
     # Parse JSON response
@@ -177,7 +175,7 @@ async def _llm_decompose(
 
     # Handle markdown code blocks
     if content.startswith("```"):
-        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
         if match:
             content = match.group(1)
         else:
@@ -186,7 +184,9 @@ async def _llm_decompose(
     try:
         data = json.loads(content)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse LLM response as JSON: {e}\nResponse: {content[:200]}")
+        raise RuntimeError(
+            f"Failed to parse LLM response as JSON: {e}\nResponse: {content[:200]}"
+        )
 
     if "subtasks" not in data:
         raise RuntimeError(f"LLM response missing 'subtasks' key: {list(data.keys())}")
@@ -216,12 +216,22 @@ async def _llm_decompose(
             uncertainty=max(0.0, min(1.0, float(profile_data.get("uncertainty", 0.5)))),
             duration=max(0.0, min(1.0, float(profile_data.get("duration", 0.5)))),
             cost=max(0.0, min(1.0, float(profile_data.get("cost", 0.5)))),
-            resource_requirements=max(0.0, min(1.0, float(profile_data.get("resource_requirements", 0.5)))),
+            resource_requirements=max(
+                0.0, min(1.0, float(profile_data.get("resource_requirements", 0.5)))
+            ),
             constraints=max(0.0, min(1.0, float(profile_data.get("constraints", 0.5)))),
-            verifiability=max(0.0, min(1.0, float(profile_data.get("verifiability", 0.5)))),
-            reversibility=max(0.0, min(1.0, float(profile_data.get("reversibility", 0.5)))),
-            contextuality=max(0.0, min(1.0, float(profile_data.get("contextuality", 0.5)))),
-            subjectivity=max(0.0, min(1.0, float(profile_data.get("subjectivity", 0.5))))
+            verifiability=max(
+                0.0, min(1.0, float(profile_data.get("verifiability", 0.5)))
+            ),
+            reversibility=max(
+                0.0, min(1.0, float(profile_data.get("reversibility", 0.5)))
+            ),
+            contextuality=max(
+                0.0, min(1.0, float(profile_data.get("contextuality", 0.5)))
+            ),
+            subjectivity=max(
+                0.0, min(1.0, float(profile_data.get("subjectivity", 0.5)))
+            ),
         )
 
         # Create SubTask
@@ -229,13 +239,17 @@ async def _llm_decompose(
             id=subtask_id,
             description=st_data.get("description", f"Subtask {idx}"),
             verification_method=method,
-            estimated_cost=max(0.0, min(1.0, float(st_data.get("estimated_cost", 0.5)))),
-            estimated_duration=max(0.0, min(1.0, float(st_data.get("estimated_duration", 0.5)))),
+            estimated_cost=max(
+                0.0, min(1.0, float(st_data.get("estimated_cost", 0.5)))
+            ),
+            estimated_duration=max(
+                0.0, min(1.0, float(st_data.get("estimated_duration", 0.5)))
+            ),
             parallel_safe=bool(st_data.get("parallel_safe", False)),
             parent_task_id=parent_id,
             dependencies=st_data.get("dependencies", []),
             profile=st_profile,
-            metadata={"depth": depth}
+            metadata={"depth": depth},
         )
 
         subtasks.append(subtask)
@@ -247,11 +261,9 @@ async def _llm_decompose(
 # HEURISTIC DECOMPOSITION (Fallback)
 # =============================================================================
 
+
 def _heuristic_decompose(
-    task: str,
-    profile: TaskProfile,
-    parent_id: Optional[str],
-    depth: int
+    task: str, profile: TaskProfile, parent_id: Optional[str], depth: int
 ) -> List[SubTask]:
     """
     Heuristic-based task decomposition (fallback when LLM unavailable).
@@ -274,36 +286,131 @@ def _heuristic_decompose(
     subtasks = []
 
     # Pattern 1: Build/Create systems
-    if any(kw in task_lower for kw in ["build", "create", "develop", "implement system"]):
+    if any(
+        kw in task_lower for kw in ["build", "create", "develop", "implement system"]
+    ):
         templates = [
-            ("Design system architecture", VerificationMethod.HUMAN_REVIEW, 0.4, 0.3, False, []),
-            ("Implement core functionality", VerificationMethod.AUTOMATED_TEST, 0.5, 0.6, False, ["subtask-0"]),
-            ("Add tests and validation", VerificationMethod.AUTOMATED_TEST, 0.3, 0.3, False, ["subtask-1"]),
-            ("Deploy and verify", VerificationMethod.GROUND_TRUTH, 0.4, 0.4, False, ["subtask-2"])
+            (
+                "Design system architecture",
+                VerificationMethod.HUMAN_REVIEW,
+                0.4,
+                0.3,
+                False,
+                [],
+            ),
+            (
+                "Implement core functionality",
+                VerificationMethod.AUTOMATED_TEST,
+                0.5,
+                0.6,
+                False,
+                ["subtask-0"],
+            ),
+            (
+                "Add tests and validation",
+                VerificationMethod.AUTOMATED_TEST,
+                0.3,
+                0.3,
+                False,
+                ["subtask-1"],
+            ),
+            (
+                "Deploy and verify",
+                VerificationMethod.GROUND_TRUTH,
+                0.4,
+                0.4,
+                False,
+                ["subtask-2"],
+            ),
         ]
 
     # Pattern 2: Research tasks
-    elif any(kw in task_lower for kw in ["research", "investigate", "explore", "analyze"]):
+    elif any(
+        kw in task_lower for kw in ["research", "investigate", "explore", "analyze"]
+    ):
         templates = [
-            ("Survey existing solutions", VerificationMethod.HUMAN_REVIEW, 0.3, 0.4, True, []),
-            ("Analyze findings", VerificationMethod.SEMANTIC_SIMILARITY, 0.4, 0.5, False, ["subtask-0"]),
-            ("Synthesize recommendations", VerificationMethod.HUMAN_REVIEW, 0.5, 0.4, False, ["subtask-1"])
+            (
+                "Survey existing solutions",
+                VerificationMethod.HUMAN_REVIEW,
+                0.3,
+                0.4,
+                True,
+                [],
+            ),
+            (
+                "Analyze findings",
+                VerificationMethod.SEMANTIC_SIMILARITY,
+                0.4,
+                0.5,
+                False,
+                ["subtask-0"],
+            ),
+            (
+                "Synthesize recommendations",
+                VerificationMethod.HUMAN_REVIEW,
+                0.5,
+                0.4,
+                False,
+                ["subtask-1"],
+            ),
         ]
 
     # Pattern 3: Implementation tasks
     elif any(kw in task_lower for kw in ["implement", "code", "write"]):
         templates = [
-            ("Plan implementation approach", VerificationMethod.HUMAN_REVIEW, 0.3, 0.2, False, []),
-            ("Write code", VerificationMethod.AUTOMATED_TEST, 0.5, 0.6, False, ["subtask-0"]),
-            ("Add tests", VerificationMethod.AUTOMATED_TEST, 0.3, 0.3, False, ["subtask-1"])
+            (
+                "Plan implementation approach",
+                VerificationMethod.HUMAN_REVIEW,
+                0.3,
+                0.2,
+                False,
+                [],
+            ),
+            (
+                "Write code",
+                VerificationMethod.AUTOMATED_TEST,
+                0.5,
+                0.6,
+                False,
+                ["subtask-0"],
+            ),
+            (
+                "Add tests",
+                VerificationMethod.AUTOMATED_TEST,
+                0.3,
+                0.3,
+                False,
+                ["subtask-1"],
+            ),
         ]
 
     # Default pattern
     else:
         templates = [
-            ("Understand requirements", VerificationMethod.HUMAN_REVIEW, 0.2, 0.2, False, []),
-            ("Execute main task", VerificationMethod.AUTOMATED_TEST, 0.6, 0.6, False, ["subtask-0"]),
-            ("Verify completion", VerificationMethod.GROUND_TRUTH, 0.3, 0.2, False, ["subtask-1"])
+            (
+                "Understand requirements",
+                VerificationMethod.HUMAN_REVIEW,
+                0.2,
+                0.2,
+                False,
+                [],
+            ),
+            (
+                "Execute main task",
+                VerificationMethod.AUTOMATED_TEST,
+                0.6,
+                0.6,
+                False,
+                ["subtask-0"],
+            ),
+            (
+                "Verify completion",
+                VerificationMethod.GROUND_TRUTH,
+                0.3,
+                0.2,
+                False,
+                ["subtask-1"],
+            ),
         ]
 
     # Create SubTask objects from templates
@@ -320,7 +427,7 @@ def _heuristic_decompose(
             verifiability=0.7,  # Heuristic subtasks are verifiable by design
             reversibility=max(0.5, profile.reversibility),  # Conservative
             contextuality=profile.contextuality * 0.6,
-            subjectivity=profile.subjectivity * 0.5
+            subjectivity=profile.subjectivity * 0.5,
         )
 
         subtask = SubTask(
@@ -333,7 +440,7 @@ def _heuristic_decompose(
             parent_task_id=parent_id,
             dependencies=deps,
             profile=st_profile,
-            metadata={"depth": depth, "heuristic": True}
+            metadata={"depth": depth, "heuristic": True},
         )
 
         subtasks.append(subtask)
@@ -345,13 +452,14 @@ def _heuristic_decompose(
 # RECURSIVE DECOMPOSITION (Contract-First Enforcement)
 # =============================================================================
 
+
 def _recursive_decompose(
     task: str,
     profile: TaskProfile,
     parent_id: Optional[str],
     depth: int,
     use_llm: bool,
-    timeout: float
+    timeout: float,
 ) -> List[SubTask]:
     """
     Recursively decompose task until all subtasks meet verifiability threshold.
@@ -384,29 +492,30 @@ def _recursive_decompose(
             verifiability=MIN_VERIFIABILITY,  # Force to minimum
             reversibility=profile.reversibility,
             contextuality=profile.contextuality,
-            subjectivity=profile.subjectivity
+            subjectivity=profile.subjectivity,
         )
 
-        return [SubTask(
-            id=f"subtask-{uuid.uuid4().hex[:8]}",
-            description=task,
-            verification_method=VerificationMethod.HUMAN_REVIEW,
-            estimated_cost=profile.cost,
-            estimated_duration=profile.duration,
-            parallel_safe=True,
-            parent_task_id=parent_id,
-            dependencies=[],
-            profile=forced_profile,
-            metadata={"depth": depth, "forced_verifiable": True}
-        )]
+        return [
+            SubTask(
+                id=f"subtask-{uuid.uuid4().hex[:8]}",
+                description=task,
+                verification_method=VerificationMethod.HUMAN_REVIEW,
+                estimated_cost=profile.cost,
+                estimated_duration=profile.duration,
+                parallel_safe=True,
+                parent_task_id=parent_id,
+                dependencies=[],
+                profile=forced_profile,
+                metadata={"depth": depth, "forced_verifiable": True},
+            )
+        ]
 
     # Try LLM decomposition first
     if use_llm and HAS_LLM_CLIENT:
         try:
             subtasks = asyncio.run(
                 asyncio.wait_for(
-                    _llm_decompose(task, profile, parent_id, depth),
-                    timeout=timeout
+                    _llm_decompose(task, profile, parent_id, depth), timeout=timeout
                 )
             )
         except Exception:
@@ -427,7 +536,7 @@ def _recursive_decompose(
                 parent_id=st.id,
                 depth=depth + 1,
                 use_llm=use_llm,
-                timeout=timeout
+                timeout=timeout,
             )
             verified_subtasks.extend(nested)
         else:
@@ -439,6 +548,7 @@ def _recursive_decompose(
 # =============================================================================
 # DEPENDENCY ANALYSIS
 # =============================================================================
+
 
 def _analyze_dependencies(subtasks: List[SubTask]) -> List[SubTask]:
     """
@@ -465,10 +575,17 @@ def _analyze_dependencies(subtasks: List[SubTask]) -> List[SubTask]:
             if st.parallel_safe and st.dependencies:
                 # Check if all dependencies are parallel_safe
                 deps_parallel = all(
-                    id_to_task.get(dep_id, SubTask(
-                        id="", description="", verification_method=VerificationMethod.HUMAN_REVIEW,
-                        estimated_cost=0.0, estimated_duration=0.0, parallel_safe=False
-                    )).parallel_safe
+                    id_to_task.get(
+                        dep_id,
+                        SubTask(
+                            id="",
+                            description="",
+                            verification_method=VerificationMethod.HUMAN_REVIEW,
+                            estimated_cost=0.0,
+                            estimated_duration=0.0,
+                            parallel_safe=False,
+                        ),
+                    ).parallel_safe
                     for dep_id in st.dependencies
                 )
 
@@ -483,12 +600,13 @@ def _analyze_dependencies(subtasks: List[SubTask]) -> List[SubTask]:
 # PUBLIC API
 # =============================================================================
 
+
 def decompose_task(
     task: str,
     profile: TaskProfile,
     max_depth: int = MAX_DEPTH,
     use_llm: bool = True,
-    timeout: float = DEFAULT_TIMEOUT
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> List[SubTask]:
     """
     Decompose a task into verifiable subtasks following the contract-first principle.
@@ -526,7 +644,7 @@ def decompose_task(
         parent_id=None,
         depth=0,
         use_llm=use_llm,
-        timeout=timeout
+        timeout=timeout,
     )
 
     # Analyze dependencies and update parallel_safe flags

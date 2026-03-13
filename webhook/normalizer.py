@@ -21,9 +21,7 @@ class WebhookNormalizer:
     ) -> List[CapturedEvent]:
         return [self._normalize_one(provider, e) for e in events]
 
-    def _normalize_one(
-        self, provider: str, event: WebhookEvent
-    ) -> CapturedEvent:
+    def _normalize_one(self, provider: str, event: WebhookEvent) -> CapturedEvent:
         platform = f"{provider}-webhook"
         ts = event.timestamp or time.time()
 
@@ -38,6 +36,6 @@ class WebhookNormalizer:
                 "webhook_event_type": event.event_type,
                 **event.metadata,
             },
-            quality_score=0.0,      # Scored later in server.py
+            quality_score=0.0,  # Scored later in server.py
             cognitive_mode="exploration",  # Classified later in server.py
         )

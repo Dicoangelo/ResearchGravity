@@ -225,7 +225,7 @@ async def test_respond_to_trigger_first_failure_retry():
                 type=TriggerType.PROGRESS_STALL,
                 subtask_id=subtask_id,
                 timestamp=time.time(),
-                details={}
+                details={},
             )
 
             # First failure should RETRY
@@ -257,7 +257,7 @@ async def test_respond_to_trigger_second_failure_reroute():
                 type=TriggerType.API_TIMEOUT,
                 subtask_id=subtask_id,
                 timestamp=time.time(),
-                details={}
+                details={},
             )
 
             # Second failure should REROUTE
@@ -287,7 +287,7 @@ async def test_respond_to_trigger_third_failure_escalate():
                 type=TriggerType.QUALITY_BELOW_THRESHOLD,
                 subtask_id=subtask_id,
                 timestamp=time.time(),
-                details={}
+                details={},
             )
 
             # Third failure should ESCALATE
@@ -313,7 +313,7 @@ async def test_respond_to_trigger_logs_event():
                 type=TriggerType.PROGRESS_STALL,
                 subtask_id=subtask_id,
                 timestamp=time.time(),
-                details={}
+                details={},
             )
 
             initial_event_count = len(chain.events)
@@ -322,7 +322,9 @@ async def test_respond_to_trigger_logs_event():
 
             # Should have added trigger_response event
             assert len(chain.events) > initial_event_count
-            latest_events = [e for e in chain.events if e.get("type") == "trigger_response"]
+            latest_events = [
+                e for e in chain.events if e.get("type") == "trigger_response"
+            ]
             assert len(latest_events) > 0
 
 
@@ -365,7 +367,9 @@ async def test_context_manager_cleanup():
 @pytest.mark.asyncio
 async def test_integration_simulate_failure_and_recovery():
     """Integration test: simulate a failure, verify retry then reroute behavior"""
-    async with DelegationCoordinator(check_interval=0.5, stall_timeout=0.2) as coordinator:
+    async with DelegationCoordinator(
+        check_interval=0.5, stall_timeout=0.2
+    ) as coordinator:
         # Submit chain
         chain_id = await coordinator.submit_chain("Build feature X")
         chain = coordinator.chains[chain_id]

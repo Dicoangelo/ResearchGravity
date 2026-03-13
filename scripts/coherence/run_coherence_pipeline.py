@@ -21,6 +21,7 @@ import sys
 import time
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -29,9 +30,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 async def get_pool():
     """Get asyncpg connection pool."""
     import asyncpg
+
     return await asyncpg.create_pool(
         "postgresql://localhost:5432/ucw_cognitive",
-        min_size=2, max_size=8,
+        min_size=2,
+        max_size=8,
     )
 
 
@@ -83,7 +86,9 @@ async def batch_embed(pool, batch_size=500):
             stall_count += 1
             if stall_count >= 3:
                 # Remaining events are content dupes — stop
-                print(f"    No new embeddings for 3 rounds — remaining events are content duplicates")
+                print(
+                    "    No new embeddings for 3 rounds — remaining events are content duplicates"
+                )
                 break
         else:
             stall_count = 0
@@ -91,7 +96,9 @@ async def batch_embed(pool, batch_size=500):
             elapsed = time.time() - t0
             rate = total_stored / elapsed if elapsed > 0 else 0
             remaining = (unembedded - total_stored) / rate if rate > 0 else 0
-            print(f"    Embedded {total_stored}/{unembedded} ({rate:.0f}/sec, ~{remaining:.0f}s remaining)")
+            print(
+                f"    Embedded {total_stored}/{unembedded} ({rate:.0f}/sec, ~{remaining:.0f}s remaining)"
+            )
 
     elapsed = time.time() - t0
     print(f"  Done: {total_stored} events embedded in {elapsed:.1f}s")
@@ -117,7 +124,7 @@ async def run_cross_platform_analysis(pool, top_n=100):
         limit=top_n,
     )
     results["chatgpt_to_claude"] = chatgpt_to_claude
-    print(f"    Found {len(chatgpt_to_claude)} matches in {time.time()-t0:.1f}s")
+    print(f"    Found {len(chatgpt_to_claude)} matches in {time.time() - t0:.1f}s")
 
     # 2. Claude CLI → ChatGPT matches
     print("  Finding Claude CLI → ChatGPT coherence...")
@@ -128,7 +135,7 @@ async def run_cross_platform_analysis(pool, top_n=100):
         limit=top_n,
     )
     results["claude_to_chatgpt"] = claude_to_chatgpt
-    print(f"    Found {len(claude_to_chatgpt)} matches in {time.time()-t0:.1f}s")
+    print(f"    Found {len(claude_to_chatgpt)} matches in {time.time() - t0:.1f}s")
 
     # 3. Sample queries — search for specific topics across platforms
     key_topics = [
@@ -146,19 +153,24 @@ async def run_cross_platform_analysis(pool, top_n=100):
     topic_results = []
     for topic in key_topics:
         matches = await pipeline.find_similar_pgvector(
-            topic, limit=10,
+            topic,
+            limit=10,
         )
         platforms_found = set(m["platform"] for m in matches if m["similarity"] > 0.5)
         top_sim = matches[0]["similarity"] if matches else 0
-        topic_results.append({
-            "topic": topic,
-            "matches": len(matches),
-            "platforms": list(platforms_found),
-            "top_similarity": top_sim,
-            "cross_platform": len(platforms_found) > 1,
-        })
+        topic_results.append(
+            {
+                "topic": topic,
+                "matches": len(matches),
+                "platforms": list(platforms_found),
+                "top_similarity": top_sim,
+                "cross_platform": len(platforms_found) > 1,
+            }
+        )
         cross = "CROSS" if len(platforms_found) > 1 else "single"
-        print(f"    [{cross}] {topic}: {len(matches)} matches, top={top_sim:.3f}, platforms={list(platforms_found)}")
+        print(
+            f"    [{cross}] {topic}: {len(matches)} matches, top={top_sim:.3f}, platforms={list(platforms_found)}"
+        )
 
     results["topic_probes"] = topic_results
 
@@ -192,6 +204,7 @@ async def run_cross_platform_analysis(pool, top_n=100):
     if dist_rows:
         sims = [float(r["similarity"]) for r in dist_rows]
         import statistics
+
         results["distribution"] = {
             "sample_size": len(sims),
             "mean": round(statistics.mean(sims), 4),
@@ -206,7 +219,9 @@ async def run_cross_platform_analysis(pool, top_n=100):
         print(f"    Sampled {len(sims)} cross-platform pairs")
         print(f"    Mean similarity: {results['distribution']['mean']}")
         print(f"    Median: {results['distribution']['median']}")
-        print(f"    >0.7: {results['distribution']['above_70']}, >0.8: {results['distribution']['above_80']}, >0.9: {results['distribution']['above_90']}")
+        print(
+            f"    >0.7: {results['distribution']['above_70']}, >0.8: {results['distribution']['above_80']}, >0.9: {results['distribution']['above_90']}"
+        )
 
     return results
 
@@ -239,29 +254,35 @@ def generate_report(stats, analysis, output_path):
         matches = analysis.get(key, [])
         lines.append(f"\n## {direction} Coherence ({len(matches)} matches)\n")
         if matches:
-            lines.append(f"{'#':>3} {'Similarity':>10} {'Src Mode':<12} {'Tgt Platform':<15} {'Tgt Mode':<12}")
+            lines.append(
+                f"{'#':>3} {'Similarity':>10} {'Src Mode':<12} {'Tgt Platform':<15} {'Tgt Mode':<12}"
+            )
             lines.append("-" * 55)
             for i, m in enumerate(matches[:30]):
                 lines.append(
-                    f"{i+1:>3} {m['similarity']:>10.4f} "
-                    f"{m.get('source_mode','?'):<12} "
-                    f"{m.get('target_platform','?'):<15} "
-                    f"{m.get('target_mode','?'):<12}"
+                    f"{i + 1:>3} {m['similarity']:>10.4f} "
+                    f"{m.get('source_mode', '?'):<12} "
+                    f"{m.get('target_platform', '?'):<15} "
+                    f"{m.get('target_mode', '?'):<12}"
                 )
             if matches:
                 lines.append(f"\nTop match ({matches[0]['similarity']:.4f}):")
-                lines.append(f"  Source: {matches[0].get('source_preview','')[:100]}")
-                lines.append(f"  Target: {matches[0].get('target_preview','')[:100]}")
+                lines.append(f"  Source: {matches[0].get('source_preview', '')[:100]}")
+                lines.append(f"  Target: {matches[0].get('target_preview', '')[:100]}")
 
     # Topic probes
     topic_probes = analysis.get("topic_probes", [])
     lines.append(f"\n## Topic Coherence Probes ({len(topic_probes)} topics)\n")
     cross_count = sum(1 for t in topic_probes if t["cross_platform"])
-    lines.append(f"Cross-platform coherence detected: {cross_count}/{len(topic_probes)} topics\n")
+    lines.append(
+        f"Cross-platform coherence detected: {cross_count}/{len(topic_probes)} topics\n"
+    )
     for t in topic_probes:
         status = "CROSS-PLATFORM" if t["cross_platform"] else "single-platform"
         lines.append(f"  [{status}] {t['topic']}")
-        lines.append(f"    Matches: {t['matches']}, Top sim: {t['top_similarity']:.3f}, Platforms: {t['platforms']}")
+        lines.append(
+            f"    Matches: {t['matches']}, Top sim: {t['top_similarity']:.3f}, Platforms: {t['platforms']}"
+        )
 
     # Distribution
     dist = analysis.get("distribution", {})
@@ -272,15 +293,23 @@ def generate_report(stats, analysis, output_path):
         lines.append(f"  StDev:  {dist['stdev']:.4f}")
         lines.append(f"  Min:    {dist['min']:.4f}")
         lines.append(f"  Max:    {dist['max']:.4f}")
-        lines.append(f"  >0.7:   {dist['above_70']} pairs ({dist['above_70']/dist['sample_size']*100:.1f}%)")
-        lines.append(f"  >0.8:   {dist['above_80']} pairs ({dist['above_80']/dist['sample_size']*100:.1f}%)")
-        lines.append(f"  >0.9:   {dist['above_90']} pairs ({dist['above_90']/dist['sample_size']*100:.1f}%)")
+        lines.append(
+            f"  >0.7:   {dist['above_70']} pairs ({dist['above_70'] / dist['sample_size'] * 100:.1f}%)"
+        )
+        lines.append(
+            f"  >0.8:   {dist['above_80']} pairs ({dist['above_80'] / dist['sample_size'] * 100:.1f}%)"
+        )
+        lines.append(
+            f"  >0.9:   {dist['above_90']} pairs ({dist['above_90'] / dist['sample_size'] * 100:.1f}%)"
+        )
 
     # Summary
     lines.append(f"\n{'=' * 72}")
     lines.append("  COHERENCE SUMMARY")
     lines.append(f"{'=' * 72}")
-    total_matches = len(analysis.get("chatgpt_to_claude", [])) + len(analysis.get("claude_to_chatgpt", []))
+    total_matches = len(analysis.get("chatgpt_to_claude", [])) + len(
+        analysis.get("claude_to_chatgpt", [])
+    )
     peak_sim = 0
     for key in ["chatgpt_to_claude", "claude_to_chatgpt"]:
         matches = analysis.get(key, [])
@@ -300,11 +329,20 @@ def generate_report(stats, analysis, output_path):
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="UCW Cross-Platform Coherence Pipeline")
-    parser.add_argument("--embed-only", action="store_true", help="Only run batch embedding")
+    parser = argparse.ArgumentParser(
+        description="UCW Cross-Platform Coherence Pipeline"
+    )
+    parser.add_argument(
+        "--embed-only", action="store_true", help="Only run batch embedding"
+    )
     parser.add_argument("--analyze-only", action="store_true", help="Only run analysis")
-    parser.add_argument("--top", type=int, default=100, help="Top N matches per direction")
-    parser.add_argument("--output", default="/Users/dicoangelo/researchgravity/coherence_report_full.txt")
+    parser.add_argument(
+        "--top", type=int, default=100, help="Top N matches per direction"
+    )
+    parser.add_argument(
+        "--output",
+        default="/Users/dicoangelo/researchgravity/coherence_report_full.txt",
+    )
     args = parser.parse_args()
 
     print("\n" + "=" * 60)
@@ -316,13 +354,15 @@ async def main():
     try:
         # Stats
         stats = await get_db_stats(pool)
-        print(f"\n  Database: {stats['total_events']:,} events, {stats['embedded']:,} embedded, {stats['unembedded']:,} unembedded")
+        print(
+            f"\n  Database: {stats['total_events']:,} events, {stats['embedded']:,} embedded, {stats['unembedded']:,} unembedded"
+        )
         for plat, cnt, sess in stats["platforms"]:
             print(f"    {plat}: {cnt:,} events ({sess:,} sessions)")
 
         # Step 1: Batch embed
         if not args.analyze_only:
-            print(f"\n--- Step 1: Batch Embedding ---")
+            print("\n--- Step 1: Batch Embedding ---")
             newly_embedded = await batch_embed(pool)
             # Refresh stats
             stats = await get_db_stats(pool)
@@ -330,11 +370,11 @@ async def main():
 
         # Step 2: Cross-platform analysis
         if not args.embed_only:
-            print(f"\n--- Step 2: Cross-Platform Coherence Analysis ---")
+            print("\n--- Step 2: Cross-Platform Coherence Analysis ---")
             analysis = await run_cross_platform_analysis(pool, top_n=args.top)
 
             # Step 3: Report
-            print(f"\n--- Step 3: Generating Report ---")
+            print("\n--- Step 3: Generating Report ---")
             report = generate_report(stats, analysis, args.output)
             print(f"  Report saved to: {args.output}")
 

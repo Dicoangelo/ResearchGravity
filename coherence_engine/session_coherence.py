@@ -33,6 +33,7 @@ log = logging.getLogger("coherence.session_coherence")
 @dataclass
 class SessionCoherence:
     """A detected session-level coherence across platforms."""
+
     session_a_id: str
     session_b_id: str
     platform_a: str
@@ -186,7 +187,9 @@ async def backfill_session_embeddings(
         if result:
             processed += 1
         if (i + 1) % 100 == 0:
-            log.info(f"Session embeddings: {i+1}/{len(sessions)} processed, {processed} generated")
+            log.info(
+                f"Session embeddings: {i + 1}/{len(sessions)} processed, {processed} generated"
+            )
 
     log.info(f"Session embedding backfill: {processed}/{len(sessions)} generated")
     return processed
@@ -210,7 +213,7 @@ async def find_session_coherence(
     async with pool.acquire() as conn:
         # Find cross-platform similar sessions
         rows = await conn.fetch(
-            f"""SELECT
+            """SELECT
                     a.session_id AS session_a,
                     b.session_id AS session_b,
                     a.platform AS platform_a,
@@ -245,16 +248,18 @@ async def find_session_coherence(
         # Extract shared themes from summaries
         shared = _extract_shared_themes(r["summary_a"] or "", r["summary_b"] or "")
 
-        results.append(SessionCoherence(
-            session_a_id=r["session_a"],
-            session_b_id=r["session_b"],
-            platform_a=r["platform_a"],
-            platform_b=r["platform_b"],
-            similarity=float(r["similarity"]),
-            summary_a=r["summary_a"] or "",
-            summary_b=r["summary_b"] or "",
-            shared_themes=shared,
-        ))
+        results.append(
+            SessionCoherence(
+                session_a_id=r["session_a"],
+                session_b_id=r["session_b"],
+                platform_a=r["platform_a"],
+                platform_b=r["platform_b"],
+                similarity=float(r["similarity"]),
+                summary_a=r["summary_a"] or "",
+                summary_b=r["summary_b"] or "",
+                shared_themes=shared,
+            )
+        )
 
     return results
 
@@ -264,8 +269,23 @@ def _extract_shared_themes(summary_a: str, summary_b: str) -> List[str]:
     words_a = set(summary_a.lower().split())
     words_b = set(summary_b.lower().split())
     # Filter to meaningful words (>4 chars, not stopwords)
-    stopwords = {"with", "from", "that", "this", "have", "been", "about", "their",
-                 "would", "could", "should", "events", "session", "topics", "intents",
-                 "content"}
+    stopwords = {
+        "with",
+        "from",
+        "that",
+        "this",
+        "have",
+        "been",
+        "about",
+        "their",
+        "would",
+        "could",
+        "should",
+        "events",
+        "session",
+        "topics",
+        "intents",
+        "content",
+    }
     shared = words_a & words_b - stopwords
     return [w for w in shared if len(w) > 4][:10]

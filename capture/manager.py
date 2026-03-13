@@ -86,7 +86,9 @@ class CaptureManager:
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
-                loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
+                loop.add_signal_handler(
+                    sig, lambda: asyncio.create_task(self.shutdown())
+                )
             except NotImplementedError:
                 pass
 
@@ -94,9 +96,7 @@ class CaptureManager:
         tasks = []
         for platform, adapter in self._adapters.items():
             interval = self._poll_interval(platform)
-            tasks.append(asyncio.create_task(
-                self._poll_loop(adapter, interval)
-            ))
+            tasks.append(asyncio.create_task(self._poll_loop(adapter, interval)))
 
         try:
             await asyncio.gather(*tasks)
@@ -139,7 +139,10 @@ class CaptureManager:
                 statuses[name] = await adapter.health_check()
             except Exception as exc:
                 statuses[name] = AdapterStatus(
-                    healthy=False, last_poll=0, events_captured=0, error=str(exc),
+                    healthy=False,
+                    last_poll=0,
+                    events_captured=0,
+                    error=str(exc),
                 )
         return {
             "adapters": {
@@ -195,7 +198,9 @@ class CaptureManager:
             await asyncio.sleep(interval)
 
     async def _process_events(
-        self, adapter: PlatformAdapter, events: List[CapturedEvent],
+        self,
+        adapter: PlatformAdapter,
+        events: List[CapturedEvent],
     ) -> int:
         """Process and store captured events. Returns count stored."""
         if not events or not self._pool:
@@ -209,7 +214,9 @@ class CaptureManager:
             content_hash = self._normalizer.content_hash(event.content)
 
             # Dedup check
-            if self._dedup.is_duplicate(event.event_id, content_hash, event.session_id, event.platform):
+            if self._dedup.is_duplicate(
+                event.event_id, content_hash, event.session_id, event.platform
+            ):
                 self._stats["events_skipped_dedup"] += 1
                 continue
 
@@ -225,7 +232,9 @@ class CaptureManager:
             # Store to database
             try:
                 await self._store_event(row)
-                self._dedup.mark_seen(event.event_id, content_hash, event.session_id, event.platform)
+                self._dedup.mark_seen(
+                    event.event_id, content_hash, event.session_id, event.platform
+                )
                 stored += 1
                 self._stats["events_stored"] += 1
             except Exception as exc:

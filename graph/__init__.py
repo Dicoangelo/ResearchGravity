@@ -20,12 +20,12 @@ from .queries import (
 )
 
 __all__ = [
-    'ConceptGraph',
-    'LineageTracker',
-    'LineageNode',
-    'LineageEdge',
-    'get_related_sessions',
-    'get_related_findings',
-    'get_concept_network',
-    'get_research_lineage',
+    "ConceptGraph",
+    "LineageTracker",
+    "LineageNode",
+    "LineageEdge",
+    "get_related_sessions",
+    "get_related_findings",
+    "get_concept_network",
+    "get_research_lineage",
 ]

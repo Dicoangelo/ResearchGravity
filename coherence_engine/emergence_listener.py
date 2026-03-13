@@ -33,6 +33,7 @@ log = logging.getLogger("coherence.emergence")
 @dataclass
 class ConceptVelocity:
     """Track how fast a concept is evolving across sessions."""
+
     concept: str
     mentions_1h: int = 0
     mentions_24h: int = 0
@@ -45,6 +46,7 @@ class ConceptVelocity:
 @dataclass
 class CrossDomainBridge:
     """A new connection between concepts from different domains."""
+
     concept_a: str
     concept_b: str
     domain_a: str
@@ -57,6 +59,7 @@ class CrossDomainBridge:
 @dataclass
 class FlowIndicator:
     """Flow state signals from event patterns."""
+
     platform: str
     events_per_hour: float
     avg_content_length: float
@@ -67,6 +70,7 @@ class FlowIndicator:
 @dataclass
 class CognitiveBreakthrough:
     """A detected breakthrough — the culmination of emergence signals."""
+
     breakthrough_id: str
     breakthrough_type: str  # crystallization, synthesis, convergence, acceleration
     title: str
@@ -111,7 +115,8 @@ class ConceptVelocityTracker:
                      AND light_layer IS NOT NULL
                    ORDER BY timestamp_ns DESC
                    LIMIT $2""",
-                week_ago, limit,
+                week_ago,
+                limit,
             )
 
         # Count concept mentions across time windows
@@ -164,15 +169,17 @@ class ConceptVelocityTracker:
             baseline = max(count_7d / 7, 1)
             velocity = count_1h / baseline if count_1h > 0 else 0
 
-            velocities.append(ConceptVelocity(
-                concept=concept,
-                mentions_1h=count_1h,
-                mentions_24h=count_24h,
-                mentions_7d=count_7d,
-                platforms=concept_platforms[concept],
-                sessions=concept_sessions[concept],
-                velocity=velocity,
-            ))
+            velocities.append(
+                ConceptVelocity(
+                    concept=concept,
+                    mentions_1h=count_1h,
+                    mentions_24h=count_24h,
+                    mentions_7d=count_7d,
+                    platforms=concept_platforms[concept],
+                    sessions=concept_sessions[concept],
+                    velocity=velocity,
+                )
+            )
 
         velocities.sort(key=lambda v: v.velocity, reverse=True)
         return velocities
@@ -191,16 +198,33 @@ class CrossDomainBridgeDetector:
 
     # Domain classification based on topic patterns
     DOMAIN_MAP = {
-        "ai_agents": "ai", "machine_learning": "ai", "llm": "ai",
-        "neural_networks": "ai", "nlp": "ai", "embeddings": "ai",
-        "web_development": "engineering", "typescript": "engineering",
-        "react": "engineering", "python": "engineering", "database": "engineering",
-        "devops": "engineering", "infrastructure": "engineering",
-        "ucw": "philosophy", "sovereignty": "philosophy", "cognitive": "philosophy",
-        "emergence": "philosophy", "consciousness": "philosophy",
-        "blockchain": "crypto", "token": "crypto", "defi": "crypto",
-        "career": "personal", "portfolio": "personal", "identity": "personal",
-        "research": "research", "papers": "research", "arxiv": "research",
+        "ai_agents": "ai",
+        "machine_learning": "ai",
+        "llm": "ai",
+        "neural_networks": "ai",
+        "nlp": "ai",
+        "embeddings": "ai",
+        "web_development": "engineering",
+        "typescript": "engineering",
+        "react": "engineering",
+        "python": "engineering",
+        "database": "engineering",
+        "devops": "engineering",
+        "infrastructure": "engineering",
+        "ucw": "philosophy",
+        "sovereignty": "philosophy",
+        "cognitive": "philosophy",
+        "emergence": "philosophy",
+        "consciousness": "philosophy",
+        "blockchain": "crypto",
+        "token": "crypto",
+        "defi": "crypto",
+        "career": "personal",
+        "portfolio": "personal",
+        "identity": "personal",
+        "research": "research",
+        "papers": "research",
+        "arxiv": "research",
     }
 
     def __init__(self, pool: asyncpg.Pool):
@@ -220,7 +244,8 @@ class CrossDomainBridgeDetector:
                      AND light_layer IS NOT NULL
                    ORDER BY timestamp_ns DESC
                    LIMIT $2""",
-                day_ago, limit,
+                day_ago,
+                limit,
             )
 
             # Get existing co-occurrences from KG
@@ -257,7 +282,7 @@ class CrossDomainBridgeDetector:
             # Check all pairs
             for i, a in enumerate(concepts):
                 domain_a = self._classify_domain(a)
-                for b in concepts[i + 1:]:
+                for b in concepts[i + 1 :]:
                     domain_b = self._classify_domain(b)
                     if domain_a == domain_b:
                         continue  # Same domain, not a bridge
@@ -282,10 +307,7 @@ class CrossDomainBridgeDetector:
                     bridge.platforms.add(row["platform"] or "")
 
         # Filter to significant bridges (appeared 2+ times)
-        bridges = [
-            b for b in co_occurrences.values()
-            if b.co_occurrence_count >= 2
-        ]
+        bridges = [b for b in co_occurrences.values() if b.co_occurrence_count >= 2]
         bridges.sort(key=lambda b: b.co_occurrence_count, reverse=True)
         return bridges[:20]
 
@@ -344,10 +366,13 @@ class FlowStateTracker:
                    WHERE timestamp_ns > $2
                      AND quality_score IS NOT NULL
                    GROUP BY platform""",
-                hour_ago, two_hours_ago,
+                hour_ago,
+                two_hours_ago,
             )
             trend_map = {
-                r["platform"]: (float(r["recent_avg"] or 0) - float(r["older_avg"] or 0))
+                r["platform"]: (
+                    float(r["recent_avg"] or 0) - float(r["older_avg"] or 0)
+                )
                 for r in trends
                 if r["recent_avg"] and r["older_avg"]
             }
@@ -357,15 +382,19 @@ class FlowStateTracker:
             event_count = row["event_count"]
             topics = [t for t in (row["topics"] or []) if t and t != "general"]
             unique_topics = len(set(topics))
-            topic_depth = 1 - (unique_topics / max(event_count, 1))  # 1 = focused, 0 = scattered
+            topic_depth = 1 - (
+                unique_topics / max(event_count, 1)
+            )  # 1 = focused, 0 = scattered
 
-            indicators.append(FlowIndicator(
-                platform=row["platform"],
-                events_per_hour=event_count / 2.0,  # 2-hour window
-                avg_content_length=float(row["avg_length"] or 0),
-                topic_depth=max(0, min(1, topic_depth)),
-                quality_score_trend=trend_map.get(row["platform"], 0),
-            ))
+            indicators.append(
+                FlowIndicator(
+                    platform=row["platform"],
+                    events_per_hour=event_count / 2.0,  # 2-hour window
+                    avg_content_length=float(row["avg_length"] or 0),
+                    topic_depth=max(0, min(1, topic_depth)),
+                    quality_score_trend=trend_map.get(row["platform"], 0),
+                )
+            )
 
         return indicators
 

@@ -61,7 +61,10 @@ async def embed_event_row(pool, event_row: Dict[str, Any]) -> Optional[List[floa
 
     if pool:
         await _store_embedding(
-            pool, ch, text[:200], embedding,
+            pool,
+            ch,
+            text[:200],
+            embedding,
             source_event_id=event_row.get("event_id"),
             full_text=text,
         )
@@ -127,7 +130,7 @@ async def batch_embed_events(
     batch_size = cfg.EMBED_BATCH_SIZE
     all_embeddings = []
     for i in range(0, len(texts), batch_size):
-        batch = texts[i:i + batch_size]
+        batch = texts[i : i + batch_size]
         embs = embed_texts(batch, batch_size=min(batch_size, 64))
         all_embeddings.extend(embs)
         done = min(i + batch_size, len(texts))
@@ -152,7 +155,13 @@ async def batch_embed_events(
                            model = $4,
                            dimensions = $5,
                            content_tsv = to_tsvector('english', $7)""",
-                    ch, text[:200], vec_str, _model_name, _dimensions, eid, text,
+                    ch,
+                    text[:200],
+                    vec_str,
+                    _model_name,
+                    _dimensions,
+                    eid,
+                    text,
                 )
                 stored += 1
             except Exception as e:
@@ -188,7 +197,12 @@ async def _store_embedding(
                        model = $4,
                        dimensions = $5,
                        content_tsv = to_tsvector('english', $7)""",
-                ch, preview, vec_str, _model_name, _dimensions, source_event_id,
+                ch,
+                preview,
+                vec_str,
+                _model_name,
+                _dimensions,
+                source_event_id,
                 tsv_source,
             )
     except Exception as e:

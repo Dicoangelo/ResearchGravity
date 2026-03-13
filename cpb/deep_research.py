@@ -35,6 +35,7 @@ from enum import Enum
 
 try:
     import aiohttp
+
     HAS_AIOHTTP = True
 except ImportError:
     HAS_AIOHTTP = False
@@ -42,6 +43,7 @@ except ImportError:
 try:
     from google import genai
     from google.genai import types as genai_types
+
     HAS_GEMINI = True
 except ImportError:
     genai = None
@@ -67,7 +69,7 @@ def _cache_key(query: str, provider: str, model: str) -> str:
     return f"{normalized}:{provider}:{model}"
 
 
-def _get_cached(key: str) -> Optional['DeepResearchResult']:
+def _get_cached(key: str) -> Optional["DeepResearchResult"]:
     """Get cached result if still valid."""
     if key in _deep_research_cache:
         cached_time, result = _deep_research_cache[key]
@@ -79,7 +81,7 @@ def _get_cached(key: str) -> Optional['DeepResearchResult']:
     return None
 
 
-def _set_cached(key: str, result: 'DeepResearchResult'):
+def _set_cached(key: str, result: "DeepResearchResult"):
     """Store result in cache with current timestamp."""
     _deep_research_cache[key] = (time.time(), result)
 
@@ -94,13 +96,14 @@ def get_cache_stats() -> dict:
     """Get cache statistics."""
     now = time.time()
     valid_count = sum(
-        1 for cached_time, _ in _deep_research_cache.values()
+        1
+        for cached_time, _ in _deep_research_cache.values()
         if now - cached_time < CACHE_TTL_SECONDS
     )
     return {
-        'total_entries': len(_deep_research_cache),
-        'valid_entries': valid_count,
-        'ttl_seconds': CACHE_TTL_SECONDS,
+        "total_entries": len(_deep_research_cache),
+        "valid_entries": valid_count,
+        "ttl_seconds": CACHE_TTL_SECONDS,
     }
 
 
@@ -108,12 +111,13 @@ def get_cache_stats() -> dict:
 # RETRY LOGIC (v2.5)
 # =============================================================================
 
+
 async def _retry_with_backoff(
     async_fn,
     max_retries: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 10.0,
-    exceptions: tuple = (Exception,)
+    exceptions: tuple = (Exception,),
 ) -> any:
     """
     Retry an async function with exponential backoff.
@@ -140,7 +144,7 @@ async def _retry_with_backoff(
             last_exception = e
             if attempt < max_retries - 1:
                 # Calculate delay with exponential backoff
-                delay = min(base_delay * (2 ** attempt), max_delay)
+                delay = min(base_delay * (2**attempt), max_delay)
                 await asyncio.sleep(delay)
 
     # All retries exhausted
@@ -149,6 +153,7 @@ async def _retry_with_backoff(
 
 class DeepResearchProvider(Enum):
     """Supported deep research providers."""
+
     PERPLEXITY = "perplexity"
     GEMINI = "gemini"  # Future
 
@@ -156,6 +161,7 @@ class DeepResearchProvider(Enum):
 @dataclass
 class DeepResearchResult:
     """Result from deep research API."""
+
     content: str  # The synthesized research answer
     citations: list[dict]  # List of {url, title, snippet}
     provider: str
@@ -188,14 +194,14 @@ class PerplexityClient:
         if config_path.exists():
             with open(config_path) as f:
                 cfg = json.load(f)
-                return cfg.get('perplexity', {}).get('api_key')
+                return cfg.get("perplexity", {}).get("api_key")
         return None
 
     async def research(
         self,
         query: str,
         model: str = "sonar",  # or "sonar-pro" for deeper research
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
     ) -> DeepResearchResult:
         """
         Execute deep research query via Perplexity API.
@@ -209,10 +215,14 @@ class PerplexityClient:
             DeepResearchResult with content and citations
         """
         if not HAS_AIOHTTP:
-            raise RuntimeError("aiohttp required for deep research. Install with: pip install aiohttp")
+            raise RuntimeError(
+                "aiohttp required for deep research. Install with: pip install aiohttp"
+            )
 
         if not self.api_key:
-            raise ValueError("Perplexity API key not found. Add to ~/.agent-core/config.json under 'perplexity.api_key'")
+            raise ValueError(
+                "Perplexity API key not found. Add to ~/.agent-core/config.json under 'perplexity.api_key'"
+            )
 
         start_time = datetime.now()
 
@@ -235,32 +245,38 @@ class PerplexityClient:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(self.BASE_URL, json=payload, headers=headers) as response:
+            async with session.post(
+                self.BASE_URL, json=payload, headers=headers
+            ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    raise RuntimeError(f"Perplexity API error {response.status}: {error_text}")
+                    raise RuntimeError(
+                        f"Perplexity API error {response.status}: {error_text}"
+                    )
 
                 data = await response.json()
 
         # Parse response
-        choice = data.get('choices', [{}])[0]
-        message = choice.get('message', {})
-        content = message.get('content', '')
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        content = message.get("content", "")
 
         # Extract citations
         citations = []
-        raw_citations = data.get('citations', [])
+        raw_citations = data.get("citations", [])
         for i, url in enumerate(raw_citations):
-            citations.append({
-                'url': url,
-                'title': f"Source {i+1}",  # Perplexity doesn't always return titles
-                'snippet': '',
-            })
+            citations.append(
+                {
+                    "url": url,
+                    "title": f"Source {i + 1}",  # Perplexity doesn't always return titles
+                    "snippet": "",
+                }
+            )
 
         # Calculate timing and cost
         search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-        usage = data.get('usage', {})
-        token_count = usage.get('total_tokens', 0)
+        usage = data.get("usage", {})
+        token_count = usage.get("total_tokens", 0)
 
         # Approximate cost (Perplexity pricing as of 2025)
         cost_per_1k = 0.001 if model == "sonar" else 0.005  # sonar-pro is ~5x
@@ -299,10 +315,10 @@ class GeminiClient:
         import os
 
         # Check environment first (new SDK uses GEMINI_API_KEY or GOOGLE_API_KEY)
-        if os.environ.get('GEMINI_API_KEY'):
-            return os.environ['GEMINI_API_KEY']
-        if os.environ.get('GOOGLE_API_KEY'):
-            return os.environ['GOOGLE_API_KEY']
+        if os.environ.get("GEMINI_API_KEY"):
+            return os.environ["GEMINI_API_KEY"]
+        if os.environ.get("GOOGLE_API_KEY"):
+            return os.environ["GOOGLE_API_KEY"]
 
         # Check config file
         config_path = Path.home() / ".agent-core" / "config.json"
@@ -311,9 +327,9 @@ class GeminiClient:
                 cfg = json.load(f)
                 # Try multiple possible keys
                 return (
-                    cfg.get('gemini', {}).get('api_key') or
-                    cfg.get('google', {}).get('api_key') or
-                    cfg.get('google_ai', {}).get('api_key')
+                    cfg.get("gemini", {}).get("api_key")
+                    or cfg.get("google", {}).get("api_key")
+                    or cfg.get("google_ai", {}).get("api_key")
                 )
         return None
 
@@ -327,7 +343,7 @@ class GeminiClient:
         self,
         query: str,
         model: str = "gemini-2.0-flash",
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
     ) -> DeepResearchResult:
         """
         Execute deep research query via Gemini API with Google Search grounding.
@@ -341,10 +357,14 @@ class GeminiClient:
             DeepResearchResult with content and citations
         """
         if not HAS_GEMINI:
-            raise RuntimeError("google-genai required. Install with: pip install google-genai")
+            raise RuntimeError(
+                "google-genai required. Install with: pip install google-genai"
+            )
 
         if not self.api_key:
-            raise ValueError("Gemini API key not found. Set GOOGLE_API_KEY env var or add to ~/.agent-core/config.json")
+            raise ValueError(
+                "Gemini API key not found. Set GOOGLE_API_KEY env var or add to ~/.agent-core/config.json"
+            )
 
         client = self._get_client()
         if not client:
@@ -368,20 +388,20 @@ Requirements:
         config = genai_types.GenerateContentConfig(
             temperature=0.3,
             max_output_tokens=4096,
-            system_instruction=system_prompt or "You are a research assistant. Provide comprehensive, well-cited answers using search results.",
+            system_instruction=system_prompt
+            or "You are a research assistant. Provide comprehensive, well-cited answers using search results.",
             tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
         )
 
         # Execute (run in thread pool since Gemini SDK is sync)
         import asyncio
+
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
             lambda: client.models.generate_content(
-                model=model,
-                contents=research_prompt,
-                config=config
-            )
+                model=model, contents=research_prompt, config=config
+            ),
         )
 
         # Extract content and grounding metadata
@@ -395,14 +415,14 @@ Requirements:
 
         # Approximate token count from response
         token_count = 0
-        if hasattr(response, 'usage_metadata'):
+        if hasattr(response, "usage_metadata"):
             um = response.usage_metadata
-            token_count = getattr(um, 'total_token_count', 0)
+            token_count = getattr(um, "total_token_count", 0)
 
         # Gemini pricing (approximate as of 2025)
         # Flash: ~$0.075/1M input, ~$0.30/1M output
         # Pro: ~$1.25/1M input, ~$5/1M output
-        if 'flash' in model.lower():
+        if "flash" in model.lower():
             cost_per_1k = 0.0002
         else:
             cost_per_1k = 0.003
@@ -440,49 +460,62 @@ Requirements:
 
         # Method 1: grounding_chunks (primary)
         try:
-            if hasattr(response, 'candidates') and response.candidates:
+            if hasattr(response, "candidates") and response.candidates:
                 candidate = response.candidates[0]
-                if hasattr(candidate, 'grounding_metadata'):
+                if hasattr(candidate, "grounding_metadata"):
                     gm = candidate.grounding_metadata
 
                     # Try grounding_chunks first
-                    if hasattr(gm, 'grounding_chunks') and gm.grounding_chunks:
+                    if hasattr(gm, "grounding_chunks") and gm.grounding_chunks:
                         for chunk in gm.grounding_chunks:
-                            if hasattr(chunk, 'web') and chunk.web:
-                                url = getattr(chunk.web, 'uri', '') or ''
+                            if hasattr(chunk, "web") and chunk.web:
+                                url = getattr(chunk.web, "uri", "") or ""
                                 if url and url not in seen_urls:
                                     seen_urls.add(url)
-                                    citations.append({
-                                        'url': url,
-                                        'title': getattr(chunk.web, 'title', 'Web Source') or 'Web Source',
-                                        'snippet': '',
-                                    })
+                                    citations.append(
+                                        {
+                                            "url": url,
+                                            "title": getattr(
+                                                chunk.web, "title", "Web Source"
+                                            )
+                                            or "Web Source",
+                                            "snippet": "",
+                                        }
+                                    )
         except Exception:
             pass
 
         # Method 2: grounding_supports (inline citations)
         if not citations:
             try:
-                if hasattr(response, 'candidates') and response.candidates:
+                if hasattr(response, "candidates") and response.candidates:
                     candidate = response.candidates[0]
-                    if hasattr(candidate, 'grounding_metadata'):
+                    if hasattr(candidate, "grounding_metadata"):
                         gm = candidate.grounding_metadata
 
-                        if hasattr(gm, 'grounding_supports') and gm.grounding_supports:
+                        if hasattr(gm, "grounding_supports") and gm.grounding_supports:
                             for support in gm.grounding_supports:
                                 # grounding_supports links segments to sources
-                                if hasattr(support, 'grounding_chunk_indices'):
+                                if hasattr(support, "grounding_chunk_indices"):
                                     # References indices in grounding_chunks
                                     pass  # Already handled above
-                                if hasattr(support, 'web') and support.web:
-                                    url = getattr(support.web, 'uri', '') or ''
+                                if hasattr(support, "web") and support.web:
+                                    url = getattr(support.web, "uri", "") or ""
                                     if url and url not in seen_urls:
                                         seen_urls.add(url)
-                                        citations.append({
-                                            'url': url,
-                                            'title': getattr(support.web, 'title', 'Web Source') or 'Web Source',
-                                            'snippet': getattr(support, 'segment', '') or '',
-                                        })
+                                        citations.append(
+                                            {
+                                                "url": url,
+                                                "title": getattr(
+                                                    support.web, "title", "Web Source"
+                                                )
+                                                or "Web Source",
+                                                "snippet": getattr(
+                                                    support, "segment", ""
+                                                )
+                                                or "",
+                                            }
+                                        )
             except Exception:
                 pass
 
@@ -490,28 +523,30 @@ Requirements:
         if not citations and content:
             try:
                 # Find URLs in the response text
-                url_pattern = r'https?://[^\s\)\]\>\"\']+[^\s\.\,\!\?\)\]\>\"\']'
+                url_pattern = r"https?://[^\s\)\]\>\"\']+[^\s\.\,\!\?\)\]\>\"\']"
                 urls = re.findall(url_pattern, content)
 
                 for url in urls[:10]:  # Limit to 10
                     # Clean up common URL artifacts
-                    url = url.rstrip('.,;:')
+                    url = url.rstrip(".,;:")
                     if url and url not in seen_urls:
                         seen_urls.add(url)
                         # Try to extract title from URL
-                        title = 'Web Source'
-                        if 'arxiv.org' in url:
-                            title = 'arXiv Paper'
-                        elif 'github.com' in url:
-                            title = 'GitHub Repository'
-                        elif 'wikipedia.org' in url:
-                            title = 'Wikipedia Article'
+                        title = "Web Source"
+                        if "arxiv.org" in url:
+                            title = "arXiv Paper"
+                        elif "github.com" in url:
+                            title = "GitHub Repository"
+                        elif "wikipedia.org" in url:
+                            title = "Wikipedia Article"
 
-                        citations.append({
-                            'url': url,
-                            'title': title,
-                            'snippet': '',
-                        })
+                        citations.append(
+                            {
+                                "url": url,
+                                "title": title,
+                                "snippet": "",
+                            }
+                        )
             except Exception:
                 pass
 
@@ -542,23 +577,23 @@ def deep_result_to_search_results(result: DeepResearchResult) -> list[SearchResu
 
     # Each citation as additional Tier 1 source
     for i, citation in enumerate(result.citations[:10]):  # Limit to 10
-        url = citation.get('url', '')
+        url = citation.get("url", "")
         if not url:
             continue
 
         # Determine category from URL
         category = SourceCategory.RESEARCH
-        if 'arxiv.org' in url:
+        if "arxiv.org" in url:
             category = SourceCategory.RESEARCH
-        elif 'github.com' in url:
+        elif "github.com" in url:
             category = SourceCategory.GITHUB
-        elif any(site in url for site in ['techcrunch', 'theverge', 'wired']):
+        elif any(site in url for site in ["techcrunch", "theverge", "wired"]):
             category = SourceCategory.INDUSTRY
 
         citation_result = SearchResult(
             url=url,
-            title=citation.get('title', f"Citation {i+1}"),
-            content=citation.get('snippet', ''),
+            title=citation.get("title", f"Citation {i + 1}"),
+            content=citation.get("snippet", ""),
             tier=SourceTier.TIER_1,
             category=category,
             source_name=f"via {result.provider.title()}",
@@ -576,6 +611,7 @@ def deep_result_to_search_results(result: DeepResearchResult) -> list[SearchResu
 
 _perplexity_client: Optional[PerplexityClient] = None
 _gemini_client: Optional[GeminiClient] = None
+
 
 def get_perplexity_client() -> PerplexityClient:
     """Get or create Perplexity client singleton."""
@@ -598,7 +634,7 @@ async def deep_research(
     provider: str = "gemini",  # Default to Gemini since user has account
     model: Optional[str] = None,
     system_prompt: Optional[str] = None,
-    use_cache: bool = True
+    use_cache: bool = True,
 ) -> tuple[DeepResearchResult, list[SearchResult]]:
     """
     Execute deep research and return results ready for CPB pipeline (v2.5 with caching).
@@ -634,10 +670,14 @@ async def deep_research(
     async def _do_research():
         if provider == "perplexity":
             client = get_perplexity_client()
-            return await client.research(query, model=model, system_prompt=system_prompt)
+            return await client.research(
+                query, model=model, system_prompt=system_prompt
+            )
         else:  # gemini
             client = get_gemini_client()
-            return await client.research(query, model=model, system_prompt=system_prompt)
+            return await client.research(
+                query, model=model, system_prompt=system_prompt
+            )
 
     # Retry with exponential backoff
     result = await _retry_with_backoff(
@@ -645,7 +685,7 @@ async def deep_research(
         max_retries=3,
         base_delay=1.0,
         max_delay=10.0,
-        exceptions=(RuntimeError, ValueError, Exception)
+        exceptions=(RuntimeError, ValueError, Exception),
     )
 
     # Cache the result (v2.5)
@@ -662,7 +702,7 @@ async def deep_research_with_fallback(
     preferred_provider: Optional[str] = None,
     model: Optional[str] = None,
     system_prompt: Optional[str] = None,
-    use_cache: bool = True
+    use_cache: bool = True,
 ) -> Tuple[DeepResearchResult, list[SearchResult], str]:
     """
     Execute deep research with automatic provider fallback (v2.5).
@@ -717,9 +757,11 @@ async def deep_research_with_fallback(
             result, search_results = await deep_research(
                 query,
                 provider=provider,
-                model=model if provider == preferred_provider else None,  # Use default model for fallback
+                model=model
+                if provider == preferred_provider
+                else None,  # Use default model for fallback
                 system_prompt=system_prompt,
-                use_cache=use_cache
+                use_cache=use_cache,
             )
             return result, search_results, provider
 
@@ -744,7 +786,10 @@ def check_deep_research_available(provider: str = "gemini") -> tuple[bool, str]:
             return False, "aiohttp not installed. Run: pip install aiohttp"
         client = PerplexityClient()
         if not client.api_key:
-            return False, "Perplexity API key not found. Add to ~/.agent-core/config.json under 'perplexity.api_key'"
+            return (
+                False,
+                "Perplexity API key not found. Add to ~/.agent-core/config.json under 'perplexity.api_key'",
+            )
         return True, "Perplexity ready"
 
     elif provider == "gemini":
@@ -752,7 +797,10 @@ def check_deep_research_available(provider: str = "gemini") -> tuple[bool, str]:
             return False, "google-genai not installed. Run: pip install google-genai"
         client = GeminiClient()
         if not client.api_key:
-            return False, "Gemini API key not found. Set GOOGLE_API_KEY env var or add to ~/.agent-core/config.json under 'gemini.api_key'"
+            return (
+                False,
+                "Gemini API key not found. Set GOOGLE_API_KEY env var or add to ~/.agent-core/config.json under 'gemini.api_key'",
+            )
         return True, "Gemini ready"
 
     return False, f"Unknown provider: {provider}. Use 'gemini' or 'perplexity'"
@@ -775,7 +823,10 @@ def get_best_available_provider() -> tuple[Optional[str], str]:
     if available:
         return "perplexity", msg
 
-    return None, "No deep research provider available. Configure Gemini or Perplexity API key."
+    return (
+        None,
+        "No deep research provider available. Configure Gemini or Perplexity API key.",
+    )
 
 
 # =============================================================================
@@ -786,7 +837,11 @@ if __name__ == "__main__":
     import sys
 
     # Parse args: python -m cpb.deep_research "query" [provider]
-    query = sys.argv[1] if len(sys.argv) > 1 else "What are the latest multi-agent orchestration patterns in 2025?"
+    query = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else "What are the latest multi-agent orchestration patterns in 2025?"
+    )
     provider_arg = sys.argv[2] if len(sys.argv) > 2 else None
 
     print(f"Query: {query}")
@@ -813,7 +868,7 @@ if __name__ == "__main__":
         print(f"Cost: ${result.cost_usd:.4f}")
         print(f"Citations: {len(result.citations)}")
         print(f"\n--- Content ---\n{result.content[:1500]}...")
-        print(f"\n--- Citations ---")
+        print("\n--- Citations ---")
         for c in result.citations[:5]:
             print(f"  - {c.get('title', 'Source')}: {c['url']}")
         print(f"\n--- Search Results for Pipeline: {len(search_results)} ---")

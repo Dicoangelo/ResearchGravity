@@ -27,6 +27,7 @@ SESSIONS_DIR = AGENT_CORE / "sessions"
 # Import critic system for pack validation
 try:
     from critic import PackCritic, run_oracle_consensus, CriticResult
+
     CRITIC_AVAILABLE = True
 except ImportError:
     CRITIC_AVAILABLE = False
@@ -53,14 +54,14 @@ class PackBuilder:
                 "total_packs": 0,
                 "total_size_bytes": 0,
                 "total_size_tokens": 0,
-                "last_updated": datetime.utcnow().isoformat() + "Z"
-            }
+                "last_updated": datetime.utcnow().isoformat() + "Z",
+            },
         }
 
     def _save_registry(self):
         """Save pack registry"""
         self.registry["metadata"]["last_updated"] = datetime.utcnow().isoformat() + "Z"
-        with open(self.registry_path, 'w') as f:
+        with open(self.registry_path, "w") as f:
             json.dump(self.registry, f, indent=2)
 
     def _estimate_tokens(self, text: str) -> int:
@@ -72,9 +73,9 @@ class PackBuilder:
         papers = []
         # Pattern: arXiv:XXXX.XXXXX or [XXXX.XXXXX]
         patterns = [
-            r'arXiv:(\d{4}\.\d{5})',
-            r'\[(\d{4}\.\d{5})\]',
-            r'arxiv\.org/abs/(\d{4}\.\d{5})'
+            r"arXiv:(\d{4}\.\d{5})",
+            r"\[(\d{4}\.\d{5})\]",
+            r"arxiv\.org/abs/(\d{4}\.\d{5})",
         ]
 
         seen = set()
@@ -83,21 +84,37 @@ class PackBuilder:
             for match in matches:
                 if match not in seen:
                     seen.add(match)
-                    papers.append({
-                        "arxiv_id": match,
-                        "relevance": 5  # Default, can be refined
-                    })
+                    papers.append(
+                        {
+                            "arxiv_id": match,
+                            "relevance": 5,  # Default, can be refined
+                        }
+                    )
 
         return papers
 
     def _extract_keywords(self, content: str, top_n: int = 10) -> List[str]:
         """Extract keywords from content"""
         # Simple keyword extraction - get frequent significant words
-        words = re.findall(r'\b[a-z]{4,}\b', content.lower())
+        words = re.findall(r"\b[a-z]{4,}\b", content.lower())
 
         # Filter out common words
-        stopwords = {'that', 'this', 'with', 'from', 'have', 'been', 'were',
-                    'will', 'would', 'could', 'should', 'their', 'there', 'where'}
+        stopwords = {
+            "that",
+            "this",
+            "with",
+            "from",
+            "have",
+            "been",
+            "were",
+            "will",
+            "would",
+            "could",
+            "should",
+            "their",
+            "there",
+            "where",
+        }
         words = [w for w in words if w not in stopwords]
 
         # Count frequencies
@@ -110,10 +127,7 @@ class PackBuilder:
         return [word for word, count in sorted_words[:top_n]]
 
     def create_pack_from_sessions(
-        self,
-        topic: str,
-        since_days: int = 14,
-        pack_type: str = "domain"
+        self, topic: str, since_days: int = 14, pack_type: str = "domain"
     ) -> Optional[str]:
         """Create pack by analyzing recent sessions on a topic"""
 
@@ -134,19 +148,21 @@ class PackBuilder:
                     session_data = json.load(f)
 
                 # Check if session matches topic
-                session_topic = session_data.get('topic', '').lower()
+                session_topic = session_data.get("topic", "").lower()
                 if topic.lower() in session_topic:
                     session_date = datetime.fromisoformat(
-                        session_data['started'].replace('Z', '+00:00')
+                        session_data["started"].replace("Z", "+00:00")
                     )
 
                     if session_date > cutoff:
-                        relevant_sessions.append({
-                            'id': session_data['session_id'],
-                            'topic': session_data['topic'],
-                            'date': session_date,
-                            'path': session_dir
-                        })
+                        relevant_sessions.append(
+                            {
+                                "id": session_data["session_id"],
+                                "topic": session_data["topic"],
+                                "date": session_date,
+                                "path": session_dir,
+                            }
+                        )
             except Exception:
                 continue
 
@@ -164,7 +180,7 @@ class PackBuilder:
 
         for session in relevant_sessions:
             # Try to read session log
-            log_file = session['path'] / "session_log.md"
+            log_file = session["path"] / "session_log.md"
             if log_file.exists():
                 with open(log_file) as f:
                     log_content = f.read()
@@ -174,7 +190,7 @@ class PackBuilder:
                 papers.extend(session_papers)
 
                 # Extract learnings (look for bullet points)
-                learning_lines = re.findall(r'^[-*]\s+(.+)$', log_content, re.MULTILINE)
+                learning_lines = re.findall(r"^[-*]\s+(.+)$", log_content, re.MULTILINE)
                 learnings.extend(learning_lines[:5])  # Top 5 per session
 
                 # Extract keywords
@@ -184,57 +200,57 @@ class PackBuilder:
         # Deduplicate papers
         unique_papers = {}
         for paper in papers:
-            unique_papers[paper['arxiv_id']] = paper
+            unique_papers[paper["arxiv_id"]] = paper
 
         # Deduplicate and rank keywords
         keyword_freq = {}
         for kw in keywords_all:
             keyword_freq[kw] = keyword_freq.get(kw, 0) + 1
-        top_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)[:10]
+        top_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)[
+            :10
+        ]
 
         # Create pack content
         pack_content = {
             "papers": list(unique_papers.values()),
             "learnings": learnings[:10],  # Top 10 learnings
             "implementations": implementations,
-            "keywords": [kw for kw, _ in top_keywords]
+            "keywords": [kw for kw, _ in top_keywords],
         }
 
         # Generate pack ID
-        pack_id = topic.lower().replace(' ', '-').replace('_', '-')
+        pack_id = topic.lower().replace(" ", "-").replace("_", "-")
 
         # Create pack
         pack = self._create_pack(
             pack_id=pack_id,
             pack_type=pack_type,
             content=pack_content,
-            source_sessions=[s['id'] for s in relevant_sessions]
+            source_sessions=[s["id"] for s in relevant_sessions],
         )
 
         # Save pack
         pack_file = self.pack_dir / pack_type / f"{pack_id}.pack.json"
-        with open(pack_file, 'w') as f:
+        with open(pack_file, "w") as f:
             json.dump(pack, f, indent=2)
 
         # Update registry
-        self.registry['packs'][pack_id] = {
-            'type': pack_type,
-            'file': str(pack_file.relative_to(self.pack_dir)),
-            'version': pack['version'],
-            'size_tokens': pack['size_tokens'],
-            'created': pack['created']
+        self.registry["packs"][pack_id] = {
+            "type": pack_type,
+            "file": str(pack_file.relative_to(self.pack_dir)),
+            "version": pack["version"],
+            "size_tokens": pack["size_tokens"],
+            "created": pack["created"],
         }
-        self.registry['metadata']['total_packs'] += 1
-        self.registry['metadata']['total_size_tokens'] += pack['size_tokens']
+        self.registry["metadata"]["total_packs"] += 1
+        self.registry["metadata"]["total_size_tokens"] += pack["size_tokens"]
         self._save_registry()
 
         print(f"✓ Created pack: {pack_id} ({pack['size_tokens']} tokens)")
         return pack_id
 
     def create_pack_from_learnings(
-        self,
-        cluster_by: str = "topic",
-        learnings_file: Optional[Path] = None
+        self, cluster_by: str = "topic", learnings_file: Optional[Path] = None
     ) -> List[str]:
         """Create packs from learnings.md by clustering"""
 
@@ -249,7 +265,7 @@ class PackBuilder:
             content = f.read()
 
         # Parse learnings by date sections
-        sections = re.split(r'^## (\d{4}-\d{2}-\d{2})', content, flags=re.MULTILINE)
+        sections = re.split(r"^## (\d{4}-\d{2}-\d{2})", content, flags=re.MULTILINE)
 
         # Group by topic/keyword
         topic_content = {}
@@ -266,10 +282,12 @@ class PackBuilder:
                     if keyword not in topic_content:
                         topic_content[keyword] = []
 
-                    topic_content[keyword].append({
-                        'date': date,
-                        'content': section_content[:500]  # First 500 chars
-                    })
+                    topic_content[keyword].append(
+                        {
+                            "date": date,
+                            "content": section_content[:500],  # First 500 chars
+                        }
+                    )
 
         # Create pack for each significant topic
         created_packs = []
@@ -282,14 +300,12 @@ class PackBuilder:
         return created_packs
 
     def create_pack_from_topic_cluster(
-        self,
-        topic: str,
-        entries: List[Dict]
+        self, topic: str, entries: List[Dict]
     ) -> Optional[str]:
         """Create pack from clustered topic entries"""
 
         # Aggregate content
-        all_content = "\n".join([e['content'] for e in entries])
+        all_content = "\n".join([e["content"] for e in entries])
 
         # Extract papers
         papers = self._extract_papers_from_content(all_content)
@@ -297,7 +313,7 @@ class PackBuilder:
         # Extract learnings
         learnings = []
         for entry in entries:
-            lines = re.findall(r'^[-*]\s+(.+)$', entry['content'], re.MULTILINE)
+            lines = re.findall(r"^[-*]\s+(.+)$", entry["content"], re.MULTILINE)
             learnings.extend(lines)
 
         # Create pack content
@@ -305,7 +321,7 @@ class PackBuilder:
             "papers": papers[:10],
             "learnings": learnings[:10],
             "implementations": [],
-            "keywords": self._extract_keywords(all_content)
+            "keywords": self._extract_keywords(all_content),
         }
 
         pack_id = f"{topic}-cluster"
@@ -315,40 +331,36 @@ class PackBuilder:
             pack_id=pack_id,
             pack_type="domain",
             content=pack_content,
-            source_sessions=[]
+            source_sessions=[],
         )
 
         pack_file = self.pack_dir / "domain" / f"{pack_id}.pack.json"
-        with open(pack_file, 'w') as f:
+        with open(pack_file, "w") as f:
             json.dump(pack, f, indent=2)
 
         # Update registry
-        self.registry['packs'][pack_id] = {
-            'type': 'domain',
-            'file': str(pack_file.relative_to(self.pack_dir)),
-            'version': pack['version'],
-            'size_tokens': pack['size_tokens'],
-            'created': pack['created']
+        self.registry["packs"][pack_id] = {
+            "type": "domain",
+            "file": str(pack_file.relative_to(self.pack_dir)),
+            "version": pack["version"],
+            "size_tokens": pack["size_tokens"],
+            "created": pack["created"],
         }
-        self.registry['metadata']['total_packs'] += 1
-        self.registry['metadata']['total_size_tokens'] += pack['size_tokens']
+        self.registry["metadata"]["total_packs"] += 1
+        self.registry["metadata"]["total_size_tokens"] += pack["size_tokens"]
         self._save_registry()
 
         print(f"✓ Created cluster pack: {pack_id} ({pack['size_tokens']} tokens)")
         return pack_id
 
     def _create_pack(
-        self,
-        pack_id: str,
-        pack_type: str,
-        content: Dict,
-        source_sessions: List[str]
+        self, pack_id: str, pack_type: str, content: Dict, source_sessions: List[str]
     ) -> Dict:
         """Create pack structure"""
 
         # Serialize content for size calculation
         content_str = json.dumps(content, indent=2)
-        size_bytes = len(content_str.encode('utf-8'))
+        size_bytes = len(content_str.encode("utf-8"))
         size_tokens = self._estimate_tokens(content_str)
 
         pack = {
@@ -364,15 +376,15 @@ class PackBuilder:
                 "base_validity": 0.85,  # Default, will be refined
                 "base_specificity": 0.80,
                 "base_correctness": 0.90,
-                "base_score": 0.85
+                "base_score": 0.85,
             },
             "usage_stats": {
                 "times_selected": 0,
                 "sessions": [],
                 "avg_session_relevance": 0.0,
-                "combined_with": []
+                "combined_with": [],
             },
-            "source_sessions": source_sessions
+            "source_sessions": source_sessions,
         }
 
         return pack
@@ -383,7 +395,7 @@ class PackBuilder:
         pack_type: str,
         papers: List[str] = None,
         learnings: List[str] = None,
-        keywords: List[str] = None
+        keywords: List[str] = None,
     ) -> str:
         """Manually create a pack"""
 
@@ -391,31 +403,28 @@ class PackBuilder:
             "papers": [{"arxiv_id": p, "relevance": 5} for p in (papers or [])],
             "learnings": learnings or [],
             "implementations": [],
-            "keywords": keywords or []
+            "keywords": keywords or [],
         }
 
         pack = self._create_pack(
-            pack_id=pack_id,
-            pack_type=pack_type,
-            content=content,
-            source_sessions=[]
+            pack_id=pack_id, pack_type=pack_type, content=content, source_sessions=[]
         )
 
         # Save pack
         pack_file = self.pack_dir / pack_type / f"{pack_id}.pack.json"
-        with open(pack_file, 'w') as f:
+        with open(pack_file, "w") as f:
             json.dump(pack, f, indent=2)
 
         # Update registry
-        self.registry['packs'][pack_id] = {
-            'type': pack_type,
-            'file': str(pack_file.relative_to(self.pack_dir)),
-            'version': pack['version'],
-            'size_tokens': pack['size_tokens'],
-            'created': pack['created']
+        self.registry["packs"][pack_id] = {
+            "type": pack_type,
+            "file": str(pack_file.relative_to(self.pack_dir)),
+            "version": pack["version"],
+            "size_tokens": pack["size_tokens"],
+            "created": pack["created"],
         }
-        self.registry['metadata']['total_packs'] += 1
-        self.registry['metadata']['total_size_tokens'] += pack['size_tokens']
+        self.registry["metadata"]["total_packs"] += 1
+        self.registry["metadata"]["total_size_tokens"] += pack["size_tokens"]
         self._save_registry()
 
         print(f"✓ Created manual pack: {pack_id} ({pack['size_tokens']} tokens)")
@@ -441,7 +450,7 @@ class PackBuilder:
 
         # Find pack file
         pack_file = None
-        for pack_type in ['domain', 'project', 'pattern', 'paper']:
+        for pack_type in ["domain", "project", "pattern", "paper"]:
             candidate = self.pack_dir / pack_type / f"{pack_id}.pack.json"
             if candidate.exists():
                 pack_file = candidate
@@ -462,14 +471,16 @@ class PackBuilder:
 
         # Run Oracle consensus validation
         critic = PackCritic()
-        consensus = run_oracle_consensus(critic, {"pack": pack_data, "pack_id": pack_id})
+        consensus = run_oracle_consensus(
+            critic, {"pack": pack_data, "pack_id": pack_id}
+        )
 
         result = {
             "pack_id": pack_id,
             "approved": consensus.approved,
             "confidence": consensus.confidence,
             "issues": consensus.issues,
-            "summary": consensus.summary
+            "summary": consensus.summary,
         }
 
         if verbose:
@@ -484,7 +495,7 @@ class PackBuilder:
 
         # Save validation result
         validation_file = pack_file.parent / f"{pack_id}.validation.json"
-        with open(validation_file, 'w') as f:
+        with open(validation_file, "w") as f:
             json.dump(result, f, indent=2)
 
         return result
@@ -493,7 +504,7 @@ class PackBuilder:
         """Validate all packs and return summary."""
         results = {"approved": 0, "rejected": 0, "total": 0, "packs": {}}
 
-        for pack_id in self.registry['packs']:
+        for pack_id in self.registry["packs"]:
             result = self.validate_pack(pack_id, verbose=verbose)
             if result:
                 results["total"] += 1
@@ -511,8 +522,10 @@ class PackBuilder:
         print(f"Total tokens: {self.registry['metadata']['total_size_tokens']:,}")
         print("\nPacks:")
 
-        for pack_id, pack_info in self.registry['packs'].items():
-            print(f"  {pack_id:40s} | {pack_info['type']:10s} | {pack_info['size_tokens']:6d} tokens")
+        for pack_id, pack_info in self.registry["packs"].items():
+            print(
+                f"  {pack_id:40s} | {pack_info['type']:10s} | {pack_info['size_tokens']:6d} tokens"
+            )
 
 
 def main():
@@ -521,79 +534,55 @@ def main():
     )
 
     parser.add_argument(
-        '--source',
-        choices=['sessions', 'learnings', 'manual'],
-        help="Source to build packs from"
+        "--source",
+        choices=["sessions", "learnings", "manual"],
+        help="Source to build packs from",
     )
 
     parser.add_argument(
-        '--topic',
-        help="Topic to create pack for (when source=sessions)"
+        "--topic", help="Topic to create pack for (when source=sessions)"
     )
 
     parser.add_argument(
-        '--since',
-        type=int,
-        default=14,
-        help="Days to look back (default: 14)"
+        "--since", type=int, default=14, help="Days to look back (default: 14)"
     )
 
     parser.add_argument(
-        '--cluster-by',
-        default='topic',
-        choices=['topic', 'date'],
-        help="How to cluster learnings"
+        "--cluster-by",
+        default="topic",
+        choices=["topic", "date"],
+        help="How to cluster learnings",
     )
 
-    parser.add_argument(
-        '--create',
-        action='store_true',
-        help="Create manual pack"
-    )
+    parser.add_argument("--create", action="store_true", help="Create manual pack")
 
     parser.add_argument(
-        '--type',
-        choices=['domain', 'project', 'pattern', 'paper'],
-        default='domain',
-        help="Pack type"
+        "--type",
+        choices=["domain", "project", "pattern", "paper"],
+        default="domain",
+        help="Pack type",
     )
 
-    parser.add_argument(
-        '--name',
-        help="Pack name/ID"
-    )
+    parser.add_argument("--name", help="Pack name/ID")
+
+    parser.add_argument("--papers", help="Comma-separated arXiv IDs")
+
+    parser.add_argument("--keywords", help="Comma-separated keywords")
+
+    parser.add_argument("--list", action="store_true", help="List all packs")
 
     parser.add_argument(
-        '--papers',
-        help="Comma-separated arXiv IDs"
+        "--validate",
+        action="store_true",
+        help="Validate pack(s) using Writer-Critic system",
     )
 
-    parser.add_argument(
-        '--keywords',
-        help="Comma-separated keywords"
-    )
+    parser.add_argument("--pack", help="Pack ID to validate (with --validate)")
 
     parser.add_argument(
-        '--list',
-        action='store_true',
-        help="List all packs"
-    )
-
-    parser.add_argument(
-        '--validate',
-        action='store_true',
-        help="Validate pack(s) using Writer-Critic system"
-    )
-
-    parser.add_argument(
-        '--pack',
-        help="Pack ID to validate (with --validate)"
-    )
-
-    parser.add_argument(
-        '--skip-validation',
-        action='store_true',
-        help="Skip validation after pack creation"
+        "--skip-validation",
+        action="store_true",
+        help="Skip validation after pack creation",
     )
 
     args = parser.parse_args()
@@ -623,14 +612,11 @@ def main():
             print("Error: --name required for manual pack creation")
             return
 
-        papers = args.papers.split(',') if args.papers else []
-        keywords = args.keywords.split(',') if args.keywords else []
+        papers = args.papers.split(",") if args.papers else []
+        keywords = args.keywords.split(",") if args.keywords else []
 
         pack_id = builder.create_manual_pack(
-            pack_id=args.name,
-            pack_type=args.type,
-            papers=papers,
-            keywords=keywords
+            pack_id=args.name, pack_type=args.type, papers=papers, keywords=keywords
         )
 
         # Auto-validate unless skipped
@@ -638,15 +624,13 @@ def main():
             print("\n🔎 Running validation...")
             builder.validate_pack(pack_id, verbose=True)
 
-    elif args.source == 'sessions':
+    elif args.source == "sessions":
         if not args.topic:
             print("Error: --topic required when source=sessions")
             return
 
         pack_id = builder.create_pack_from_sessions(
-            topic=args.topic,
-            since_days=args.since,
-            pack_type=args.type
+            topic=args.topic, since_days=args.since, pack_type=args.type
         )
 
         # Auto-validate unless skipped
@@ -654,7 +638,7 @@ def main():
             print("\n🔎 Running validation...")
             builder.validate_pack(pack_id, verbose=True)
 
-    elif args.source == 'learnings':
+    elif args.source == "learnings":
         pack_ids = builder.create_pack_from_learnings(cluster_by=args.cluster_by)
 
         # Auto-validate unless skipped
@@ -667,5 +651,5 @@ def main():
         parser.print_help()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

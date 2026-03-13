@@ -74,8 +74,13 @@ class ExecutionResult:
     """Result of a subtask execution."""
 
     __slots__ = (
-        "subtask_id", "agent_id", "success", "output",
-        "error", "duration", "timestamp",
+        "subtask_id",
+        "agent_id",
+        "success",
+        "output",
+        "error",
+        "duration",
+        "timestamp",
     )
 
     def __init__(
@@ -238,9 +243,7 @@ class SubtaskExecutor:
             mod = importlib.import_module(module_path)
             handler = getattr(mod, "handle_tool", None)
             if handler is None:
-                raise ImportError(
-                    f"Module {module_path} has no handle_tool function"
-                )
+                raise ImportError(f"Module {module_path} has no handle_tool function")
             self._module_cache[module_path] = handler
         return self._module_cache[module_path]
 

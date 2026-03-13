@@ -11,8 +11,12 @@ import re
 import hashlib
 from typing import Dict, Any, Optional
 from .types import (
-    CPBPath, CPBConfig, PathSignals, RoutingDecision, PathAlternative,
-    DEFAULT_CPB_CONFIG
+    CPBPath,
+    CPBConfig,
+    PathSignals,
+    RoutingDecision,
+    PathAlternative,
+    DEFAULT_CPB_CONFIG,
 )
 
 
@@ -21,48 +25,48 @@ from .types import (
 # =============================================================================
 
 CODE_PATTERNS = re.compile(
-    r'\b(implement|refactor|debug|function|class|api|code|typescript|'
-    r'javascript|python|rust|write a|create a function|fix the bug|'
-    r'generate code)\b',
-    re.IGNORECASE
+    r"\b(implement|refactor|debug|function|class|api|code|typescript|"
+    r"javascript|python|rust|write a|create a function|fix the bug|"
+    r"generate code)\b",
+    re.IGNORECASE,
 )
 
 REASONING_PATTERNS = re.compile(
-    r'\b(why|analyze|compare|trade-?off|design|architect|explain|evaluate|'
-    r'assess|consider|think about|what if|implications|consequences)\b',
-    re.IGNORECASE
+    r"\b(why|analyze|compare|trade-?off|design|architect|explain|evaluate|"
+    r"assess|consider|think about|what if|implications|consequences)\b",
+    re.IGNORECASE,
 )
 
 CREATIVE_PATTERNS = re.compile(
-    r'\b(brainstorm|imagine|creative|novel|idea|invent|suggest|propose|'
-    r'alternative|what could|dream up)\b',
-    re.IGNORECASE
+    r"\b(brainstorm|imagine|creative|novel|idea|invent|suggest|propose|"
+    r"alternative|what could|dream up)\b",
+    re.IGNORECASE,
 )
 
 NAVIGATION_PATTERNS = re.compile(
-    r'\b(go to|navigate|open|show me|take me|switch to|display|view|'
-    r'see|look at|pull up)\b',
-    re.IGNORECASE
+    r"\b(go to|navigate|open|show me|take me|switch to|display|view|"
+    r"see|look at|pull up)\b",
+    re.IGNORECASE,
 )
 
 QUESTION_PATTERNS = re.compile(
-    r'\b(what is|who is|where is|when did|how do|can you|could you|'
-    r'would you|is there|are there)\b',
-    re.IGNORECASE
+    r"\b(what is|who is|where is|when did|how do|can you|could you|"
+    r"would you|is there|are there)\b",
+    re.IGNORECASE,
 )
 
 DEEP_DOMAIN_PATTERNS = re.compile(
-    r'\b(architecture|system design|multi-agent|consensus|orchestration|'
-    r'distributed|scalability|performance optimization|security audit|'
-    r'research synthesis|state machine)\b',
-    re.IGNORECASE
+    r"\b(architecture|system design|multi-agent|consensus|orchestration|"
+    r"distributed|scalability|performance optimization|security audit|"
+    r"research synthesis|state machine)\b",
+    re.IGNORECASE,
 )
 
 CONSENSUS_PATTERNS = re.compile(
-    r'\b(best approach|trade-?offs|pros and cons|should we|recommend|'
-    r'decision|choose|select|evaluate options|compare approaches|'
-    r'critical|important)\b',
-    re.IGNORECASE
+    r"\b(best approach|trade-?offs|pros and cons|should we|recommend|"
+    r"decision|choose|select|evaluate options|compare approaches|"
+    r"critical|important)\b",
+    re.IGNORECASE,
 )
 
 
@@ -70,21 +74,24 @@ CONSENSUS_PATTERNS = re.compile(
 # COMPLEXITY SIGNALS
 # =============================================================================
 
-def extract_complexity_signals(query: str, context: Optional[str] = None) -> Dict[str, Any]:
+
+def extract_complexity_signals(
+    query: str, context: Optional[str] = None
+) -> Dict[str, Any]:
     """Extract complexity signals from a query"""
     tokens = query.strip().split()
     full_text = f"{query} {context or ''}"
 
     return {
-        'token_count': len(tokens),
-        'context_length': len(context) if context else 0,
-        'has_code_indicators': bool(CODE_PATTERNS.search(query)),
-        'has_reasoning_indicators': bool(REASONING_PATTERNS.search(query)),
-        'has_creative_indicators': bool(CREATIVE_PATTERNS.search(query)),
-        'has_navigation_indicators': bool(NAVIGATION_PATTERNS.search(query)),
-        'has_question_indicators': bool(QUESTION_PATTERNS.search(query)),
-        'has_consensus_indicators': bool(CONSENSUS_PATTERNS.search(query)),
-        'domain_complexity': 0.3 if DEEP_DOMAIN_PATTERNS.search(full_text) else 0,
+        "token_count": len(tokens),
+        "context_length": len(context) if context else 0,
+        "has_code_indicators": bool(CODE_PATTERNS.search(query)),
+        "has_reasoning_indicators": bool(REASONING_PATTERNS.search(query)),
+        "has_creative_indicators": bool(CREATIVE_PATTERNS.search(query)),
+        "has_navigation_indicators": bool(NAVIGATION_PATTERNS.search(query)),
+        "has_question_indicators": bool(QUESTION_PATTERNS.search(query)),
+        "has_consensus_indicators": bool(CONSENSUS_PATTERNS.search(query)),
+        "domain_complexity": 0.3 if DEEP_DOMAIN_PATTERNS.search(full_text) else 0,
     }
 
 
@@ -98,40 +105,40 @@ def calculate_complexity_score(signals: Dict[str, Any]) -> float:
     score = 0.0
 
     # Token count factor (longer = more complex, up to 0.25)
-    score += min(signals['token_count'] / 100, 0.25)
+    score += min(signals["token_count"] / 100, 0.25)
 
     # Context length factor (larger context = more complex)
-    if signals['context_length'] > 10000:
+    if signals["context_length"] > 10000:
         score += 0.15
-    elif signals['context_length'] > 5000:
+    elif signals["context_length"] > 5000:
         score += 0.08
 
     # Code indicators (moderately complex)
-    if signals['has_code_indicators']:
+    if signals["has_code_indicators"]:
         score += 0.25
 
     # Reasoning indicators (complex)
-    if signals['has_reasoning_indicators']:
+    if signals["has_reasoning_indicators"]:
         score += 0.2
 
     # Creative indicators (moderately complex)
-    if signals['has_creative_indicators']:
+    if signals["has_creative_indicators"]:
         score += 0.15
 
     # Consensus indicators (requires multi-perspective)
-    if signals['has_consensus_indicators']:
+    if signals["has_consensus_indicators"]:
         score += 0.2
 
     # Navigation indicators (reduce complexity - should be fast)
-    if signals['has_navigation_indicators']:
+    if signals["has_navigation_indicators"]:
         score -= 0.3
 
     # Simple questions (reduce complexity slightly)
-    if signals['has_question_indicators'] and not signals['has_reasoning_indicators']:
+    if signals["has_question_indicators"] and not signals["has_reasoning_indicators"]:
         score -= 0.1
 
     # Domain complexity boost
-    score += signals['domain_complexity']
+    score += signals["domain_complexity"]
 
     # Clamp to [0, 1]
     return max(0.0, min(score, 1.0))
@@ -141,10 +148,9 @@ def calculate_complexity_score(signals: Dict[str, Any]) -> float:
 # PATH SELECTION
 # =============================================================================
 
+
 def select_path(
-    query: str,
-    context: Optional[str] = None,
-    config: CPBConfig = DEFAULT_CPB_CONFIG
+    query: str, context: Optional[str] = None, config: CPBConfig = DEFAULT_CPB_CONFIG
 ) -> RoutingDecision:
     """
     Select optimal CPB execution path based on query analysis.
@@ -163,11 +169,11 @@ def select_path(
     signals = PathSignals(
         context_length=context_length,
         query_complexity=complexity,
-        requires_consensus=signals_dict['has_consensus_indicators'],
-        requires_reasoning=signals_dict['has_reasoning_indicators'],
+        requires_consensus=signals_dict["has_consensus_indicators"],
+        requires_reasoning=signals_dict["has_reasoning_indicators"],
         has_ground_truth=False,  # Could be enhanced with knowledge base check
         time_budget_ms=config.hybrid_path_ms,
-        quality_target=config.dq_threshold
+        quality_target=config.dq_threshold,
     )
 
     # ELITE TIER: Path selection with lower thresholds
@@ -177,57 +183,79 @@ def select_path(
     # Direct path - only for truly simple queries
     if complexity < 0.2 and context_length < config.context_threshold // 4:
         selected_path = CPBPath.DIRECT
-        reasoning_parts.append(f"Low complexity ({complexity:.2f}) with minimal context")
-        alternatives.append(PathAlternative(
-            path=CPBPath.RLM,
-            score=complexity + 0.1,
-            tradeoff="Would add ~2s latency for marginal quality gain"
-        ))
+        reasoning_parts.append(
+            f"Low complexity ({complexity:.2f}) with minimal context"
+        )
+        alternatives.append(
+            PathAlternative(
+                path=CPBPath.RLM,
+                score=complexity + 0.1,
+                tradeoff="Would add ~2s latency for marginal quality gain",
+            )
+        )
 
     # RLM path - for context-heavy but straightforward queries
     elif context_length > config.context_threshold or (0.2 <= complexity < 0.5):
         if context_length > config.context_threshold:
             selected_path = CPBPath.RLM
-            reasoning_parts.append(f"Large context ({context_length:,} chars) requires compression")
+            reasoning_parts.append(
+                f"Large context ({context_length:,} chars) requires compression"
+            )
         else:
             selected_path = CPBPath.RLM
-            reasoning_parts.append(f"Moderate complexity ({complexity:.2f}) benefits from RLM decomposition")
+            reasoning_parts.append(
+                f"Moderate complexity ({complexity:.2f}) benefits from RLM decomposition"
+            )
 
-        alternatives.append(PathAlternative(
-            path=CPBPath.ACE,
-            score=complexity + 0.15,
-            tradeoff="Would enable consensus but increase latency"
-        ))
+        alternatives.append(
+            PathAlternative(
+                path=CPBPath.ACE,
+                score=complexity + 0.15,
+                tradeoff="Would enable consensus but increase latency",
+            )
+        )
 
     # ACE path - for queries requiring consensus
     elif signals.requires_consensus or (0.5 <= complexity < 0.7):
         selected_path = CPBPath.ACE
-        reasoning_parts.append(f"Consensus indicators or moderate-high complexity ({complexity:.2f})")
-        alternatives.append(PathAlternative(
-            path=CPBPath.HYBRID,
-            score=complexity + 0.1,
-            tradeoff="Would add RLM preprocessing for fuller analysis"
-        ))
+        reasoning_parts.append(
+            f"Consensus indicators or moderate-high complexity ({complexity:.2f})"
+        )
+        alternatives.append(
+            PathAlternative(
+                path=CPBPath.HYBRID,
+                score=complexity + 0.1,
+                tradeoff="Would add RLM preprocessing for fuller analysis",
+            )
+        )
 
     # Hybrid path - for complex queries with context
     elif complexity >= 0.7 and context_length > 5000:
         selected_path = CPBPath.HYBRID
-        reasoning_parts.append(f"High complexity ({complexity:.2f}) with substantial context")
-        alternatives.append(PathAlternative(
-            path=CPBPath.CASCADE,
-            score=complexity + 0.05,
-            tradeoff="Would add verification pass for maximum quality"
-        ))
+        reasoning_parts.append(
+            f"High complexity ({complexity:.2f}) with substantial context"
+        )
+        alternatives.append(
+            PathAlternative(
+                path=CPBPath.CASCADE,
+                score=complexity + 0.05,
+                tradeoff="Would add verification pass for maximum quality",
+            )
+        )
 
     # Cascade path - for expert-level queries
-    elif complexity >= 0.7 or signals_dict['domain_complexity'] > 0:
+    elif complexity >= 0.7 or signals_dict["domain_complexity"] > 0:
         selected_path = CPBPath.CASCADE
-        reasoning_parts.append(f"Expert-level complexity ({complexity:.2f}) or domain expertise required")
-        alternatives.append(PathAlternative(
-            path=CPBPath.HYBRID,
-            score=complexity - 0.05,
-            tradeoff="Would skip verification for faster response"
-        ))
+        reasoning_parts.append(
+            f"Expert-level complexity ({complexity:.2f}) or domain expertise required"
+        )
+        alternatives.append(
+            PathAlternative(
+                path=CPBPath.HYBRID,
+                score=complexity - 0.05,
+                tradeoff="Would skip verification for faster response",
+            )
+        )
 
     # Default to config's default path
     else:
@@ -240,8 +268,10 @@ def select_path(
         selected_path=selected_path,
         signals=signals,
         reasoning=reasoning,
-        confidence=min(100, int((1 - abs(complexity - 0.5)) * 100)),  # Higher confidence near extremes
-        alternatives=alternatives
+        confidence=min(
+            100, int((1 - abs(complexity - 0.5)) * 100)
+        ),  # Higher confidence near extremes
+        alternatives=alternatives,
     )
 
 
@@ -261,17 +291,17 @@ def analyze_query(query: str, context: Optional[str] = None) -> Dict[str, Any]:
     decision = select_path(query, context)
 
     return {
-        'query': query[:100] + '...' if len(query) > 100 else query,
-        'context_length': len(context) if context else 0,
-        'signals': signals,
-        'complexity_score': complexity,
-        'selected_path': decision.selected_path.value,
-        'reasoning': decision.reasoning,
-        'confidence': decision.confidence,
-        'alternatives': [
-            {'path': a.path.value, 'score': a.score, 'tradeoff': a.tradeoff}
+        "query": query[:100] + "..." if len(query) > 100 else query,
+        "context_length": len(context) if context else 0,
+        "signals": signals,
+        "complexity_score": complexity,
+        "selected_path": decision.selected_path.value,
+        "reasoning": decision.reasoning,
+        "confidence": decision.confidence,
+        "alternatives": [
+            {"path": a.path.value, "score": a.score, "tradeoff": a.tradeoff}
             for a in decision.alternatives
-        ]
+        ],
     }
 
 
@@ -285,6 +315,7 @@ def hash_query(query: str, context: Optional[str] = None) -> str:
 # TIER CLASSIFICATION (Voice Nexus compatible)
 # =============================================================================
 
+
 def get_reasoning_tier(complexity: float) -> str:
     """
     Map complexity score to reasoning tier.
@@ -293,10 +324,10 @@ def get_reasoning_tier(complexity: float) -> str:
     ELITE TIER: Lower thresholds
     """
     if complexity < 0.2:
-        return 'fast'
+        return "fast"
     if complexity < 0.5:
-        return 'balanced'
-    return 'deep'
+        return "balanced"
+    return "deep"
 
 
 def get_model_recommendation(complexity: float) -> str:
@@ -306,22 +337,16 @@ def get_model_recommendation(complexity: float) -> str:
     ELITE TIER: Opus-first for anything non-trivial
     """
     if complexity < 0.2:
-        return 'claude-sonnet'  # ELITE: Sonnet even for fast tier
+        return "claude-sonnet"  # ELITE: Sonnet even for fast tier
     if complexity < 0.5:
-        return 'claude-opus'    # ELITE: Opus for balanced
-    return 'claude-opus'        # ELITE: Opus for deep
+        return "claude-opus"  # ELITE: Opus for balanced
+    return "claude-opus"  # ELITE: Opus for deep
 
 
 # =============================================================================
 # COMPLEXITY THRESHOLDS
 # =============================================================================
 
-STANDARD_THRESHOLDS = {
-    'balanced': 0.4,
-    'deep': 0.75
-}
+STANDARD_THRESHOLDS = {"balanced": 0.4, "deep": 0.75}
 
-ELITE_THRESHOLDS = {
-    'balanced': 0.2,
-    'deep': 0.5
-}
+ELITE_THRESHOLDS = {"balanced": 0.2, "deep": 0.5}

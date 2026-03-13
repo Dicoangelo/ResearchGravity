@@ -29,25 +29,25 @@ SESSIONS_DIR = AGENT_CORE_DIR / "sessions"
 
 # Confidence calculation weights
 WEIGHTS = {
-    "source_count": 0.25,      # More sources = higher confidence
-    "source_quality": 0.30,    # Tier 1 sources weighted higher
+    "source_count": 0.25,  # More sources = higher confidence
+    "source_quality": 0.30,  # Tier 1 sources weighted higher
     "source_diversity": 0.20,  # Different domains = more robust
-    "freshness": 0.15,         # Recent sources preferred
-    "verification": 0.10,      # Critic-validated sources
+    "freshness": 0.15,  # Recent sources preferred
+    "verification": 0.10,  # Critic-validated sources
 }
 
 # Quality multipliers by source type
 QUALITY_MULTIPLIERS = {
-    "arxiv": 1.0,              # Academic papers - highest
-    "openai": 0.95,            # Major AI labs
+    "arxiv": 1.0,  # Academic papers - highest
+    "openai": 0.95,  # Major AI labs
     "anthropic": 0.95,
     "deepmind": 0.95,
     "google_ai": 0.90,
     "meta_ai": 0.90,
-    "github": 0.70,            # Code repos - need verification
-    "huggingface": 0.80,       # ML-specific
-    "blog": 0.50,              # Blogs/news - lower
-    "unknown": 0.30,           # Unknown sources
+    "github": 0.70,  # Code repos - need verification
+    "huggingface": 0.80,  # ML-specific
+    "blog": 0.50,  # Blogs/news - lower
+    "unknown": 0.30,  # Unknown sources
 }
 
 
@@ -97,6 +97,7 @@ def calculate_source_count_score(sources: list, max_sources: int = 5) -> float:
     count = len(sources)
     # Log scaling with max at ~5 sources
     import math
+
     score = min(1.0, math.log(count + 1) / math.log(max_sources + 1))
     return score
 
@@ -211,10 +212,7 @@ def calculate_confidence(evidence: dict) -> dict:
     }
 
     # Calculate weighted overall score
-    overall = sum(
-        components[key] * WEIGHTS[key]
-        for key in WEIGHTS
-    )
+    overall = sum(components[key] * WEIGHTS[key] for key in WEIGHTS)
 
     # Apply reasoning chain bonus (if present)
     reasoning_chain = evidence.get("reasoning_chain", [])
@@ -227,7 +225,9 @@ def calculate_confidence(evidence: dict) -> dict:
         "overall": round(overall, 3),
         "components": {k: round(v, 3) for k, v in components.items()},
         "source_count": len(sources),
-        "source_types": dict(Counter(classify_source_type(s.get("url", "")) for s in sources)),
+        "source_types": dict(
+            Counter(classify_source_type(s.get("url", "")) for s in sources)
+        ),
         "verified_count": sum(1 for s in sources if s.get("verified", False)),
     }
 
@@ -300,7 +300,9 @@ def score_session(session_id: str, update_file: bool = False) -> dict:
     stats = {
         "session_id": session_id,
         "findings_scored": len(confidence_scores),
-        "avg_confidence": sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0,
+        "avg_confidence": sum(confidence_scores) / len(confidence_scores)
+        if confidence_scores
+        else 0,
         "min_confidence": min(confidence_scores) if confidence_scores else 0,
         "max_confidence": max(confidence_scores) if confidence_scores else 0,
         "below_threshold": sum(1 for c in confidence_scores if c < 0.7),
@@ -358,7 +360,7 @@ def get_overall_stats() -> dict:
             "0.5-0.7": sum(1 for c in all_confidences if 0.5 <= c < 0.7),
             "0.7-0.9": sum(1 for c in all_confidences if 0.7 <= c < 0.9),
             "0.9-1.0": sum(1 for c in all_confidences if c >= 0.9),
-        }
+        },
     }
 
 
@@ -366,14 +368,17 @@ def main():
     parser = argparse.ArgumentParser(
         description="Calculate confidence scores for findings"
     )
-    parser.add_argument("--session", "-s",
-                        help="Score specific session")
-    parser.add_argument("--update", "-u", action="store_true",
-                        help="Update findings file with new scores")
-    parser.add_argument("--stats", action="store_true",
-                        help="Show overall statistics")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Show detailed output")
+    parser.add_argument("--session", "-s", help="Score specific session")
+    parser.add_argument(
+        "--update",
+        "-u",
+        action="store_true",
+        help="Update findings file with new scores",
+    )
+    parser.add_argument("--stats", action="store_true", help="Show overall statistics")
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show detailed output"
+    )
 
     args = parser.parse_args()
 
@@ -389,12 +394,18 @@ def main():
             print(f"   Total findings scored: {stats['total_findings']}")
             print(f"   Sessions with evidence: {stats['sessions_with_evidence']}")
             print(f"   Average confidence: {stats['avg_confidence']:.3f}")
-            print(f"   Min/Max: {stats['min_confidence']:.3f} / {stats['max_confidence']:.3f}")
+            print(
+                f"   Min/Max: {stats['min_confidence']:.3f} / {stats['max_confidence']:.3f}"
+            )
             print(f"   Below 0.7 threshold: {stats['below_threshold_70']}")
             print(f"   Below 0.5 threshold: {stats['below_threshold_50']}")
             print("\n   Distribution:")
             for bucket, count in stats["distribution"].items():
-                bar = "█" * int(count / max(stats["distribution"].values()) * 20) if stats["distribution"].values() else ""
+                bar = (
+                    "█" * int(count / max(stats["distribution"].values()) * 20)
+                    if stats["distribution"].values()
+                    else ""
+                )
                 print(f"     {bucket}: {count:4d} {bar}")
 
     elif args.session:
@@ -405,7 +416,9 @@ def main():
             print(f"\n✅ Session: {stats['session_id'][:50]}")
             print(f"   Findings scored: {stats['findings_scored']}")
             print(f"   Average confidence: {stats['avg_confidence']:.3f}")
-            print(f"   Min/Max: {stats['min_confidence']:.3f} / {stats['max_confidence']:.3f}")
+            print(
+                f"   Min/Max: {stats['min_confidence']:.3f} / {stats['max_confidence']:.3f}"
+            )
             print(f"   Below threshold (0.7): {stats['below_threshold']}")
             if args.update:
                 print(f"   Updated: {stats.get('output_file', 'N/A')}")

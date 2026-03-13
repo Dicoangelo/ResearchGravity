@@ -21,7 +21,9 @@ import time
 async def test_handshake():
     """Test that the MCP handshake completes within timeout."""
     proc = await asyncio.create_subprocess_exec(
-        sys.executable, "-m", "mcp_raw",
+        sys.executable,
+        "-m",
+        "mcp_raw",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -39,16 +41,21 @@ async def test_handshake():
     try:
         # Step 1: Send initialize
         t0 = time.monotonic()
-        init_msg = json.dumps({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "timing-test", "version": "1.0"},
-            },
-        }) + "\n"
+        init_msg = (
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "timing-test", "version": "1.0"},
+                    },
+                }
+            )
+            + "\n"
+        )
         proc.stdin.write(init_msg.encode())
         await proc.stdin.drain()
 
@@ -60,15 +67,24 @@ async def test_handshake():
         results["initialize"] = {
             "time_ms": round(init_time * 1000, 1),
             "ok": "result" in init_resp,
-            "server": init_resp.get("result", {}).get("serverInfo", {}).get("name", "?"),
+            "server": init_resp.get("result", {})
+            .get("serverInfo", {})
+            .get("name", "?"),
         }
-        print(f"  initialize: {init_time*1000:.1f}ms {'PASS' if init_time < 2.0 else 'FAIL (>2s)'}")
+        print(
+            f"  initialize: {init_time * 1000:.1f}ms {'PASS' if init_time < 2.0 else 'FAIL (>2s)'}"
+        )
 
         # Step 2: Send initialized notification (no response expected)
-        notif_msg = json.dumps({
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-        }) + "\n"
+        notif_msg = (
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "notifications/initialized",
+                }
+            )
+            + "\n"
+        )
         proc.stdin.write(notif_msg.encode())
         await proc.stdin.drain()
 
@@ -77,12 +93,17 @@ async def test_handshake():
 
         # Step 3: Send tools/list
         t2 = time.monotonic()
-        tools_msg = json.dumps({
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "tools/list",
-            "params": {},
-        }) + "\n"
+        tools_msg = (
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/list",
+                    "params": {},
+                }
+            )
+            + "\n"
+        )
         proc.stdin.write(tools_msg.encode())
         await proc.stdin.drain()
 
@@ -96,11 +117,15 @@ async def test_handshake():
             "time_ms": round(tools_time * 1000, 1),
             "tool_count": tool_count,
         }
-        print(f"  tools/list: {tools_time*1000:.1f}ms — {tool_count} tools {'PASS' if tools_time < 2.0 else 'FAIL (>2s)'}")
+        print(
+            f"  tools/list: {tools_time * 1000:.1f}ms — {tool_count} tools {'PASS' if tools_time < 2.0 else 'FAIL (>2s)'}"
+        )
 
         total_time = t3 - t0
         results["total"] = {"time_ms": round(total_time * 1000, 1)}
-        print(f"  total handshake: {total_time*1000:.1f}ms {'PASS' if total_time < 3.0 else 'FAIL (>3s)'}")
+        print(
+            f"  total handshake: {total_time * 1000:.1f}ms {'PASS' if total_time < 3.0 else 'FAIL (>3s)'}"
+        )
 
     except asyncio.TimeoutError:
         print("  FAIL: Timeout waiting for response!")

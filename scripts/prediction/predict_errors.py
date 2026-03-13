@@ -12,7 +12,10 @@ Usage:
 
 import asyncio
 import argparse
-import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
 from storage.meta_learning import get_meta_engine
 
 
@@ -45,21 +48,23 @@ def format_errors(errors: list, verbose: bool = False) -> str:
         severity_emoji = "🔴" if severity == "high" else "🟡"
 
         output.append(f"\n{i}. {severity_emoji} {error_type.upper()}")
-        output.append(f"   Relevance: {score:.2f} | Prevention success: {success_rate:.0%}")
+        output.append(
+            f"   Relevance: {score:.2f} | Prevention success: {success_rate:.0%}"
+        )
 
         if verbose:
             if context:
                 output.append(f"\n   Context: {context[:150]}...")
             if solution:
-                output.append(f"\n   ✅ Prevention:")
+                output.append("\n   ✅ Prevention:")
                 # Split solution into lines
-                for line in solution.split('\n')[:3]:
+                for line in solution.split("\n")[:3]:
                     if line.strip():
                         output.append(f"      {line.strip()[:60]}...")
         else:
             # Brief solution
             if solution:
-                brief = solution.split('\n')[0][:80]
+                brief = solution.split("\n")[0][:80]
                 output.append(f"   💡 {brief}...")
 
     output.append("\n" + "-" * 70)
@@ -88,16 +93,16 @@ def format_strategies(strategies: dict) -> str:
     output.append(f"\nSuccess Rate: {strategies['success_rate']:.0%}")
     output.append(f"Patterns Analyzed: {strategies['pattern_count']}")
 
-    if strategies['strategies']:
+    if strategies["strategies"]:
         output.append("\n📋 Prevention Strategies:")
-        for i, strategy in enumerate(strategies['strategies'], 1):
+        for i, strategy in enumerate(strategies["strategies"], 1):
             output.append(f"\n{i}. {strategy[:200]}")
             if len(strategy) > 200:
                 output.append("   ...")
 
-    if strategies['examples']:
+    if strategies["examples"]:
         output.append("\n📝 Common Examples:")
-        for i, example in enumerate(strategies['examples'], 1):
+        for i, example in enumerate(strategies["examples"], 1):
             output.append(f"\n{i}. {example}")
 
     output.append("\n" + "=" * 70)
@@ -108,10 +113,7 @@ async def predict_errors(task: str, verbose: bool = False):
     """Predict errors for a task."""
     engine = await get_meta_engine()
 
-    errors = await engine.predict_errors(
-        intent=task,
-        include_preventable_only=True
-    )
+    errors = await engine.predict_errors(intent=task, include_preventable_only=True)
 
     print(format_errors(errors, verbose))
 
@@ -134,8 +136,17 @@ async def main():
         description="Predict and prevent errors before they happen"
     )
     parser.add_argument("task", nargs="?", help="Task description")
-    parser.add_argument("--strategies", metavar="TYPE", help="Get prevention strategies for error type (git, concurrency, permissions, etc.)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed context and solutions")
+    parser.add_argument(
+        "--strategies",
+        metavar="TYPE",
+        help="Get prevention strategies for error type (git, concurrency, permissions, etc.)",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show detailed context and solutions",
+    )
     args = parser.parse_args()
 
     if args.strategies:

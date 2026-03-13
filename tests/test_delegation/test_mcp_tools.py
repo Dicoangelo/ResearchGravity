@@ -138,6 +138,7 @@ class TestToolRegistration:
     def test_handle_tool_is_async_callable(self):
         """handle_tool is an async function."""
         import inspect
+
         assert inspect.iscoroutinefunction(handle_tool)
 
     def test_all_tool_names_unique(self):

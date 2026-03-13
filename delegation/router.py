@@ -46,6 +46,7 @@ from .models import SubTask, Assignment, DelegationEvent, TaskProfile
 # LLM client for semantic similarity (optional)
 try:
     from cpb.llm_client import get_llm_client
+
     HAS_LLM_CLIENT = True
 except ImportError:
     HAS_LLM_CLIENT = False
@@ -55,12 +56,13 @@ MIN_COMPLEXITY_FOR_DELEGATION = 0.2
 
 # Agent scoring weights (must sum to 1.0)
 CAPABILITY_WEIGHT = 0.6  # How well agent matches task requirements
-TRUST_WEIGHT = 0.3       # Historical performance
-COST_WEIGHT = 0.1        # Resource efficiency
+TRUST_WEIGHT = 0.3  # Historical performance
+COST_WEIGHT = 0.1  # Resource efficiency
 
 # Evolution feedback — load learned agent affinity if available
 try:
     from .evolution import EvolutionEngine
+
     _evolution_engine = EvolutionEngine()
     HAS_EVOLUTION = True
 except Exception:
@@ -96,6 +98,7 @@ class AgentCapability:
     - estimated_cost: Estimated resource cost (0.0-1.0)
     - metadata: Additional tool metadata (inputSchema, etc.)
     """
+
     agent_id: str
     name: str
     description: str
@@ -145,7 +148,7 @@ def _load_from_mcp_server() -> List[AgentCapability]:
         if not server_path.exists():
             return agents
 
-        with open(server_path, 'r') as f:
+        with open(server_path, "r") as f:
             content = f.read()
 
         # Extract Tool() definitions using regex
@@ -155,14 +158,16 @@ def _load_from_mcp_server() -> List[AgentCapability]:
         for name, description in matches:
             agent_id = f"mcp_server::{name}"
             keywords = _extract_keywords(f"{name} {description}")
-            agents.append(AgentCapability(
-                agent_id=agent_id,
-                name=name,
-                description=description,
-                keywords=keywords,
-                estimated_cost=0.3,  # MCP server tools are lightweight
-                metadata={"source": "mcp_server.py"}
-            ))
+            agents.append(
+                AgentCapability(
+                    agent_id=agent_id,
+                    name=name,
+                    description=description,
+                    keywords=keywords,
+                    estimated_cost=0.3,  # MCP server tools are lightweight
+                    metadata={"source": "mcp_server.py"},
+                )
+            )
     except Exception as e:
         # Graceful degradation
         pass
@@ -192,17 +197,19 @@ def _load_from_mcp_raw_tools() -> List[AgentCapability]:
                 agent_id = f"{module_path}::{name}"
                 keywords = _extract_keywords(f"{name} {description}")
 
-                agents.append(AgentCapability(
-                    agent_id=agent_id,
-                    name=name,
-                    description=description,
-                    keywords=keywords,
-                    estimated_cost=0.4,  # Raw MCP tools slightly heavier
-                    metadata={
-                        "source": module_path,
-                        "inputSchema": tool.get("inputSchema", {})
-                    }
-                ))
+                agents.append(
+                    AgentCapability(
+                        agent_id=agent_id,
+                        name=name,
+                        description=description,
+                        keywords=keywords,
+                        estimated_cost=0.4,  # Raw MCP tools slightly heavier
+                        metadata={
+                            "source": module_path,
+                            "inputSchema": tool.get("inputSchema", {}),
+                        },
+                    )
+                )
         except (ImportError, AttributeError):
             # Module not available or missing TOOLS
             pass
@@ -229,17 +236,32 @@ def _extract_keywords(text: str) -> List[str]:
     """
     # Common stopwords
     stopwords = {
-        "the", "and", "for", "from", "with", "this", "that",
-        "are", "was", "will", "can", "has", "have", "been",
-        "get", "set", "list", "find", "search", "load", "create"
+        "the",
+        "and",
+        "for",
+        "from",
+        "with",
+        "this",
+        "that",
+        "are",
+        "was",
+        "will",
+        "can",
+        "has",
+        "have",
+        "been",
+        "get",
+        "set",
+        "list",
+        "find",
+        "search",
+        "load",
+        "create",
     }
 
     # Tokenize and filter
-    words = re.findall(r'\w+', text.lower())
-    keywords = [
-        w for w in words
-        if len(w) >= 4 and w not in stopwords
-    ]
+    words = re.findall(r"\w+", text.lower())
+    keywords = [w for w in words if len(w) >= 4 and w not in stopwords]
 
     # Return unique keywords
     return list(set(keywords))
@@ -251,9 +273,7 @@ def _extract_keywords(text: str) -> List[str]:
 
 
 def _calculate_capability_match(
-    subtask: SubTask,
-    agent: AgentCapability,
-    use_llm: bool = True
+    subtask: SubTask, agent: AgentCapability, use_llm: bool = True
 ) -> float:
     """
     Calculate how well agent capabilities match subtask requirements.
@@ -278,10 +298,9 @@ def _calculate_capability_match(
     # Semantic similarity (if LLM available)
     if use_llm and HAS_LLM_CLIENT:
         try:
-            semantic_score = asyncio.run(_semantic_similarity(
-                subtask.description,
-                agent.description
-            ))
+            semantic_score = asyncio.run(
+                _semantic_similarity(subtask.description, agent.description)
+            )
             # Blend keyword and semantic scores (60/40 split)
             final_score = keyword_score * 0.4 + semantic_score * 0.6
         except Exception:
@@ -309,7 +328,7 @@ async def _semantic_similarity(text1: str, text2: str) -> float:
         system_prompt = (
             "You are a semantic similarity scorer. "
             "Rate how similar two text descriptions are on a scale of 0.0 to 1.0. "
-            "Output ONLY a JSON object: {\"similarity\": <score>}"
+            'Output ONLY a JSON object: {"similarity": <score>}'
         )
 
         user_prompt = f"""
@@ -327,11 +346,11 @@ Rate semantic similarity (0.0 = completely different, 1.0 = identical meaning):
                 model="haiku",  # Fast/cheap model for similarity
                 temperature=0.0,
             ),
-            timeout=2.0  # Quick timeout for batch routing
+            timeout=2.0,  # Quick timeout for batch routing
         )
 
         # Parse JSON response
-        json_match = re.search(r'\{[^}]+\}', response)
+        json_match = re.search(r"\{[^}]+\}", response)
         if json_match:
             data = json.loads(json_match.group(0))
             similarity = float(data.get("similarity", 0.0))
@@ -351,7 +370,7 @@ def route_subtask(
     subtask: SubTask,
     available_agents: List[AgentCapability],
     trust_ledger: Optional[Any] = None,
-    use_llm: bool = True
+    use_llm: bool = True,
 ) -> Assignment:
     """
     Route a subtask to the optimal agent based on capability matching and trust.
@@ -383,7 +402,7 @@ def route_subtask(
                 f"Complexity {subtask.profile.complexity:.2f} below delegation threshold "
                 f"{MIN_COMPLEXITY_FOR_DELEGATION} → direct execution"
             ),
-            metadata={"delegation_bypassed": True}
+            metadata={"delegation_bypassed": True},
         )
 
     # Score all available agents
@@ -411,20 +430,22 @@ def route_subtask(
 
         # Weighted final score + evolution feedback
         final_score = (
-            capability_match * CAPABILITY_WEIGHT +
-            trust_score * TRUST_WEIGHT +
-            cost_efficiency * COST_WEIGHT +
-            affinity_boost
+            capability_match * CAPABILITY_WEIGHT
+            + trust_score * TRUST_WEIGHT
+            + cost_efficiency * COST_WEIGHT
+            + affinity_boost
         )
         final_score = max(0.0, min(1.0, final_score))
 
-        scored_agents.append({
-            "agent": agent,
-            "capability_match": capability_match,
-            "trust_score": trust_score,
-            "cost_efficiency": cost_efficiency,
-            "final_score": final_score,
-        })
+        scored_agents.append(
+            {
+                "agent": agent,
+                "capability_match": capability_match,
+                "trust_score": trust_score,
+                "cost_efficiency": cost_efficiency,
+                "final_score": final_score,
+            }
+        )
 
     # Sort by final score (descending)
     scored_agents.sort(key=lambda x: x["final_score"], reverse=True)
@@ -439,7 +460,7 @@ def route_subtask(
             capability_match=0.0,
             timestamp=time.time(),
             assignment_reasoning="No agents available → fallback to direct execution",
-            metadata={"no_agents_available": True}
+            metadata={"no_agents_available": True},
         )
 
     best = scored_agents[0]
@@ -466,8 +487,10 @@ def route_subtask(
             "cost_efficiency": best["cost_efficiency"],
             "agent_name": agent.name,
             "agent_description": agent.description,
-            "fallback_chain": [s["agent"].agent_id for s in scored_agents[1:4]],  # Top 3 backups
-        }
+            "fallback_chain": [
+                s["agent"].agent_id for s in scored_agents[1:4]
+            ],  # Top 3 backups
+        },
     )
 
     return assignment
@@ -488,7 +511,7 @@ def route_batch(
     subtasks: List[SubTask],
     available_agents: List[AgentCapability],
     trust_ledger: Optional[Any] = None,
-    use_llm: bool = True
+    use_llm: bool = True,
 ) -> List[Assignment]:
     """
     Route multiple subtasks in batch (parallel routing).
@@ -513,7 +536,7 @@ def route_batch(
             subtask=subtask,
             available_agents=available_agents,
             trust_ledger=trust_ledger,
-            use_llm=use_llm
+            use_llm=use_llm,
         )
         assignments.append(assignment)
 

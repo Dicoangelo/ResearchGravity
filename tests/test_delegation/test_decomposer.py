@@ -31,7 +31,9 @@ class TestHeuristicDecomposition:
     def test_research_pattern(self):
         """Research tasks decompose into Survey->Analyze->Synthesize"""
         profile = TaskProfile(complexity=0.6, uncertainty=0.7)
-        subtasks = _heuristic_decompose("Research multi-agent coordination", profile, None, 0)
+        subtasks = _heuristic_decompose(
+            "Research multi-agent coordination", profile, None, 0
+        )
 
         assert len(subtasks) == 3, "Research pattern should create 3 subtasks"
         assert "Survey" in subtasks[0].description
@@ -64,8 +66,9 @@ class TestHeuristicDecomposition:
         subtasks = _heuristic_decompose("Build complex system", profile, None, 0)
 
         for st in subtasks:
-            assert st.profile.verifiability >= MIN_VERIFIABILITY, \
+            assert st.profile.verifiability >= MIN_VERIFIABILITY, (
                 f"Subtask '{st.description}' has verifiability {st.profile.verifiability} < {MIN_VERIFIABILITY}"
+            )
 
     def test_complexity_reduction(self):
         """Subtasks have reduced complexity compared to parent"""
@@ -73,17 +76,21 @@ class TestHeuristicDecomposition:
         subtasks = _heuristic_decompose("Build highly complex system", profile, None, 0)
 
         for st in subtasks:
-            assert st.profile.complexity < profile.complexity, \
+            assert st.profile.complexity < profile.complexity, (
                 f"Subtask complexity {st.profile.complexity} should be less than parent {profile.complexity}"
+            )
 
     def test_criticality_inheritance(self):
         """Subtasks inherit criticality from parent"""
         profile = TaskProfile(criticality=0.9)
-        subtasks = _heuristic_decompose("Build mission-critical system", profile, None, 0)
+        subtasks = _heuristic_decompose(
+            "Build mission-critical system", profile, None, 0
+        )
 
         for st in subtasks:
-            assert st.profile.criticality == profile.criticality, \
+            assert st.profile.criticality == profile.criticality, (
                 f"Subtask should inherit criticality {profile.criticality}"
+            )
 
 
 class TestDependencyAnalysis:
@@ -92,12 +99,22 @@ class TestDependencyAnalysis:
     def test_no_dependencies_parallel_safe(self):
         """Subtasks with no dependencies stay parallel_safe"""
         st1 = SubTask(
-            id="st-1", description="Task 1", verification_method=VerificationMethod.AUTOMATED_TEST,
-            estimated_cost=0.3, estimated_duration=0.3, parallel_safe=True, dependencies=[]
+            id="st-1",
+            description="Task 1",
+            verification_method=VerificationMethod.AUTOMATED_TEST,
+            estimated_cost=0.3,
+            estimated_duration=0.3,
+            parallel_safe=True,
+            dependencies=[],
         )
         st2 = SubTask(
-            id="st-2", description="Task 2", verification_method=VerificationMethod.AUTOMATED_TEST,
-            estimated_cost=0.3, estimated_duration=0.3, parallel_safe=True, dependencies=[]
+            id="st-2",
+            description="Task 2",
+            verification_method=VerificationMethod.AUTOMATED_TEST,
+            estimated_cost=0.3,
+            estimated_duration=0.3,
+            parallel_safe=True,
+            dependencies=[],
         )
 
         result = _analyze_dependencies([st1, st2])
@@ -108,12 +125,22 @@ class TestDependencyAnalysis:
     def test_dependencies_not_parallel_safe(self):
         """Subtasks with dependencies lose parallel_safe flag"""
         st1 = SubTask(
-            id="st-1", description="Task 1", verification_method=VerificationMethod.AUTOMATED_TEST,
-            estimated_cost=0.3, estimated_duration=0.3, parallel_safe=False, dependencies=[]
+            id="st-1",
+            description="Task 1",
+            verification_method=VerificationMethod.AUTOMATED_TEST,
+            estimated_cost=0.3,
+            estimated_duration=0.3,
+            parallel_safe=False,
+            dependencies=[],
         )
         st2 = SubTask(
-            id="st-2", description="Task 2", verification_method=VerificationMethod.AUTOMATED_TEST,
-            estimated_cost=0.3, estimated_duration=0.3, parallel_safe=True, dependencies=["st-1"]
+            id="st-2",
+            description="Task 2",
+            verification_method=VerificationMethod.AUTOMATED_TEST,
+            estimated_cost=0.3,
+            estimated_duration=0.3,
+            parallel_safe=True,
+            dependencies=["st-1"],
         )
 
         result = _analyze_dependencies([st1, st2])
@@ -124,23 +151,40 @@ class TestDependencyAnalysis:
     def test_transitive_dependencies(self):
         """Transitive dependencies propagate parallel_safe=False"""
         st1 = SubTask(
-            id="st-1", description="Task 1", verification_method=VerificationMethod.AUTOMATED_TEST,
-            estimated_cost=0.3, estimated_duration=0.3, parallel_safe=False, dependencies=[]
+            id="st-1",
+            description="Task 1",
+            verification_method=VerificationMethod.AUTOMATED_TEST,
+            estimated_cost=0.3,
+            estimated_duration=0.3,
+            parallel_safe=False,
+            dependencies=[],
         )
         st2 = SubTask(
-            id="st-2", description="Task 2", verification_method=VerificationMethod.AUTOMATED_TEST,
-            estimated_cost=0.3, estimated_duration=0.3, parallel_safe=True, dependencies=["st-1"]
+            id="st-2",
+            description="Task 2",
+            verification_method=VerificationMethod.AUTOMATED_TEST,
+            estimated_cost=0.3,
+            estimated_duration=0.3,
+            parallel_safe=True,
+            dependencies=["st-1"],
         )
         st3 = SubTask(
-            id="st-3", description="Task 3", verification_method=VerificationMethod.AUTOMATED_TEST,
-            estimated_cost=0.3, estimated_duration=0.3, parallel_safe=True, dependencies=["st-2"]
+            id="st-3",
+            description="Task 3",
+            verification_method=VerificationMethod.AUTOMATED_TEST,
+            estimated_cost=0.3,
+            estimated_duration=0.3,
+            parallel_safe=True,
+            dependencies=["st-2"],
         )
 
         result = _analyze_dependencies([st1, st2, st3])
 
         assert result[0].parallel_safe is False
         assert result[1].parallel_safe is False
-        assert result[2].parallel_safe is False, "st-3 transitively depends on non-parallel st-1"
+        assert result[2].parallel_safe is False, (
+            "st-3 transitively depends on non-parallel st-1"
+        )
 
 
 class TestContractFirstDecomposition:
@@ -149,32 +193,47 @@ class TestContractFirstDecomposition:
     def test_decompose_complex_task(self):
         """Complex task decomposes into multiple subtasks"""
         profile = TaskProfile(complexity=0.8, criticality=0.9, verifiability=0.5)
-        subtasks = decompose_task("Build user authentication system", profile, use_llm=False)
+        subtasks = decompose_task(
+            "Build user authentication system", profile, use_llm=False
+        )
 
-        assert len(subtasks) >= 2, "Complex task should decompose into multiple subtasks"
+        assert len(subtasks) >= 2, (
+            "Complex task should decompose into multiple subtasks"
+        )
         assert all(isinstance(st, SubTask) for st in subtasks)
 
     def test_all_subtasks_verifiable(self):
         """All subtasks meet minimum verifiability threshold"""
-        profile = TaskProfile(complexity=0.9, verifiability=0.2)  # Low verifiability parent
-        subtasks = decompose_task("Build complex system with unclear verification", profile, use_llm=False)
+        profile = TaskProfile(
+            complexity=0.9, verifiability=0.2
+        )  # Low verifiability parent
+        subtasks = decompose_task(
+            "Build complex system with unclear verification", profile, use_llm=False
+        )
 
         for st in subtasks:
             assert st.profile is not None, f"Subtask '{st.description}' missing profile"
-            assert st.profile.verifiability >= MIN_VERIFIABILITY, \
+            assert st.profile.verifiability >= MIN_VERIFIABILITY, (
                 f"Subtask '{st.description}' has verifiability {st.profile.verifiability} < {MIN_VERIFIABILITY}"
+            )
 
     def test_max_depth_constraint(self):
         """Decomposition stops at max_depth"""
         # Create a task that would decompose infinitely if not for max_depth
-        profile = TaskProfile(complexity=0.9, verifiability=0.1)  # Very low verifiability
-        subtasks = decompose_task("Extremely complex unverifiable task", profile, max_depth=2, use_llm=False)
+        profile = TaskProfile(
+            complexity=0.9, verifiability=0.1
+        )  # Very low verifiability
+        subtasks = decompose_task(
+            "Extremely complex unverifiable task", profile, max_depth=2, use_llm=False
+        )
 
         # Should have created subtasks, but stopped at depth 2
         assert len(subtasks) >= 1
         # At max depth, verifiability is forced to MIN_VERIFIABILITY
         for st in subtasks:
-            assert st.metadata.get("depth", 0) <= 2, f"Subtask exceeded max_depth: {st.metadata}"
+            assert st.metadata.get("depth", 0) <= 2, (
+                f"Subtask exceeded max_depth: {st.metadata}"
+            )
 
     def test_subtask_ids_unique(self):
         """All subtasks have unique IDs"""
@@ -194,7 +253,7 @@ class TestContractFirstDecomposition:
                 VerificationMethod.AUTOMATED_TEST,
                 VerificationMethod.SEMANTIC_SIMILARITY,
                 VerificationMethod.HUMAN_REVIEW,
-                VerificationMethod.GROUND_TRUTH
+                VerificationMethod.GROUND_TRUTH,
             ], f"Invalid verification method: {st.verification_method}"
 
     def test_estimated_cost_duration_valid(self):
@@ -203,10 +262,12 @@ class TestContractFirstDecomposition:
         subtasks = decompose_task("Build dashboard", profile, use_llm=False)
 
         for st in subtasks:
-            assert 0.0 <= st.estimated_cost <= 1.0, \
+            assert 0.0 <= st.estimated_cost <= 1.0, (
                 f"Invalid estimated_cost: {st.estimated_cost}"
-            assert 0.0 <= st.estimated_duration <= 1.0, \
+            )
+            assert 0.0 <= st.estimated_duration <= 1.0, (
                 f"Invalid estimated_duration: {st.estimated_duration}"
+            )
 
 
 class TestDecompositionAPI:
@@ -236,8 +297,9 @@ class TestDecompositionAPI:
         subtasks = decompose_task("Build system", profile, use_llm=False)
 
         # Heuristic should mark metadata
-        assert any(st.metadata.get("heuristic") for st in subtasks), \
+        assert any(st.metadata.get("heuristic") for st in subtasks), (
             "Heuristic decomposition should mark metadata"
+        )
 
 
 class TestDiverseTaskProfiles:
@@ -246,12 +308,11 @@ class TestDiverseTaskProfiles:
     def test_high_complexity_task(self):
         """High complexity tasks decompose appropriately"""
         profile = TaskProfile(
-            complexity=0.9,
-            criticality=0.8,
-            uncertainty=0.7,
-            verifiability=0.4
+            complexity=0.9, criticality=0.8, uncertainty=0.7, verifiability=0.4
         )
-        subtasks = decompose_task("Architect distributed system", profile, use_llm=False)
+        subtasks = decompose_task(
+            "Architect distributed system", profile, use_llm=False
+        )
 
         assert len(subtasks) >= 3, "High complexity should create multiple subtasks"
         assert all(st.profile.verifiability >= MIN_VERIFIABILITY for st in subtasks)
@@ -259,10 +320,7 @@ class TestDiverseTaskProfiles:
     def test_low_complexity_task(self):
         """Low complexity tasks still decompose reasonably"""
         profile = TaskProfile(
-            complexity=0.2,
-            criticality=0.3,
-            uncertainty=0.2,
-            verifiability=0.8
+            complexity=0.2, criticality=0.3, uncertainty=0.2, verifiability=0.8
         )
         subtasks = decompose_task("Update README", profile, use_llm=False)
 
@@ -276,18 +334,22 @@ class TestDiverseTaskProfiles:
         subtasks = decompose_task("Fix security vulnerability", profile, use_llm=False)
 
         for st in subtasks:
-            assert st.profile.criticality >= 0.8, \
+            assert st.profile.criticality >= 0.8, (
                 "Critical parent should have critical subtasks"
+            )
 
     def test_uncertain_task(self):
         """Uncertain tasks decompose to reduce uncertainty"""
         profile = TaskProfile(uncertainty=0.9, complexity=0.6)
-        subtasks = decompose_task("Explore unknown solution space", profile, use_llm=False)
+        subtasks = decompose_task(
+            "Explore unknown solution space", profile, use_llm=False
+        )
 
         # Subtasks should have lower uncertainty than parent
         for st in subtasks:
-            assert st.profile.uncertainty < profile.uncertainty, \
+            assert st.profile.uncertainty < profile.uncertainty, (
                 "Decomposition should reduce uncertainty"
+            )
 
 
 class TestPerformance:
@@ -302,7 +364,9 @@ class TestPerformance:
         subtasks = decompose_task("Build API", profile, use_llm=False)
         duration = time.time() - start
 
-        assert duration < 0.1, f"Heuristic decomposition took {duration:.3f}s (expected < 0.1s)"
+        assert duration < 0.1, (
+            f"Heuristic decomposition took {duration:.3f}s (expected < 0.1s)"
+        )
         assert len(subtasks) >= 2
 
     def test_multiple_decompositions(self):
@@ -314,7 +378,7 @@ class TestPerformance:
             "Research framework",
             "Implement feature",
             "Deploy service",
-            "Analyze data"
+            "Analyze data",
         ]
 
         start = time.time()
@@ -324,4 +388,6 @@ class TestPerformance:
             assert len(subtasks) >= 2
         duration = time.time() - start
 
-        assert duration < 1.0, f"5 decompositions took {duration:.3f}s (expected < 1.0s)"
+        assert duration < 1.0, (
+            f"5 decompositions took {duration:.3f}s (expected < 1.0s)"
+        )

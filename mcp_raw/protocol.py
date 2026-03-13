@@ -14,6 +14,7 @@ JSONRPC_VERSION = "2.0"
 
 class ProtocolError(Exception):
     """JSON-RPC protocol error"""
+
     def __init__(self, code: int, message: str, data: Any = None):
         self.code = code
         self.message = message
@@ -81,7 +82,9 @@ def make_error(
     }
 
 
-def make_notification(method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def make_notification(
+    method: str, params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Build a JSON-RPC notification (no id, no response expected)."""
     msg = {"jsonrpc": JSONRPC_VERSION, "method": method}
     if params is not None:
@@ -90,6 +93,7 @@ def make_notification(method: str, params: Optional[Dict[str, Any]] = None) -> D
 
 
 # --- MCP-specific message builders ---
+
 
 def initialize_result(
     server_name: str,
@@ -100,7 +104,8 @@ def initialize_result(
     """Build the MCP initialize result."""
     return {
         "protocolVersion": protocol_version,
-        "capabilities": capabilities or {
+        "capabilities": capabilities
+        or {
             "tools": {"listChanged": False},
             "resources": {"subscribe": False, "listChanged": False},
         },

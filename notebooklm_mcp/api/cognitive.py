@@ -40,16 +40,19 @@ class CognitiveLayer:
         if self._available:
             try:
                 from coherence_engine.knowledge_graph import GraphManager
+
                 self._graph = GraphManager(pg_pool)
             except ImportError:
                 pass
             try:
                 from coherence_engine.hybrid_search import HybridSearch
+
                 self._search = HybridSearch(pg_pool)
             except ImportError:
                 pass
             try:
                 from coherence_engine.fsrs import InsightScheduler
+
                 self._fsrs = InsightScheduler(pg_pool)
             except ImportError:
                 pass
@@ -84,11 +87,15 @@ class CognitiveLayer:
         if self._graph and self._pool:
             try:
                 # Find related entities via spreading activation
-                entities = await self._find_related_entities(query, limit=max_context_items)
+                entities = await self._find_related_entities(
+                    query, limit=max_context_items
+                )
                 if entities:
                     enrichments.append(
                         "Related knowledge from your cognitive history:\n"
-                        + "\n".join(f"- {e['name']}: {e.get('context', '')}" for e in entities)
+                        + "\n".join(
+                            f"- {e['name']}: {e.get('context', '')}" for e in entities
+                        )
                     )
             except Exception as e:
                 logger.debug(f"Graph enrichment failed: {e}")
@@ -139,12 +146,15 @@ class CognitiveLayer:
 
         # Capture result as cognitive event (Innovation 2)
         if result and result.get("answer"):
-            await self.capture_result("enriched_query", {
-                "query": query,
-                "answer": result["answer"],
-                "notebook_id": notebook_id,
-                "enrichments_used": len(enrichments),
-            })
+            await self.capture_result(
+                "enriched_query",
+                {
+                    "query": query,
+                    "answer": result["answer"],
+                    "notebook_id": notebook_id,
+                    "enrichments_used": len(enrichments),
+                },
+            )
 
         return {
             **(result or {}),
@@ -184,7 +194,8 @@ class CognitiveLayer:
             light_layer = self._extract_light_layer(tool_name, result_data)
             instinct_layer = {
                 "coherence_potential": 0.5,  # Base — will be refined by coherence engine
-                "emergence_indicator": tool_name in ("enriched_query", "cognitive_auto_curate"),
+                "emergence_indicator": tool_name
+                in ("enriched_query", "cognitive_auto_curate"),
             }
 
             async with self._pool.acquire() as conn:
@@ -195,22 +206,26 @@ class CognitiveLayer:
                     "notebooklm",
                     f"tool_{tool_name}",
                     content,
-                    json.dumps({
-                        "ucw_data": data_layer,
-                        "ucw_light": light_layer,
-                        "ucw_instinct": instinct_layer,
-                    }),
+                    json.dumps(
+                        {
+                            "ucw_data": data_layer,
+                            "ucw_light": light_layer,
+                            "ucw_instinct": instinct_layer,
+                        }
+                    ),
                     now,
                 )
 
             # Embed the event if pipeline available
             if self._embeddings:
                 try:
-                    await self._embeddings.embed_event({
-                        "content": content,
-                        "platform": "notebooklm",
-                        "event_type": f"tool_{tool_name}",
-                    })
+                    await self._embeddings.embed_event(
+                        {
+                            "content": content,
+                            "platform": "notebooklm",
+                            "event_type": f"tool_{tool_name}",
+                        }
+                    )
                 except Exception:
                     pass
 
@@ -251,14 +266,16 @@ class CognitiveLayer:
                        LIMIT 3"""
                 )
                 for row in rows:
-                    suggestions.append({
-                        "arc_id": str(row["arc_id"]),
-                        "topic": row["topic"],
-                        "significance": float(row["significance_score"]),
-                        "platforms": row["platform_count"],
-                        "moments": row["moment_count"],
-                        "suggested_title": f"Convergence: {row['topic']}",
-                    })
+                    suggestions.append(
+                        {
+                            "arc_id": str(row["arc_id"]),
+                            "topic": row["topic"],
+                            "significance": float(row["significance_score"]),
+                            "platforms": row["platform_count"],
+                            "moments": row["moment_count"],
+                            "suggested_title": f"Convergence: {row['topic']}",
+                        }
+                    )
         except Exception as e:
             logger.debug(f"Curation check failed: {e}")
 
@@ -277,7 +294,8 @@ class CognitiveLayer:
             async with self._pool.acquire() as conn:
                 # Get arc details
                 arc = await conn.fetchrow(
-                    "SELECT topic, significance_score FROM coherence_arcs WHERE arc_id = $1", arc_id
+                    "SELECT topic, significance_score FROM coherence_arcs WHERE arc_id = $1",
+                    arc_id,
                 )
                 if not arc:
                     return None
@@ -305,19 +323,28 @@ class CognitiveLayer:
             # Import moments as pasted text sources
             text_parts = []
             for m in moments:
-                ts = m["created_at"].strftime("%Y-%m-%d %H:%M") if m["created_at"] else "unknown"
+                ts = (
+                    m["created_at"].strftime("%Y-%m-%d %H:%M")
+                    if m["created_at"]
+                    else "unknown"
+                )
                 text_parts.append(f"[{m['platform']} @ {ts}]\n{m['content'][:500]}")
 
             combined = "\n\n---\n\n".join(text_parts)
-            self._api.add_text_source(nb.id, combined, title=f"Coherence Moments: {topic}")
+            self._api.add_text_source(
+                nb.id, combined, title=f"Coherence Moments: {topic}"
+            )
 
             # Record the auto-curation event
-            await self.capture_result("cognitive_auto_curate", {
-                "arc_id": arc_id,
-                "topic": topic,
-                "notebook_id": nb.id,
-                "moment_count": len(moments),
-            })
+            await self.capture_result(
+                "cognitive_auto_curate",
+                {
+                    "arc_id": arc_id,
+                    "topic": topic,
+                    "notebook_id": nb.id,
+                    "moment_count": len(moments),
+                },
+            )
 
             return {
                 "notebook_id": nb.id,
@@ -389,9 +416,12 @@ class CognitiveLayer:
             # Add findings as pasted text
             if findings:
                 finding_text = "\n\n".join(
-                    f"**{f['category'] or 'Finding'}:** {f['content']}" for f in findings
+                    f"**{f['category'] or 'Finding'}:** {f['content']}"
+                    for f in findings
                 )
-                self._api.add_text_source(notebook_id, finding_text, title=f"Findings: {topic}")
+                self._api.add_text_source(
+                    notebook_id, finding_text, title=f"Findings: {topic}"
+                )
                 sources_added += 1
 
             # Configure chat with thesis context
@@ -399,17 +429,21 @@ class CognitiveLayer:
             if thesis:
                 try:
                     self._api.configure_chat(
-                        notebook_id, goal="custom",
+                        notebook_id,
+                        goal="custom",
                         custom_prompt=f"Research context: {thesis}\nGap identified: {session.get('gap', 'N/A')}",
                     )
                 except Exception:
                     pass
 
-            await self.capture_result("research_to_notebook", {
-                "session_id": session_id,
-                "notebook_id": notebook_id,
-                "sources_added": sources_added,
-            })
+            await self.capture_result(
+                "research_to_notebook",
+                {
+                    "session_id": session_id,
+                    "notebook_id": notebook_id,
+                    "sources_added": sources_added,
+                },
+            )
 
             return {
                 "notebook_id": notebook_id,
@@ -449,7 +483,9 @@ class CognitiveLayer:
                     """INSERT INTO knowledge_evolution
                        (notebook_id, query, response, queried_at)
                        VALUES ($1, $2, $3, $4)""",
-                    notebook_id, query, response[:2000],
+                    notebook_id,
+                    query,
+                    response[:2000],
                     datetime.now(timezone.utc),
                 )
 
@@ -458,17 +494,22 @@ class CognitiveLayer:
                     """SELECT response, queried_at FROM knowledge_evolution
                        WHERE notebook_id = $1 AND query = $2
                        ORDER BY queried_at DESC LIMIT 5""",
-                    notebook_id, query,
+                    notebook_id,
+                    query,
                 )
 
             if len(prev) < 2:
-                return {"tracked": True, "evolution_state": "initial", "data_points": len(prev)}
+                return {
+                    "tracked": True,
+                    "evolution_state": "initial",
+                    "data_points": len(prev),
+                }
 
             # Simple similarity check: response length stability
             lengths = [len(r["response"]) for r in prev]
             avg_len = sum(lengths) / len(lengths)
             variance = sum((l - avg_len) ** 2 for l in lengths) / len(lengths)
-            normalized_variance = variance / (avg_len ** 2) if avg_len > 0 else 0
+            normalized_variance = variance / (avg_len**2) if avg_len > 0 else 0
 
             if normalized_variance < 0.05:
                 state = "crystallized"  # Answers are stabilizing → mastery
@@ -527,7 +568,8 @@ class CognitiveLayer:
                    FROM knowledge_entities
                    WHERE name ILIKE $1 OR name ILIKE $2
                    ORDER BY mention_count DESC LIMIT 3""",
-                f"%{query}%", f"%{query.split()[0]}%" if query.split() else f"%{query}%",
+                f"%{query}%",
+                f"%{query.split()[0]}%" if query.split() else f"%{query}%",
             )
 
         if not rows:
@@ -540,21 +582,25 @@ class CognitiveLayer:
                 rows[0]["entity_id"], depth=2, decay=0.6
             )
             for node in activated[:limit]:
-                entities.append({
-                    "name": node.get("name", ""),
-                    "type": node.get("entity_type", ""),
-                    "activation": node.get("activation", 0),
-                    "context": node.get("context", ""),
-                })
+                entities.append(
+                    {
+                        "name": node.get("name", ""),
+                        "type": node.get("entity_type", ""),
+                        "activation": node.get("activation", 0),
+                        "context": node.get("context", ""),
+                    }
+                )
         except Exception:
             # Fallback to direct matches
             for row in rows[:limit]:
-                entities.append({
-                    "name": row["name"],
-                    "type": row["entity_type"],
-                    "activation": 1.0,
-                    "context": "",
-                })
+                entities.append(
+                    {
+                        "name": row["name"],
+                        "type": row["entity_type"],
+                        "activation": 1.0,
+                        "context": "",
+                    }
+                )
 
         return entities
 

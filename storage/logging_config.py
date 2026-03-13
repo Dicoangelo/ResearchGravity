@@ -23,8 +23,8 @@ from typing import Optional, Dict, Any
 from contextvars import ContextVar
 
 # Context variables for request tracking
-request_id_ctx: ContextVar[str] = ContextVar('request_id', default='')
-session_id_ctx: ContextVar[str] = ContextVar('session_id', default='')
+request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
+session_id_ctx: ContextVar[str] = ContextVar("session_id", default="")
 
 
 class StructuredFormatter(logging.Formatter):
@@ -45,7 +45,7 @@ class StructuredFormatter(logging.Formatter):
             log_data["session_id"] = session_id
 
         # Add extra fields
-        if hasattr(record, 'extra_fields'):
+        if hasattr(record, "extra_fields"):
             log_data.update(record.extra_fields)
 
         # Add exception info
@@ -63,17 +63,17 @@ class ConsoleFormatter(logging.Formatter):
     """Human-readable console formatter with colors."""
 
     COLORS = {
-        'DEBUG': '\033[36m',     # Cyan
-        'INFO': '\033[32m',      # Green
-        'WARNING': '\033[33m',   # Yellow
-        'ERROR': '\033[31m',     # Red
-        'CRITICAL': '\033[35m',  # Magenta
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
     }
-    RESET = '\033[0m'
+    RESET = "\033[0m"
 
     def format(self, record: logging.LogRecord) -> str:
         # Color the level name
-        color = self.COLORS.get(record.levelname, '')
+        color = self.COLORS.get(record.levelname, "")
         level = f"{color}{record.levelname:8}{self.RESET}"
 
         # Build prefix with context
@@ -89,14 +89,14 @@ class ConsoleFormatter(logging.Formatter):
 
         # Add extra fields inline
         extras = []
-        if hasattr(record, 'extra_fields'):
+        if hasattr(record, "extra_fields"):
             for k, v in record.extra_fields.items():
                 extras.append(f"{k}={v}")
         extra_str = f" ({', '.join(extras)})" if extras else ""
 
         # Build final message
         timestamp = datetime.now().strftime("%H:%M:%S")
-        name = record.name.split('.')[-1][:15]  # Short module name
+        name = record.name.split(".")[-1][:15]  # Short module name
 
         return f"{timestamp} {level} {name:15} {prefix} {msg}{extra_str}"
 
@@ -105,19 +105,17 @@ class ContextLogger(logging.LoggerAdapter):
     """Logger adapter that adds context and extra fields."""
 
     def process(self, msg, kwargs):
-        extra = kwargs.get('extra', {})
+        extra = kwargs.get("extra", {})
 
         # Store extra fields for formatters
         if extra:
-            kwargs['extra'] = {'extra_fields': extra}
+            kwargs["extra"] = {"extra_fields": extra}
 
         return msg, kwargs
 
 
 def setup_logging(
-    level: str = None,
-    json_format: bool = None,
-    log_file: Optional[str] = None
+    level: str = None, json_format: bool = None, log_file: Optional[str] = None
 ) -> None:
     """
     Configure logging for the application.
@@ -128,12 +126,12 @@ def setup_logging(
         log_file: Optional file path for logging.
     """
     # Determine settings from environment or defaults
-    level = level or os.environ.get('RG_LOG_LEVEL', 'INFO')
+    level = level or os.environ.get("RG_LOG_LEVEL", "INFO")
     if json_format is None:
-        json_format = os.environ.get('RG_LOG_JSON', '').lower() == 'true'
+        json_format = os.environ.get("RG_LOG_JSON", "").lower() == "true"
 
     # Get root logger for researchgravity
-    root_logger = logging.getLogger('researchgravity')
+    root_logger = logging.getLogger("researchgravity")
     root_logger.setLevel(getattr(logging, level.upper()))
 
     # Remove existing handlers
@@ -154,9 +152,9 @@ def setup_logging(
         root_logger.addHandler(file_handler)
 
     # Reduce noise from third-party libraries
-    logging.getLogger('httpx').setLevel(logging.WARNING)
-    logging.getLogger('httpcore').setLevel(logging.WARNING)
-    logging.getLogger('qdrant_client').setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("qdrant_client").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> ContextLogger:
@@ -170,7 +168,7 @@ def get_logger(name: str) -> ContextLogger:
         ContextLogger instance
     """
     # Ensure it's under researchgravity namespace
-    if not name.startswith('researchgravity'):
+    if not name.startswith("researchgravity"):
         name = f"researchgravity.{name.split('.')[-1]}"
 
     logger = logging.getLogger(name)
@@ -178,5 +176,5 @@ def get_logger(name: str) -> ContextLogger:
 
 
 # Auto-setup on import if not already configured
-if not logging.getLogger('researchgravity').handlers:
+if not logging.getLogger("researchgravity").handlers:
     setup_logging()

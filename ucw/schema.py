@@ -11,7 +11,7 @@ AI interaction history, designed for:
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from enum import Enum
 import hashlib
 import json
@@ -19,6 +19,7 @@ import json
 
 class VisualAssetType(Enum):
     """Types of visual assets."""
+
     METHODOLOGY = "methodology"
     STATISTICAL_PLOT = "statistical_plot"
     EVALUATION = "evaluation"
@@ -26,6 +27,7 @@ class VisualAssetType(Enum):
 
 class ConceptType(Enum):
     """Types of concepts that can be captured."""
+
     FINDING = "finding"
     THESIS = "thesis"
     GAP = "gap"
@@ -37,6 +39,7 @@ class ConceptType(Enum):
 
 class ConnectionType(Enum):
     """Types of relationships between concepts."""
+
     ENABLES = "enables"
     INFORMS = "informs"
     CONTRADICTS = "contradicts"
@@ -49,6 +52,7 @@ class ConnectionType(Enum):
 @dataclass
 class URL:
     """A captured URL with metadata."""
+
     url: str
     tier: int  # 1-3 (research priority)
     category: str  # research, github, industry, etc.
@@ -78,7 +82,9 @@ class URL:
             category=data.get("category", "other"),
             source=data.get("source", "Web"),
             context=data.get("context", ""),
-            captured_at=datetime.fromisoformat(data["captured_at"]) if data.get("captured_at") else datetime.now(),
+            captured_at=datetime.fromisoformat(data["captured_at"])
+            if data.get("captured_at")
+            else datetime.now(),
             relevance=data.get("relevance"),
             signal=data.get("signal"),
         )
@@ -87,6 +93,7 @@ class URL:
 @dataclass
 class Connection:
     """A relationship between two concepts."""
+
     from_id: str
     to_id: str
     connection_type: ConnectionType
@@ -112,13 +119,16 @@ class Connection:
             connection_type=ConnectionType(data["type"]),
             strength=data.get("strength", 0.5),
             context=data.get("context"),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
+            created_at=datetime.fromisoformat(data["created_at"])
+            if data.get("created_at")
+            else datetime.now(),
         )
 
 
 @dataclass
 class Concept:
     """A unit of knowledge in the cognitive wallet."""
+
     id: str
     content: str
     concept_type: ConceptType
@@ -151,7 +161,9 @@ class Concept:
             confidence=data.get("confidence", 0.5),
             sources=data.get("sources", []),
             connections=data.get("connections", []),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
+            created_at=datetime.fromisoformat(data["created_at"])
+            if data.get("created_at")
+            else datetime.now(),
             domain=data.get("domain"),
             metadata=data.get("metadata", {}),
         )
@@ -160,6 +172,7 @@ class Concept:
 @dataclass
 class Session:
     """A captured AI interaction session."""
+
     id: str
     topic: str
     date: datetime
@@ -169,7 +182,7 @@ class Session:
     project: Optional[str] = None
     status: str = "archived"
     transcript_hash: Optional[str] = None
-    visual_assets: List[VisualAsset] = field(default_factory=list)
+    visual_assets: List["VisualAsset"] = field(default_factory=list)
     metadata: Dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -192,14 +205,18 @@ class Session:
         return cls(
             id=data["id"],
             topic=data["topic"],
-            date=datetime.fromisoformat(data["date"]) if data.get("date") else datetime.now(),
+            date=datetime.fromisoformat(data["date"])
+            if data.get("date")
+            else datetime.now(),
             findings=data.get("findings", []),
             papers=data.get("papers", []),
             urls=[URL.from_dict(u) for u in data.get("urls", [])],
             project=data.get("project"),
             status=data.get("status", "archived"),
             transcript_hash=data.get("transcript_hash"),
-            visual_assets=[VisualAsset.from_dict(v) for v in data.get("visual_assets", [])],
+            visual_assets=[
+                VisualAsset.from_dict(v) for v in data.get("visual_assets", [])
+            ],
             metadata=data.get("metadata", {}),
         )
 
@@ -207,13 +224,18 @@ class Session:
 @dataclass
 class VisualAsset:
     """A generated visual asset (diagram or plot) captured as cognitive equity."""
+
     id: str
     diagram_type: VisualAssetType
     methodology: str
     caption: str
     png_path: str
-    critic_scores: Dict[str, float] = field(default_factory=dict)  # {faithfulness, readability, conciseness, aesthetics}
-    provenance: Dict[str, Any] = field(default_factory=dict)  # {agents_used, iterations, costs, reference_count}
+    critic_scores: Dict[str, float] = field(
+        default_factory=dict
+    )  # {faithfulness, readability, conciseness, aesthetics}
+    provenance: Dict[str, Any] = field(
+        default_factory=dict
+    )  # {agents_used, iterations, costs, reference_count}
     session_id: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -241,13 +263,16 @@ class VisualAsset:
             critic_scores=data.get("critic_scores", {}),
             provenance=data.get("provenance", {}),
             session_id=data.get("session_id"),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
+            created_at=datetime.fromisoformat(data["created_at"])
+            if data.get("created_at")
+            else datetime.now(),
         )
 
 
 @dataclass
 class ValueMetrics:
     """Economic metrics for the cognitive wallet."""
+
     total_value: float  # Estimated USD value
     concept_count: int
     connection_count: int
@@ -284,7 +309,9 @@ class ValueMetrics:
             url_count=data.get("url_count", 0),
             domains=data.get("domains", {}),
             appreciation_rate=data.get("appreciation_rate", 0.03),
-            last_calculated=datetime.fromisoformat(data["last_calculated"]) if data.get("last_calculated") else datetime.now(),
+            last_calculated=datetime.fromisoformat(data["last_calculated"])
+            if data.get("last_calculated")
+            else datetime.now(),
             history=data.get("history", []),
         )
 
@@ -304,6 +331,7 @@ class CognitiveWallet:
     The wallet can be exported to a platform-agnostic format and imported
     into any compatible AI platform.
     """
+
     version: str = "1.0"
     owner_did: Optional[str] = None  # Decentralized identifier
     created: datetime = field(default_factory=datetime.now)
@@ -311,29 +339,36 @@ class CognitiveWallet:
     sessions: Dict[str, Session] = field(default_factory=dict)
     connections: List[Connection] = field(default_factory=list)
     papers: Dict[str, Dict] = field(default_factory=dict)  # arXiv ID -> metadata
-    visual_assets: Dict[str, VisualAsset] = field(default_factory=dict)  # asset_id -> VisualAsset
-    value_metrics: ValueMetrics = field(default_factory=lambda: ValueMetrics(
-        total_value=0.0,
-        concept_count=0,
-        connection_count=0,
-        session_count=0,
-        paper_count=0,
-        url_count=0,
-    ))
+    visual_assets: Dict[str, VisualAsset] = field(
+        default_factory=dict
+    )  # asset_id -> VisualAsset
+    value_metrics: ValueMetrics = field(
+        default_factory=lambda: ValueMetrics(
+            total_value=0.0,
+            concept_count=0,
+            connection_count=0,
+            session_count=0,
+            paper_count=0,
+            url_count=0,
+        )
+    )
     integrity_hash: Optional[str] = None
     metadata: Dict = field(default_factory=dict)
 
     def calculate_integrity_hash(self) -> str:
         """Calculate SHA-256 hash of wallet contents for integrity verification."""
-        content = json.dumps({
-            "version": self.version,
-            "owner_did": self.owner_did,
-            "created": self.created.isoformat(),
-            "concepts": {k: v.to_dict() for k, v in self.concepts.items()},
-            "sessions": {k: v.to_dict() for k, v in self.sessions.items()},
-            "connections": [c.to_dict() for c in self.connections],
-            "papers": self.papers,
-        }, sort_keys=True)
+        content = json.dumps(
+            {
+                "version": self.version,
+                "owner_did": self.owner_did,
+                "created": self.created.isoformat(),
+                "concepts": {k: v.to_dict() for k, v in self.concepts.items()},
+                "sessions": {k: v.to_dict() for k, v in self.sessions.items()},
+                "connections": [c.to_dict() for c in self.connections],
+                "papers": self.papers,
+            },
+            sort_keys=True,
+        )
         return hashlib.sha256(content.encode()).hexdigest()
 
     def update_integrity_hash(self):
@@ -368,15 +403,30 @@ class CognitiveWallet:
         wallet = cls(
             version=data.get("ucw_version", "1.0"),
             owner_did=data.get("owner_did"),
-            created=datetime.fromisoformat(data["created"]) if data.get("created") else datetime.now(),
-            concepts={k: Concept.from_dict(v) for k, v in data.get("concepts", {}).items()},
-            sessions={k: Session.from_dict(v) for k, v in data.get("sessions", {}).items()},
+            created=datetime.fromisoformat(data["created"])
+            if data.get("created")
+            else datetime.now(),
+            concepts={
+                k: Concept.from_dict(v) for k, v in data.get("concepts", {}).items()
+            },
+            sessions={
+                k: Session.from_dict(v) for k, v in data.get("sessions", {}).items()
+            },
             connections=[Connection.from_dict(c) for c in data.get("connections", [])],
             papers=data.get("papers", {}),
-            visual_assets={k: VisualAsset.from_dict(v) for k, v in data.get("visual_assets", {}).items()},
-            value_metrics=ValueMetrics.from_dict(data["value_metrics"]) if data.get("value_metrics") else ValueMetrics(
-                total_value=0.0, concept_count=0, connection_count=0,
-                session_count=0, paper_count=0, url_count=0
+            visual_assets={
+                k: VisualAsset.from_dict(v)
+                for k, v in data.get("visual_assets", {}).items()
+            },
+            value_metrics=ValueMetrics.from_dict(data["value_metrics"])
+            if data.get("value_metrics")
+            else ValueMetrics(
+                total_value=0.0,
+                concept_count=0,
+                connection_count=0,
+                session_count=0,
+                paper_count=0,
+                url_count=0,
             ),
             integrity_hash=data.get("integrity_hash"),
             metadata=data.get("metadata", {}),

@@ -23,10 +23,10 @@ from .pack_critic import PackCritic
 from .paperbanana_critic import PaperBananaCritic
 
 __all__ = [
-    'CriticBase',
-    'ValidationResult',
-    'ArchiveCritic',
-    'EvidenceCritic',
-    'PackCritic',
-    'PaperBananaCritic',
+    "CriticBase",
+    "ValidationResult",
+    "ArchiveCritic",
+    "EvidenceCritic",
+    "PackCritic",
+    "PaperBananaCritic",
 ]

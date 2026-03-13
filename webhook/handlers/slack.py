@@ -14,7 +14,6 @@ from .base import WebhookHandler, WebhookEvent
 
 
 class SlackHandler(WebhookHandler):
-
     @property
     def provider(self) -> str:
         return "slack"
@@ -25,8 +24,11 @@ class SlackHandler(WebhookHandler):
 
     def supported_events(self) -> List[str]:
         return [
-            "message", "app_mention", "reaction_added",
-            "channel_created", "member_joined_channel",
+            "message",
+            "app_mention",
+            "reaction_added",
+            "channel_created",
+            "member_joined_channel",
         ]
 
     async def handle(
@@ -60,30 +62,34 @@ class SlackHandler(WebhookHandler):
 
         content = f"Slack {event_type} from {user} in {channel}: {text}"
 
-        return [WebhookEvent(
-            event_type=event_type,
-            content=content,
-            metadata={
-                "channel": channel,
-                "user": user,
-                "slack_event_type": event_type,
-                "team_id": payload.get("team_id", ""),
-                "event_id": payload.get("event_id", ""),
-            },
-            timestamp=ts,
-            session_id=f"slack-{channel}",
-            role="user",
-        )]
+        return [
+            WebhookEvent(
+                event_type=event_type,
+                content=content,
+                metadata={
+                    "channel": channel,
+                    "user": user,
+                    "slack_event_type": event_type,
+                    "team_id": payload.get("team_id", ""),
+                    "event_id": payload.get("event_id", ""),
+                },
+                timestamp=ts,
+                session_id=f"slack-{channel}",
+                role="user",
+            )
+        ]
 
     def _handle_generic(self, payload: dict) -> List[WebhookEvent]:
         event_type = payload.get("type", "unknown")
         content = f"Slack event: {event_type}"
 
-        return [WebhookEvent(
-            event_type=event_type,
-            content=content,
-            metadata={"raw_type": event_type},
-            timestamp=time.time(),
-            session_id="slack-generic",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type=event_type,
+                content=content,
+                metadata={"raw_type": event_type},
+                timestamp=time.time(),
+                session_id="slack-generic",
+                role="system",
+            )
+        ]

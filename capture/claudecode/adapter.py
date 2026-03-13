@@ -65,7 +65,9 @@ class ClaudeCodeAdapter(PlatformAdapter):
             return False
 
         session_count = len(list(self._transcript_dir.glob("*.jsonl")))
-        log.info(f"Claude Code transcripts found: {session_count} sessions in {self._transcript_dir}")
+        log.info(
+            f"Claude Code transcripts found: {session_count} sessions in {self._transcript_dir}"
+        )
         self._healthy = True
         return True
 
@@ -82,14 +84,20 @@ class ClaudeCodeAdapter(PlatformAdapter):
                 mtime = jsonl_file.stat().st_mtime
 
                 # Skip if file hasn't changed since last poll
-                last_seen_mtime = self._watermark.seen_sessions.get(session_id, {}).get("mtime", 0)
+                last_seen_mtime = self._watermark.seen_sessions.get(session_id, {}).get(
+                    "mtime", 0
+                )
                 if mtime <= last_seen_mtime:
                     continue
 
                 # Extract new messages from this session
-                last_seen_line = self._watermark.seen_sessions.get(session_id, {}).get("lines", 0)
+                last_seen_line = self._watermark.seen_sessions.get(session_id, {}).get(
+                    "lines", 0
+                )
                 session_events, lines_read = self._extract_session(
-                    jsonl_file, session_id, skip_lines=last_seen_line,
+                    jsonl_file,
+                    session_id,
+                    skip_lines=last_seen_line,
                 )
                 events.extend(session_events)
 
@@ -125,7 +133,10 @@ class ClaudeCodeAdapter(PlatformAdapter):
     # ── transcript extraction ────────────────────────────
 
     def _extract_session(
-        self, jsonl_path: Path, session_id: str, skip_lines: int = 0,
+        self,
+        jsonl_path: Path,
+        session_id: str,
+        skip_lines: int = 0,
     ) -> tuple:
         """
         Extract user + assistant messages from a JSONL transcript.
@@ -162,6 +173,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
                     if ts_str:
                         try:
                             from datetime import datetime
+
                             ts = datetime.fromisoformat(
                                 ts_str.replace("Z", "+00:00")
                             ).timestamp()
@@ -170,21 +182,25 @@ class ClaudeCodeAdapter(PlatformAdapter):
                     else:
                         ts = time.time()
 
-                    metadata.update({
-                        "session_id": session_id,
-                        "cwd": record.get("cwd", ""),
-                        "git_branch": record.get("gitBranch", ""),
-                        "version": record.get("version", ""),
-                    })
+                    metadata.update(
+                        {
+                            "session_id": session_id,
+                            "cwd": record.get("cwd", ""),
+                            "git_branch": record.get("gitBranch", ""),
+                            "version": record.get("version", ""),
+                        }
+                    )
 
-                    events.append(CapturedEvent(
-                        platform="claude-code",
-                        session_id=f"cc-{session_id[:12]}",
-                        content=text,
-                        role=role,
-                        timestamp=ts,
-                        metadata=metadata,
-                    ))
+                    events.append(
+                        CapturedEvent(
+                            platform="claude-code",
+                            session_id=f"cc-{session_id[:12]}",
+                            content=text,
+                            role=role,
+                            timestamp=ts,
+                            metadata=metadata,
+                        )
+                    )
 
         except Exception as exc:
             log.error(f"Error reading {jsonl_path.name}: {exc}")
@@ -263,6 +279,7 @@ class ClaudeCodeAdapter(PlatformAdapter):
 
 # ── watermark ────────────────────────────────────────────────
 
+
 class _Watermark:
     """Track scanned sessions and line positions."""
 
@@ -275,15 +292,22 @@ class _Watermark:
             try:
                 data = json.loads(self.path.read_text())
                 self.seen_sessions = data.get("seen_sessions", {})
-                log.info(f"Watermark loaded: {len(self.seen_sessions)} sessions tracked")
+                log.info(
+                    f"Watermark loaded: {len(self.seen_sessions)} sessions tracked"
+                )
             except Exception as exc:
                 log.warning(f"Watermark load failed: {exc}")
 
     def save(self) -> None:
         try:
-            self.path.write_text(json.dumps({
-                "seen_sessions": self.seen_sessions,
-                "updated_at": time.time(),
-            }, indent=2))
+            self.path.write_text(
+                json.dumps(
+                    {
+                        "seen_sessions": self.seen_sessions,
+                        "updated_at": time.time(),
+                    },
+                    indent=2,
+                )
+            )
         except Exception as exc:
             log.error(f"Watermark save failed: {exc}")

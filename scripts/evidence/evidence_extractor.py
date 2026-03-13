@@ -29,9 +29,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path.home() / ".agent-core" / "schemas"))
 try:
     from finding import (
-        EvidencedFinding, EvidenceSource, Evidence,
-        FindingType, create_finding, migrate_legacy_finding
+        EvidencedFinding,
+        EvidenceSource,
+        Evidence,
+        FindingType,
+        create_finding,
+        migrate_legacy_finding,
     )
+
     SCHEMA_AVAILABLE = True
 except ImportError:
     SCHEMA_AVAILABLE = False
@@ -43,22 +48,32 @@ SESSIONS_DIR = AGENT_CORE_DIR / "sessions"
 
 # URL patterns for extraction
 PATTERNS = {
-    "arxiv": re.compile(r'(?:arXiv[:\s]*)?(\d{4}\.\d{4,5})', re.IGNORECASE),
-    "arxiv_url": re.compile(r'arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})'),
-    "github": re.compile(r'github\.com/([a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+)'),
-    "url": re.compile(r'https?://[^\s\)\]]+'),
-    "session_ref": re.compile(r'`([a-z0-9-]+-\d{8}-\d{6}-[a-f0-9]+)`'),
+    "arxiv": re.compile(r"(?:arXiv[:\s]*)?(\d{4}\.\d{4,5})", re.IGNORECASE),
+    "arxiv_url": re.compile(r"arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})"),
+    "github": re.compile(r"github\.com/([a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+)"),
+    "url": re.compile(r"https?://[^\s\)\]]+"),
+    "session_ref": re.compile(r"`([a-z0-9-]+-\d{8}-\d{6}-[a-f0-9]+)`"),
 }
 
 # High-value domains for source classification
 TIER_1_DOMAINS = [
-    "arxiv.org", "openai.com", "anthropic.com", "deepmind.google",
-    "huggingface.co", "ai.meta.com", "ai.google", "microsoft.com/research"
+    "arxiv.org",
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "huggingface.co",
+    "ai.meta.com",
+    "ai.google",
+    "microsoft.com/research",
 ]
 
 TIER_2_DOMAINS = [
-    "github.com", "paperswithcode.com", "semanticscholar.org",
-    "techcrunch.com", "theverge.com", "lmsys.org"
+    "github.com",
+    "paperswithcode.com",
+    "semanticscholar.org",
+    "techcrunch.com",
+    "theverge.com",
+    "lmsys.org",
 ]
 
 
@@ -94,14 +109,18 @@ def extract_evidence_from_text(text: str, session_urls: list = None) -> list:
         url = f"https://arxiv.org/abs/{arxiv_id}"
         if url not in seen_urls:
             seen_urls.add(url)
-            sources.append({
-                "url": url,
-                "arxiv_id": arxiv_id,
-                "excerpt": text[max(0, match.start()-50):min(len(text), match.end()+50)],
-                "relevance_score": 0.8,  # arXiv papers are high-value
-                "verified": False,
-                "accessed_at": datetime.now().isoformat()
-            })
+            sources.append(
+                {
+                    "url": url,
+                    "arxiv_id": arxiv_id,
+                    "excerpt": text[
+                        max(0, match.start() - 50) : min(len(text), match.end() + 50)
+                    ],
+                    "relevance_score": 0.8,  # arXiv papers are high-value
+                    "verified": False,
+                    "accessed_at": datetime.now().isoformat(),
+                }
+            )
 
     # Extract arXiv URLs
     for match in PATTERNS["arxiv_url"].finditer(text):
@@ -109,14 +128,18 @@ def extract_evidence_from_text(text: str, session_urls: list = None) -> list:
         url = f"https://arxiv.org/abs/{arxiv_id}"
         if url not in seen_urls:
             seen_urls.add(url)
-            sources.append({
-                "url": url,
-                "arxiv_id": arxiv_id,
-                "excerpt": text[max(0, match.start()-50):min(len(text), match.end()+50)],
-                "relevance_score": 0.8,
-                "verified": False,
-                "accessed_at": datetime.now().isoformat()
-            })
+            sources.append(
+                {
+                    "url": url,
+                    "arxiv_id": arxiv_id,
+                    "excerpt": text[
+                        max(0, match.start() - 50) : min(len(text), match.end() + 50)
+                    ],
+                    "relevance_score": 0.8,
+                    "verified": False,
+                    "accessed_at": datetime.now().isoformat(),
+                }
+            )
 
     # Extract GitHub repos
     for match in PATTERNS["github"].finditer(text):
@@ -124,28 +147,36 @@ def extract_evidence_from_text(text: str, session_urls: list = None) -> list:
         url = f"https://github.com/{repo}"
         if url not in seen_urls:
             seen_urls.add(url)
-            sources.append({
-                "url": url,
-                "excerpt": text[max(0, match.start()-30):min(len(text), match.end()+30)],
-                "relevance_score": 0.6,  # GitHub repos are useful but need verification
-                "verified": False,
-                "accessed_at": datetime.now().isoformat()
-            })
+            sources.append(
+                {
+                    "url": url,
+                    "excerpt": text[
+                        max(0, match.start() - 30) : min(len(text), match.end() + 30)
+                    ],
+                    "relevance_score": 0.6,  # GitHub repos are useful but need verification
+                    "verified": False,
+                    "accessed_at": datetime.now().isoformat(),
+                }
+            )
 
     # Extract other URLs
     for match in PATTERNS["url"].finditer(text):
-        url = match.group(0).rstrip('.,;:')
+        url = match.group(0).rstrip(".,;:")
         if url not in seen_urls and "arxiv.org" not in url and "github.com" not in url:
             seen_urls.add(url)
             tier = classify_url_tier(url)
             relevance = {1: 0.7, 2: 0.5, 3: 0.3}.get(tier, 0.3)
-            sources.append({
-                "url": url,
-                "excerpt": text[max(0, match.start()-30):min(len(text), match.end()+30)],
-                "relevance_score": relevance,
-                "verified": False,
-                "accessed_at": datetime.now().isoformat()
-            })
+            sources.append(
+                {
+                    "url": url,
+                    "excerpt": text[
+                        max(0, match.start() - 30) : min(len(text), match.end() + 30)
+                    ],
+                    "relevance_score": relevance,
+                    "verified": False,
+                    "accessed_at": datetime.now().isoformat(),
+                }
+            )
 
     # Cross-reference with session URLs if provided
     if session_urls:
@@ -155,25 +186,34 @@ def extract_evidence_from_text(text: str, session_urls: list = None) -> list:
                 # Check if this URL is mentioned/related to the finding
                 # Simple heuristic: check if any keyword from URL appears in text
                 url_parts = url.lower().replace("-", " ").replace("_", " ").split("/")
-                keywords = [p for p in url_parts if len(p) > 3 and p not in ["https", "http", "www", "com", "org"]]
+                keywords = [
+                    p
+                    for p in url_parts
+                    if len(p) > 3 and p not in ["https", "http", "www", "com", "org"]
+                ]
 
                 text_lower = text.lower()
                 if any(kw in text_lower for kw in keywords):
                     tier = url_data.get("tier", 3)
                     relevance = {1: 0.7, 2: 0.5, 3: 0.3}.get(tier, 0.3)
-                    sources.append({
-                        "url": url,
-                        "excerpt": url_data.get("context", "")[:100] or f"Session URL (Tier {tier})",
-                        "relevance_score": relevance,
-                        "verified": False,
-                        "accessed_at": datetime.now().isoformat()
-                    })
+                    sources.append(
+                        {
+                            "url": url,
+                            "excerpt": url_data.get("context", "")[:100]
+                            or f"Session URL (Tier {tier})",
+                            "relevance_score": relevance,
+                            "verified": False,
+                            "accessed_at": datetime.now().isoformat(),
+                        }
+                    )
                     seen_urls.add(url)
 
     return sources
 
 
-def process_legacy_finding(finding: dict, session_id: str, session_urls: list = None) -> dict:
+def process_legacy_finding(
+    finding: dict, session_id: str, session_urls: list = None
+) -> dict:
     """
     Process a legacy finding and enrich with evidence.
 
@@ -208,13 +248,11 @@ def process_legacy_finding(finding: dict, session_id: str, session_urls: list = 
             "sources": sources,
             "confidence": confidence,
             "reasoning_chain": [],
-            "validation": {
-                "validated": False
-            }
+            "validation": {"validated": False},
         },
         "created_at": finding.get("extracted_at", now),
         "updated_at": now,
-        "needs_review": len(sources) == 0  # Flag findings without evidence
+        "needs_review": len(sources) == 0,  # Flag findings without evidence
     }
 
     return enriched
@@ -240,7 +278,7 @@ def process_session(session_id: str, dry_run: bool = False) -> dict:
         "findings_processed": 0,
         "sources_extracted": 0,
         "needs_review": 0,
-        "avg_confidence": 0.0
+        "avg_confidence": 0.0,
     }
 
     # Load session URLs for cross-reference
@@ -329,19 +367,21 @@ def process_all_sessions(dry_run: bool = False, verbose: bool = False) -> list:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Extract evidence from findings"
+    parser = argparse.ArgumentParser(description="Extract evidence from findings")
+    parser.add_argument("--session", "-s", help="Process specific session ID")
+    parser.add_argument("--all", "-a", action="store_true", help="Process all sessions")
+    parser.add_argument(
+        "--dry-run", "-n", action="store_true", help="Preview without writing"
     )
-    parser.add_argument("--session", "-s",
-                        help="Process specific session ID")
-    parser.add_argument("--all", "-a", action="store_true",
-                        help="Process all sessions")
-    parser.add_argument("--dry-run", "-n", action="store_true",
-                        help="Preview without writing")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Show detailed output")
-    parser.add_argument("--force", "-f", action="store_true",
-                        help="Reprocess already-processed sessions")
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show detailed output"
+    )
+    parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Reprocess already-processed sessions",
+    )
 
     args = parser.parse_args()
 
@@ -365,9 +405,15 @@ def main():
         results = process_all_sessions(dry_run=args.dry_run, verbose=args.verbose)
 
         # Aggregate stats
-        total_findings = sum(r.get("findings_processed", 0) for r in results if "error" not in r)
-        total_sources = sum(r.get("sources_extracted", 0) for r in results if "error" not in r)
-        total_review = sum(r.get("needs_review", 0) for r in results if "error" not in r)
+        total_findings = sum(
+            r.get("findings_processed", 0) for r in results if "error" not in r
+        )
+        total_sources = sum(
+            r.get("sources_extracted", 0) for r in results if "error" not in r
+        )
+        total_review = sum(
+            r.get("needs_review", 0) for r in results if "error" not in r
+        )
         errors = [r for r in results if "error" in r]
 
         print()

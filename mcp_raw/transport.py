@@ -63,16 +63,20 @@ class RawStdioTransport:
             except json.JSONDecodeError as exc:
                 log.error(f"JSON parse error: {exc}")
                 await self.on_capture(
-                    raw_bytes=raw_bytes, parsed={},
-                    timestamp_ns=ts, direction="in",
+                    raw_bytes=raw_bytes,
+                    parsed={},
+                    timestamp_ns=ts,
+                    direction="in",
                     error=f"JSON parse error: {exc}",
                 )
                 return None
 
             # Capture inbound message
             await self.on_capture(
-                raw_bytes=raw_bytes, parsed=parsed,
-                timestamp_ns=ts, direction="in",
+                raw_bytes=raw_bytes,
+                parsed=parsed,
+                timestamp_ns=ts,
+                direction="in",
             )
 
             return raw_bytes, parsed
@@ -83,7 +87,9 @@ class RawStdioTransport:
             log.error(f"Read error: {exc}")
             return None
 
-    async def write_message(self, message: Dict[str, Any], *, request_id: Optional[int] = None):
+    async def write_message(
+        self, message: Dict[str, Any], *, request_id: Optional[int] = None
+    ):
         """Write a JSON-RPC message to stdout"""
         if self._stdout is None:
             raise RuntimeError("Transport not started")
@@ -95,8 +101,10 @@ class RawStdioTransport:
 
         # Capture outbound BEFORE sending
         await self.on_capture(
-            raw_bytes=raw_bytes, parsed=message,
-            timestamp_ns=ts, direction="out",
+            raw_bytes=raw_bytes,
+            parsed=message,
+            timestamp_ns=ts,
+            direction="out",
             parent_protocol_id=str(request_id) if request_id is not None else None,
         )
 

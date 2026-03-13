@@ -39,19 +39,23 @@ def get_archived_sessions(limit: int = 5):
         return []
 
     sessions = []
-    for session_dir in sorted(sessions_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+    for session_dir in sorted(
+        sessions_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
+    ):
         if session_dir.is_dir():
             metadata_file = session_dir / "session.json"
             if metadata_file.exists():
                 try:
                     data = json.loads(metadata_file.read_text())
-                    sessions.append({
-                        "id": session_dir.name,
-                        "topic": data.get("topic", "Unknown"),
-                        "started": data.get("started", "Unknown"),
-                        "status": data.get("status", "unknown"),
-                        "workflow": data.get("workflow", "research")
-                    })
+                    sessions.append(
+                        {
+                            "id": session_dir.name,
+                            "topic": data.get("topic", "Unknown"),
+                            "started": data.get("started", "Unknown"),
+                            "status": data.get("status", "unknown"),
+                            "workflow": data.get("workflow", "research"),
+                        }
+                    )
                 except:
                     pass
         if len(sessions) >= limit:
@@ -73,6 +77,7 @@ def get_wallet_value():
     """Get cognitive wallet value and stats."""
     try:
         from ucw.export import build_wallet_from_agent_core
+
         wallet = build_wallet_from_agent_core()
         stats = wallet.get_stats()
         return {
@@ -98,10 +103,12 @@ def main():
     wallet = get_wallet_value()
     if wallet:
         print(f"💰 COGNITIVE WALLET VALUE: ${wallet['value']:,.2f}")
-        print(f"   {wallet['sessions']} sessions | {wallet['concepts']} concepts | {wallet['papers']} papers | {wallet['urls']} URLs")
-        if wallet['domains']:
-            top_domains = sorted(wallet['domains'].items(), key=lambda x: -x[1])[:2]
-            domain_str = ", ".join(f"{d}: {w*100:.0f}%" for d, w in top_domains)
+        print(
+            f"   {wallet['sessions']} sessions | {wallet['concepts']} concepts | {wallet['papers']} papers | {wallet['urls']} URLs"
+        )
+        if wallet["domains"]:
+            top_domains = sorted(wallet["domains"].items(), key=lambda x: -x[1])[:2]
+            domain_str = ", ".join(f"{d}: {w * 100:.0f}%" for d, w in top_domains)
             print(f"   Domains: {domain_str}")
         print()
 
@@ -149,7 +156,7 @@ def main():
         print("  → Continue active session")
     if archived:
         print("  → Resume archived: python3 init_session.py --continue [ID]")
-    print("  → Start fresh: python3 init_session.py \"[topic]\"")
+    print('  → Start fresh: python3 init_session.py "[topic]"')
     print("-" * 50)
     print()
 

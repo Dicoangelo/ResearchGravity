@@ -58,7 +58,11 @@ class AuditTrail:
         error_message: Optional[str] = None,
     ) -> None:
         """Log a webhook delivery to the audit trail."""
-        status = "error" if error_message else ("stored" if events_stored > 0 else "received")
+        status = (
+            "error"
+            if error_message
+            else ("stored" if events_stored > 0 else "received")
+        )
         if not signature_valid:
             status = "rejected"
 
@@ -70,9 +74,15 @@ class AuditTrail:
                         status, events_parsed, events_stored,
                         error_message, processing_time_ms
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                    provider, event_type, delivery_id, signature_valid,
-                    status, events_parsed, events_stored,
-                    error_message, processing_time_ms,
+                    provider,
+                    event_type,
+                    delivery_id,
+                    signature_valid,
+                    status,
+                    events_parsed,
+                    events_stored,
+                    error_message,
+                    processing_time_ms,
                 )
         except Exception as exc:
             log.error(f"Audit log failed: {exc}")
@@ -85,7 +95,8 @@ class AuditTrail:
                     """SELECT * FROM webhook_events
                        WHERE provider = $1
                        ORDER BY created_at DESC LIMIT $2""",
-                    provider, limit,
+                    provider,
+                    limit,
                 )
             else:
                 rows = await conn.fetch(

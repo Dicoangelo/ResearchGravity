@@ -24,7 +24,11 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ucw.export import build_wallet_from_agent_core, export_wallet, export_wallet_summary
+from ucw.export import (
+    build_wallet_from_agent_core,
+    export_wallet,
+    export_wallet_summary,
+)
 from ucw.value import (
     format_value_display,
     get_value_breakdown,
@@ -47,30 +51,30 @@ def cmd_status(args):
   ║                                                           ║
   ║   Status: ACTIVE                                          ║
   ║   Version: {wallet.version}                                          ║
-  ║   Integrity: {wallet.integrity_hash[:12] if wallet.integrity_hash else 'Not set'}...                        ║
+  ║   Integrity: {wallet.integrity_hash[:12] if wallet.integrity_hash else "Not set"}...                        ║
   ║                                                           ║
   ╠═══════════════════════════════════════════════════════════╣
   ║                                                           ║
-  ║   Sessions:    {stats['sessions']:>5}                                     ║
-  ║   Concepts:    {stats['concepts']:>5}                                     ║
-  ║   Papers:      {stats['papers']:>5}                                     ║
-  ║   URLs:        {stats['urls']:>5}                                     ║
-  ║   Connections: {stats['connections']:>5}                                     ║
+  ║   Sessions:    {stats["sessions"]:>5}                                     ║
+  ║   Concepts:    {stats["concepts"]:>5}                                     ║
+  ║   Papers:      {stats["papers"]:>5}                                     ║
+  ║   URLs:        {stats["urls"]:>5}                                     ║
+  ║   Connections: {stats["connections"]:>5}                                     ║
   ║                                                           ║
   ╠═══════════════════════════════════════════════════════════╣
   ║                                                           ║
-  ║   💰 WALLET VALUE: ${stats['value']:>10,.2f}                         ║
+  ║   💰 WALLET VALUE: ${stats["value"]:>10,.2f}                         ║
   ║                                                           ║
   ╚═══════════════════════════════════════════════════════════╝
 """)
 
     # Show domains
-    if stats['domains']:
+    if stats["domains"]:
         print("  Domains:")
-        for domain, weight in sorted(stats['domains'].items(), key=lambda x: -x[1]):
+        for domain, weight in sorted(stats["domains"].items(), key=lambda x: -x[1]):
             bar_len = int(weight * 30)
             bar = "█" * bar_len + "░" * (30 - bar_len)
-            print(f"    {domain:20} {bar} {weight*100:>4.0f}%")
+            print(f"    {domain:20} {bar} {weight * 100:>4.0f}%")
         print()
 
 
@@ -95,7 +99,9 @@ def cmd_export(args):
     print("\n  Building wallet from agent-core...")
     wallet = build_wallet_from_agent_core()
 
-    output_path = args.output or f"wallet-{datetime.now().strftime('%Y%m%d-%H%M%S')}.ucw.json"
+    output_path = (
+        args.output or f"wallet-{datetime.now().strftime('%Y%m%d-%H%M%S')}.ucw.json"
+    )
 
     print(f"  Exporting to: {output_path}")
     export_wallet(wallet, output_path, pretty=not args.compact)
@@ -181,21 +187,39 @@ Examples:
 
     # value
     value_parser = subparsers.add_parser("value", help="Show detailed value breakdown")
-    value_parser.add_argument("-v", "--verbose", action="store_true", help="Show top concepts")
+    value_parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Show top concepts"
+    )
 
     # export
     export_parser = subparsers.add_parser("export", help="Export wallet to UCW format")
     export_parser.add_argument("-o", "--output", help="Output file path")
-    export_parser.add_argument("--compact", action="store_true", help="Compact JSON output")
+    export_parser.add_argument(
+        "--compact", action="store_true", help="Compact JSON output"
+    )
 
     # history
-    history_parser = subparsers.add_parser("history", help="Show value history over time")
-    history_parser.add_argument("-c", "--chart", action="store_true", help="Show ASCII chart")
-    history_parser.add_argument("-d", "--days", type=int, default=30, help="Days to show (default: 30)")
-    history_parser.add_argument("-l", "--limit", type=int, default=10, help="Number of entries to show (default: 10)")
+    history_parser = subparsers.add_parser(
+        "history", help="Show value history over time"
+    )
+    history_parser.add_argument(
+        "-c", "--chart", action="store_true", help="Show ASCII chart"
+    )
+    history_parser.add_argument(
+        "-d", "--days", type=int, default=30, help="Days to show (default: 30)"
+    )
+    history_parser.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        default=10,
+        help="Number of entries to show (default: 10)",
+    )
 
     # inject
-    inject_parser = subparsers.add_parser("inject", help="Inject context into CLAUDE.md")
+    inject_parser = subparsers.add_parser(
+        "inject", help="Inject context into CLAUDE.md"
+    )
     inject_parser.add_argument("-t", "--target", help="Target CLAUDE.md path")
 
     # summary

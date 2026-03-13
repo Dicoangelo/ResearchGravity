@@ -132,6 +132,7 @@ class ResearchREPL:
 
             # Recreate session
             from cli.commands import ActiveSession
+
             self.handler.session = ActiveSession(
                 session_id=session_data["session_id"],
                 topic=session_data["topic"],
@@ -155,6 +156,7 @@ class ResearchREPL:
 
     def _start_auto_capture(self):
         """Start background auto-capture task."""
+
         async def auto_capture_loop():
             """Periodically check for new URLs from Claude sessions."""
             while self.running:
@@ -166,7 +168,12 @@ class ResearchREPL:
 
                     # Import auto-capture
                     try:
-                        from auto_capture_v2 import find_claude_sessions, extract_urls, extract_text_from_jsonl, load_state
+                        from auto_capture_v2 import (
+                            find_claude_sessions,
+                            extract_urls,
+                            extract_text_from_jsonl,
+                            load_state,
+                        )
                     except ImportError:
                         continue
 
@@ -214,12 +221,14 @@ def show_status():
                     session_count += 1
                     try:
                         data = json.loads(session_file.read_text())
-                        recent_sessions.append({
-                            "id": data.get("session_id", session_dir.name),
-                            "topic": data.get("topic", "Unknown"),
-                            "status": data.get("status", "unknown"),
-                            "started_at": data.get("started_at", ""),
-                        })
+                        recent_sessions.append(
+                            {
+                                "id": data.get("session_id", session_dir.name),
+                                "topic": data.get("topic", "Unknown"),
+                                "status": data.get("status", "unknown"),
+                                "started_at": data.get("started_at", ""),
+                            }
+                        )
                     except Exception:
                         pass
 
@@ -231,7 +240,11 @@ def show_status():
     if recent:
         ui.print("\nRecent sessions:")
         for s in recent:
-            status_icon = "[green]active[/green]" if s["status"] == "active" else "[dim]archived[/dim]"
+            status_icon = (
+                "[green]active[/green]"
+                if s["status"] == "active"
+                else "[dim]archived[/dim]"
+            )
             ui.print(f"  {s['id'][:40]}")
             ui.print(f"    Topic: {s['topic'][:50]}")
 
@@ -240,9 +253,7 @@ def show_status():
 
 
 async def main():
-    parser = argparse.ArgumentParser(
-        description="ResearchGravity Interactive REPL"
-    )
+    parser = argparse.ArgumentParser(description="ResearchGravity Interactive REPL")
     parser.add_argument("--resume", help="Resume existing session by ID")
     parser.add_argument("--status", action="store_true", help="Show status only")
 

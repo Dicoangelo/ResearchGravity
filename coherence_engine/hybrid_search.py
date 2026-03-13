@@ -28,6 +28,7 @@ RRF_K = 60
 @dataclass
 class HybridResult:
     """A result from hybrid search with combined RRF score."""
+
     event_id: str
     platform: str
     session_id: str
@@ -183,7 +184,9 @@ class HybridSearch:
                           AND ce.platform != $2
                         ORDER BY ec.{col} <=> $1::vector
                         LIMIT $3""",
-                    vec_str, exclude_platform, candidate_limit,
+                    vec_str,
+                    exclude_platform,
+                    candidate_limit,
                 )
             else:
                 semantic_rows = await conn.fetch(
@@ -199,7 +202,8 @@ class HybridSearch:
                         WHERE ec.{col} IS NOT NULL
                         ORDER BY ec.{col} <=> $1::vector
                         LIMIT $2""",
-                    vec_str, candidate_limit,
+                    vec_str,
+                    candidate_limit,
                 )
 
             # ── BM25 search (ts_rank_cd + plainto_tsquery) ──
@@ -218,7 +222,9 @@ class HybridSearch:
                          AND ce.platform != $2
                        ORDER BY rank DESC
                        LIMIT $3""",
-                    query, exclude_platform, candidate_limit,
+                    query,
+                    exclude_platform,
+                    candidate_limit,
                 )
             else:
                 bm25_rows = await conn.fetch(
@@ -234,7 +240,8 @@ class HybridSearch:
                        WHERE ec.content_tsv @@ plainto_tsquery('english', $1)
                        ORDER BY rank DESC
                        LIMIT $2""",
-                    query, candidate_limit,
+                    query,
+                    candidate_limit,
                 )
 
         return semantic_rows, bm25_rows

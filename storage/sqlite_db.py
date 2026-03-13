@@ -341,7 +341,7 @@ class SQLiteDB:
             if not row:
                 await db.execute(
                     "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
-                    (SCHEMA_VERSION, datetime.now().isoformat())
+                    (SCHEMA_VERSION, datetime.now().isoformat()),
                 )
 
             await db.commit()
@@ -395,6 +395,7 @@ class SQLiteDB:
             # Warn if connections are still borrowed
             if self._borrowed_count > 0:
                 import logging
+
                 logging.warning(
                     f"SQLiteDB.close(): {self._borrowed_count} connections still borrowed"
                 )
@@ -420,7 +421,8 @@ class SQLiteDB:
     async def store_session(self, session: Dict[str, Any]) -> str:
         """Store or update a session."""
         async with self.connection() as db:
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO sessions (id, topic, status, project, started_at, archived_at,
                                      transcript_tokens, finding_count, url_count, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -434,20 +436,22 @@ class SQLiteDB:
                     url_count = excluded.url_count,
                     metadata = excluded.metadata,
                     updated_at = CURRENT_TIMESTAMP
-            """, (
-                session['id'],
-                session.get('topic'),
-                session.get('status', 'active'),
-                session.get('project'),
-                session.get('started_at'),
-                session.get('archived_at'),
-                session.get('transcript_tokens'),
-                session.get('finding_count', 0),
-                session.get('url_count', 0),
-                json.dumps(session.get('metadata', {}))
-            ))
+            """,
+                (
+                    session["id"],
+                    session.get("topic"),
+                    session.get("status", "active"),
+                    session.get("project"),
+                    session.get("started_at"),
+                    session.get("archived_at"),
+                    session.get("transcript_tokens"),
+                    session.get("finding_count", 0),
+                    session.get("url_count", 0),
+                    json.dumps(session.get("metadata", {})),
+                ),
+            )
             await db.commit()
-            return session['id']
+            return session["id"]
 
     async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get a session by ID."""
@@ -465,7 +469,7 @@ class SQLiteDB:
         limit: int = 50,
         offset: int = 0,
         project: Optional[str] = None,
-        status: Optional[str] = None
+        status: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """List sessions with optional filtering."""
         query = "SELECT * FROM sessions WHERE 1=1"
@@ -491,7 +495,8 @@ class SQLiteDB:
     async def store_finding(self, finding: Dict[str, Any]) -> str:
         """Store or update a finding."""
         async with self.connection() as db:
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO findings (id, session_id, content, type, evidence,
                                      confidence, derived_from, enables, project)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -503,24 +508,27 @@ class SQLiteDB:
                     derived_from = excluded.derived_from,
                     enables = excluded.enables,
                     updated_at = CURRENT_TIMESTAMP
-            """, (
-                finding['id'],
-                finding.get('session_id'),
-                finding['content'],
-                finding['type'],
-                json.dumps(finding.get('evidence', {})),
-                finding.get('confidence'),
-                json.dumps(finding.get('derived_from', [])),
-                json.dumps(finding.get('enables', [])),
-                finding.get('project')
-            ))
+            """,
+                (
+                    finding["id"],
+                    finding.get("session_id"),
+                    finding["content"],
+                    finding["type"],
+                    json.dumps(finding.get("evidence", {})),
+                    finding.get("confidence"),
+                    json.dumps(finding.get("derived_from", [])),
+                    json.dumps(finding.get("enables", [])),
+                    finding.get("project"),
+                ),
+            )
             await db.commit()
-            return finding['id']
+            return finding["id"]
 
     async def store_findings_batch(self, findings: List[Dict[str, Any]]) -> int:
         """Store multiple findings in a single transaction."""
         async with self.connection() as db:
-            await db.executemany("""
+            await db.executemany(
+                """
                 INSERT INTO findings (id, session_id, content, type, evidence,
                                      confidence, derived_from, enables, project)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -530,20 +538,22 @@ class SQLiteDB:
                     evidence = excluded.evidence,
                     confidence = excluded.confidence,
                     updated_at = CURRENT_TIMESTAMP
-            """, [
-                (
-                    f['id'],
-                    f.get('session_id'),
-                    f['content'],
-                    f['type'],
-                    json.dumps(f.get('evidence', {})),
-                    f.get('confidence'),
-                    json.dumps(f.get('derived_from', [])),
-                    json.dumps(f.get('enables', [])),
-                    f.get('project')
-                )
-                for f in findings
-            ])
+            """,
+                [
+                    (
+                        f["id"],
+                        f.get("session_id"),
+                        f["content"],
+                        f["type"],
+                        json.dumps(f.get("evidence", {})),
+                        f.get("confidence"),
+                        json.dumps(f.get("derived_from", [])),
+                        json.dumps(f.get("enables", [])),
+                        f.get("project"),
+                    )
+                    for f in findings
+                ],
+            )
             await db.commit()
             return len(findings)
 
@@ -553,7 +563,7 @@ class SQLiteDB:
         finding_type: Optional[str] = None,
         project: Optional[str] = None,
         min_confidence: Optional[float] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get findings with filtering."""
         query = "SELECT * FROM findings WHERE 1=1"
@@ -581,29 +591,36 @@ class SQLiteDB:
             results = []
             for row in rows:
                 d = dict(row)
-                d['evidence'] = json.loads(d['evidence']) if d['evidence'] else {}
-                d['derived_from'] = json.loads(d['derived_from']) if d['derived_from'] else []
-                d['enables'] = json.loads(d['enables']) if d['enables'] else []
+                d["evidence"] = json.loads(d["evidence"]) if d["evidence"] else {}
+                d["derived_from"] = (
+                    json.loads(d["derived_from"]) if d["derived_from"] else []
+                )
+                d["enables"] = json.loads(d["enables"]) if d["enables"] else []
                 results.append(d)
             return results
 
-    async def search_findings_fts(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+    async def search_findings_fts(
+        self, query: str, limit: int = 20
+    ) -> List[Dict[str, Any]]:
         """Full-text search on findings.
 
         Note: FTS5 interprets hyphens as column operators (e.g., 'multi-agent' becomes 'multi MINUS agent').
         We sanitize queries by replacing hyphens with spaces.
         """
         # Sanitize query: replace hyphens with spaces to avoid FTS5 column operator issues
-        sanitized_query = query.replace('-', ' ')
+        sanitized_query = query.replace("-", " ")
 
         async with self.connection() as db:
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 SELECT f.* FROM findings f
                 JOIN findings_fts fts ON f.id = fts.id
                 WHERE findings_fts MATCH ?
                 ORDER BY rank
                 LIMIT ?
-            """, (sanitized_query, limit))
+            """,
+                (sanitized_query, limit),
+            )
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
@@ -612,7 +629,8 @@ class SQLiteDB:
     async def store_url(self, url_data: Dict[str, Any]) -> int:
         """Store a URL."""
         async with self.connection() as db:
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 INSERT INTO urls (session_id, url, tier, category, source, context, relevance)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(session_id, url) DO UPDATE SET
@@ -620,46 +638,52 @@ class SQLiteDB:
                     category = excluded.category,
                     context = excluded.context,
                     relevance = excluded.relevance
-            """, (
-                url_data.get('session_id'),
-                url_data['url'],
-                url_data.get('tier'),
-                url_data.get('category'),
-                url_data.get('source'),
-                url_data.get('context'),
-                url_data.get('relevance')
-            ))
+            """,
+                (
+                    url_data.get("session_id"),
+                    url_data["url"],
+                    url_data.get("tier"),
+                    url_data.get("category"),
+                    url_data.get("source"),
+                    url_data.get("context"),
+                    url_data.get("relevance"),
+                ),
+            )
             await db.commit()
             return cursor.lastrowid
 
     async def store_urls_batch(self, urls: List[Dict[str, Any]]) -> int:
         """Store multiple URLs in a single transaction."""
         async with self.connection() as db:
-            await db.executemany("""
+            await db.executemany(
+                """
                 INSERT INTO urls (session_id, url, tier, category, source, context, relevance)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(session_id, url) DO NOTHING
-            """, [
-                (
-                    u.get('session_id'),
-                    u['url'],
-                    u.get('tier'),
-                    u.get('category'),
-                    u.get('source'),
-                    u.get('context'),
-                    u.get('relevance')
-                )
-                for u in urls
-            ])
+            """,
+                [
+                    (
+                        u.get("session_id"),
+                        u["url"],
+                        u.get("tier"),
+                        u.get("category"),
+                        u.get("source"),
+                        u.get("context"),
+                        u.get("relevance"),
+                    )
+                    for u in urls
+                ],
+            )
             await db.commit()
             return len(urls)
 
     # --- Context Pack Operations ---
 
-    async def store_pack(self, pack: Dict[str, Any], source: str = 'local') -> str:
+    async def store_pack(self, pack: Dict[str, Any], source: str = "local") -> str:
         """Store a context pack."""
         async with self.connection() as db:
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO context_packs (id, name, type, content, tokens, dq_metadata,
                                           source, source_id, validated, validation_result)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -671,49 +695,54 @@ class SQLiteDB:
                     validated = excluded.validated,
                     validation_result = excluded.validation_result,
                     updated_at = CURRENT_TIMESTAMP
-            """, (
-                pack['id'],
-                pack.get('name'),
-                pack.get('type', 'pattern'),
-                json.dumps(pack.get('content', {})),
-                pack.get('tokens'),
-                json.dumps(pack.get('dq_metadata', {})),
-                source,
-                pack.get('source_id'),
-                pack.get('validated', 0),
-                json.dumps(pack.get('validation_result', {}))
-            ))
+            """,
+                (
+                    pack["id"],
+                    pack.get("name"),
+                    pack.get("type", "pattern"),
+                    json.dumps(pack.get("content", {})),
+                    pack.get("tokens"),
+                    json.dumps(pack.get("dq_metadata", {})),
+                    source,
+                    pack.get("source_id"),
+                    pack.get("validated", 0),
+                    json.dumps(pack.get("validation_result", {})),
+                ),
+            )
             await db.commit()
-            return pack['id']
+            return pack["id"]
 
     async def store_packs_batch(
         self,
         packs: List[Dict[str, Any]],
-        source: str = 'local',
-        source_id: Optional[str] = None
+        source: str = "local",
+        source_id: Optional[str] = None,
     ) -> int:
         """Store multiple packs in a single transaction (for UCW imports)."""
         async with self.connection() as db:
-            await db.executemany("""
+            await db.executemany(
+                """
                 INSERT INTO context_packs (id, name, type, content, tokens, dq_metadata,
                                           source, source_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     content = excluded.content,
                     updated_at = CURRENT_TIMESTAMP
-            """, [
-                (
-                    p['id'],
-                    p.get('name'),
-                    p.get('type', 'pattern'),
-                    json.dumps(p.get('content', {})),
-                    p.get('tokens'),
-                    json.dumps(p.get('dq_metadata', {})),
-                    source,
-                    source_id or p.get('source_id')
-                )
-                for p in packs
-            ])
+            """,
+                [
+                    (
+                        p["id"],
+                        p.get("name"),
+                        p.get("type", "pattern"),
+                        json.dumps(p.get("content", {})),
+                        p.get("tokens"),
+                        json.dumps(p.get("dq_metadata", {})),
+                        source,
+                        source_id or p.get("source_id"),
+                    )
+                    for p in packs
+                ],
+            )
             await db.commit()
             return len(packs)
 
@@ -722,7 +751,7 @@ class SQLiteDB:
         pack_type: Optional[str] = None,
         source: Optional[str] = None,
         validated_only: bool = False,
-        limit: int = 50
+        limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """Get context packs with filtering."""
         query = "SELECT * FROM context_packs WHERE 1=1"
@@ -746,9 +775,13 @@ class SQLiteDB:
             results = []
             for row in rows:
                 d = dict(row)
-                d['content'] = json.loads(d['content']) if d['content'] else {}
-                d['dq_metadata'] = json.loads(d['dq_metadata']) if d['dq_metadata'] else {}
-                d['validation_result'] = json.loads(d['validation_result']) if d['validation_result'] else {}
+                d["content"] = json.loads(d["content"]) if d["content"] else {}
+                d["dq_metadata"] = (
+                    json.loads(d["dq_metadata"]) if d["dq_metadata"] else {}
+                )
+                d["validation_result"] = (
+                    json.loads(d["validation_result"]) if d["validation_result"] else {}
+                )
                 results.append(d)
             return results
 
@@ -760,24 +793,27 @@ class SQLiteDB:
         entity_id: str,
         source_type: str,
         source_id: Optional[str] = None,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ):
         """Track provenance of an entity."""
         async with self.connection() as db:
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO provenance (entity_type, entity_id, source_type, source_id, source_metadata)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(entity_type, entity_id) DO UPDATE SET
                     source_type = excluded.source_type,
                     source_id = excluded.source_id,
                     source_metadata = excluded.source_metadata
-            """, (
-                entity_type,
-                entity_id,
-                source_type,
-                source_id,
-                json.dumps(metadata or {})
-            ))
+            """,
+                (
+                    entity_type,
+                    entity_id,
+                    source_type,
+                    source_id,
+                    json.dumps(metadata or {}),
+                ),
+            )
             await db.commit()
 
     # --- Lineage Operations ---
@@ -790,45 +826,59 @@ class SQLiteDB:
         target_id: str,
         relation: str,
         weight: float = 1.0,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ):
         """Add a lineage relationship."""
         async with self.connection() as db:
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO lineage (source_type, source_id, target_type, target_id, relation, weight, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(source_type, source_id, target_type, target_id, relation) DO UPDATE SET
                     weight = excluded.weight,
                     metadata = excluded.metadata
-            """, (
-                source_type, source_id, target_type, target_id, relation, weight,
-                json.dumps(metadata or {})
-            ))
+            """,
+                (
+                    source_type,
+                    source_id,
+                    target_type,
+                    target_id,
+                    relation,
+                    weight,
+                    json.dumps(metadata or {}),
+                ),
+            )
             await db.commit()
 
     async def get_lineage(
         self,
         entity_type: str,
         entity_id: str,
-        direction: str = 'both'  # 'outgoing', 'incoming', 'both'
+        direction: str = "both",  # 'outgoing', 'incoming', 'both'
     ) -> List[Dict[str, Any]]:
         """Get lineage connections for an entity."""
         results = []
 
         async with self.connection() as db:
-            if direction in ('outgoing', 'both'):
-                cursor = await db.execute("""
+            if direction in ("outgoing", "both"):
+                cursor = await db.execute(
+                    """
                     SELECT * FROM lineage
                     WHERE source_type = ? AND source_id = ?
-                """, (entity_type, entity_id))
+                """,
+                    (entity_type, entity_id),
+                )
                 rows = await cursor.fetchall()
                 results.extend([dict(row) for row in rows])
 
-            if direction in ('incoming', 'both'):
-                cursor = await db.execute("""
+            if direction in ("incoming", "both"):
+                cursor = await db.execute(
+                    """
                     SELECT * FROM lineage
                     WHERE target_type = ? AND target_id = ?
-                """, (entity_type, entity_id))
+                """,
+                    (entity_type, entity_id),
+                )
                 rows = await cursor.fetchall()
                 results.extend([dict(row) for row in rows])
 
@@ -840,7 +890,8 @@ class SQLiteDB:
         """Store a session outcome."""
         async with self.connection() as db:
             outcome_id = outcome.get("id", outcome.get("session_id"))
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO session_outcomes (id, session_id, intent, outcome, quality,
                                               model_efficiency, models_used, date, messages, tools)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -852,25 +903,28 @@ class SQLiteDB:
                     models_used = excluded.models_used,
                     messages = excluded.messages,
                     tools = excluded.tools
-            """, (
-                outcome_id,
-                outcome.get("session_id"),
-                outcome.get("intent", outcome.get("title", "")),
-                outcome.get("outcome"),
-                outcome.get("quality"),
-                outcome.get("model_efficiency"),
-                json.dumps(outcome.get("models_used", {})),
-                outcome.get("date"),
-                outcome.get("messages"),
-                outcome.get("tools")
-            ))
+            """,
+                (
+                    outcome_id,
+                    outcome.get("session_id"),
+                    outcome.get("intent", outcome.get("title", "")),
+                    outcome.get("outcome"),
+                    outcome.get("quality"),
+                    outcome.get("model_efficiency"),
+                    json.dumps(outcome.get("models_used", {})),
+                    outcome.get("date"),
+                    outcome.get("messages"),
+                    outcome.get("tools"),
+                ),
+            )
             await db.commit()
             return outcome_id
 
     async def store_outcomes_batch(self, outcomes: List[Dict[str, Any]]) -> int:
         """Store multiple outcomes in a single transaction."""
         async with self.connection() as db:
-            await db.executemany("""
+            await db.executemany(
+                """
                 INSERT INTO session_outcomes (id, session_id, intent, outcome, quality,
                                               model_efficiency, models_used, date, messages, tools)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -878,21 +932,23 @@ class SQLiteDB:
                     intent = excluded.intent,
                     outcome = excluded.outcome,
                     quality = excluded.quality
-            """, [
-                (
-                    o.get("id", o.get("session_id")),
-                    o.get("session_id"),
-                    o.get("intent", o.get("title", "")),
-                    o.get("outcome"),
-                    o.get("quality"),
-                    o.get("model_efficiency"),
-                    json.dumps(o.get("models_used", {})),
-                    o.get("date"),
-                    o.get("messages"),
-                    o.get("tools")
-                )
-                for o in outcomes
-            ])
+            """,
+                [
+                    (
+                        o.get("id", o.get("session_id")),
+                        o.get("session_id"),
+                        o.get("intent", o.get("title", "")),
+                        o.get("outcome"),
+                        o.get("quality"),
+                        o.get("model_efficiency"),
+                        json.dumps(o.get("models_used", {})),
+                        o.get("date"),
+                        o.get("messages"),
+                        o.get("tools"),
+                    )
+                    for o in outcomes
+                ],
+            )
             await db.commit()
             return len(outcomes)
 
@@ -900,7 +956,7 @@ class SQLiteDB:
         self,
         limit: int = 100,
         min_quality: Optional[float] = None,
-        outcome_filter: Optional[str] = None
+        outcome_filter: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get session outcomes with filtering."""
         query = "SELECT * FROM session_outcomes WHERE 1=1"
@@ -922,7 +978,9 @@ class SQLiteDB:
             results = []
             for row in rows:
                 d = dict(row)
-                d['models_used'] = json.loads(d['models_used']) if d['models_used'] else {}
+                d["models_used"] = (
+                    json.loads(d["models_used"]) if d["models_used"] else {}
+                )
                 results.append(d)
             return results
 
@@ -931,53 +989,58 @@ class SQLiteDB:
     async def store_cognitive_state(self, state: Dict[str, Any]) -> str:
         """Store a cognitive state."""
         async with self.connection() as db:
-            state_id = state.get("id", f"state-{state.get('timestamp', datetime.now().isoformat())}")
-            await db.execute("""
+            state_id = state.get(
+                "id", f"state-{state.get('timestamp', datetime.now().isoformat())}"
+            )
+            await db.execute(
+                """
                 INSERT INTO cognitive_states (id, mode, energy_level, flow_score, hour, day, predictions)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     mode = excluded.mode,
                     energy_level = excluded.energy_level,
                     flow_score = excluded.flow_score
-            """, (
-                state_id,
-                state.get("mode"),
-                state.get("energy_level"),
-                state.get("flow_score"),
-                state.get("hour"),
-                state.get("day"),
-                json.dumps(state.get("predictions", {}))
-            ))
+            """,
+                (
+                    state_id,
+                    state.get("mode"),
+                    state.get("energy_level"),
+                    state.get("flow_score"),
+                    state.get("hour"),
+                    state.get("day"),
+                    json.dumps(state.get("predictions", {})),
+                ),
+            )
             await db.commit()
             return state_id
 
     async def store_cognitive_states_batch(self, states: List[Dict[str, Any]]) -> int:
         """Store multiple cognitive states."""
         async with self.connection() as db:
-            await db.executemany("""
+            await db.executemany(
+                """
                 INSERT INTO cognitive_states (id, mode, energy_level, flow_score, hour, day, predictions)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO NOTHING
-            """, [
-                (
-                    s.get("id", f"state-{s.get('timestamp', i)}"),
-                    s.get("mode"),
-                    s.get("energy_level"),
-                    s.get("flow_score"),
-                    s.get("hour"),
-                    s.get("day"),
-                    json.dumps(s.get("predictions", {}))
-                )
-                for i, s in enumerate(states)
-            ])
+            """,
+                [
+                    (
+                        s.get("id", f"state-{s.get('timestamp', i)}"),
+                        s.get("mode"),
+                        s.get("energy_level"),
+                        s.get("flow_score"),
+                        s.get("hour"),
+                        s.get("day"),
+                        json.dumps(s.get("predictions", {})),
+                    )
+                    for i, s in enumerate(states)
+                ],
+            )
             await db.commit()
             return len(states)
 
     async def get_cognitive_states(
-        self,
-        limit: int = 100,
-        mode: Optional[str] = None,
-        hour: Optional[int] = None
+        self, limit: int = 100, mode: Optional[str] = None, hour: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Get cognitive states with filtering."""
         query = "SELECT * FROM cognitive_states WHERE 1=1"
@@ -999,7 +1062,9 @@ class SQLiteDB:
             results = []
             for row in rows:
                 d = dict(row)
-                d['predictions'] = json.loads(d['predictions']) if d['predictions'] else {}
+                d["predictions"] = (
+                    json.loads(d["predictions"]) if d["predictions"] else {}
+                )
                 results.append(d)
             return results
 
@@ -1009,48 +1074,52 @@ class SQLiteDB:
         """Store an error pattern."""
         async with self.connection() as db:
             error_id = error.get("id", f"error-{uuid.uuid4().hex[:8]}")
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT INTO error_patterns (id, error_type, context, solution, success_rate, occurrences)
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     occurrences = occurrences + 1,
                     success_rate = excluded.success_rate,
                     last_seen = CURRENT_TIMESTAMP
-            """, (
-                error_id,
-                error.get("error_type"),
-                error.get("context"),
-                error.get("solution"),
-                error.get("success_rate", 0.0),
-                error.get("occurrences", 1)
-            ))
+            """,
+                (
+                    error_id,
+                    error.get("error_type"),
+                    error.get("context"),
+                    error.get("solution"),
+                    error.get("success_rate", 0.0),
+                    error.get("occurrences", 1),
+                ),
+            )
             await db.commit()
             return error_id
 
     async def store_error_patterns_batch(self, errors: List[Dict[str, Any]]) -> int:
         """Store multiple error patterns."""
         async with self.connection() as db:
-            await db.executemany("""
+            await db.executemany(
+                """
                 INSERT INTO error_patterns (id, error_type, context, solution, success_rate)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO NOTHING
-            """, [
-                (
-                    e.get("id", f"error-{i}"),
-                    e.get("error_type"),
-                    e.get("context"),
-                    e.get("solution"),
-                    e.get("success_rate", 0.0)
-                )
-                for i, e in enumerate(errors)
-            ])
+            """,
+                [
+                    (
+                        e.get("id", f"error-{i}"),
+                        e.get("error_type"),
+                        e.get("context"),
+                        e.get("solution"),
+                        e.get("success_rate", 0.0),
+                    )
+                    for i, e in enumerate(errors)
+                ],
+            )
             await db.commit()
             return len(errors)
 
     async def get_error_patterns(
-        self,
-        limit: int = 100,
-        min_success_rate: Optional[float] = None
+        self, limit: int = 100, min_success_rate: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """Get error patterns with filtering."""
         query = "SELECT * FROM error_patterns WHERE 1=1"
@@ -1089,8 +1158,8 @@ class SQLiteDB:
                     prediction.get("success_probability"),
                     prediction.get("optimal_time"),
                     json.dumps(prediction.get("cognitive_state", {})),
-                    prediction.get("timestamp", datetime.now().isoformat())
-                )
+                    prediction.get("timestamp", datetime.now().isoformat()),
+                ),
             )
             await db.commit()
 
@@ -1101,14 +1170,14 @@ class SQLiteDB:
         prediction_id: str,
         actual_quality: float,
         actual_outcome: str,
-        session_id: str
+        session_id: str,
     ):
         """Update a prediction with actual outcome for calibration."""
         async with self.connection() as db:
             # Get the prediction
             cursor = await db.execute(
                 "SELECT predicted_quality, predicted_success_probability FROM prediction_tracking WHERE id = ?",
-                (prediction_id,)
+                (prediction_id,),
             )
             row = await cursor.fetchone()
 
@@ -1118,10 +1187,14 @@ class SQLiteDB:
 
                 # Calculate error and match
                 error_magnitude = abs(predicted_quality - actual_quality)
-                success_match = 1 if (
-                    (predicted_success >= 0.7 and actual_outcome == "success") or
-                    (predicted_success < 0.7 and actual_outcome != "success")
-                ) else 0
+                success_match = (
+                    1
+                    if (
+                        (predicted_success >= 0.7 and actual_outcome == "success")
+                        or (predicted_success < 0.7 and actual_outcome != "success")
+                    )
+                    else 0
+                )
 
                 # Update with actual outcome
                 await db.execute(
@@ -1142,8 +1215,8 @@ class SQLiteDB:
                         datetime.now().isoformat(),
                         error_magnitude,
                         success_match,
-                        prediction_id
-                    )
+                        prediction_id,
+                    ),
                 )
                 await db.commit()
 
@@ -1159,7 +1232,7 @@ class SQLiteDB:
                 WHERE outcome_timestamp IS NOT NULL
                 AND prediction_timestamp >= ?
                 """,
-                (cutoff,)
+                (cutoff,),
             )
             total = (await cursor.fetchone())[0]
 
@@ -1169,7 +1242,7 @@ class SQLiteDB:
                     "accurate_predictions": 0,
                     "accuracy": 0.0,
                     "avg_quality_error": 0.0,
-                    "success_prediction_rate": 0.0
+                    "success_prediction_rate": 0.0,
                 }
 
             # Success matches
@@ -1179,7 +1252,7 @@ class SQLiteDB:
                 WHERE success_match = 1
                 AND prediction_timestamp >= ?
                 """,
-                (cutoff,)
+                (cutoff,),
             )
             successes = (await cursor.fetchone())[0]
 
@@ -1190,7 +1263,7 @@ class SQLiteDB:
                 WHERE error_magnitude IS NOT NULL
                 AND prediction_timestamp >= ?
                 """,
-                (cutoff,)
+                (cutoff,),
             )
             avg_error = (await cursor.fetchone())[0] or 0.0
 
@@ -1199,8 +1272,10 @@ class SQLiteDB:
                 "accurate_predictions": successes,
                 "accuracy": successes / total if total > 0 else 0.0,
                 "avg_quality_error": round(avg_error, 2),
-                "success_prediction_rate": round(successes / total, 2) if total > 0 else 0.0,
-                "period_days": days
+                "success_prediction_rate": round(successes / total, 2)
+                if total > 0
+                else 0.0,
+                "period_days": days,
             }
 
     # --- Visual Asset Operations ---
@@ -1208,23 +1283,30 @@ class SQLiteDB:
     async def store_visual_asset(self, asset: Dict[str, Any]) -> str:
         """Store a visual asset (diagram/plot from PaperBanana)."""
         async with self.connection() as db:
-            asset_id = asset.get("asset_id", asset.get("id", f"visual-{uuid.uuid4().hex[:12]}"))
-            await db.execute("""
+            asset_id = asset.get(
+                "asset_id", asset.get("id", f"visual-{uuid.uuid4().hex[:12]}")
+            )
+            await db.execute(
+                """
                 INSERT INTO visual_assets (id, session_id, diagram_type, methodology_text, caption, png_path, metadata, critic_scores, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     critic_scores = COALESCE(excluded.critic_scores, critic_scores)
-            """, (
-                asset_id,
-                asset.get("session_id"),
-                asset.get("diagram_type", "methodology"),
-                asset.get("methodology_text"),
-                asset.get("caption", ""),
-                asset.get("png_path", ""),
-                json.dumps(asset.get("metadata", {})),
-                json.dumps(asset.get("critic_scores")) if asset.get("critic_scores") else None,
-                asset.get("created_at", datetime.now().isoformat()),
-            ))
+            """,
+                (
+                    asset_id,
+                    asset.get("session_id"),
+                    asset.get("diagram_type", "methodology"),
+                    asset.get("methodology_text"),
+                    asset.get("caption", ""),
+                    asset.get("png_path", ""),
+                    json.dumps(asset.get("metadata", {})),
+                    json.dumps(asset.get("critic_scores"))
+                    if asset.get("critic_scores")
+                    else None,
+                    asset.get("created_at", datetime.now().isoformat()),
+                ),
+            )
             await db.commit()
             return asset_id
 
@@ -1272,45 +1354,45 @@ class SQLiteDB:
             stats = {}
 
             cursor = await db.execute("SELECT COUNT(*) FROM sessions")
-            stats['sessions'] = (await cursor.fetchone())[0]
+            stats["sessions"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM findings")
-            stats['findings'] = (await cursor.fetchone())[0]
+            stats["findings"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM urls")
-            stats['urls'] = (await cursor.fetchone())[0]
+            stats["urls"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM context_packs")
-            stats['packs'] = (await cursor.fetchone())[0]
+            stats["packs"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM papers")
-            stats['papers'] = (await cursor.fetchone())[0]
+            stats["papers"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM lineage")
-            stats['lineage_edges'] = (await cursor.fetchone())[0]
+            stats["lineage_edges"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute(
                 "SELECT COUNT(*) FROM provenance WHERE source_type = 'ucw_trade'"
             )
-            stats['ucw_imports'] = (await cursor.fetchone())[0]
+            stats["ucw_imports"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM session_outcomes")
-            stats['session_outcomes'] = (await cursor.fetchone())[0]
+            stats["session_outcomes"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM cognitive_states")
-            stats['cognitive_states'] = (await cursor.fetchone())[0]
+            stats["cognitive_states"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM error_patterns")
-            stats['error_patterns'] = (await cursor.fetchone())[0]
+            stats["error_patterns"] = (await cursor.fetchone())[0]
 
             cursor = await db.execute("SELECT COUNT(*) FROM prediction_tracking")
-            stats['predictions_tracked'] = (await cursor.fetchone())[0]
+            stats["predictions_tracked"] = (await cursor.fetchone())[0]
 
             try:
                 cursor = await db.execute("SELECT COUNT(*) FROM visual_assets")
-                stats['visual_assets'] = (await cursor.fetchone())[0]
+                stats["visual_assets"] = (await cursor.fetchone())[0]
             except Exception:
-                stats['visual_assets'] = 0
+                stats["visual_assets"] = 0
 
             return stats
 

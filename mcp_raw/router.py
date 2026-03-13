@@ -38,7 +38,9 @@ log = get_logger("router")
 class Router:
     """MCP method dispatcher."""
 
-    def __init__(self, server_name: Optional[str] = None, server_version: Optional[str] = None):
+    def __init__(
+        self, server_name: Optional[str] = None, server_version: Optional[str] = None
+    ):
         self._tools: List[Dict[str, Any]] = []
         self._tool_handlers: List[Callable] = []
         self._resources: List[Dict[str, Any]] = []
@@ -58,11 +60,15 @@ class Router:
             handler:    async fn(name, args) -> dict with "content" key.
         """
         self._tools.extend(tools_list)
-        self._tool_handlers.append((
-            {t["name"] for t in tools_list},
-            handler,
-        ))
-        log.info(f"Registered {len(tools_list)} tools: {[t['name'] for t in tools_list]}")
+        self._tool_handlers.append(
+            (
+                {t["name"] for t in tools_list},
+                handler,
+            )
+        )
+        log.info(
+            f"Registered {len(tools_list)} tools: {[t['name'] for t in tools_list]}"
+        )
 
     def register_resources(
         self,
@@ -82,7 +88,9 @@ class Router:
 
     # ── dispatch ─────────────────────────────────────────────────
 
-    async def route(self, msg_type: str, msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def route(
+        self, msg_type: str, msg: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Route a validated message to the appropriate handler.
 
@@ -169,11 +177,15 @@ class Router:
             try:
                 content = await handler(uri)
                 if content is not None:
-                    return resource_read_result([{
-                        "uri": uri,
-                        "mimeType": "text/plain",
-                        "text": content,
-                    }])
+                    return resource_read_result(
+                        [
+                            {
+                                "uri": uri,
+                                "mimeType": "text/plain",
+                                "text": content,
+                            }
+                        ]
+                    )
             except Exception as exc:
                 log.error(f"Resource {uri} error: {exc}")
                 raise ProtocolError(INTERNAL_ERROR, f"Resource error: {exc}")

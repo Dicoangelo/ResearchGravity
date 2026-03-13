@@ -84,6 +84,7 @@ TOOLS: List[Dict[str, Any]] = [
 
 # ── Handler ──────────────────────────────────────────────────────────────────
 
+
 async def handle_tool(name: str, args: dict) -> dict:
     """Dispatch webhook tool calls."""
     try:
@@ -102,18 +103,20 @@ async def handle_tool(name: str, args: dict) -> dict:
             )
     except Exception as exc:
         log.error(f"Webhook tool error ({name}): {exc}")
-        return tool_result_content(
-            [text_content(f"Error: {exc}")], is_error=True
-        )
+        return tool_result_content([text_content(f"Error: {exc}")], is_error=True)
 
 
 async def _webhook_status() -> dict:
     """Get webhook receiver status."""
     if not _pool:
-        return tool_result_content([text_content(
-            "Webhook tools: no database connection. "
-            "Ensure the webhook server is running (python3 -m webhook start)."
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    "Webhook tools: no database connection. "
+                    "Ensure the webhook server is running (python3 -m webhook start)."
+                )
+            ]
+        )
 
     async with _pool.acquire() as conn:
         # Check if audit table exists
@@ -125,10 +128,14 @@ async def _webhook_status() -> dict:
         )
 
         if not exists:
-            return tool_result_content([text_content(
-                "Webhook audit table not found. "
-                "Start the webhook server: python3 -m webhook start"
-            )])
+            return tool_result_content(
+                [
+                    text_content(
+                        "Webhook audit table not found. "
+                        "Start the webhook server: python3 -m webhook start"
+                    )
+                ]
+            )
 
         total = await conn.fetchval("SELECT COUNT(*) FROM webhook_events")
         stored = await conn.fetchval(
@@ -176,7 +183,8 @@ async def _webhook_list(provider: Optional[str] = None, limit: int = 20) -> dict
                    FROM webhook_events
                    WHERE provider = $1
                    ORDER BY created_at DESC LIMIT $2""",
-                provider, limit,
+                provider,
+                limit,
             )
         else:
             rows = await conn.fetch(
@@ -192,7 +200,7 @@ async def _webhook_list(provider: Optional[str] = None, limit: int = 20) -> dict
 
     lines = [f"Recent Webhook Deliveries (limit={limit})", "=" * 70]
     for r in rows:
-        ms = f"{r['processing_time_ms']}ms" if r['processing_time_ms'] else "—"
+        ms = f"{r['processing_time_ms']}ms" if r["processing_time_ms"] else "—"
         lines.append(
             f"[{r['created_at']:%Y-%m-%d %H:%M:%S}] "
             f"{r['provider']:10s} {r['event_type']:18s} "
@@ -208,12 +216,17 @@ async def _webhook_test(provider: str) -> dict:
     try:
         import httpx
     except ImportError:
-        return tool_result_content([text_content(
-            "httpx not installed. Test manually: "
-            "curl -X POST http://localhost:3848/webhook/test/github"
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    "httpx not installed. Test manually: "
+                    "curl -X POST http://localhost:3848/webhook/test/github"
+                )
+            ]
+        )
 
     from webhook.config import WEBHOOK_HOST, WEBHOOK_PORT
+
     base_url = f"http://{WEBHOOK_HOST}:{WEBHOOK_PORT}"
 
     try:
@@ -221,10 +234,14 @@ async def _webhook_test(provider: str) -> dict:
             resp = await client.post(f"{base_url}/webhook/test/{provider}")
             data = resp.json()
     except Exception as exc:
-        return tool_result_content([text_content(
-            f"Failed to reach webhook server at {base_url}: {exc}\n"
-            "Start it with: python3 -m webhook start"
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    f"Failed to reach webhook server at {base_url}: {exc}\n"
+                    "Start it with: python3 -m webhook start"
+                )
+            ]
+        )
 
     lines = [
         f"Test result for {provider}:",

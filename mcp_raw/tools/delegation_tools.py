@@ -37,6 +37,7 @@ async def _get_coordinator():
     global _coordinator
     if _coordinator is None:
         from delegation import DelegationCoordinator
+
         _coordinator = DelegationCoordinator()
         await _coordinator.__aenter__()
     return _coordinator
@@ -239,6 +240,7 @@ TOOLS: List[Dict[str, Any]] = [
 
 # ── Dispatcher ───────────────────────────────────────────────────────────────
 
+
 async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     handlers = {
         "delegate_research": _delegate_research,
@@ -253,16 +255,21 @@ async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
 
     handler = handlers.get(name)
     if not handler:
-        return tool_result_content([text_content(f"Unknown delegation tool: {name}")], is_error=True)
+        return tool_result_content(
+            [text_content(f"Unknown delegation tool: {name}")], is_error=True
+        )
 
     try:
         return await handler(args)
     except Exception as exc:
         log.error(f"Tool {name} failed: {exc}", exc_info=True)
-        return tool_result_content([text_content(f"Error in {name}: {exc}")], is_error=True)
+        return tool_result_content(
+            [text_content(f"Error in {name}: {exc}")], is_error=True
+        )
 
 
 # ── Implementations ──────────────────────────────────────────────────────────
+
 
 async def _delegate_research(args: Dict) -> Dict:
     """Submit a research task for intelligent delegation."""
@@ -285,7 +292,9 @@ async def _delegate_research(args: Dict) -> Dict:
 
         # Show decomposition
         if status["subtask_statuses"]:
-            output += f"## Decomposition ({len(status['subtask_statuses'])} subtasks)\n\n"
+            output += (
+                f"## Decomposition ({len(status['subtask_statuses'])} subtasks)\n\n"
+            )
             for subtask_id, subtask in status["subtask_statuses"].items():
                 agent = subtask.get("agent_id", "unassigned")
                 desc = subtask.get("description", "")[:80]
@@ -404,9 +413,14 @@ async def _get_agent_trust(args: Dict) -> Dict:
                 agents = await ledger.get_top_agents(task_type, limit)
 
                 if not agents:
-                    return tool_result_content([text_content(
-                        "No agents found" + (f" for task type '{task_type}'" if task_type else "")
-                    )])
+                    return tool_result_content(
+                        [
+                            text_content(
+                                "No agents found"
+                                + (f" for task type '{task_type}'" if task_type else "")
+                            )
+                        ]
+                    )
 
                 output = f"# Agent Trust Scores ({len(agents)} agents)\n\n"
                 if task_type:
@@ -416,7 +430,11 @@ async def _get_agent_trust(args: Dict) -> Dict:
                 output += "|-------|-------|-----------|----------|-------------|-------------|\n"
 
                 for agent in agents:
-                    aid = agent["agent_id"][:20] + "..." if len(agent["agent_id"]) > 20 else agent["agent_id"]
+                    aid = (
+                        agent["agent_id"][:20] + "..."
+                        if len(agent["agent_id"]) > 20
+                        else agent["agent_id"]
+                    )
                     trust = agent["trust_score"]
                     succ = agent["success_count"]
                     fail = agent["failure_count"]
@@ -454,14 +472,18 @@ async def _delegation_history(args: Dict) -> Dict:
             conn.row_factory = sqlite3.Row
             evo_rows = conn.execute(
                 "SELECT * FROM evolution_outcomes ORDER BY timestamp DESC LIMIT ?",
-                (limit,)
+                (limit,),
             ).fetchall()
             conn.close()
 
         if evo_rows:
             output += f"## Delegation Outcomes ({len(evo_rows)})\n\n"
-            output += "| ID | Success | Quality | Cost | Duration | Subtasks | Feedback |\n"
-            output += "|----|---------|---------|------|----------|----------|----------|\n"
+            output += (
+                "| ID | Success | Quality | Cost | Duration | Subtasks | Feedback |\n"
+            )
+            output += (
+                "|----|---------|---------|------|----------|----------|----------|\n"
+            )
 
             for row in evo_rows:
                 did = row["delegation_id"][:16] + "..."
@@ -486,7 +508,7 @@ async def _delegation_history(args: Dict) -> Dict:
             try:
                 gate_rows = conn.execute(
                     "SELECT * FROM delegation_events ORDER BY timestamp DESC LIMIT ?",
-                    (limit,)
+                    (limit,),
                 ).fetchall()
             except sqlite3.OperationalError:
                 pass  # Table may not exist yet
@@ -499,6 +521,7 @@ async def _delegation_history(args: Dict) -> Dict:
 
             for row in gate_rows:
                 from datetime import datetime
+
                 ts = datetime.fromtimestamp(row["timestamp"]).strftime("%m/%d %H:%M")
                 gate = row["gate_type"] if row["gate_type"] else row["event_type"]
                 status = row["status"]
@@ -514,8 +537,16 @@ async def _delegation_history(args: Dict) -> Dict:
             output += f"## Active Chains ({len(coordinator.chains)})\n\n"
             for cid, chain in list(coordinator.chains.items())[-limit:]:
                 total = len(chain.subtask_statuses)
-                completed = sum(1 for st in chain.subtask_statuses.values() if st["status"] == "completed")
-                failed = sum(1 for st in chain.subtask_statuses.values() if st["status"] == "failed")
+                completed = sum(
+                    1
+                    for st in chain.subtask_statuses.values()
+                    if st["status"] == "completed"
+                )
+                failed = sum(
+                    1
+                    for st in chain.subtask_statuses.values()
+                    if st["status"] == "failed"
+                )
                 output += f"- **{cid}** — {chain.status} ({completed}/{total} done, {failed} failed)\n"
             output += "\n"
 
@@ -552,13 +583,19 @@ async def _delegation_insights(args: Dict) -> Dict:
                 output += "|-------|-------|--------------|--------|\n"
 
                 for agent in top_agents[:5]:
-                    aid = agent["agent_id"][:30] + "..." if len(agent["agent_id"]) > 30 else agent["agent_id"]
+                    aid = (
+                        agent["agent_id"][:30] + "..."
+                        if len(agent["agent_id"]) > 30
+                        else agent["agent_id"]
+                    )
                     trust = agent["trust_score"]
                     total = agent["success_count"] + agent["failure_count"]
                     success_rate = agent["success_count"] / total if total > 0 else 0
                     qual = agent["avg_quality"] or 0
 
-                    output += f"| {aid} | {trust:.3f} | {success_rate:.0%} | {qual:.2f} |\n"
+                    output += (
+                        f"| {aid} | {trust:.3f} | {success_rate:.0%} | {qual:.2f} |\n"
+                    )
 
                 output += "\n"
 
@@ -568,11 +605,15 @@ async def _delegation_insights(args: Dict) -> Dict:
             output += "Common failure modes:\n"
             output += "- API timeouts (will be tracked in next iteration)\n"
             output += "- Quality below threshold (will be tracked in next iteration)\n"
-            output += "- Resource unavailability (will be tracked in next iteration)\n\n"
+            output += (
+                "- Resource unavailability (will be tracked in next iteration)\n\n"
+            )
 
             # Methodology evolution (placeholder)
             output += "## Methodology Evolution\n\n"
-            output += "*Tracking routing weight changes and decomposition patterns...*\n\n"
+            output += (
+                "*Tracking routing weight changes and decomposition patterns...*\n\n"
+            )
             output += "Insights:\n"
             output += "- Trust scores are evolving based on outcomes\n"
             output += "- Bayesian updates ensure smooth convergence\n"
@@ -628,9 +669,11 @@ async def _publish_research_thread(args: Dict) -> Dict:
         tweets.append(hook.strip()[:270] + " (thread)")
 
         # Tweet 2: CONTEXT
-        context = f"The delegation system classified the task, decomposed it into subtasks, "
-        context += f"routed each to specialized agents based on Bayesian trust scores, "
-        context += f"and executed them in parallel."
+        context = (
+            "The delegation system classified the task, decomposed it into subtasks, "
+        )
+        context += "routed each to specialized agents based on Bayesian trust scores, "
+        context += "and executed them in parallel."
         if chain_id:
             context += f"\n\nChain: {chain_id}"
         tweets.append(context.strip()[:280])
@@ -639,7 +682,7 @@ async def _publish_research_thread(args: Dict) -> Dict:
         if findings:
             tweet3 = f"Key findings:\n\n{findings}"
         else:
-            tweet3 = f"Key findings:\n\n- Research delegation completed successfully\n- Trust-weighted agent routing enabled capability matching\n- Results verified via automated quality gates"
+            tweet3 = "Key findings:\n\n- Research delegation completed successfully\n- Trust-weighted agent routing enabled capability matching\n- Results verified via automated quality gates"
         tweets.append(tweet3.strip()[:280])
 
         # Tweet 4: ANALYSIS
@@ -663,12 +706,12 @@ async def _publish_research_thread(args: Dict) -> Dict:
 
         # Format output
         output = f"# Research Thread: {topic}\n\n"
-        output += f"**Template:** Research (5 tweets)\n"
-        output += f"**Status:** Ready to review — NOT auto-posted\n\n"
+        output += "**Template:** Research (5 tweets)\n"
+        output += "**Status:** Ready to review — NOT auto-posted\n\n"
 
         for i, tweet in enumerate(tweets, 1):
             labels = ["HOOK", "CONTEXT", "KEY FINDINGS", "ANALYSIS", "LINK + CTA"]
-            output += f"### Tweet {i} — {labels[i-1]} ({len(tweet)} chars)\n"
+            output += f"### Tweet {i} — {labels[i - 1]} ({len(tweet)} chars)\n"
             output += f"```\n{tweet}\n```\n\n"
 
         output += "---\n"
@@ -731,7 +774,9 @@ async def _auto_delegate_monitor(args: Dict) -> Dict:
         output += f"**Qualifying (>={quality_threshold}):** {len(qualifying)}\n\n"
 
         if not qualifying:
-            output += "*No results met the quality threshold. No delegations triggered.*\n"
+            output += (
+                "*No results met the quality threshold. No delegations triggered.*\n"
+            )
             return tool_result_content([text_content(output)])
 
         # Step 4: Auto-delegate qualifying signals
@@ -747,13 +792,15 @@ async def _auto_delegate_monitor(args: Dict) -> Dict:
                         "source": "x_monitor",
                         "monitor": monitor_name,
                         "quality_score": signal.get("quality_score", 0),
+                    },
+                )
+                chains.append(
+                    {
+                        "chain_id": chain_id,
+                        "signal": text[:80],
+                        "quality": signal.get("quality_score", 0),
                     }
                 )
-                chains.append({
-                    "chain_id": chain_id,
-                    "signal": text[:80],
-                    "quality": signal.get("quality_score", 0),
-                })
 
             output += f"## Delegations Spawned ({len(chains)})\n\n"
             for c in chains:
@@ -784,7 +831,7 @@ async def _sync_x_trust(args: Dict) -> Dict:
         async with XTrustBridge() as bridge:
             results = await bridge.sync_top_authors(authors_json)
 
-        output = f"# X → Delegation Trust Sync\n\n"
+        output = "# X → Delegation Trust Sync\n\n"
         output += f"**Synced:** {len(results)} authors\n\n"
 
         if results:
@@ -797,8 +844,8 @@ async def _sync_x_trust(args: Dict) -> Dict:
                     f"{r['delegation_trust']:.3f} | {r['agent_id']} |\n"
                 )
 
-            output += f"\n*These authors are now available as delegation agents "
-            output += f"with prefix `x-author:` for research task routing.*\n"
+            output += "\n*These authors are now available as delegation agents "
+            output += "with prefix `x-author:` for research task routing.*\n"
 
         return tool_result_content([text_content(output)])
 
@@ -812,7 +859,9 @@ async def _sync_x_trust(args: Dict) -> Dict:
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _format_timestamp(ts: float) -> str:
     """Format Unix timestamp as readable string."""
     from datetime import datetime
+
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")

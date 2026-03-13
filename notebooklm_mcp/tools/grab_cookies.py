@@ -36,12 +36,12 @@ class CookieHandler(http.server.BaseHTTPRequestHandler):
     """Handle cookie POST from the browser bookmarklet."""
 
     def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length).decode('utf-8')
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length).decode("utf-8")
 
         try:
             data = json.loads(body)
-            cookies = data.get('cookies', '')
+            cookies = data.get("cookies", "")
 
             if cookies and len(cookies) > 100:
                 # Save cookies
@@ -50,48 +50,54 @@ class CookieHandler(http.server.BaseHTTPRequestHandler):
                 COOKIE_FILE.chmod(0o600)
 
                 # Count cookie pairs
-                count = len([c for c in cookies.split('; ') if '=' in c])
+                count = len([c for c in cookies.split("; ") if "=" in c])
 
                 self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                self.wfile.write(json.dumps({
-                    'status': 'ok',
-                    'message': f'Saved {count} cookies to {COOKIE_FILE}'
-                }).encode())
+                self.wfile.write(
+                    json.dumps(
+                        {
+                            "status": "ok",
+                            "message": f"Saved {count} cookies to {COOKIE_FILE}",
+                        }
+                    ).encode()
+                )
 
                 print(f"\n  SAVED {count} cookies to {COOKIE_FILE}")
                 print(f"  Cookie string: {len(cookies)} bytes")
-                print(f"\n  You can close this terminal now.")
+                print("\n  You can close this terminal now.")
 
                 # Shutdown server after response
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
             else:
                 self.send_response(400)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(b'{"status":"error","message":"No cookies received"}')
         except Exception as e:
             self.send_response(500)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(json.dumps({'status': 'error', 'message': str(e)}).encode())
+            self.wfile.write(
+                json.dumps({"status": "error", "message": str(e)}).encode()
+            )
 
     def do_OPTIONS(self):
         """Handle CORS preflight."""
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
     def do_GET(self):
         """Serve the extraction page."""
         self.send_response(200)
-        self.send_header('Content-Type', 'text/html')
+        self.send_header("Content-Type", "text/html")
         self.end_headers()
         self.wfile.write(EXTRACTION_PAGE.encode())
 
@@ -100,7 +106,8 @@ class CookieHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-EXTRACTION_PAGE = """<!DOCTYPE html>
+EXTRACTION_PAGE = (
+    """<!DOCTYPE html>
 <html>
 <head>
 <title>NotebookLM Cookie Extractor</title>
@@ -134,7 +141,9 @@ button:hover { background: #6d28d9; }
 
 <div class="step">
 <span class="step-num">3.</span> Paste this one-liner and press Enter:
-<pre id="snippet" onclick="copySnippet()">fetch('http://localhost:""" + str(PORT) + """',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cookies:document.cookie})}).then(r=>r.json()).then(d=>console.log('Done:',d.message)).catch(e=>console.error(e))</pre>
+<pre id="snippet" onclick="copySnippet()">fetch('http://localhost:"""
+    + str(PORT)
+    + """',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cookies:document.cookie})}).then(r=>r.json()).then(d=>console.log('Done:',d.message)).catch(e=>console.error(e))</pre>
 <small style="color:#888">Click to copy</small>
 </div>
 
@@ -152,7 +161,9 @@ function copySnippet() {
 // Poll for completion
 setInterval(async () => {
     try {
-        const r = await fetch('http://localhost:""" + str(PORT) + """/status');
+        const r = await fetch('http://localhost:"""
+    + str(PORT)
+    + """/status');
         // If server is still running, we're waiting
     } catch(e) {
         // Server shut down = success
@@ -163,10 +174,11 @@ setInterval(async () => {
 </script>
 </body>
 </html>"""
+)
 
 
 def main():
-    print(f"""
+    print("""
   ╔══════════════════════════════════════════╗
   ║   NotebookLM Cookie Extractor           ║
   ║   No Keychain. No DevTools digging.     ║
@@ -178,10 +190,10 @@ def main():
   (This server auto-shuts down when done)
 """)
 
-    server = http.server.HTTPServer(('127.0.0.1', PORT), CookieHandler)
+    server = http.server.HTTPServer(("127.0.0.1", PORT), CookieHandler)
 
     # Open browser to our local page
-    webbrowser.open(f'http://localhost:{PORT}')
+    webbrowser.open(f"http://localhost:{PORT}")
 
     try:
         server.serve_forever()
@@ -196,7 +208,7 @@ def main():
         if cookies:
             print(f"\n  Cookies saved ({len(cookies)} bytes)")
             print(f"  File: {COOKIE_FILE}")
-            print(f"\n  Now use 'auto_auth' or 'save_auth_tokens' in Claude Code.")
+            print("\n  Now use 'auto_auth' or 'save_auth_tokens' in Claude Code.")
             return 0
 
     print("\n  No cookies captured. Try again.")

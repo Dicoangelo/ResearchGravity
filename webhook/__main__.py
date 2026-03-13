@@ -32,11 +32,11 @@ async def cmd_start():
 
     register_handlers(cfg.ENABLED_PROVIDERS)
 
-    print(f"UCW Webhook Receiver v1.0.0")
+    print("UCW Webhook Receiver v1.0.0")
     print(f"  Host: {cfg.WEBHOOK_HOST}:{cfg.WEBHOOK_PORT}")
     print(f"  Providers: {', '.join(cfg.ENABLED_PROVIDERS)}")
     print(f"  Database: {cfg.PG_DSN}")
-    print(f"  Endpoint: POST /webhook/{{provider}}")
+    print("  Endpoint: POST /webhook/{provider}")
     print()
 
     config = uvicorn.Config(
@@ -107,7 +107,7 @@ async def cmd_status():
     if recent:
         print("  Recent deliveries:")
         for r in recent:
-            ms = f"{r['processing_time_ms']}ms" if r['processing_time_ms'] else "—"
+            ms = f"{r['processing_time_ms']}ms" if r["processing_time_ms"] else "—"
             print(
                 f"    [{r['created_at']:%H:%M:%S}] "
                 f"{r['provider']:10s} {r['event_type']:18s} "
@@ -123,7 +123,9 @@ async def cmd_test():
         import httpx
     except ImportError:
         print("httpx not installed. Install with: pip install httpx")
-        print("Or test manually: curl -X POST http://localhost:3848/webhook/test/github")
+        print(
+            "Or test manually: curl -X POST http://localhost:3848/webhook/test/github"
+        )
         return
 
     base_url = f"http://{cfg.WEBHOOK_HOST}:{cfg.WEBHOOK_PORT}"
@@ -133,7 +135,9 @@ async def cmd_test():
         try:
             resp = await client.get(f"{base_url}/webhook/health")
             data = resp.json()
-            print(f"Server: {data.get('status', 'unknown')} (uptime: {data.get('uptime_s', 0)}s)")
+            print(
+                f"Server: {data.get('status', 'unknown')} (uptime: {data.get('uptime_s', 0)}s)"
+            )
         except Exception as e:
             print(f"Server not reachable at {base_url}: {e}")
             print("Start the server first: python3 -m webhook start")
@@ -170,24 +174,29 @@ def cmd_providers():
         print(f"  {provider:15s} [{status:8s}] secret: {secret}")
     print()
     print(f"Relay secret: {'configured' if cfg.RELAY_SHARED_SECRET else 'NOT SET'}")
-    print(f"Endpoint: POST http://{cfg.WEBHOOK_HOST}:{cfg.WEBHOOK_PORT}/webhook/{{provider}}")
+    print(
+        f"Endpoint: POST http://{cfg.WEBHOOK_HOST}:{cfg.WEBHOOK_PORT}/webhook/{{provider}}"
+    )
 
 
 async def cmd_poller():
     """Start the queue poller (foreground daemon)."""
     from .poller import poll_loop
+
     await poll_loop()
 
 
 async def cmd_poll_once():
     """Process pending queue items once and exit."""
     from .poller import poll_once_cli
+
     await poll_once_cli()
 
 
 async def cmd_queue():
     """Show queue status."""
     from .poller import queue_status
+
     await queue_status()
 
 
@@ -222,6 +231,7 @@ def main():
         sys.exit(1)
 
     import inspect
+
     if inspect.iscoroutinefunction(handler):
         asyncio.run(handler())
     else:

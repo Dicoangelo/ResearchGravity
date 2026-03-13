@@ -15,16 +15,30 @@ from ..quality import score_event
 
 # Grok/X conversations tend toward strategic topics
 _STRATEGIC_KEYWORDS = {
-    "strategy", "market", "trend", "prediction", "future",
-    "geopolit", "econom", "policy", "innovation", "disruption",
-    "compete", "advantage", "landscape", "industry", "global",
+    "strategy",
+    "market",
+    "trend",
+    "prediction",
+    "future",
+    "geopolit",
+    "econom",
+    "policy",
+    "innovation",
+    "disruption",
+    "compete",
+    "advantage",
+    "landscape",
+    "industry",
+    "global",
 }
 
 
 class GrokNormalizer(BaseNormalizer):
     """Normalize Grok/X conversations into cognitive_events rows."""
 
-    def to_cognitive_event(self, captured: CapturedEvent, session_topic: str = "") -> dict:
+    def to_cognitive_event(
+        self, captured: CapturedEvent, session_topic: str = ""
+    ) -> dict:
         """Override to inject Grok-specific metadata."""
         # Score quality
         qs, mode = score_event(captured.content, captured.role, captured.platform)

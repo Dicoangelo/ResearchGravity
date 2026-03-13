@@ -69,12 +69,14 @@ class CoherenceDaemon:
         self._kg_event_buffer: list = []  # Buffer events for batch KG extraction
         self._last_arc_detect_time = 0
         self._arc_detect_interval = 1800  # Arc detection every 30 minutes
-        self._moments_at_last_arc = 0     # Only run when new moments exist
+        self._moments_at_last_arc = 0  # Only run when new moments exist
 
     async def initialize(self):
         """Initialize components using an existing pool (injected via __init__)."""
         if not self._pool:
-            raise RuntimeError("No pool available — use start() or pass pool to __init__")
+            raise RuntimeError(
+                "No pool available — use start() or pass pool to __init__"
+            )
         self._similarity = SimilarityIndex(self._pool)
         self._scorer = CoherenceScorer(self._pool)
         if cfg.MULTI_SCALE_ENABLED:
@@ -100,6 +102,7 @@ class CoherenceDaemon:
         log.info("Coherence daemon starting...")
 
         if not self._pool:
+
             async def _init_conn(conn):
                 await conn.execute(cfg.PG_INIT_SQL)
 
@@ -305,8 +308,10 @@ class CoherenceDaemon:
                 asyncio.create_task(self._kg_extract_pass(buffered))
 
         # Periodic arc detection (every 30 min, only if new moments detected)
-        if (now - self._last_arc_detect_time > self._arc_detect_interval
-                and self._moments_detected > self._moments_at_last_arc):
+        if (
+            now - self._last_arc_detect_time > self._arc_detect_interval
+            and self._moments_detected > self._moments_at_last_arc
+        ):
             self._last_arc_detect_time = now
             self._moments_at_last_arc = self._moments_detected
             asyncio.create_task(self._arc_detect_pass())
@@ -371,9 +376,7 @@ class CoherenceDaemon:
                     await self._alerts.notify(moment)
                     self._moments_detected += 1
                     # Fire-and-forget insight extraction (don't block pipeline)
-                    asyncio.create_task(
-                        self._extract_insight_safe(moment.moment_id)
-                    )
+                    asyncio.create_task(self._extract_insight_safe(moment.moment_id))
 
             self._events_processed += 1
             return
@@ -393,9 +396,7 @@ class CoherenceDaemon:
             if moment.confidence >= cfg.MIN_ALERT_CONFIDENCE:
                 await self._scorer.store_moment(moment)
                 await self._alerts.notify(moment)
-                asyncio.create_task(
-                    self._extract_insight_safe(moment.moment_id)
-                )
+                asyncio.create_task(self._extract_insight_safe(moment.moment_id))
                 self._moments_detected += 1
 
         self._events_processed += 1

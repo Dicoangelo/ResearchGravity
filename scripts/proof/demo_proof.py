@@ -34,16 +34,18 @@ from typing import Optional
 DB_PATH = Path.home() / ".agent-core" / "storage" / "antigravity.db"
 SCHEMA_DIR = Path.home() / ".agent-core" / "schemas"
 
+
 # ── Colour output ──────────────────────────────────────────────────────
 class C:
-    BOLD   = "\033[1m"
-    DIM    = "\033[2m"
-    GREEN  = "\033[32m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    GREEN = "\033[32m"
     YELLOW = "\033[33m"
-    CYAN   = "\033[36m"
-    RED    = "\033[31m"
-    MAG    = "\033[35m"
-    RESET  = "\033[0m"
+    CYAN = "\033[36m"
+    RED = "\033[31m"
+    MAG = "\033[35m"
+    RESET = "\033[0m"
+
 
 def header(text):
     w = 64
@@ -51,24 +53,30 @@ def header(text):
     print(f"{C.BOLD}{C.CYAN}  {text}{C.RESET}")
     print(f"{C.BOLD}{C.CYAN}{'━' * w}{C.RESET}")
 
+
 def step(n, text):
     print(f"\n{C.BOLD}{C.GREEN}  [{n}]{C.RESET} {C.BOLD}{text}{C.RESET}")
+
 
 def kv(key, value, indent=6):
     pad = " " * indent
     print(f"{pad}{C.DIM}{key}:{C.RESET} {value}")
 
+
 def dim(text, indent=6):
     pad = " " * indent
     print(f"{pad}{C.DIM}{text}{C.RESET}")
+
 
 def ok(text, indent=6):
     pad = " " * indent
     print(f"{pad}{C.GREEN}✓{C.RESET} {text}")
 
+
 def warn(text, indent=6):
     pad = " " * indent
     print(f"{pad}{C.YELLOW}⚠{C.RESET} {text}")
+
 
 def fail(text, indent=6):
     pad = " " * indent
@@ -76,23 +84,39 @@ def fail(text, indent=6):
 
 
 # ── Evidence Extraction ────────────────────────────────────────────────
-ARXIV_RE = re.compile(r'(?:arXiv[:\s]*)?(\d{4}\.\d{4,5})', re.IGNORECASE)
-ARXIV_URL_RE = re.compile(r'arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})')
-GITHUB_RE = re.compile(r'github\.com/([\w-]+/[\w.-]+)')
-URL_RE = re.compile(r'https?://[^\s\)\]>\"\']+')
+ARXIV_RE = re.compile(r"(?:arXiv[:\s]*)?(\d{4}\.\d{4,5})", re.IGNORECASE)
+ARXIV_URL_RE = re.compile(r"arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})")
+GITHUB_RE = re.compile(r"github\.com/([\w-]+/[\w.-]+)")
+URL_RE = re.compile(r"https?://[^\s\)\]>\"\']+")
 
-TIER1 = {"arxiv.org", "openai.com", "anthropic.com", "deepmind.google",
-          "huggingface.co", "ai.meta.com", "ai.google", "microsoft.com"}
-TIER2 = {"github.com", "paperswithcode.com", "semanticscholar.org",
-          "techcrunch.com", "theverge.com", "lmsys.org"}
+TIER1 = {
+    "arxiv.org",
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "huggingface.co",
+    "ai.meta.com",
+    "ai.google",
+    "microsoft.com",
+}
+TIER2 = {
+    "github.com",
+    "paperswithcode.com",
+    "semanticscholar.org",
+    "techcrunch.com",
+    "theverge.com",
+    "lmsys.org",
+}
 
 
 def classify_tier(url: str) -> int:
     lo = url.lower()
     for d in TIER1:
-        if d in lo: return 1
+        if d in lo:
+            return 1
     for d in TIER2:
-        if d in lo: return 2
+        if d in lo:
+            return 2
     return 3
 
 
@@ -103,35 +127,56 @@ def extract_evidence(text: str) -> list[dict]:
     for m in ARXIV_RE.finditer(text):
         aid = m.group(1)
         url = f"https://arxiv.org/abs/{aid}"
-        if url in seen: continue
+        if url in seen:
+            continue
         seen.add(url)
-        sources.append({
-            "url": url, "arxiv_id": aid,
-            "excerpt": text[max(0, m.start()-60):min(len(text), m.end()+60)].strip(),
-            "relevance_score": 0.85, "verified": False, "tier": 1,
-        })
+        sources.append(
+            {
+                "url": url,
+                "arxiv_id": aid,
+                "excerpt": text[
+                    max(0, m.start() - 60) : min(len(text), m.end() + 60)
+                ].strip(),
+                "relevance_score": 0.85,
+                "verified": False,
+                "tier": 1,
+            }
+        )
 
     for m in GITHUB_RE.finditer(text):
         url = f"https://github.com/{m.group(1)}"
-        if url in seen: continue
+        if url in seen:
+            continue
         seen.add(url)
-        sources.append({
-            "url": url,
-            "excerpt": text[max(0, m.start()-40):min(len(text), m.end()+40)].strip(),
-            "relevance_score": 0.65, "verified": False, "tier": 2,
-        })
+        sources.append(
+            {
+                "url": url,
+                "excerpt": text[
+                    max(0, m.start() - 40) : min(len(text), m.end() + 40)
+                ].strip(),
+                "relevance_score": 0.65,
+                "verified": False,
+                "tier": 2,
+            }
+        )
 
     for m in URL_RE.finditer(text):
         url = m.group(0).rstrip(".,;:)")
-        if url in seen or "arxiv.org" in url or "github.com" in url: continue
+        if url in seen or "arxiv.org" in url or "github.com" in url:
+            continue
         seen.add(url)
         tier = classify_tier(url)
-        sources.append({
-            "url": url,
-            "excerpt": text[max(0, m.start()-30):min(len(text), m.end()+30)].strip(),
-            "relevance_score": {1: 0.75, 2: 0.55, 3: 0.35}[tier],
-            "verified": False, "tier": tier,
-        })
+        sources.append(
+            {
+                "url": url,
+                "excerpt": text[
+                    max(0, m.start() - 30) : min(len(text), m.end() + 30)
+                ].strip(),
+                "relevance_score": {1: 0.75, 2: 0.55, 3: 0.35}[tier],
+                "verified": False,
+                "tier": tier,
+            }
+        )
 
     return sources
 
@@ -150,7 +195,7 @@ def critic_accuracy(sources: list[dict], claim: str) -> dict:
 
         # arXiv ID format check
         if s.get("arxiv_id"):
-            if not re.match(r'\d{4}\.\d{4,5}$', s["arxiv_id"]):
+            if not re.match(r"\d{4}\.\d{4,5}$", s["arxiv_id"]):
                 issues.append(f"Invalid arXiv ID format: {s['arxiv_id']}")
                 score -= 0.1
 
@@ -170,11 +215,14 @@ def critic_completeness(sources: list[dict], claim: str) -> dict:
     """Stream 2: Do sources cover the full claim?"""
     issues = []
     # Simple keyword coverage check
-    claim_words = set(w.lower() for w in re.findall(r'\b[a-z]{4,}\b', claim.lower()))
+    claim_words = set(w.lower() for w in re.findall(r"\b[a-z]{4,}\b", claim.lower()))
     covered = set()
     for s in sources:
-        excerpt_words = set(w.lower() for w in re.findall(r'\b[a-z]{4,}\b', s.get("excerpt", "").lower()))
-        covered |= (claim_words & excerpt_words)
+        excerpt_words = set(
+            w.lower()
+            for w in re.findall(r"\b[a-z]{4,}\b", s.get("excerpt", "").lower())
+        )
+        covered |= claim_words & excerpt_words
 
     if claim_words:
         coverage = len(covered) / len(claim_words)
@@ -182,7 +230,9 @@ def critic_completeness(sources: list[dict], claim: str) -> dict:
         coverage = 0.5
 
     if coverage < 0.3:
-        issues.append(f"Low keyword coverage ({coverage:.0%}) — sources may not fully support claim")
+        issues.append(
+            f"Low keyword coverage ({coverage:.0%}) — sources may not fully support claim"
+        )
 
     score = min(1.0, 0.3 + coverage * 0.7)
     return {"stream": "completeness", "score": score, "issues": issues}
@@ -192,7 +242,11 @@ def critic_relevance(sources: list[dict], claim: str) -> dict:
     """Stream 3: Are sources relevant (not just tangentially)?"""
     issues = []
     if not sources:
-        return {"stream": "relevance", "score": 0.2, "issues": ["No sources to evaluate"]}
+        return {
+            "stream": "relevance",
+            "score": 0.2,
+            "issues": ["No sources to evaluate"],
+        }
 
     avg_relevance = sum(s["relevance_score"] for s in sources) / len(sources)
     tier1_ratio = sum(1 for s in sources if s.get("tier") == 1) / len(sources)
@@ -218,7 +272,11 @@ def run_oracle(sources: list[dict], claim: str) -> dict:
     for s in streams:
         all_issues.extend(s["issues"])
 
-    validated = confidence >= 0.70 and len([i for s in streams for i in s["issues"] if "unsupported" in i.lower()]) == 0
+    validated = (
+        confidence >= 0.70
+        and len([i for s in streams for i in s["issues"] if "unsupported" in i.lower()])
+        == 0
+    )
 
     return {
         "streams": streams,
@@ -240,33 +298,41 @@ def get_db() -> sqlite3.Connection:
 def store_finding(conn: sqlite3.Connection, finding: dict) -> str:
     """Store a finding in antigravity.db and return its ID."""
     fid = finding["id"]
-    conn.execute("""
+    conn.execute(
+        """
         INSERT OR REPLACE INTO findings
             (id, session_id, content, type, evidence, confidence, derived_from, enables, project, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        fid,
-        finding["session_id"],
-        finding["content"],
-        finding["type"],
-        json.dumps(finding["evidence"]),
-        finding["evidence"]["confidence"],
-        json.dumps(finding.get("derived_from", [])),
-        json.dumps(finding.get("enables", [])),
-        finding.get("project"),
-        finding["created_at"],
-        finding["updated_at"],
-    ))
+    """,
+        (
+            fid,
+            finding["session_id"],
+            finding["content"],
+            finding["type"],
+            json.dumps(finding["evidence"]),
+            finding["evidence"]["confidence"],
+            json.dumps(finding.get("derived_from", [])),
+            json.dumps(finding.get("enables", [])),
+            finding.get("project"),
+            finding["created_at"],
+            finding["updated_at"],
+        ),
+    )
     conn.commit()
     return fid
 
 
-def store_url(conn: sqlite3.Connection, session_id: str, url: str, tier: int, context: str = "") -> int:
+def store_url(
+    conn: sqlite3.Connection, session_id: str, url: str, tier: int, context: str = ""
+) -> int:
     """Store a URL record and return its rowid."""
-    cur = conn.execute("""
+    cur = conn.execute(
+        """
         INSERT OR IGNORE INTO urls (session_id, url, tier, category, source, context, relevance, captured_at)
         VALUES (?, ?, ?, 'research', 'demo_proof', ?, ?, ?)
-    """, (session_id, url, tier, context[:200], tier, datetime.now().isoformat()))
+    """,
+        (session_id, url, tier, context[:200], tier, datetime.now().isoformat()),
+    )
     conn.commit()
     return cur.lastrowid
 
@@ -283,9 +349,12 @@ def retrieve_finding(conn: sqlite3.Connection, finding_id: str) -> Optional[dict
     return d
 
 
-def search_findings_fts(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dict]:
+def search_findings_fts(
+    conn: sqlite3.Connection, query: str, limit: int = 5
+) -> list[dict]:
     """Full-text search across findings."""
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT f.id, f.content, f.type, f.confidence,
                snippet(findings_fts, 0, '>>>', '<<<', '...', 32) as snippet
         FROM findings_fts
@@ -295,21 +364,28 @@ def search_findings_fts(conn: sqlite3.Connection, query: str, limit: int = 5) ->
         WHERE findings_fts MATCH ?
         ORDER BY rank
         LIMIT ?
-    """, (query, limit)).fetchall()
+    """,
+        (query, limit),
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
-def search_findings_like(conn: sqlite3.Connection, query: str, limit: int = 5) -> list[dict]:
+def search_findings_like(
+    conn: sqlite3.Connection, query: str, limit: int = 5
+) -> list[dict]:
     """Fallback LIKE search if FTS fails."""
     words = query.split()[:3]
-    clauses = " AND ".join(f"content LIKE ?" for _ in words)
+    clauses = " AND ".join("content LIKE ?" for _ in words)
     params = [f"%{w}%" for w in words] + [limit]
-    rows = conn.execute(f"""
+    rows = conn.execute(
+        f"""
         SELECT id, content, type, confidence
         FROM findings WHERE {clauses}
         ORDER BY confidence DESC NULLS LAST
         LIMIT ?
-    """, params).fetchall()
+    """,
+        params,
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -327,18 +403,21 @@ def search_findings(conn: sqlite3.Connection, query: str, limit: int = 5) -> lis
 # ── URL Fetching ───────────────────────────────────────────────────────
 def fetch_url_text(url: str, max_chars: int = 8000) -> str:
     """Fetch a URL and return plain text (best-effort)."""
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "ResearchGravity-Proof/1.0",
-        "Accept": "text/html,text/plain,application/json"
-    })
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "ResearchGravity-Proof/1.0",
+            "Accept": "text/html,text/plain,application/json",
+        },
+    )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             raw = resp.read(max_chars * 2).decode("utf-8", errors="replace")
             # Strip HTML tags for a rough text extraction
-            text = re.sub(r'<script[^>]*>.*?</script>', '', raw, flags=re.DOTALL)
-            text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
-            text = re.sub(r'<[^>]+>', ' ', text)
-            text = re.sub(r'\s+', ' ', text).strip()
+            text = re.sub(r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL)
+            text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL)
+            text = re.sub(r"<[^>]+>", " ", text)
+            text = re.sub(r"\s+", " ", text).strip()
             return text[:max_chars]
     except Exception as e:
         return f"[Fetch failed: {e}]"
@@ -431,7 +510,11 @@ def run_proof(
         kv("Text length", f"{len(text):,} chars")
         kv("Evidence extracted", f"{len(sources)} sources")
         for s in sources:
-            tier_badge = {1: f"{C.GREEN}T1{C.RESET}", 2: f"{C.YELLOW}T2{C.RESET}", 3: f"{C.DIM}T3{C.RESET}"}
+            tier_badge = {
+                1: f"{C.GREEN}T1{C.RESET}",
+                2: f"{C.YELLOW}T2{C.RESET}",
+                3: f"{C.DIM}T3{C.RESET}",
+            }
             badge = tier_badge.get(s.get("tier", 3), "T?")
             url_short = s["url"][:65] + ("..." if len(s["url"]) > 65 else "")
             print(f"        [{badge}] {url_short}")
@@ -445,8 +528,9 @@ def run_proof(
 
     # Build the claim (first substantial finding in the text)
     claim_match = re.search(
-        r'(?:Finding|Insight|Thesis|Claim)[:\s]+(.+?)(?:\n\n|\.\s+[A-Z])',
-        text, re.DOTALL
+        r"(?:Finding|Insight|Thesis|Claim)[:\s]+(.+?)(?:\n\n|\.\s+[A-Z])",
+        text,
+        re.DOTALL,
     )
     if claim_match:
         claim = claim_match.group(1).strip()
@@ -461,9 +545,9 @@ def run_proof(
         "confidence": 0.0,  # Will be set by oracle
         "reasoning_chain": [
             f"Extracted {len(sources)} citation(s) from input text",
-            f"Source tiers: {sum(1 for s in sources if s.get('tier')==1)} T1, "
-            f"{sum(1 for s in sources if s.get('tier')==2)} T2, "
-            f"{sum(1 for s in sources if s.get('tier')==3)} T3",
+            f"Source tiers: {sum(1 for s in sources if s.get('tier') == 1)} T1, "
+            f"{sum(1 for s in sources if s.get('tier') == 2)} T2, "
+            f"{sum(1 for s in sources if s.get('tier') == 3)} T3",
             "Running 3-stream oracle validation (accuracy, completeness, relevance)",
         ],
         "validation": {
@@ -471,7 +555,7 @@ def run_proof(
             "validated_at": None,
             "critic_notes": [],
             "oracle_streams": [],
-        }
+        },
     }
 
     # Run oracle critique
@@ -508,18 +592,20 @@ def run_proof(
     # Store in database
     fid = store_finding(conn, finding)
 
-    trace["stages"].append({
-        "stage": "finding",
-        "result": {
-            "id": finding["id"],
-            "claim": claim[:200],
-            "type": finding["type"],
-            "confidence": evidence["confidence"],
-            "validated": oracle["validated"],
-            "source_count": len(sources),
-            "lineage_id": finding["id"],
+    trace["stages"].append(
+        {
+            "stage": "finding",
+            "result": {
+                "id": finding["id"],
+                "claim": claim[:200],
+                "type": finding["type"],
+                "confidence": evidence["confidence"],
+                "validated": oracle["validated"],
+                "source_count": len(sources),
+                "lineage_id": finding["id"],
+            },
         }
-    })
+    )
     trace["timestamps"]["finding_end"] = datetime.now().isoformat()
 
     if not output_json:
@@ -534,11 +620,13 @@ def run_proof(
         for s in sources:
             aid = s.get("arxiv_id")
             label = f"arXiv:{aid}" if aid else s["url"][:50]
-            print(f"        {C.CYAN}→{C.RESET} {label} (relevance: {s['relevance_score']:.2f})")
+            print(
+                f"        {C.CYAN}→{C.RESET} {label} (relevance: {s['relevance_score']:.2f})"
+            )
         kv("Confidence", f"{evidence['confidence']:.2%}")
         kv("Validated", f"{'YES' if oracle['validated'] else 'NO'} (threshold: 0.70)")
         kv("Lineage ID", finding["id"])
-        kv("Stored", f"antigravity.db → findings table")
+        kv("Stored", "antigravity.db → findings table")
 
     # ── PROOF 3: TRACE ──────────────────────────────────────────────
     if not output_json:
@@ -547,7 +635,7 @@ def run_proof(
     trace["timestamps"]["trace_start"] = datetime.now().isoformat()
 
     # 3a. Retrieval — search existing findings for related work
-    query_terms = " ".join(re.findall(r'\b[a-z]{5,}\b', claim.lower())[:5])
+    query_terms = " ".join(re.findall(r"\b[a-z]{5,}\b", claim.lower())[:5])
     if not query_terms:
         query_terms = "multi-agent trust"
     related = search_findings(conn, query_terms, limit=5)
@@ -564,7 +652,7 @@ def run_proof(
                 "snippet": (r.get("snippet") or r.get("content", ""))[:120],
             }
             for r in related
-        ]
+        ],
     }
 
     # 3b. Critique log — what the oracle said
@@ -584,7 +672,7 @@ def run_proof(
         "confidence": oracle["confidence"],
         "reasoning": [
             f"Ingested {'URL ' + source_url if source_url else 'transcript'} ({len(text):,} chars)",
-            f"Extracted {len(sources)} evidence sources ({sum(1 for s in sources if s.get('tier')==1)} Tier 1)",
+            f"Extracted {len(sources)} evidence sources ({sum(1 for s in sources if s.get('tier') == 1)} Tier 1)",
             f"Oracle accuracy stream: {oracle['streams'][0]['score']:.2f}",
             f"Oracle completeness stream: {oracle['streams'][1]['score']:.2f}",
             f"Oracle relevance stream: {oracle['streams'][2]['score']:.2f}",
@@ -599,13 +687,15 @@ def run_proof(
     retrieved = retrieve_finding(conn, finding["id"])
     retrieval_verified = retrieved is not None and retrieved["id"] == finding["id"]
 
-    trace["stages"].append({
-        "stage": "trace",
-        "retrieval": retrieval_log,
-        "critique": critique_log,
-        "answer": answer_justification,
-        "verified_retrieval": retrieval_verified,
-    })
+    trace["stages"].append(
+        {
+            "stage": "trace",
+            "retrieval": retrieval_log,
+            "critique": critique_log,
+            "answer": answer_justification,
+            "verified_retrieval": retrieval_verified,
+        }
+    )
     trace["timestamps"]["trace_end"] = datetime.now().isoformat()
     trace["timestamps"]["total_seconds"] = round(time.time() - t0, 3)
 
@@ -627,16 +717,30 @@ def run_proof(
         for s in oracle["streams"]:
             bar_len = int(s["score"] * 20)
             bar = f"{'█' * bar_len}{'░' * (20 - bar_len)}"
-            colour = C.GREEN if s["score"] >= 0.7 else C.YELLOW if s["score"] >= 0.5 else C.RED
-            weight = {"accuracy": "40%", "completeness": "35%", "relevance": "25%"}[s["stream"]]
-            print(f"        {s['stream']:>14}: {colour}{bar}{C.RESET} {s['score']:.2f} (weight: {weight})")
+            colour = (
+                C.GREEN
+                if s["score"] >= 0.7
+                else C.YELLOW
+                if s["score"] >= 0.5
+                else C.RED
+            )
+            weight = {"accuracy": "40%", "completeness": "35%", "relevance": "25%"}[
+                s["stream"]
+            ]
+            print(
+                f"        {s['stream']:>14}: {colour}{bar}{C.RESET} {s['score']:.2f} (weight: {weight})"
+            )
             for issue in s["issues"]:
                 warn(issue, 26)
 
         print()
         dim("ANSWER JUSTIFICATION:", 6)
         for i, reason in enumerate(answer_justification["reasoning"], 1):
-            ok(reason, 8) if "above" in reason or "Stored" in reason or "Tier 1" in reason else dim(f"  {reason}", 6)
+            ok(
+                reason, 8
+            ) if "above" in reason or "Stored" in reason or "Tier 1" in reason else dim(
+                f"  {reason}", 6
+            )
 
         print()
         dim("STORED RECORD RETRIEVAL:", 6)
@@ -644,7 +748,11 @@ def run_proof(
             ok(f"Retrieved {finding['id']} from antigravity.db", 8)
             kv("Confidence", f"{retrieved['evidence']['confidence']:.2%}", 10)
             kv("Sources", f"{len(retrieved['evidence'].get('sources', []))}", 10)
-            kv("Validated", f"{retrieved['evidence'].get('validation', {}).get('validated', False)}", 10)
+            kv(
+                "Validated",
+                f"{retrieved['evidence'].get('validation', {}).get('validated', False)}",
+                10,
+            )
         else:
             fail("Could not retrieve stored finding!", 8)
 
@@ -652,9 +760,15 @@ def run_proof(
         elapsed = time.time() - t0
         header(f"Proof Complete — {elapsed:.1f}s")
         print()
-        print(f"  {C.BOLD}Proof 1{C.RESET} (Ingest):  {C.GREEN}✓{C.RESET} URL/transcript → {len(sources)} sources → stored")
-        print(f"  {C.BOLD}Proof 2{C.RESET} (Finding): {C.GREEN}✓{C.RESET} claim + {len(sources)} citations + {oracle['confidence']:.0%} confidence + lineage")
-        print(f"  {C.BOLD}Proof 3{C.RESET} (Trace):   {C.GREEN}✓{C.RESET} retrieval({len(related)}) → critics(3) → answer justified")
+        print(
+            f"  {C.BOLD}Proof 1{C.RESET} (Ingest):  {C.GREEN}✓{C.RESET} URL/transcript → {len(sources)} sources → stored"
+        )
+        print(
+            f"  {C.BOLD}Proof 2{C.RESET} (Finding): {C.GREEN}✓{C.RESET} claim + {len(sources)} citations + {oracle['confidence']:.0%} confidence + lineage"
+        )
+        print(
+            f"  {C.BOLD}Proof 3{C.RESET} (Trace):   {C.GREEN}✓{C.RESET} retrieval({len(related)}) → critics(3) → answer justified"
+        )
         print()
 
         # Show the finding as JSON
@@ -679,7 +793,7 @@ def run_proof(
                     "critique": critique_log,
                     "answer": answer_justification,
                     "verified_retrieval": retrieval_verified,
-                }
+                },
             },
             "metadata": trace["timestamps"],
         }
@@ -695,8 +809,12 @@ def main():
     )
     parser.add_argument("--url", help="URL to ingest")
     parser.add_argument("--text", help="Raw text/transcript to ingest")
-    parser.add_argument("--json", action="store_true", dest="output_json",
-                        help="Output machine-readable JSON")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="output_json",
+        help="Output machine-readable JSON",
+    )
     args = parser.parse_args()
 
     text = args.text or ""

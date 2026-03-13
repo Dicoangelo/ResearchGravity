@@ -27,6 +27,7 @@ log = logging.getLogger("coherence.novelty_scorer")
 @dataclass
 class NoveltyScore:
     """Novelty assessment for an entity pair."""
+
     entity_a: str
     entity_b: str
     overall_score: float  # 0-1 composite
@@ -66,16 +67,15 @@ class NoveltyScorer:
         if self._total_entities is not None:
             return
         async with self._pool.acquire() as conn:
-            self._total_entities = await conn.fetchval(
-                "SELECT COUNT(*) FROM cognitive_entities"
-            ) or 1
-            self._max_mentions = await conn.fetchval(
-                "SELECT MAX(mention_count) FROM cognitive_entities"
-            ) or 1
+            self._total_entities = (
+                await conn.fetchval("SELECT COUNT(*) FROM cognitive_entities") or 1
+            )
+            self._max_mentions = (
+                await conn.fetchval("SELECT MAX(mention_count) FROM cognitive_entities")
+                or 1
+            )
 
-    async def score_pair(
-        self, entity_a_id: str, entity_b_id: str
-    ) -> NoveltyScore:
+    async def score_pair(self, entity_a_id: str, entity_b_id: str) -> NoveltyScore:
         """
         Score the novelty of an entity pair.
 
@@ -96,7 +96,8 @@ class NoveltyScorer:
                 """SELECT weight, evidence_count, first_seen_ns
                    FROM cognitive_edges
                    WHERE source_entity = $1 AND target_entity = $2""",
-                src, tgt,
+                src,
+                tgt,
             )
 
             # Get entity details
@@ -111,15 +112,22 @@ class NoveltyScorer:
 
         if not ent_a or not ent_b:
             return NoveltyScore(
-                entity_a=entity_a_id, entity_b=entity_b_id,
-                overall_score=0.0, first_occurrence=False,
-                entity_a_rarity=0.0, entity_b_rarity=0.0,
-                cross_domain=False, edge_weight=0.0, components={},
+                entity_a=entity_a_id,
+                entity_b=entity_b_id,
+                overall_score=0.0,
+                first_occurrence=False,
+                entity_a_rarity=0.0,
+                entity_b_rarity=0.0,
+                cross_domain=False,
+                edge_weight=0.0,
+                components={},
             )
 
         # Component 1: First-time occurrence
         is_first = edge is None
-        first_time_score = 1.0 if is_first else max(0, 1.0 - (edge["evidence_count"] / 10.0))
+        first_time_score = (
+            1.0 if is_first else max(0, 1.0 - (edge["evidence_count"] / 10.0))
+        )
 
         # Component 2: Rarity (inverse of mention frequency)
         rarity_a = 1.0 - (ent_a["mention_count"] / self._max_mentions)
@@ -144,9 +152,7 @@ class NoveltyScorer:
             "cross_domain": cross_score,
             "recency": recency_score,
         }
-        overall = sum(
-            self.WEIGHTS[k] * v for k, v in components.items()
-        )
+        overall = sum(self.WEIGHTS[k] * v for k, v in components.items())
 
         return NoveltyScore(
             entity_a=entity_a_id,
@@ -188,9 +194,7 @@ class NoveltyScorer:
 
         results = []
         for edge in edges:
-            score = await self.score_pair(
-                edge["source_entity"], edge["target_entity"]
-            )
+            score = await self.score_pair(edge["source_entity"], edge["target_entity"])
             if score.overall_score >= min_novelty:
                 results.append(score)
 
@@ -198,9 +202,7 @@ class NoveltyScorer:
         results.sort(key=lambda s: s.overall_score, reverse=True)
         return results[:limit]
 
-    async def score_event_entities(
-        self, entity_ids: List[str]
-    ) -> List[NoveltyScore]:
+    async def score_event_entities(self, entity_ids: List[str]) -> List[NoveltyScore]:
         """Score all entity pairs from a single event for novelty."""
         scores = []
         for i in range(len(entity_ids)):

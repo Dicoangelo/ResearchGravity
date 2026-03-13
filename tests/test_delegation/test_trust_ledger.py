@@ -57,7 +57,7 @@ class TestTrustLedgerBasics:
                 task_type="code_generation",
                 success=True,
                 quality=0.9,
-                duration=120.0
+                duration=120.0,
             )
             # Beta(2, 1) → 2/3 = 0.667
             assert abs(score - 0.667) < 0.001
@@ -71,7 +71,7 @@ class TestTrustLedgerBasics:
                 task_type="code_generation",
                 success=False,
                 quality=0.3,
-                duration=180.0
+                duration=180.0,
             )
             # Beta(1, 2) → 1/3 = 0.333
             assert abs(score - 0.333) < 0.001
@@ -93,7 +93,7 @@ class TestBayesianUpdates:
                     task_type=task_type,
                     success=True,
                     quality=0.9 + i * 0.01,  # Vary quality slightly
-                    duration=100.0 + i * 5
+                    duration=100.0 + i * 5,
                 )
 
             # Beta(11, 1) → 11/12 = 0.917
@@ -112,7 +112,7 @@ class TestBayesianUpdates:
                     task_type=task_type,
                     success=(i % 2 == 0),  # Alternate success/failure
                     quality=0.5,
-                    duration=100.0
+                    duration=100.0,
                 )
 
             # Beta(6, 6) → 6/12 = 0.5
@@ -132,7 +132,7 @@ class TestBayesianUpdates:
                     task_type=task_type,
                     success=True,
                     quality=0.8,
-                    duration=100.0
+                    duration=100.0,
                 )
 
             # 2 failures
@@ -142,7 +142,7 @@ class TestBayesianUpdates:
                     task_type=task_type,
                     success=False,
                     quality=0.4,
-                    duration=150.0
+                    duration=150.0,
                 )
 
             # Beta(9, 3) → 9/12 = 0.75
@@ -183,7 +183,9 @@ class TestDecayFunction:
             task_type = "code_generation"
 
             # Record outcome
-            original_score = await ledger.record_outcome(agent_id, task_type, True, 0.9, 100.0)
+            original_score = await ledger.record_outcome(
+                agent_id, task_type, True, 0.9, 100.0
+            )
 
             # Retrieve immediately
             retrieved_score = await ledger.get_trust_score(agent_id, task_type)
@@ -203,12 +205,11 @@ class TestDecayFunction:
 
             # Manually update last_updated to 8 days ago
             eight_days_ago = time.strftime(
-                "%Y-%m-%d %H:%M:%S",
-                time.gmtime(time.time() - 8 * 24 * 3600)
+                "%Y-%m-%d %H:%M:%S", time.gmtime(time.time() - 8 * 24 * 3600)
             )
             await ledger._db.execute(
                 "UPDATE trust_entries SET last_updated = ? WHERE agent_id = ? AND task_type = ?",
-                (eight_days_ago, agent_id, task_type)
+                (eight_days_ago, agent_id, task_type),
             )
             await ledger._db.commit()
 
@@ -271,7 +272,9 @@ class TestTopAgents:
             # Create 10 agents with varying trust
             for i in range(10):
                 for _ in range(i + 1):  # More successes = higher trust
-                    await ledger.record_outcome(f"agent-{i}", task_type, True, 0.8, 100.0)
+                    await ledger.record_outcome(
+                        f"agent-{i}", task_type, True, 0.8, 100.0
+                    )
 
             # Get top 3
             top = await ledger.get_top_agents(task_type, limit=3)
@@ -293,7 +296,9 @@ class TestTaskTypeSpecificity:
 
             # High performance on code_generation
             for _ in range(8):
-                await ledger.record_outcome(agent_id, "code_generation", True, 0.9, 100.0)
+                await ledger.record_outcome(
+                    agent_id, "code_generation", True, 0.9, 100.0
+                )
 
             # Low performance on research
             for _ in range(6):

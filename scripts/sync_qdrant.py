@@ -47,25 +47,31 @@ async def sync_collection(qdrant, name, sqlite_rows, upsert_fn):
     qdrant_count = await get_qdrant_count(qdrant, name)
     delta = len(sqlite_rows) - qdrant_count
 
-    print(f"\n  {name}: SQLite={len(sqlite_rows):,} | Qdrant={qdrant_count:,} | Delta={delta}")
+    print(
+        f"\n  {name}: SQLite={len(sqlite_rows):,} | Qdrant={qdrant_count:,} | Delta={delta}"
+    )
 
     if not FORCE_REBUILD and len(sqlite_rows) <= qdrant_count:
         print("    Already synced. Use --rebuild to force re-embed.")
         return 0
 
     if FORCE_REBUILD:
-        print(f"    REBUILDING all {len(sqlite_rows):,} embeddings with current model...")
+        print(
+            f"    REBUILDING all {len(sqlite_rows):,} embeddings with current model..."
+        )
 
     total = 0
     batches = (len(sqlite_rows) + BATCH_SIZE - 1) // BATCH_SIZE
     for i in range(0, len(sqlite_rows), BATCH_SIZE):
-        batch = sqlite_rows[i:i + BATCH_SIZE]
+        batch = sqlite_rows[i : i + BATCH_SIZE]
         batch_num = i // BATCH_SIZE + 1
         try:
             count = await upsert_fn(batch)
             total += count
             pct = total / len(sqlite_rows) * 100
-            print(f"    [{batch_num}/{batches}] +{count} ({total:,}/{len(sqlite_rows):,} = {pct:.0f}%)")
+            print(
+                f"    [{batch_num}/{batches}] +{count} ({total:,}/{len(sqlite_rows):,} = {pct:.0f}%)"
+            )
         except Exception as e:
             print(f"    [{batch_num}/{batches}] ERROR: {e}")
 
@@ -81,7 +87,7 @@ async def main():
         print("  MODE: Incremental (skip synced collections)")
     print("=" * 60)
     print(f"  Source: {DB_PATH}")
-    print(f"  Target: localhost:6333")
+    print("  Target: localhost:6333")
 
     if not QDRANT_AVAILABLE:
         print("ERROR: qdrant-client not installed")
@@ -105,58 +111,83 @@ async def main():
     findings = get_sqlite_data(
         "findings",
         ["id", "content", "type", "session_id", "project", "confidence"],
-        where="content IS NOT NULL AND content != ''"
+        where="content IS NOT NULL AND content != ''",
     )
-    grand_total += await sync_collection(qdrant, "findings", findings, qdrant.upsert_findings_batch)
+    grand_total += await sync_collection(
+        qdrant, "findings", findings, qdrant.upsert_findings_batch
+    )
 
     # Sessions (8K)
     sessions = get_sqlite_data(
         "sessions",
         ["id", "topic", "project", "status", "finding_count", "url_count"],
-        where="topic IS NOT NULL AND topic != ''"
+        where="topic IS NOT NULL AND topic != ''",
     )
-    grand_total += await sync_collection(qdrant, "sessions", sessions, qdrant.upsert_sessions_batch)
+    grand_total += await sync_collection(
+        qdrant, "sessions", sessions, qdrant.upsert_sessions_batch
+    )
 
     # Session outcomes (670)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    outcomes = [dict(r) for r in conn.execute("""
+    outcomes = [
+        dict(r)
+        for r in conn.execute("""
         SELECT session_id, intent, outcome, quality, model_efficiency,
                models_used, date, messages, tools
         FROM session_outcomes WHERE intent IS NOT NULL AND intent != ''
-    """).fetchall()]
+    """).fetchall()
+    ]
     conn.close()
-    grand_total += await sync_collection(qdrant, "session_outcomes", outcomes, qdrant.upsert_outcomes_batch)
+    grand_total += await sync_collection(
+        qdrant, "session_outcomes", outcomes, qdrant.upsert_outcomes_batch
+    )
 
     # Cognitive states (549)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    states = [dict(r) for r in conn.execute("""
+    states = [
+        dict(r)
+        for r in conn.execute("""
         SELECT id, mode, energy_level, flow_score, hour, day, timestamp, predictions
         FROM cognitive_states
-    """).fetchall()]
+    """).fetchall()
+    ]
     conn.close()
-    grand_total += await sync_collection(qdrant, "cognitive_states", states, qdrant.upsert_cognitive_states_batch)
+    grand_total += await sync_collection(
+        qdrant, "cognitive_states", states, qdrant.upsert_cognitive_states_batch
+    )
 
     # Error patterns (39)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    errors = [dict(r) for r in conn.execute("""
+    errors = [
+        dict(r)
+        for r in conn.execute("""
         SELECT id, error_type, context, solution, success_rate
         FROM error_patterns
-    """).fetchall()]
+    """).fetchall()
+    ]
     conn.close()
-    grand_total += await sync_collection(qdrant, "error_patterns", errors, qdrant.upsert_error_patterns_batch)
+    grand_total += await sync_collection(
+        qdrant, "error_patterns", errors, qdrant.upsert_error_patterns_batch
+    )
 
     elapsed = time.time() - start
 
     print(f"\n{'=' * 60}")
-    print(f"  SYNC COMPLETE")
+    print("  SYNC COMPLETE")
     print(f"  Total embedded: {grand_total:,}")
     print(f"  Time: {elapsed:.1f}s")
-    print(f"\n  Final Qdrant counts:")
+    print("\n  Final Qdrant counts:")
     total_vectors = 0
-    for collection in ["findings", "sessions", "session_outcomes", "cognitive_states", "error_patterns"]:
+    for collection in [
+        "findings",
+        "sessions",
+        "session_outcomes",
+        "cognitive_states",
+        "error_patterns",
+    ]:
         count = await get_qdrant_count(qdrant, collection)
         total_vectors += count
         print(f"    {collection}: {count:,}")

@@ -37,7 +37,7 @@ from .precision_config import (
     PRECISION_CRITIC_WEIGHTS,
     PRECISION_VERIFICATION_THRESHOLDS,
     PIONEER_DQ_WEIGHTS,
-    TRUST_CONTEXT_DQ_WEIGHTS
+    TRUST_CONTEXT_DQ_WEIGHTS,
 )
 from .ground_truth import (
     get_validator as get_gt_validator,
@@ -48,9 +48,11 @@ from .ground_truth import (
 # VERIFICATION RESULT
 # =============================================================================
 
+
 @dataclass
 class VerificationResult:
     """Result from critic verification pipeline."""
+
     dq_score: float
     passed: bool
 
@@ -92,36 +94,37 @@ class VerificationResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'dq_score': self.dq_score,
-            'passed': self.passed,
-            'needs_review': self.needs_review,
-            'evidence_score': self.evidence_score,
-            'oracle_score': self.oracle_score,
-            'confidence_score': self.confidence_score,
-            'ground_truth_score': self.ground_truth_score,
-            'factual_accuracy': self.factual_accuracy,
-            'cross_source_score': self.cross_source_score,
-            'self_consistency': self.self_consistency,
-            'validity': self.validity,
-            'specificity': self.specificity,
-            'correctness': self.correctness,
-            'claims_checked': self.claims_checked,
-            'claims_verified': self.claims_verified,
-            'claims_contradicted': self.claims_contradicted,
-            'verified_claims': self.verified_claims,
-            'contradicted_claims': self.contradicted_claims,
-            'issues': self.issues,
-            'citations_found': self.citations_found,
-            'citations_verified': self.citations_verified,
-            'verification_method': self.verification_method,
-            'retries_recommended': self.retries_recommended,
-            'feedback': self.feedback,
+            "dq_score": self.dq_score,
+            "passed": self.passed,
+            "needs_review": self.needs_review,
+            "evidence_score": self.evidence_score,
+            "oracle_score": self.oracle_score,
+            "confidence_score": self.confidence_score,
+            "ground_truth_score": self.ground_truth_score,
+            "factual_accuracy": self.factual_accuracy,
+            "cross_source_score": self.cross_source_score,
+            "self_consistency": self.self_consistency,
+            "validity": self.validity,
+            "specificity": self.specificity,
+            "correctness": self.correctness,
+            "claims_checked": self.claims_checked,
+            "claims_verified": self.claims_verified,
+            "claims_contradicted": self.claims_contradicted,
+            "verified_claims": self.verified_claims,
+            "contradicted_claims": self.contradicted_claims,
+            "issues": self.issues,
+            "citations_found": self.citations_found,
+            "citations_verified": self.citations_verified,
+            "verification_method": self.verification_method,
+            "retries_recommended": self.retries_recommended,
+            "feedback": self.feedback,
         }
 
 
 # =============================================================================
 # CONFIDENCE SCORER
 # =============================================================================
+
 
 class ConfidenceScorer:
     """
@@ -139,7 +142,7 @@ class ConfidenceScorer:
         response: str,
         citations_verified: int,
         citations_total: int,
-        evidence_score: float
+        evidence_score: float,
     ) -> float:
         """
         Calculate confidence score for a response.
@@ -177,11 +180,11 @@ class ConfidenceScorer:
 
         # Combine components
         score = (
-            evidence_contribution +     # 0-0.45
-            citation_contribution +     # 0-0.25
-            structure_bonus +           # 0-0.15
-            strength_bonus -            # 0-0.1
-            hedging_penalty * 0.5       # Reduced penalty (0-0.05)
+            evidence_contribution  # 0-0.45
+            + citation_contribution  # 0-0.25
+            + structure_bonus  # 0-0.15
+            + strength_bonus  # 0-0.1
+            - hedging_penalty * 0.5  # Reduced penalty (0-0.05)
         )
 
         return max(0.0, min(1.0, score))
@@ -191,15 +194,22 @@ class ConfidenceScorer:
         response_lower = response.lower()
 
         hedging_patterns = [
-            r'\bmight\b', r'\bmaybe\b', r'\bpossibly\b',
-            r'\bperhaps\b', r'\bcould be\b', r'\bi think\b',
-            r'\bnot sure\b', r'\buncertain\b', r'\bi believe\b',
-            r'\bit seems\b', r'\bappears to\b', r'\bprobably\b'
+            r"\bmight\b",
+            r"\bmaybe\b",
+            r"\bpossibly\b",
+            r"\bperhaps\b",
+            r"\bcould be\b",
+            r"\bi think\b",
+            r"\bnot sure\b",
+            r"\buncertain\b",
+            r"\bi believe\b",
+            r"\bit seems\b",
+            r"\bappears to\b",
+            r"\bprobably\b",
         ]
 
         hedging_count = sum(
-            len(re.findall(pattern, response_lower))
-            for pattern in hedging_patterns
+            len(re.findall(pattern, response_lower)) for pattern in hedging_patterns
         )
 
         # Normalize by response length
@@ -216,15 +226,20 @@ class ConfidenceScorer:
         response_lower = response.lower()
 
         strength_patterns = [
-            r'\bclearly\b', r'\bcertainly\b', r'\bdefinitely\b',
-            r'\bevidence shows\b', r'\bresearch demonstrates\b',
-            r'\bdata indicates\b', r'\bthe fact is\b',
-            r'\bproven\b', r'\bestablished\b', r'\bconfirmed\b'
+            r"\bclearly\b",
+            r"\bcertainly\b",
+            r"\bdefinitely\b",
+            r"\bevidence shows\b",
+            r"\bresearch demonstrates\b",
+            r"\bdata indicates\b",
+            r"\bthe fact is\b",
+            r"\bproven\b",
+            r"\bestablished\b",
+            r"\bconfirmed\b",
         ]
 
         strength_count = sum(
-            len(re.findall(pattern, response_lower))
-            for pattern in strength_patterns
+            len(re.findall(pattern, response_lower)) for pattern in strength_patterns
         )
 
         return min(0.1, strength_count * 0.02)
@@ -234,23 +249,23 @@ class ConfidenceScorer:
         bonus = 0.0
 
         # Lists and structure (common in quality reports)
-        if re.search(r'\n[-*•]\s', response):
+        if re.search(r"\n[-*•]\s", response):
             bonus += 0.04
 
         # Numbered points
-        if re.search(r'\n\d+\.\s', response):
+        if re.search(r"\n\d+\.\s", response):
             bonus += 0.03
 
         # Headers/sections (markdown)
-        if re.search(r'\n#{1,3}\s', response):
+        if re.search(r"\n#{1,3}\s", response):
             bonus += 0.04
 
         # Bold text for emphasis
-        if re.search(r'\*\*[^*]+\*\*', response):
+        if re.search(r"\*\*[^*]+\*\*", response):
             bonus += 0.02
 
         # Code blocks or inline code
-        if '```' in response or '`' in response:
+        if "```" in response or "`" in response:
             bonus += 0.02
 
         return min(0.15, bonus)
@@ -260,20 +275,25 @@ class ConfidenceScorer:
 # CITATION EXTRACTOR
 # =============================================================================
 
+
 class CitationExtractor:
     """Extracts and validates citations from responses."""
 
     # Patterns for different citation formats
     PATTERNS = {
-        'arxiv': re.compile(r'(?:arXiv:)?(\d{4}\.\d{4,5})(?:v\d+)?', re.IGNORECASE),
-        'doi': re.compile(r'10\.\d{4,}/[^\s\]]+'),
-        'url': re.compile(r'https?://[^\s\]]+'),
-        'bracket_num': re.compile(r'\[(\d+)\]'),  # [1], [2], etc.
-        'bracket_range': re.compile(r'\[(\d+)[-–,](\d+)\]'),  # [1-3], [9,10]
-        'session_ref': re.compile(r'(?:session[:\s]+)?([a-z]+-[a-z]+-\d{8}-\d{6})', re.IGNORECASE),
+        "arxiv": re.compile(r"(?:arXiv:)?(\d{4}\.\d{4,5})(?:v\d+)?", re.IGNORECASE),
+        "doi": re.compile(r"10\.\d{4,}/[^\s\]]+"),
+        "url": re.compile(r"https?://[^\s\]]+"),
+        "bracket_num": re.compile(r"\[(\d+)\]"),  # [1], [2], etc.
+        "bracket_range": re.compile(r"\[(\d+)[-–,](\d+)\]"),  # [1-3], [9,10]
+        "session_ref": re.compile(
+            r"(?:session[:\s]+)?([a-z]+-[a-z]+-\d{8}-\d{6})", re.IGNORECASE
+        ),
     }
 
-    def extract_citations(self, text: str, sources: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def extract_citations(
+        self, text: str, sources: List[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
         """
         Extract all citations from text.
 
@@ -287,31 +307,23 @@ class CitationExtractor:
         citations = []
 
         # arXiv citations (e.g., arXiv:2412.05449)
-        for match in self.PATTERNS['arxiv'].finditer(text):
-            citations.append({
-                'type': 'arxiv',
-                'id': match.group(1),
-                'raw': match.group(0)
-            })
+        for match in self.PATTERNS["arxiv"].finditer(text):
+            citations.append(
+                {"type": "arxiv", "id": match.group(1), "raw": match.group(0)}
+            )
 
         # DOI citations
-        for match in self.PATTERNS['doi'].finditer(text):
-            citations.append({
-                'type': 'doi',
-                'id': match.group(0),
-                'raw': match.group(0)
-            })
+        for match in self.PATTERNS["doi"].finditer(text):
+            citations.append(
+                {"type": "doi", "id": match.group(0), "raw": match.group(0)}
+            )
 
         # URL citations
-        for match in self.PATTERNS['url'].finditer(text):
+        for match in self.PATTERNS["url"].finditer(text):
             url = match.group(0)
             # Avoid duplicating arxiv/doi URLs
-            if 'arxiv.org' not in url and 'doi.org' not in url:
-                citations.append({
-                    'type': 'url',
-                    'id': url,
-                    'raw': url
-                })
+            if "arxiv.org" not in url and "doi.org" not in url:
+                citations.append({"type": "url", "id": url, "raw": url})
 
         # =================================================================
         # BRACKET CITATIONS [1], [2], etc. - KEY FIX FOR DQ
@@ -319,13 +331,13 @@ class CitationExtractor:
         bracket_nums = set()
 
         # Single bracket numbers: [1], [2], [15]
-        for match in self.PATTERNS['bracket_num'].finditer(text):
+        for match in self.PATTERNS["bracket_num"].finditer(text):
             num = match.group(1)
             if num.isdigit() and 1 <= int(num) <= 50:  # Reasonable citation range
                 bracket_nums.add(int(num))
 
         # Ranges: [1-3], [9-12]
-        for match in self.PATTERNS['bracket_range'].finditer(text):
+        for match in self.PATTERNS["bracket_range"].finditer(text):
             try:
                 start, end = int(match.group(1)), int(match.group(2))
                 if 1 <= start <= 50 and 1 <= end <= 50:
@@ -336,32 +348,26 @@ class CitationExtractor:
 
         # Convert bracket numbers to citations with source resolution
         for num in sorted(bracket_nums):
-            citation = {
-                'type': 'bracket',
-                'id': str(num),
-                'raw': f'[{num}]'
-            }
+            citation = {"type": "bracket", "id": str(num), "raw": f"[{num}]"}
             # Resolve bracket to actual source if sources provided
             if sources and num <= len(sources):
                 source = sources[num - 1]  # 1-indexed to 0-indexed
-                citation['resolved_url'] = source.get('url', '')
-                citation['resolved_title'] = source.get('title', '')
-                citation['resolved_type'] = source.get('type', '')
+                citation["resolved_url"] = source.get("url", "")
+                citation["resolved_title"] = source.get("title", "")
+                citation["resolved_type"] = source.get("type", "")
                 # Extract arXiv ID if URL contains it
-                url = citation.get('resolved_url', '')
-                if 'arxiv.org' in url:
-                    arxiv_match = re.search(r'(\d{4}\.\d{4,5})', url)
+                url = citation.get("resolved_url", "")
+                if "arxiv.org" in url:
+                    arxiv_match = re.search(r"(\d{4}\.\d{4,5})", url)
                     if arxiv_match:
-                        citation['resolved_arxiv'] = arxiv_match.group(1)
+                        citation["resolved_arxiv"] = arxiv_match.group(1)
             citations.append(citation)
 
         # Session references
-        for match in self.PATTERNS['session_ref'].finditer(text):
-            citations.append({
-                'type': 'session',
-                'id': match.group(1),
-                'raw': match.group(0)
-            })
+        for match in self.PATTERNS["session_ref"].finditer(text):
+            citations.append(
+                {"type": "session", "id": match.group(1), "raw": match.group(0)}
+            )
 
         # Deduplicate
         seen = set()
@@ -386,15 +392,15 @@ class CitationExtractor:
         """
         # Simple heuristic: count sentences with factual indicators
         claim_patterns = [
-            r'(?:is|are|was|were|has|have|had)\s+(?:a|an|the|one|two|three)',
-            r'\d+%',
-            r'(?:research|studies|data|evidence)\s+(?:shows?|indicates?|suggests?)',
-            r'(?:according to|based on)',
-            r'(?:in \d{4}|since \d{4})',
+            r"(?:is|are|was|were|has|have|had)\s+(?:a|an|the|one|two|three)",
+            r"\d+%",
+            r"(?:research|studies|data|evidence)\s+(?:shows?|indicates?|suggests?)",
+            r"(?:according to|based on)",
+            r"(?:in \d{4}|since \d{4})",
         ]
 
         claim_count = 0
-        sentences = re.split(r'[.!?]+', text)
+        sentences = re.split(r"[.!?]+", text)
 
         for sentence in sentences:
             for pattern in claim_patterns:
@@ -408,6 +414,7 @@ class CitationExtractor:
 # =============================================================================
 # CRITIC VERIFIER
 # =============================================================================
+
 
 class CriticVerifier:
     """
@@ -438,7 +445,7 @@ class CriticVerifier:
         query: Optional[str] = None,
         context: Optional[str] = None,
         pioneer_mode: bool = False,
-        trust_context: bool = False
+        trust_context: bool = False,
     ) -> VerificationResult:
         """
         Run full verification pipeline on a response (v2.4 with mode flags).
@@ -474,9 +481,7 @@ class CriticVerifier:
             response, citations, sources
         )
 
-        oracle_score = await self._calculate_oracle_score(
-            response, query, context
-        )
+        oracle_score = await self._calculate_oracle_score(response, query, context)
 
         confidence_score = self.confidence_scorer.calculate(
             response, citations_verified, citations_found, evidence_score
@@ -487,9 +492,7 @@ class CriticVerifier:
         # =================================================================
         # Validate against extracted claims, cross-source agreement, self-consistency
         gt_result = await self.ground_truth_validator.validate(
-            query=query or "",
-            output=response,
-            sources=sources
+            query=query or "", output=response, sources=sources
         )
 
         # Extract ground truth scores
@@ -521,68 +524,79 @@ class CriticVerifier:
         else:
             # Default v2.2 weights (optimized for reliability)
             dq_weights = {
-                'validity': 0.30,       # Increased - very reliable
-                'specificity': 0.20,    # Same
-                'correctness': 0.35,    # Increased - citation-based, reliable
-                'ground_truth': 0.15,   # Reduced - self-consistency noise
+                "validity": 0.30,  # Increased - very reliable
+                "specificity": 0.20,  # Same
+                "correctness": 0.35,  # Increased - citation-based, reliable
+                "ground_truth": 0.15,  # Reduced - self-consistency noise
             }
             weight_mode = "default"
 
         dq_score = (
-            validity * dq_weights['validity'] +
-            specificity * dq_weights['specificity'] +
-            correctness * dq_weights['correctness'] +
-            ground_truth_score * dq_weights.get('ground_truth', 0.15)
+            validity * dq_weights["validity"]
+            + specificity * dq_weights["specificity"]
+            + correctness * dq_weights["correctness"]
+            + ground_truth_score * dq_weights.get("ground_truth", 0.15)
         )
 
         # Combine DQ with critic scores for final score
         # DQ (75%) + weighted average of critic scores (25%)
         critic_avg = (
-            evidence_score * PRECISION_CRITIC_WEIGHTS['evidence_critic'] +
-            oracle_score * PRECISION_CRITIC_WEIGHTS['oracle_consensus'] +
-            confidence_score * PRECISION_CRITIC_WEIGHTS['confidence_scorer']
+            evidence_score * PRECISION_CRITIC_WEIGHTS["evidence_critic"]
+            + oracle_score * PRECISION_CRITIC_WEIGHTS["oracle_consensus"]
+            + confidence_score * PRECISION_CRITIC_WEIGHTS["confidence_scorer"]
         )  # Already sums to 1.0 by design
 
         combined_score = dq_score * 0.75 + critic_avg * 0.25
 
         # Collect issues (including ground truth issues)
         issues = self._collect_issues(
-            response, citations, citations_verified, citations_found,
-            validity, specificity, correctness
+            response,
+            citations,
+            citations_verified,
+            citations_found,
+            validity,
+            specificity,
+            correctness,
         )
 
         # Add ground truth issues
         if gt_result.claims_contradicted > 0:
-            issues.append({
-                'code': 'CONTRADICTED_CLAIMS',
-                'message': f'{gt_result.claims_contradicted} claims contradicted by ground truth',
-                'severity': 'error',
-                'suggestion': 'Review and correct contradicted claims'
-            })
+            issues.append(
+                {
+                    "code": "CONTRADICTED_CLAIMS",
+                    "message": f"{gt_result.claims_contradicted} claims contradicted by ground truth",
+                    "severity": "error",
+                    "suggestion": "Review and correct contradicted claims",
+                }
+            )
 
         if cross_source_score < 0.5:
-            issues.append({
-                'code': 'LOW_SOURCE_AGREEMENT',
-                'message': f'Sources show low agreement ({cross_source_score:.2f})',
-                'severity': 'warning',
-                'suggestion': 'Seek additional sources or qualify conflicting information'
-            })
+            issues.append(
+                {
+                    "code": "LOW_SOURCE_AGREEMENT",
+                    "message": f"Sources show low agreement ({cross_source_score:.2f})",
+                    "severity": "warning",
+                    "suggestion": "Seek additional sources or qualify conflicting information",
+                }
+            )
 
         if self_consistency < 0.5:
-            issues.append({
-                'code': 'LOW_SELF_CONSISTENCY',
-                'message': f'Response inconsistent with previous runs ({self_consistency:.2f})',
-                'severity': 'warning',
-                'suggestion': 'Review for factual stability'
-            })
+            issues.append(
+                {
+                    "code": "LOW_SELF_CONSISTENCY",
+                    "message": f"Response inconsistent with previous runs ({self_consistency:.2f})",
+                    "severity": "warning",
+                    "suggestion": "Review for factual stability",
+                }
+            )
 
         # Determine if passed
         # Ground truth is diagnostic, not gating - pioneering content may not have
         # external ground truth to validate against (see v2.2 retrospective)
         passed = (
-            combined_score >= self.thresholds.combined_min and
-            evidence_score >= self.thresholds.evidence_min * 0.9 and
-            not any(i.get('severity') == 'critical' for i in issues)
+            combined_score >= self.thresholds.combined_min
+            and evidence_score >= self.thresholds.evidence_min * 0.9
+            and not any(i.get("severity") == "critical" for i in issues)
         )
 
         # Flag for human review if ground truth issues exist (diagnostic)
@@ -590,14 +604,21 @@ class CriticVerifier:
 
         # Generate feedback for retry (including ground truth feedback)
         feedback = self._generate_feedback(
-            issues, validity, specificity, correctness, citations_verified, citations_found
+            issues,
+            validity,
+            specificity,
+            correctness,
+            citations_verified,
+            citations_found,
         )
 
         if gt_result.claims_contradicted > 0:
             feedback += f"\n- Remove or correct contradicted claims: {', '.join(gt_result.contradicted_claims[:3])}"
 
         if ground_truth_score < 0.6:
-            feedback += "\n- Improve factual accuracy by verifying claims against sources"
+            feedback += (
+                "\n- Improve factual accuracy by verifying claims against sources"
+            )
 
         # Calculate recommended retries
         retries = self._calculate_retries_needed(combined_score)
@@ -625,13 +646,11 @@ class CriticVerifier:
             citations_found=citations_found,
             citations_verified=citations_verified,
             retries_recommended=retries,
-            feedback=feedback
+            feedback=feedback,
         )
 
     def _verify_citations(
-        self,
-        citations: List[Dict[str, Any]],
-        sources: List[Dict[str, Any]]
+        self, citations: List[Dict[str, Any]], sources: List[Dict[str, Any]]
     ) -> int:
         """Count how many citations can be verified against sources."""
         if not citations or not sources:
@@ -642,22 +661,22 @@ class CriticVerifier:
 
         # Build set of source identifiers
         for source in sources:
-            if 'arxiv_id' in source:
-                source_ids.add(source['arxiv_id'])
-            if 'url' in source:
-                source_ids.add(source['url'])
-            if 'id' in source:
-                source_ids.add(source['id'])
-            if 'session_id' in source:
-                source_ids.add(source['session_id'])
+            if "arxiv_id" in source:
+                source_ids.add(source["arxiv_id"])
+            if "url" in source:
+                source_ids.add(source["url"])
+            if "id" in source:
+                source_ids.add(source["id"])
+            if "session_id" in source:
+                source_ids.add(source["session_id"])
 
         # Check citations against sources
         for citation in citations:
-            ctype = citation.get('type', '')
-            cid = citation.get('id', '')
+            ctype = citation.get("type", "")
+            cid = citation.get("id", "")
 
             # Handle bracket citations [1], [2], etc. - verify by source index
-            if ctype == 'bracket':
+            if ctype == "bracket":
                 try:
                     idx = int(cid) - 1  # Convert [1] to index 0
                     if 0 <= idx < len(sources):
@@ -666,7 +685,9 @@ class CriticVerifier:
                 except (ValueError, TypeError):
                     pass
             # Handle traditional citations (arxiv, doi, url, session)
-            elif cid in source_ids or any(cid in s for s in source_ids if isinstance(s, str)):
+            elif cid in source_ids or any(
+                cid in s for s in source_ids if isinstance(s, str)
+            ):
                 verified += 1
 
         return verified
@@ -675,7 +696,7 @@ class CriticVerifier:
         self,
         response: str,
         citations: List[Dict[str, Any]],
-        sources: List[Dict[str, Any]]
+        sources: List[Dict[str, Any]],
     ) -> float:
         """Calculate evidence score based on citation quality."""
         if not citations:
@@ -690,14 +711,14 @@ class CriticVerifier:
         # Source quality (prefer arxiv, doi, or bracket refs to quality sources)
         high_quality = 0
         for c in citations:
-            if c['type'] in ('arxiv', 'doi'):
+            if c["type"] in ("arxiv", "doi"):
                 high_quality += 1
-            elif c['type'] == 'bracket':
+            elif c["type"] == "bracket":
                 # Check if bracket citation resolves to a quality source
-                resolved_url = c.get('resolved_url', '')
-                if 'arxiv' in resolved_url.lower() or 'doi.org' in resolved_url.lower():
+                resolved_url = c.get("resolved_url", "")
+                if "arxiv" in resolved_url.lower() or "doi.org" in resolved_url.lower():
                     high_quality += 1
-                elif c.get('resolved_title', ''):
+                elif c.get("resolved_title", ""):
                     # Has a title = references a real source
                     high_quality += 0.5
         quality_ratio = high_quality / len(citations) if citations else 0
@@ -707,19 +728,12 @@ class CriticVerifier:
         verification_rate = verified / len(citations) if citations else 0
 
         # Weighted score
-        score = (
-            coverage * 0.35 +
-            quality_ratio * 0.35 +
-            verification_rate * 0.30
-        )
+        score = coverage * 0.35 + quality_ratio * 0.35 + verification_rate * 0.30
 
         return min(1.0, max(0.0, score))
 
     async def _calculate_oracle_score(
-        self,
-        response: str,
-        query: Optional[str],
-        context: Optional[str]
+        self, response: str, query: Optional[str], context: Optional[str]
     ) -> float:
         """
         Calculate oracle consensus score (simplified for precision mode).
@@ -730,7 +744,7 @@ class CriticVerifier:
         score = 0.5  # Base
 
         # Accuracy indicators
-        if re.search(r'arXiv|doi|http|source:|according to', response.lower()):
+        if re.search(r"arXiv|doi|http|source:|according to", response.lower()):
             score += 0.1
 
         # Completeness indicators
@@ -741,7 +755,7 @@ class CriticVerifier:
             score += 0.05
 
         # Has structure
-        if re.search(r'\n[-*•]\s|\n\d+\.\s', response):
+        if re.search(r"\n[-*•]\s|\n\d+\.\s", response):
             score += 0.1
 
         # Relevance to query
@@ -764,8 +778,26 @@ class CriticVerifier:
         response_lower = response.lower()
 
         # Extract meaningful query words (ignore stopwords)
-        stopwords = {'what', 'are', 'the', 'best', 'for', 'in', 'how', 'to', 'is', 'a', 'an', 'and', 'or'}
-        query_words = [w.strip('?.,!') for w in query_lower.split() if len(w) > 2 and w not in stopwords]
+        stopwords = {
+            "what",
+            "are",
+            "the",
+            "best",
+            "for",
+            "in",
+            "how",
+            "to",
+            "is",
+            "a",
+            "an",
+            "and",
+            "or",
+        }
+        query_words = [
+            w.strip("?.,!")
+            for w in query_lower.split()
+            if len(w) > 2 and w not in stopwords
+        ]
         if not query_words:
             return 0.7
 
@@ -775,14 +807,18 @@ class CriticVerifier:
             # Check exact match or partial match (for compound terms like "multi-agent")
             if word in response_lower:
                 matches += 1
-            elif '-' in word:
+            elif "-" in word:
                 # Handle hyphenated terms: "multi-agent" matches "multi agent" or "multiagent"
-                parts = word.split('-')
+                parts = word.split("-")
                 if all(part in response_lower for part in parts):
                     matches += 1
             elif len(word) > 5:
                 # Check for word stem matching (e.g., "practices" matches "practice")
-                stem = word[:len(word)-2] if word.endswith(('es', 'ed', 'er', 'ly', 'ing')) else word[:len(word)-1]
+                stem = (
+                    word[: len(word) - 2]
+                    if word.endswith(("es", "ed", "er", "ly", "ing"))
+                    else word[: len(word) - 1]
+                )
                 if len(stem) > 3 and stem in response_lower:
                     matches += 0.8
 
@@ -790,23 +826,33 @@ class CriticVerifier:
 
         # Check for structured response indicators (common in quality reports)
         structure_indicators = [
-            '## ',            # Markdown headers
-            '### ',           # Subheaders
-            '**',             # Bold text
-            '- ',             # Bullet points
-            '1. ',            # Numbered lists
-            'summary',        # Section headers
-            'findings',
-            'recommendations',
-            'analysis',
-            'key ',           # Key findings/points
-            'sources',        # Citations section
+            "## ",  # Markdown headers
+            "### ",  # Subheaders
+            "**",  # Bold text
+            "- ",  # Bullet points
+            "1. ",  # Numbered lists
+            "summary",  # Section headers
+            "findings",
+            "recommendations",
+            "analysis",
+            "key ",  # Key findings/points
+            "sources",  # Citations section
         ]
-        structure_score = sum(1 for ind in structure_indicators if ind in response_lower)
+        structure_score = sum(
+            1 for ind in structure_indicators if ind in response_lower
+        )
         structure_bonus = min(0.2, structure_score * 0.02)
 
         # Check for domain-relevant content
-        domain_terms = ['agent', 'multi', 'orchestrat', 'consensus', 'coordinat', 'collaborat', 'framework']
+        domain_terms = [
+            "agent",
+            "multi",
+            "orchestrat",
+            "consensus",
+            "coordinat",
+            "collaborat",
+            "framework",
+        ]
         domain_matches = sum(1 for term in domain_terms if term in response_lower)
         domain_bonus = min(0.15, domain_matches * 0.02)
 
@@ -833,14 +879,16 @@ class CriticVerifier:
             length_score = 0.8
 
         # Detail indicators
-        has_numbers = bool(re.search(r'\d+', response))
-        has_examples = bool(re.search(r'for example|such as|e\.g\.|specifically', response.lower()))
-        has_structure = bool(re.search(r'\n[-*•]\s|\n\d+\.\s', response))
+        has_numbers = bool(re.search(r"\d+", response))
+        has_examples = bool(
+            re.search(r"for example|such as|e\.g\.|specifically", response.lower())
+        )
+        has_structure = bool(re.search(r"\n[-*•]\s|\n\d+\.\s", response))
 
         detail_bonus = (
-            (0.1 if has_numbers else 0) +
-            (0.1 if has_examples else 0) +
-            (0.1 if has_structure else 0)
+            (0.1 if has_numbers else 0)
+            + (0.1 if has_examples else 0)
+            + (0.1 if has_structure else 0)
         )
 
         return min(1.0, length_score * 0.7 + detail_bonus + 0.1)
@@ -850,7 +898,7 @@ class CriticVerifier:
         evidence_score: float,
         oracle_score: float,
         citations_verified: int,
-        citations_found: int
+        citations_found: int,
     ) -> float:
         """
         Score correctness (evidence-backed in precision mode).
@@ -881,51 +929,61 @@ class CriticVerifier:
         citations_found: int,
         validity: float,
         specificity: float,
-        correctness: float
+        correctness: float,
     ) -> List[Dict[str, Any]]:
         """Collect verification issues."""
         issues = []
 
         # Citation issues
         if not citations:
-            issues.append({
-                'code': 'NO_CITATIONS',
-                'message': 'Response contains no citations',
-                'severity': 'warning',
-                'suggestion': 'Add arXiv IDs, URLs, or session references'
-            })
+            issues.append(
+                {
+                    "code": "NO_CITATIONS",
+                    "message": "Response contains no citations",
+                    "severity": "warning",
+                    "suggestion": "Add arXiv IDs, URLs, or session references",
+                }
+            )
         elif citations_found > 0 and citations_verified == 0:
-            issues.append({
-                'code': 'UNVERIFIED_CITATIONS',
-                'message': f'{citations_found} citations could not be verified',
-                'severity': 'warning',
-                'suggestion': 'Ensure citations match provided sources'
-            })
+            issues.append(
+                {
+                    "code": "UNVERIFIED_CITATIONS",
+                    "message": f"{citations_found} citations could not be verified",
+                    "severity": "warning",
+                    "suggestion": "Ensure citations match provided sources",
+                }
+            )
 
         # Component score issues
         if validity < 0.7:
-            issues.append({
-                'code': 'LOW_VALIDITY',
-                'message': f'Response validity ({validity:.2f}) below threshold',
-                'severity': 'warning' if validity > 0.5 else 'error',
-                'suggestion': 'Ensure response directly addresses the query'
-            })
+            issues.append(
+                {
+                    "code": "LOW_VALIDITY",
+                    "message": f"Response validity ({validity:.2f}) below threshold",
+                    "severity": "warning" if validity > 0.5 else "error",
+                    "suggestion": "Ensure response directly addresses the query",
+                }
+            )
 
         if specificity < 0.7:
-            issues.append({
-                'code': 'LOW_SPECIFICITY',
-                'message': f'Response specificity ({specificity:.2f}) below threshold',
-                'severity': 'warning' if specificity > 0.5 else 'error',
-                'suggestion': 'Add concrete examples, numbers, or structured details'
-            })
+            issues.append(
+                {
+                    "code": "LOW_SPECIFICITY",
+                    "message": f"Response specificity ({specificity:.2f}) below threshold",
+                    "severity": "warning" if specificity > 0.5 else "error",
+                    "suggestion": "Add concrete examples, numbers, or structured details",
+                }
+            )
 
         if correctness < 0.7:
-            issues.append({
-                'code': 'LOW_CORRECTNESS',
-                'message': f'Response correctness ({correctness:.2f}) below threshold',
-                'severity': 'warning' if correctness > 0.5 else 'error',
-                'suggestion': 'Add citations and reduce hedging language'
-            })
+            issues.append(
+                {
+                    "code": "LOW_CORRECTNESS",
+                    "message": f"Response correctness ({correctness:.2f}) below threshold",
+                    "severity": "warning" if correctness > 0.5 else "error",
+                    "suggestion": "Add citations and reduce hedging language",
+                }
+            )
 
         return issues
 
@@ -936,7 +994,7 @@ class CriticVerifier:
         specificity: float,
         correctness: float,
         citations_verified: int,
-        citations_found: int
+        citations_found: int,
     ) -> str:
         """Generate feedback for retry attempts."""
         feedback_parts = []
@@ -948,7 +1006,9 @@ class CriticVerifier:
             feedback_parts.append("- Add more concrete examples and structured details")
 
         if correctness < 0.8:
-            feedback_parts.append("- Add citations (arXiv:XXXX.XXXXX format) for factual claims")
+            feedback_parts.append(
+                "- Add citations (arXiv:XXXX.XXXXX format) for factual claims"
+            )
 
         if citations_found == 0:
             feedback_parts.append("- Include citations for all factual claims")
@@ -956,12 +1016,12 @@ class CriticVerifier:
             feedback_parts.append("- Verify citations match actual sources")
 
         for issue in issues:
-            if issue.get('severity') == 'error':
-                suggestion = issue.get('suggestion', '')
-                if suggestion and suggestion not in '\n'.join(feedback_parts):
+            if issue.get("severity") == "error":
+                suggestion = issue.get("suggestion", "")
+                if suggestion and suggestion not in "\n".join(feedback_parts):
                     feedback_parts.append(f"- {suggestion}")
 
-        return '\n'.join(feedback_parts) if feedback_parts else ""
+        return "\n".join(feedback_parts) if feedback_parts else ""
 
     def _calculate_retries_needed(self, current_score: float) -> int:
         """Estimate retries needed to reach threshold."""
@@ -994,7 +1054,7 @@ async def verify(
     query: Optional[str] = None,
     context: Optional[str] = None,
     pioneer_mode: bool = False,
-    trust_context: bool = False
+    trust_context: bool = False,
 ) -> VerificationResult:
     """
     Verify a response using the precision verification pipeline (v2.4).
@@ -1019,6 +1079,6 @@ def format_critic_feedback(issues: List[Dict[str, Any]]) -> str:
     """Format issues into feedback for retry."""
     suggestions = []
     for issue in issues:
-        if issue.get('suggestion'):
+        if issue.get("suggestion"):
             suggestions.append(f"- {issue['suggestion']}")
-    return '\n'.join(suggestions) if suggestions else ""
+    return "\n".join(suggestions) if suggestions else ""

@@ -177,19 +177,51 @@ class TestGetRelevantContext:
         # Insert test data
         conn.execute(
             "INSERT INTO memory_items VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("auth-1", "session", "Implement OAuth2 authentication flow with JWT tokens", "2026-02-10", "os-app", 0.9, None),
+            (
+                "auth-1",
+                "session",
+                "Implement OAuth2 authentication flow with JWT tokens",
+                "2026-02-10",
+                "os-app",
+                0.9,
+                None,
+            ),
         )
         conn.execute(
             "INSERT INTO memory_items VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("auth-2", "learning", "Authentication requires rate limiting to prevent brute force", "2026-02-12", "os-app", 0.8, '{"tags": ["security"]}'),
+            (
+                "auth-2",
+                "learning",
+                "Authentication requires rate limiting to prevent brute force",
+                "2026-02-12",
+                "os-app",
+                0.8,
+                '{"tags": ["security"]}',
+            ),
         )
         conn.execute(
             "INSERT INTO memory_items VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("db-1", "session", "Database schema migration with Alembic", "2026-02-11", "os-app", 0.7, None),
+            (
+                "db-1",
+                "session",
+                "Database schema migration with Alembic",
+                "2026-02-11",
+                "os-app",
+                0.7,
+                None,
+            ),
         )
         conn.execute(
             "INSERT INTO memory_items VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("low-quality", "session", "Low quality note", "2026-02-13", None, 0.2, None),
+            (
+                "low-quality",
+                "session",
+                "Low quality note",
+                "2026-02-13",
+                None,
+                0.2,
+                None,
+            ),
         )
 
         conn.commit()
@@ -205,7 +237,9 @@ class TestGetRelevantContext:
 
     def test_returns_empty_when_embeddings_unavailable(self, mock_supermemory):
         """Test graceful degradation when SBERT unavailable."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             with patch("delegation.memory_bleed.HAS_EMBEDDINGS", False):
                 results = get_relevant_context("test query")
                 assert results == []
@@ -213,7 +247,9 @@ class TestGetRelevantContext:
     def test_filters_low_quality_items(self, mock_supermemory):
         """Test quality >= 0.5 filter."""
         # Mock DB path and embeddings
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             # Mock embedding functions to return dummy vectors
             with patch("delegation.memory_bleed.embed_single") as mock_embed:
                 with patch("delegation.memory_bleed.cosine_similarity") as mock_sim:
@@ -228,7 +264,9 @@ class TestGetRelevantContext:
 
     def test_returns_top_n_by_similarity(self, mock_supermemory):
         """Test limit parameter and sorting."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             with patch("delegation.memory_bleed.embed_single") as mock_embed:
                 with patch("delegation.memory_bleed.cosine_similarity") as mock_sim:
                     mock_embed.return_value = [0.1] * 768
@@ -245,7 +283,9 @@ class TestGetRelevantContext:
 
     def test_parses_metadata_json(self, mock_supermemory):
         """Test metadata JSON parsing."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             with patch("delegation.memory_bleed.embed_single") as mock_embed:
                 with patch("delegation.memory_bleed.cosine_similarity") as mock_sim:
                     mock_embed.return_value = [0.1] * 768
@@ -310,22 +350,30 @@ class TestGetErrorPatterns:
 
     def test_matches_by_category(self, mock_supermemory):
         """Test category matching (case-insensitive)."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             results = get_error_patterns("authentication")
             assert len(results) >= 1
             assert any(e.category == "authentication" for e in results)
 
     def test_matches_by_pattern(self, mock_supermemory):
         """Test pattern matching."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             results = get_error_patterns("timeout")
             assert len(results) >= 1
             assert any("timeout" in e.pattern for e in results)
 
     def test_sorted_by_count_desc(self, mock_supermemory):
         """Test sorting by count (descending)."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
-            results = get_error_patterns("auth")  # Matches "authentication" category and "git" pattern
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
+            results = get_error_patterns(
+                "auth"
+            )  # Matches "authentication" category and "git" pattern
             if len(results) >= 2:
                 assert results[0].count >= results[1].count
 
@@ -369,16 +417,28 @@ class TestGetDomainExpertise:
 
         # Insert authentication data (high expertise)
         for i in range(20):
-            conn.execute("INSERT INTO memory_items VALUES (?, ?, ?, ?)", (f"auth-{i}", f"Authentication item {i}", "session", 0.8))
+            conn.execute(
+                "INSERT INTO memory_items VALUES (?, ?, ?, ?)",
+                (f"auth-{i}", f"Authentication item {i}", "session", 0.8),
+            )
 
         for i in range(10):
-            conn.execute("INSERT INTO learnings VALUES (?, ?, ?)", (f"learn-auth-{i}", f"Authentication learning {i}", 0.9))
+            conn.execute(
+                "INSERT INTO learnings VALUES (?, ?, ?)",
+                (f"learn-auth-{i}", f"Authentication learning {i}", 0.9),
+            )
 
         for i in range(5):
-            conn.execute("INSERT INTO error_patterns (category, pattern) VALUES (?, ?)", ("authentication", f"error {i}"))
+            conn.execute(
+                "INSERT INTO error_patterns (category, pattern) VALUES (?, ?)",
+                ("authentication", f"error {i}"),
+            )
 
         # Insert database data (low expertise)
-        conn.execute("INSERT INTO memory_items VALUES (?, ?, ?, ?)", ("db-1", "Database item", "session", 0.7))
+        conn.execute(
+            "INSERT INTO memory_items VALUES (?, ?, ?, ?)",
+            ("db-1", "Database item", "session", 0.7),
+        )
 
         conn.commit()
         conn.close()
@@ -393,13 +453,17 @@ class TestGetDomainExpertise:
 
     def test_returns_zero_for_unknown_domain(self, mock_supermemory):
         """Test unknown domain returns 0.0."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             score = get_domain_expertise("unknown-domain-xyz")
             assert score == 0.0
 
     def test_returns_high_score_for_well_covered_domain(self, mock_supermemory):
         """Test high coverage returns score close to 1.0."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             score = get_domain_expertise("authentication")
             # 20 memory + 10*2 learnings + 5*3 errors = 20+20+15 = 55 total
             # log10(56) / 2 = 1.748 / 2 = 0.874, clamped to 1.0
@@ -408,7 +472,9 @@ class TestGetDomainExpertise:
 
     def test_returns_low_score_for_sparse_domain(self, mock_supermemory):
         """Test low coverage returns low score."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             score = get_domain_expertise("database")
             # 1 memory item only = log10(2) / 2 = 0.15
             assert score < 0.3
@@ -455,7 +521,9 @@ class TestWriteDelegationOutcome:
 
     def test_writes_review_successfully(self, mock_supermemory):
         """Test successful write to reviews table."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             success = write_delegation_outcome(
                 task="Implement auth",
                 outcome="Success: JWT tokens working",
@@ -548,7 +616,9 @@ class TestInjectContext:
                 # Verify error patterns injected
                 assert "error_patterns" in subtasks[0].metadata
                 assert len(subtasks[0].metadata["error_patterns"]) == 1
-                assert subtasks[0].metadata["error_patterns"][0]["category"] == "critical"
+                assert (
+                    subtasks[0].metadata["error_patterns"][0]["category"] == "critical"
+                )
 
 
 # ============================================================================
@@ -598,13 +668,21 @@ class TestPerformance:
         for i in range(100):
             conn.execute(
                 "INSERT INTO memory_items VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (f"item-{i}", f"Content {i}", "session", 0.7, "2026-02-14", "os-app", None),
+                (
+                    f"item-{i}",
+                    f"Content {i}",
+                    "session",
+                    0.7,
+                    "2026-02-14",
+                    "os-app",
+                    None,
+                ),
             )
 
         for i in range(10):
             conn.execute(
                 "INSERT INTO error_patterns VALUES (?, ?, ?, ?, ?, ?)",
-                (i, "auth", f"pattern {i}", i+1, None, "2026-02-14"),
+                (i, "auth", f"pattern {i}", i + 1, None, "2026-02-14"),
             )
 
         conn.commit()
@@ -614,7 +692,9 @@ class TestPerformance:
 
     def test_error_patterns_fast(self, mock_supermemory):
         """Test get_error_patterns completes in <100ms."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             t0 = time.time()
             results = get_error_patterns("auth")
             elapsed = (time.time() - t0) * 1000  # ms
@@ -624,7 +704,9 @@ class TestPerformance:
 
     def test_domain_expertise_fast(self, mock_supermemory):
         """Test get_domain_expertise completes in <100ms."""
-        with patch("delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)):
+        with patch(
+            "delegation.memory_bleed._get_db_path", return_value=str(mock_supermemory)
+        ):
             t0 = time.time()
             score = get_domain_expertise("auth")
             elapsed = (time.time() - t0) * 1000  # ms

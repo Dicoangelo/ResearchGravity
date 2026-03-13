@@ -36,7 +36,7 @@ def register_with_tracker(session_id: str, topic: str, impl_project: str = None)
             "active_session": None,
             "sessions": {},
             "lineage": [],
-            "pending_captures": []
+            "pending_captures": [],
         }
 
     # Find Claude session file for linking
@@ -55,18 +55,20 @@ def register_with_tracker(session_id: str, topic: str, impl_project: str = None)
         "urls_captured": [],
         "findings_captured": [],
         "checkpoints": [],
-        "full_transcript_archived": False
+        "full_transcript_archived": False,
     }
 
     # Create lineage entry if impl_project specified
     if impl_project:
-        state["lineage"].append({
-            "research_session": session_id,
-            "impl_project": impl_project,
-            "impl_session": None,
-            "linked_at": datetime.now().isoformat(),
-            "status": "pending"
-        })
+        state["lineage"].append(
+            {
+                "research_session": session_id,
+                "impl_project": impl_project,
+                "impl_session": None,
+                "linked_at": datetime.now().isoformat(),
+                "status": "pending",
+            }
+        )
 
     # Save tracker state
     tracker_file.parent.mkdir(parents=True, exist_ok=True)
@@ -132,7 +134,7 @@ def create_search_queries(topic: str) -> dict:
                 "arxiv_lg": f"site:arxiv.org cs.LG {topic} {year}",
                 "arxiv_se": f"site:arxiv.org cs.SE {topic} {year}",
                 "huggingface": f"site:huggingface.co/papers {topic}",
-                "description": "Academic research papers"
+                "description": "Academic research papers",
             },
             "labs": {
                 "openai": f"site:openai.com {topic} {month} {year}",
@@ -140,14 +142,14 @@ def create_search_queries(topic: str) -> dict:
                 "google_ai": f"site:blog.google/technology/ai {topic} {year}",
                 "meta_ai": f"site:ai.meta.com {topic} {year}",
                 "deepmind": f"site:deepmind.google {topic} {year}",
-                "description": "AI lab announcements"
+                "description": "AI lab announcements",
             },
             "industry": {
                 "techcrunch": f"site:techcrunch.com {topic} {month} {year}",
                 "verge": f"site:theverge.com {topic} {month} {year}",
                 "ars": f"site:arstechnica.com {topic} {month} {year}",
-                "description": "Tech industry news"
-            }
+                "description": "Tech industry news",
+            },
         },
         # Tier 2: Signal Amplifiers
         "tier2": {
@@ -155,19 +157,19 @@ def create_search_queries(topic: str) -> dict:
                 "viral": f"{topic} stars:>500 pushed:>{viral_cutoff}",
                 "groundbreaker": f"{topic} stars:10..200 created:>{groundbreaker_cutoff}",
                 "trending": f"{topic} stars:>100 pushed:>{recent_cutoff}",
-                "description": "GitHub repositories"
+                "description": "GitHub repositories",
             },
             "benchmarks": {
                 "metr": f"site:metr.org {topic}",
                 "arcprize": f"site:arcprize.org {topic}",
                 "paperswithcode": f"site:paperswithcode.com {topic} {year}",
-                "description": "Benchmark and leaderboard updates"
+                "description": "Benchmark and leaderboard updates",
             },
             "social": {
                 "hackernews": f"site:news.ycombinator.com {topic}",
                 "twitter_search": f"{topic} (from:karpathy OR from:ylecun OR from:sama)",
-                "description": "Social signals from key figures"
-            }
+                "description": "Social signals from key figures",
+            },
         },
         # Tier 3: Deep Context
         "tier3": {
@@ -175,20 +177,20 @@ def create_search_queries(topic: str) -> dict:
                 "import_ai": "https://importai.substack.com/",
                 "the_batch": "https://www.deeplearning.ai/the-batch/",
                 "latent_space": "https://www.latent.space/",
-                "description": "Curated newsletters (benchmark calibration)"
+                "description": "Curated newsletters (benchmark calibration)",
             },
             "forums": {
                 "lesswrong": f"site:lesswrong.com {topic} {year}",
                 "alignmentforum": f"site:alignmentforum.org {topic}",
-                "description": "Frontier discourse"
-            }
+                "description": "Frontier discourse",
+            },
         },
         # Frontier Filter (last 48 hours)
         "frontier": {
             "breaking": f"{topic} {month} {today.day} {year}",
             "protocols": f'"protocol" OR "standard" OR "specification" {topic} {year}',
-            "description": "Bleeding edge signals"
-        }
+            "description": "Bleeding edge signals",
+        },
     }
 
 
@@ -201,26 +203,26 @@ def get_scan_urls() -> dict:
             "https://arxiv.org/list/cs.SE/new",
             "https://huggingface.co/papers/trending",
             "https://news.ycombinator.com/",
-            "https://github.com/trending"
+            "https://github.com/trending",
         ],
         "lab_blogs": [
             "https://openai.com/news/",
             "https://www.anthropic.com/news",
             "https://blog.google/technology/ai/",
             "https://ai.meta.com/blog/",
-            "https://deepmind.google/discover/blog/"
+            "https://deepmind.google/discover/blog/",
         ],
         "industry_news": [
             "https://techcrunch.com/category/artificial-intelligence/",
             "https://arstechnica.com/ai/",
-            "https://www.theverge.com/ai-artificial-intelligence"
+            "https://www.theverge.com/ai-artificial-intelligence",
         ],
         "benchmarks": [
             "https://metr.org/blog/",
             "https://arcprize.org/blog",
             "https://lmarena.ai/",
-            "https://paperswithcode.com/sota"
-        ]
+            "https://paperswithcode.com/sota",
+        ],
     }
 
 
@@ -229,7 +231,7 @@ def init_session(
     workflow: str = "research",
     env: str = None,
     continue_session: str = None,
-    impl_project: str = None
+    impl_project: str = None,
 ) -> dict:
     """Initialize a new research session with Metaventions-grade structure."""
 
@@ -268,18 +270,20 @@ def init_session(
             "session_log": str(local_dir / "session_log.md"),
             "scratchpad": str(local_dir / "scratchpad.json"),
             "report": str(local_dir / f"{topic.lower().replace(' ', '-')}_report.md"),
-            "sources": str(local_dir / f"{topic.lower().replace(' ', '-')}_sources.csv")
+            "sources": str(
+                local_dir / f"{topic.lower().replace(' ', '-')}_sources.csv"
+            ),
         },
         "stats": {
             "urls_visited": 0,
             "urls_used": 0,
             "checkpoints": 0,
-            "last_sync": None
+            "last_sync": None,
         },
         "quality_standard": "metaventions",
         "impl_project": impl_project,
         "claude_session_linked": str(claude_session) if claude_session else None,
-        "auto_tracked": True
+        "auto_tracked": True,
     }
 
     # Create session log
@@ -290,24 +294,40 @@ def init_session(
 
     # Create sources CSV header (updated schema)
     sources_path = Path(session["paths"]["sources"])
-    sources_path.write_text("name,url,tier,category,signal,relevance,used,notes,timestamp\n")
+    sources_path.write_text(
+        "name,url,tier,category,signal,relevance,used,notes,timestamp\n"
+    )
 
     # Surface MetaLearning prediction
     try:
         import asyncio
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
         from storage.meta_learning import MetaLearningEngine
+
         _engine = MetaLearningEngine()
         _loop = asyncio.new_event_loop()
         _engine_init = _loop.run_until_complete(_engine.initialize())
-        _outcomes = _loop.run_until_complete(_engine.engine.search_outcomes(query=topic, limit=10, min_score=0.3))
+        _outcomes = _loop.run_until_complete(
+            _engine.engine.search_outcomes(query=topic, limit=10, min_score=0.3)
+        )
         if len(_outcomes) >= 10:
-            _pred = _loop.run_until_complete(_engine.predict_session_outcome(intent=topic))
-            session["prediction"] = {"quality": _pred["predicted_quality"], "confidence": _pred["confidence"], "success_prob": _pred["success_probability"]}
-            _pred_id = _loop.run_until_complete(_engine.store_prediction_for_tracking(topic, _pred))
+            _pred = _loop.run_until_complete(
+                _engine.predict_session_outcome(intent=topic)
+            )
+            session["prediction"] = {
+                "quality": _pred["predicted_quality"],
+                "confidence": _pred["confidence"],
+                "success_prob": _pred["success_probability"],
+            }
+            _pred_id = _loop.run_until_complete(
+                _engine.store_prediction_for_tracking(topic, _pred)
+            )
             session["prediction"]["tracking_id"] = _pred_id
-            print(f"[MetaLearning] Predicted quality: {_pred['predicted_quality']:.1f}/5 | Success: {_pred['success_probability']:.0%} | Confidence: {_pred['confidence']:.0%}")
+            print(
+                f"[MetaLearning] Predicted quality: {_pred['predicted_quality']:.1f}/5 | Success: {_pred['success_probability']:.0%} | Confidence: {_pred['confidence']:.0%}"
+            )
         _loop.run_until_complete(_engine.close())
         _loop.close()
     except Exception:
@@ -326,15 +346,15 @@ def init_session(
 
 def create_session_log(session: dict):
     """Create the session log markdown file with Metaventions structure."""
-    queries = session['queries']
-    scan_urls = session['scan_urls']
+    queries = session["queries"]
+    scan_urls = session["scan_urls"]
 
-    content = f"""# Research Session: {session['topic']}
+    content = f"""# Research Session: {session["topic"]}
 
-**Session ID:** `{session['session_id']}`
-**Workflow:** {session['workflow']}
-**Environment:** {session['environment']}
-**Started:** {session['started']}
+**Session ID:** `{session["session_id"]}`
+**Workflow:** {session["workflow"]}
+**Environment:** {session["environment"]}
+**Started:** {session["started"]}
 **Quality Standard:** Metaventions-grade
 
 ---
@@ -345,43 +365,43 @@ def create_session_log(session: dict):
 
 #### Research Papers
 ```
-{queries['tier1']['research']['arxiv_ai']}
-{queries['tier1']['research']['arxiv_lg']}
-{queries['tier1']['research']['huggingface']}
+{queries["tier1"]["research"]["arxiv_ai"]}
+{queries["tier1"]["research"]["arxiv_lg"]}
+{queries["tier1"]["research"]["huggingface"]}
 ```
 
 #### Lab Blogs
 ```
-{queries['tier1']['labs']['openai']}
-{queries['tier1']['labs']['anthropic']}
-{queries['tier1']['labs']['google_ai']}
+{queries["tier1"]["labs"]["openai"]}
+{queries["tier1"]["labs"]["anthropic"]}
+{queries["tier1"]["labs"]["google_ai"]}
 ```
 
 #### Industry News
 ```
-{queries['tier1']['industry']['techcrunch']}
-{queries['tier1']['industry']['verge']}
+{queries["tier1"]["industry"]["techcrunch"]}
+{queries["tier1"]["industry"]["verge"]}
 ```
 
 ### Tier 2 Sources (Signal Amplifiers)
 
 #### GitHub
 ```
-Viral:        {queries['tier2']['github']['viral']}
-Groundbreaker: {queries['tier2']['github']['groundbreaker']}
-Trending:     {queries['tier2']['github']['trending']}
+Viral:        {queries["tier2"]["github"]["viral"]}
+Groundbreaker: {queries["tier2"]["github"]["groundbreaker"]}
+Trending:     {queries["tier2"]["github"]["trending"]}
 ```
 
 #### Benchmarks
 ```
-{queries['tier2']['benchmarks']['metr']}
-{queries['tier2']['benchmarks']['paperswithcode']}
+{queries["tier2"]["benchmarks"]["metr"]}
+{queries["tier2"]["benchmarks"]["paperswithcode"]}
 ```
 
 ### Frontier Filter (Last 48h)
 ```
-{queries['frontier']['breaking']}
-{queries['frontier']['protocols']}
+{queries["frontier"]["breaking"]}
+{queries["frontier"]["protocols"]}
 ```
 
 ---
@@ -389,16 +409,16 @@ Trending:     {queries['tier2']['github']['trending']}
 ## Direct Scan URLs
 
 ### Daily Scan
-{chr(10).join(f'- {url}' for url in scan_urls['daily_scan'])}
+{chr(10).join(f"- {url}" for url in scan_urls["daily_scan"])}
 
 ### Lab Blogs
-{chr(10).join(f'- {url}' for url in scan_urls['lab_blogs'])}
+{chr(10).join(f"- {url}" for url in scan_urls["lab_blogs"])}
 
 ### Industry News
-{chr(10).join(f'- {url}' for url in scan_urls['industry_news'])}
+{chr(10).join(f"- {url}" for url in scan_urls["industry_news"])}
 
 ### Benchmarks
-{chr(10).join(f'- {url}' for url in scan_urls['benchmarks'])}
+{chr(10).join(f"- {url}" for url in scan_urls["benchmarks"])}
 
 ---
 
@@ -463,51 +483,27 @@ def create_scratchpad(session: dict):
         "workflow": session["workflow"],
         "environment": session["environment"],
         "quality_standard": "metaventions",
-
         # Tier 1 findings
-        "tier1": {
-            "research": [],
-            "labs": [],
-            "industry": []
-        },
-
+        "tier1": {"research": [], "labs": [], "industry": []},
         # Tier 2 findings
         "tier2": {
-            "github": {
-                "viral": [],
-                "groundbreaker": [],
-                "trending": []
-            },
+            "github": {"viral": [], "groundbreaker": [], "trending": []},
             "benchmarks": [],
-            "social": []
+            "social": [],
         },
-
         # Tier 3 context
-        "tier3": {
-            "newsletters": [],
-            "forums": []
-        },
-
+        "tier3": {"newsletters": [], "forums": []},
         # Frontier signals
         "frontier": [],
-
         # All URLs visited
         "urls_visited": [],
-
         # Synthesis
-        "synthesis": {
-            "thesis": None,
-            "gap": None,
-            "innovation_direction": None
-        },
-
+        "synthesis": {"thesis": None, "gap": None, "innovation_direction": None},
         # Key findings (top signals)
         "findings": [],
-
         # Checkpoints
         "checkpoints": [],
-
-        "last_updated": session["started"]
+        "last_updated": session["started"],
     }
     Path(session["paths"]["scratchpad"]).write_text(json.dumps(scratchpad, indent=2))
 
@@ -542,15 +538,23 @@ def main():
         description="Initialize Metaventions-grade research session"
     )
     parser.add_argument("topic", nargs="?", help="Research topic")
-    parser.add_argument("--workflow", default="deep-research",
-                        choices=["research", "innovation-scout", "deep-research"],
-                        help="Workflow type (default: deep-research)")
-    parser.add_argument("--env", choices=["cli", "antigravity"],
-                        help="Override environment detection")
-    parser.add_argument("--continue", dest="continue_session",
-                        help="Continue existing session by ID")
-    parser.add_argument("--impl-project", dest="impl_project",
-                        help="Target implementation project (creates lineage link)")
+    parser.add_argument(
+        "--workflow",
+        default="deep-research",
+        choices=["research", "innovation-scout", "deep-research"],
+        help="Workflow type (default: deep-research)",
+    )
+    parser.add_argument(
+        "--env", choices=["cli", "antigravity"], help="Override environment detection"
+    )
+    parser.add_argument(
+        "--continue", dest="continue_session", help="Continue existing session by ID"
+    )
+    parser.add_argument(
+        "--impl-project",
+        dest="impl_project",
+        help="Target implementation project (creates lineage link)",
+    )
 
     args = parser.parse_args()
 
@@ -563,7 +567,7 @@ def main():
             workflow=args.workflow,
             env=args.env,
             continue_session=args.continue_session,
-            impl_project=args.impl_project
+            impl_project=args.impl_project,
         )
 
         print(f"Session initialized: {session['session_id']}")
@@ -573,8 +577,10 @@ def main():
         print(f"   Local: {session['paths']['local']}")
         print()
         print("AUTO-TRACKING ENABLED")
-        print(f"   Claude session linked: {session.get('claude_session_linked', 'None')[:50] if session.get('claude_session_linked') else 'Detecting...'}")
-        if session.get('impl_project'):
+        print(
+            f"   Claude session linked: {session.get('claude_session_linked', 'None')[:50] if session.get('claude_session_linked') else 'Detecting...'}"
+        )
+        if session.get("impl_project"):
             print(f"   Implementation target: {session['impl_project']}")
         print("   Full transcript will be captured automatically")
         print()
@@ -584,7 +590,7 @@ def main():
         print("   - sources.csv")
         print()
         print("Quick scan URLs:")
-        for url in session['scan_urls']['daily_scan'][:3]:
+        for url in session["scan_urls"]["daily_scan"][:3]:
             print(f"   - {url}")
         print()
         print("Workflow:")

@@ -198,6 +198,7 @@ AVAILABLE_IMAGE_MODELS = {
 @dataclass
 class VisualConfig:
     """Configuration for the visual intelligence layer."""
+
     enabled: bool = True
     profile: str = "balanced"  # max, balanced, fast, budget, custom
     google_api_key: Optional[str] = None
@@ -240,7 +241,9 @@ class VisualConfig:
         input_cost = vlm_info.get("input_cost_per_1m", 1.25)
         output_cost = vlm_info.get("output_cost_per_1m", 10.00)
         # ~15K input tokens + ~2K output tokens per iteration
-        vlm_cost = (15_000 * input_cost / 1_000_000 + 2_000 * output_cost / 1_000_000) * self.max_iterations
+        vlm_cost = (
+            15_000 * input_cost / 1_000_000 + 2_000 * output_cost / 1_000_000
+        ) * self.max_iterations
         image_cost = self.get_image_cost()
         return round(vlm_cost + image_cost, 4)
 

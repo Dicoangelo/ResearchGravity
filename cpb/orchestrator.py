@@ -17,10 +17,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, List
 
-from .types import (
-    CPBPath, CPBConfig, DQScore, ACE_AGENT_PERSONAS,
-    DEFAULT_CPB_CONFIG
-)
+from .types import CPBPath, CPBConfig, DQScore, ACE_AGENT_PERSONAS, DEFAULT_CPB_CONFIG
 from .router import select_path, analyze_query, hash_query
 
 
@@ -36,6 +33,7 @@ CPB_LEARNING_FILE = HOME / ".claude/data/cpb-learning.json"
 # =============================================================================
 # CPB ORCHESTRATOR
 # =============================================================================
+
 
 class CPBOrchestrator:
     """
@@ -96,7 +94,7 @@ class CPBOrchestrator:
     def should_orchestrate(self, query: str, context: Optional[str] = None) -> bool:
         """Check if query benefits from CPB orchestration"""
         analysis = self.analyze(query, context)
-        return analysis['complexity_score'] >= 0.2
+        return analysis["complexity_score"] >= 0.2
 
     # =========================================================================
     # ACE CONSENSUS BUILDING
@@ -106,7 +104,7 @@ class CPBOrchestrator:
         self,
         query: str,
         context: Optional[str] = None,
-        agent_count: Optional[int] = None
+        agent_count: Optional[int] = None,
     ) -> List[Dict[str, str]]:
         """
         Build prompts for ACE (Adaptive Consensus Engine) multi-agent evaluation.
@@ -125,15 +123,17 @@ class CPBOrchestrator:
 
         prompts = []
         for agent in agents:
-            system_prompt = agent['prompt']
+            system_prompt = agent["prompt"]
             user_prompt = self._build_ace_user_prompt(query, context)
 
-            prompts.append({
-                'agent': agent['name'],
-                'system_prompt': system_prompt,
-                'user_prompt': user_prompt,
-                'full_prompt': f"{system_prompt}\n\n---\n\n{user_prompt}"
-            })
+            prompts.append(
+                {
+                    "agent": agent["name"],
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "full_prompt": f"{system_prompt}\n\n---\n\n{user_prompt}",
+                }
+            )
 
         return prompts
 
@@ -158,8 +158,7 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
         return "\n\n".join(parts)
 
     def synthesize_ace_responses(
-        self,
-        responses: List[Dict[str, Any]]
+        self, responses: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         Synthesize multiple ACE agent responses into consensus.
@@ -171,17 +170,19 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
             Synthesis with agreement score, merged insights, and conflicts
         """
         if not responses:
-            return {'error': 'No responses to synthesize'}
+            return {"error": "No responses to synthesize"}
 
         # Extract confidences
-        confidences = [r.get('confidence', 50) for r in responses]
+        confidences = [r.get("confidence", 50) for r in responses]
         avg_confidence = sum(confidences) / len(confidences)
 
         # Calculate agreement (using text similarity heuristic)
-        agreement = self._calculate_agreement([r.get('response', '') for r in responses])
+        agreement = self._calculate_agreement(
+            [r.get("response", "") for r in responses]
+        )
 
         # Categorize by agent type
-        by_agent = {r.get('agent', 'unknown'): r for r in responses}
+        by_agent = {r.get("agent", "unknown"): r for r in responses}
 
         # Identify conflicts (responses with very different conclusions)
         conflicts = []
@@ -189,12 +190,16 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
             conflicts.append("Significant disagreement detected between agents")
 
         return {
-            'agent_count': len(responses),
-            'avg_confidence': avg_confidence,
-            'agreement_score': agreement,
-            'by_agent': by_agent,
-            'conflicts': conflicts,
-            'consensus_strength': 'strong' if agreement > 0.7 else 'moderate' if agreement > 0.4 else 'weak'
+            "agent_count": len(responses),
+            "avg_confidence": avg_confidence,
+            "agreement_score": agreement,
+            "by_agent": by_agent,
+            "conflicts": conflicts,
+            "consensus_strength": "strong"
+            if agreement > 0.7
+            else "moderate"
+            if agreement > 0.4
+            else "weak",
         }
 
     def _calculate_agreement(self, responses: List[str]) -> float:
@@ -206,7 +211,18 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
         def extract_keywords(text: str) -> set:
             words = text.lower().split()
             # Filter to meaningful words (>4 chars, not common)
-            stopwords = {'this', 'that', 'with', 'from', 'they', 'have', 'will', 'would', 'could', 'should'}
+            stopwords = {
+                "this",
+                "that",
+                "with",
+                "from",
+                "they",
+                "have",
+                "will",
+                "would",
+                "could",
+                "should",
+            }
             return {w for w in words if len(w) > 4 and w not in stopwords}
 
         keyword_sets = [extract_keywords(r) for r in responses]
@@ -227,10 +243,7 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
     # =========================================================================
 
     def score_response(
-        self,
-        query: str,
-        response: str,
-        context: Optional[str] = None
+        self, query: str, response: str, context: Optional[str] = None
     ) -> DQScore:
         """
         Score a response using DQ (Decisional Quality) framework.
@@ -256,7 +269,7 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
             overall=round(overall, 3),
             validity=round(validity, 3),
             specificity=round(specificity, 3),
-            correctness=round(correctness, 3)
+            correctness=round(correctness, 3),
         )
 
     def _score_validity(self, query: str, response: str) -> float:
@@ -265,13 +278,17 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
         response_lower = response.lower()
 
         # Check if key query terms appear in response
-        matches = sum(1 for kw in query_keywords if kw in response_lower and len(kw) > 3)
-        keyword_coverage = min(1.0, matches / max(1, len([kw for kw in query_keywords if len(kw) > 3])))
+        matches = sum(
+            1 for kw in query_keywords if kw in response_lower and len(kw) > 3
+        )
+        keyword_coverage = min(
+            1.0, matches / max(1, len([kw for kw in query_keywords if len(kw) > 3]))
+        )
 
         # Check for direct address patterns
         has_direct_address = any(
             phrase in response_lower
-            for phrase in ['to answer', 'regarding your', 'the answer', 'in response']
+            for phrase in ["to answer", "regarding your", "the answer", "in response"]
         )
 
         return (keyword_coverage * 0.7) + (0.3 if has_direct_address else 0.15)
@@ -285,17 +302,23 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
         length_score = min(1.0, word_count / 200)
 
         # Check for specific indicators
-        has_numbers = bool(__import__('re').search(r'\d+', response))
+        has_numbers = bool(__import__("re").search(r"\d+", response))
         has_examples = any(
             phrase in response.lower()
-            for phrase in ['for example', 'such as', 'e.g.', 'specifically', 'in particular']
+            for phrase in [
+                "for example",
+                "such as",
+                "e.g.",
+                "specifically",
+                "in particular",
+            ]
         )
-        has_lists = response.count('\n-') > 1 or response.count('\n*') > 1
+        has_lists = response.count("\n-") > 1 or response.count("\n*") > 1
 
         specificity_bonus = (
-            (0.15 if has_numbers else 0) +
-            (0.15 if has_examples else 0) +
-            (0.1 if has_lists else 0)
+            (0.15 if has_numbers else 0)
+            + (0.15 if has_examples else 0)
+            + (0.1 if has_lists else 0)
         )
 
         return min(1.0, (length_score * 0.6) + specificity_bonus + 0.1)
@@ -305,22 +328,43 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
         response_lower = response.lower()
 
         # Hedging (slight negative - might indicate uncertainty)
-        hedging_phrases = ['might', 'maybe', 'possibly', 'i think', 'not sure', 'uncertain']
+        hedging_phrases = [
+            "might",
+            "maybe",
+            "possibly",
+            "i think",
+            "not sure",
+            "uncertain",
+        ]
         hedging_count = sum(1 for phrase in hedging_phrases if phrase in response_lower)
 
         # Confidence indicators (positive)
-        confidence_phrases = ['clearly', 'certainly', 'definitely', 'the fact is', 'evidence shows']
-        confidence_count = sum(1 for phrase in confidence_phrases if phrase in response_lower)
+        confidence_phrases = [
+            "clearly",
+            "certainly",
+            "definitely",
+            "the fact is",
+            "evidence shows",
+        ]
+        confidence_count = sum(
+            1 for phrase in confidence_phrases if phrase in response_lower
+        )
 
         # Citation patterns (positive)
-        has_citations = bool(__import__('re').search(r'arxiv|doi|http|source:|according to', response_lower))
+        has_citations = bool(
+            __import__("re").search(
+                r"arxiv|doi|http|source:|according to", response_lower
+            )
+        )
 
         base_score = 0.6  # Default assumption
         hedging_penalty = min(0.2, hedging_count * 0.05)
         confidence_bonus = min(0.2, confidence_count * 0.1)
         citation_bonus = 0.15 if has_citations else 0
 
-        return min(1.0, base_score - hedging_penalty + confidence_bonus + citation_bonus)
+        return min(
+            1.0, base_score - hedging_penalty + confidence_bonus + citation_bonus
+        )
 
     # =========================================================================
     # PATTERN LEARNING
@@ -333,30 +377,30 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
         execution_time_ms: int,
         dq_score: float,
         success: bool,
-        context_length: int = 0
+        context_length: int = 0,
     ):
         """Store execution pattern for learning"""
         if not self.config.enable_learning:
             return
 
         pattern = {
-            'ts': time.time(),
-            'query_hash': hash_query(query),
-            'path': path.value,
-            'execution_time_ms': execution_time_ms,
-            'dq_score': dq_score,
-            'success': success,
-            'context_length': context_length,
-            'complexity': self.analyze(query).get('complexity_score', 0)
+            "ts": time.time(),
+            "query_hash": hash_query(query),
+            "path": path.value,
+            "execution_time_ms": execution_time_ms,
+            "dq_score": dq_score,
+            "success": success,
+            "context_length": context_length,
+            "complexity": self.analyze(query).get("complexity_score", 0),
         }
 
-        with open(CPB_PATTERNS_FILE, 'a') as f:
-            f.write(json.dumps(pattern) + '\n')
+        with open(CPB_PATTERNS_FILE, "a") as f:
+            f.write(json.dumps(pattern) + "\n")
 
     def get_learned_preferences(self) -> Dict[str, Any]:
         """Get learned routing preferences from historical patterns"""
         if not CPB_PATTERNS_FILE.exists():
-            return {'message': 'No patterns recorded yet'}
+            return {"message": "No patterns recorded yet"}
 
         patterns = []
         with open(CPB_PATTERNS_FILE) as f:
@@ -368,35 +412,50 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
                         continue
 
         if not patterns:
-            return {'message': 'No valid patterns found'}
+            return {"message": "No valid patterns found"}
 
         # Analyze by path
         by_path = {}
         for p in patterns:
-            path = p.get('path', 'unknown')
+            path = p.get("path", "unknown")
             if path not in by_path:
-                by_path[path] = {'count': 0, 'dq_scores': [], 'times': [], 'successes': 0}
+                by_path[path] = {
+                    "count": 0,
+                    "dq_scores": [],
+                    "times": [],
+                    "successes": 0,
+                }
 
-            by_path[path]['count'] += 1
-            by_path[path]['dq_scores'].append(p.get('dq_score', 0))
-            by_path[path]['times'].append(p.get('execution_time_ms', 0))
-            if p.get('success'):
-                by_path[path]['successes'] += 1
+            by_path[path]["count"] += 1
+            by_path[path]["dq_scores"].append(p.get("dq_score", 0))
+            by_path[path]["times"].append(p.get("execution_time_ms", 0))
+            if p.get("success"):
+                by_path[path]["successes"] += 1
 
         # Calculate averages
         summary = {}
         for path, data in by_path.items():
             summary[path] = {
-                'count': data['count'],
-                'avg_dq': sum(data['dq_scores']) / len(data['dq_scores']) if data['dq_scores'] else 0,
-                'avg_time_ms': sum(data['times']) / len(data['times']) if data['times'] else 0,
-                'success_rate': data['successes'] / data['count'] if data['count'] else 0
+                "count": data["count"],
+                "avg_dq": sum(data["dq_scores"]) / len(data["dq_scores"])
+                if data["dq_scores"]
+                else 0,
+                "avg_time_ms": sum(data["times"]) / len(data["times"])
+                if data["times"]
+                else 0,
+                "success_rate": data["successes"] / data["count"]
+                if data["count"]
+                else 0,
             }
 
         return {
-            'total_patterns': len(patterns),
-            'by_path': summary,
-            'recommended_default': max(summary.keys(), key=lambda p: summary[p]['avg_dq']) if summary else 'cascade'
+            "total_patterns": len(patterns),
+            "by_path": summary,
+            "recommended_default": max(
+                summary.keys(), key=lambda p: summary[p]["avg_dq"]
+            )
+            if summary
+            else "cascade",
         }
 
     # =========================================================================
@@ -406,18 +465,18 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
     def get_status(self) -> Dict[str, Any]:
         """Get current CPB status and configuration"""
         return {
-            'config': {
-                'auto_route': self.config.auto_route,
-                'default_path': self.config.default_path.value,
-                'context_threshold': self.config.context_threshold,
-                'complexity_threshold': self.config.complexity_threshold,
-                'dq_threshold': self.config.dq_threshold,
-                'ace_agent_count': self.config.ace_config.agent_count,
-                'rlm_max_iterations': self.config.rlm_config.max_iterations
+            "config": {
+                "auto_route": self.config.auto_route,
+                "default_path": self.config.default_path.value,
+                "context_threshold": self.config.context_threshold,
+                "complexity_threshold": self.config.complexity_threshold,
+                "dq_threshold": self.config.dq_threshold,
+                "ace_agent_count": self.config.ace_config.agent_count,
+                "rlm_max_iterations": self.config.rlm_config.max_iterations,
             },
-            'tier': 'elite',
-            'learning_enabled': self.config.enable_learning,
-            'verification_enabled': self.config.enable_verification
+            "tier": "elite",
+            "learning_enabled": self.config.enable_learning,
+            "verification_enabled": self.config.enable_verification,
         }
 
     def validate_config(self) -> List[str]:
@@ -425,13 +484,17 @@ Be concise but thorough. Focus on your specialized viewpoint.""")
         warnings = []
 
         if self.config.dq_threshold > 0.9:
-            warnings.append("DQ threshold very high (>0.9) - may cause frequent retries")
+            warnings.append(
+                "DQ threshold very high (>0.9) - may cause frequent retries"
+            )
 
         if self.config.ace_config.agent_count < 3:
             warnings.append("ACE agent count low (<3) - consensus may be unreliable")
 
         if self.config.complexity_threshold < 0.1:
-            warnings.append("Complexity threshold very low (<0.1) - most queries will use heavy paths")
+            warnings.append(
+                "Complexity threshold very low (<0.1) - most queries will use heavy paths"
+            )
 
         return warnings
 
@@ -446,6 +509,7 @@ cpb = CPBOrchestrator()
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def analyze(query: str, context: Optional[str] = None) -> Dict[str, Any]:
     """Analyze query complexity and get routing recommendation"""
@@ -462,7 +526,9 @@ def should_orchestrate(query: str, context: Optional[str] = None) -> bool:
     return cpb.should_orchestrate(query, context)
 
 
-def build_ace_prompts(query: str, context: Optional[str] = None) -> List[Dict[str, str]]:
+def build_ace_prompts(
+    query: str, context: Optional[str] = None
+) -> List[Dict[str, str]]:
     """Build ACE multi-agent consensus prompts"""
     return cpb.build_ace_prompts(query, context)
 
@@ -475,6 +541,7 @@ def score_response(query: str, response: str, context: Optional[str] = None) -> 
 # =============================================================================
 # PRE/POST EXECUTION HOOKS
 # =============================================================================
+
 
 class CPBHooks:
     """
@@ -549,7 +616,7 @@ class CPBHooks:
 
     def run_pre_hooks(self, hook_type: str, *args) -> tuple:
         """Run all pre-hooks of a given type."""
-        hooks = getattr(self, f'_pre_{hook_type}', [])
+        hooks = getattr(self, f"_pre_{hook_type}", [])
         result = args
         for hook in hooks:
             try:
@@ -563,7 +630,7 @@ class CPBHooks:
 
     def run_post_hooks(self, hook_type: str, result: Any) -> Any:
         """Run all post-hooks of a given type."""
-        hooks = getattr(self, f'_post_{hook_type}', [])
+        hooks = getattr(self, f"_post_{hook_type}", [])
         for hook in hooks:
             try:
                 result = hook(result)
@@ -575,8 +642,8 @@ class CPBHooks:
     def clear_hooks(self, hook_type: Optional[str] = None):
         """Clear registered hooks."""
         if hook_type:
-            setattr(self, f'_pre_{hook_type}', [])
-            setattr(self, f'_post_{hook_type}', [])
+            setattr(self, f"_pre_{hook_type}", [])
+            setattr(self, f"_post_{hook_type}", [])
         else:
             self._pre_analyze = []
             self._post_analyze = []

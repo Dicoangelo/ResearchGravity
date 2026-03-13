@@ -49,6 +49,7 @@ from dataclasses import dataclass
 @dataclass
 class AgentTrustScore:
     """Agent trust score with Bayesian statistics"""
+
     agent_id: str
     task_type: str
     success_count: int
@@ -152,7 +153,7 @@ class TrustLedger:
         task_type: str,
         success: bool,
         quality: float,
-        duration: float
+        duration: float,
     ) -> float:
         """
         Record task outcome and update trust score using Bayesian inference.
@@ -177,7 +178,7 @@ class TrustLedger:
         # Get current entry or initialize with uninformative prior
         cursor = await self._db.execute(
             "SELECT success_count, failure_count, avg_quality, avg_duration FROM trust_entries WHERE agent_id = ? AND task_type = ?",
-            (agent_id, task_type)
+            (agent_id, task_type),
         )
         row = await cursor.fetchone()
 
@@ -211,7 +212,8 @@ class TrustLedger:
         trust_score = alpha / (alpha + beta)
 
         # Upsert the entry
-        await self._db.execute("""
+        await self._db.execute(
+            """
             INSERT INTO trust_entries (agent_id, task_type, success_count, failure_count, avg_quality, avg_duration, trust_score, last_updated)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(agent_id, task_type) DO UPDATE SET
@@ -221,7 +223,18 @@ class TrustLedger:
                 avg_duration = excluded.avg_duration,
                 trust_score = excluded.trust_score,
                 last_updated = excluded.last_updated
-        """, (agent_id, task_type, success_count, failure_count, avg_quality, avg_duration, trust_score, timestamp))
+        """,
+            (
+                agent_id,
+                task_type,
+                success_count,
+                failure_count,
+                avg_quality,
+                avg_duration,
+                trust_score,
+                timestamp,
+            ),
+        )
 
         await self._db.commit()
 
@@ -242,7 +255,7 @@ class TrustLedger:
         """
         cursor = await self._db.execute(
             "SELECT trust_score, last_updated FROM trust_entries WHERE agent_id = ? AND task_type = ?",
-            (agent_id, task_type)
+            (agent_id, task_type),
         )
         row = await cursor.fetchone()
 
@@ -253,7 +266,9 @@ class TrustLedger:
         trust_score, last_updated = row
 
         # Apply time decay
-        last_updated_time = time.mktime(time.strptime(last_updated, "%Y-%m-%d %H:%M:%S"))
+        last_updated_time = time.mktime(
+            time.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
+        )
         days_since_update = (time.time() - last_updated_time) / (24 * 3600)
 
         if days_since_update >= self.DECAY_DAYS:
@@ -263,7 +278,9 @@ class TrustLedger:
 
         return trust_score
 
-    async def get_top_agents(self, task_type: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+    async def get_top_agents(
+        self, task_type: str = None, limit: int = 5
+    ) -> List[Dict[str, Any]]:
         """
         Get top-performing agents, optionally filtered by task type.
 
@@ -281,7 +298,7 @@ class TrustLedger:
             cursor = await self._db.execute(
                 "SELECT agent_id, trust_score, success_count, failure_count, avg_quality, avg_duration, last_updated "
                 "FROM trust_entries WHERE task_type = ? ORDER BY trust_score DESC",
-                (task_type,)
+                (task_type,),
             )
         else:
             cursor = await self._db.execute(
@@ -295,28 +312,42 @@ class TrustLedger:
         decayed_scores = []
 
         for row in rows:
-            agent_id, trust_score, success_count, failure_count, avg_quality, avg_duration, last_updated = row
-            last_updated_time = time.mktime(time.strptime(last_updated, "%Y-%m-%d %H:%M:%S"))
+            (
+                agent_id,
+                trust_score,
+                success_count,
+                failure_count,
+                avg_quality,
+                avg_duration,
+                last_updated,
+            ) = row
+            last_updated_time = time.mktime(
+                time.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
+            )
             days_since_update = (current_time - last_updated_time) / (24 * 3600)
 
             if days_since_update >= self.DECAY_DAYS:
                 trust_score *= self.DECAY_FACTOR
                 trust_score = max(0.0, min(1.0, trust_score))
 
-            decayed_scores.append({
-                "agent_id": agent_id,
-                "trust_score": trust_score,
-                "success_count": success_count,
-                "failure_count": failure_count,
-                "avg_quality": avg_quality,
-                "avg_duration": avg_duration,
-            })
+            decayed_scores.append(
+                {
+                    "agent_id": agent_id,
+                    "trust_score": trust_score,
+                    "success_count": success_count,
+                    "failure_count": failure_count,
+                    "avg_quality": avg_quality,
+                    "avg_duration": avg_duration,
+                }
+            )
 
         # Re-sort after decay and limit results
         decayed_scores.sort(key=lambda x: x["trust_score"], reverse=True)
         return decayed_scores[:limit]
 
-    async def get_agent_stats(self, agent_id: str, task_type: str) -> Optional[AgentTrustScore]:
+    async def get_agent_stats(
+        self, agent_id: str, task_type: str
+    ) -> Optional[AgentTrustScore]:
         """
         Get detailed statistics for an agent on a specific task type.
 
@@ -330,7 +361,7 @@ class TrustLedger:
         cursor = await self._db.execute(
             """SELECT agent_id, task_type, success_count, failure_count, avg_quality, avg_duration, trust_score, last_updated
                FROM trust_entries WHERE agent_id = ? AND task_type = ?""",
-            (agent_id, task_type)
+            (agent_id, task_type),
         )
         row = await cursor.fetchone()
 
@@ -345,5 +376,5 @@ class TrustLedger:
             avg_quality=row[4],
             avg_duration=row[5],
             trust_score=row[6],
-            last_updated=row[7]
+            last_updated=row[7],
         )

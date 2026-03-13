@@ -22,6 +22,7 @@ from typing import Dict, List, Any, Tuple, Optional
 V2_AVAILABLE = False
 try:
     from context_packs_v2_prototype import ContextPacksV2Engine
+
     V2_AVAILABLE = True
 except ImportError:
     print("⚠️  V2 engine not available, using V1 only")
@@ -77,7 +78,7 @@ class PackSelectorV2Integrated:
         token_budget: int = 50000,
         min_packs: int = 1,
         max_packs: int = 5,
-        enable_pruning: bool = True
+        enable_pruning: bool = True,
     ) -> Tuple[List[Dict], Dict[str, Any]]:
         """
         Select packs using V2 (if available) or V1 (fallback)
@@ -96,10 +97,7 @@ class PackSelectorV2Integrated:
             return self._select_v1(context, token_budget, min_packs, max_packs)
 
     def _select_v2(
-        self,
-        context: str,
-        token_budget: int,
-        enable_pruning: bool
+        self, context: str, token_budget: int, enable_pruning: bool
     ) -> Tuple[List[Dict], Dict[str, Any]]:
         """Select using V2 engine"""
 
@@ -107,30 +105,23 @@ class PackSelectorV2Integrated:
             query=context,
             context={},
             token_budget=token_budget,
-            enable_pruning=enable_pruning
+            enable_pruning=enable_pruning,
         )
 
         # Format metadata for compatibility
         metadata = {
-            'engine': 'v2',
-            'layers': metrics.get('total_layers', 7),
-            'selection_time_ms': metrics.get('selection_time_ms', 0),
-            'packs_selected': metrics.get('packs_selected', 0),
-            'budget_used': sum(
-                pack.get('size_tokens', 0)
-                for pack in packs
-            ),
-            'v2_metrics': metrics
+            "engine": "v2",
+            "layers": metrics.get("total_layers", 7),
+            "selection_time_ms": metrics.get("selection_time_ms", 0),
+            "packs_selected": metrics.get("packs_selected", 0),
+            "budget_used": sum(pack.get("size_tokens", 0) for pack in packs),
+            "v2_metrics": metrics,
         }
 
         return packs, metadata
 
     def _select_v1(
-        self,
-        context: str,
-        token_budget: int,
-        min_packs: int,
-        max_packs: int
+        self, context: str, token_budget: int, min_packs: int, max_packs: int
     ) -> Tuple[List[Dict], Dict[str, Any]]:
         """Select using V1 engine"""
 
@@ -138,7 +129,7 @@ class PackSelectorV2Integrated:
             context=context,
             token_budget=token_budget,
             min_packs=min_packs,
-            max_packs=max_packs
+            max_packs=max_packs,
         )
 
         # Load full pack data
@@ -146,28 +137,25 @@ class PackSelectorV2Integrated:
         for pack_id in selected_pack_ids:
             pack_file = self._find_pack_file(pack_id)
             if pack_file:
-                with open(pack_file, 'r') as f:
+                with open(pack_file, "r") as f:
                     packs.append(json.load(f))
 
         # Format metadata
         metadata = {
-            'engine': 'v1',
-            'layers': 2,
-            'selection_time_ms': v1_metadata.get('selection_time_ms', 0),
-            'packs_selected': len(packs),
-            'budget_used': sum(
-                pack.get('size_tokens', 0)
-                for pack in packs
-            ),
-            'v1_metadata': v1_metadata
+            "engine": "v1",
+            "layers": 2,
+            "selection_time_ms": v1_metadata.get("selection_time_ms", 0),
+            "packs_selected": len(packs),
+            "budget_used": sum(pack.get("size_tokens", 0) for pack in packs),
+            "v1_metadata": v1_metadata,
         }
 
         return packs, metadata
 
     def _find_pack_file(self, pack_id: str) -> Optional[Path]:
         """Find pack file by ID"""
-        for pack_type in ['domain', 'project', 'pattern', 'paper']:
-            pack_file = PACK_DIR / pack_type / f'{pack_id}.pack.json'
+        for pack_type in ["domain", "project", "pattern", "paper"]:
+            pack_file = PACK_DIR / pack_type / f"{pack_id}.pack.json"
             if pack_file.exists():
                 return pack_file
         return None
@@ -184,12 +172,13 @@ class PackSelectorV2Integrated:
 
         try:
             import subprocess
+
             result = subprocess.run(
-                ['git', 'log', '-1', '--pretty=%s'],
+                ["git", "log", "-1", "--pretty=%s"],
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=2
+                timeout=2,
             )
             if result.returncode == 0 and result.stdout.strip():
                 context_parts.append(result.stdout.strip())
@@ -197,27 +186,26 @@ class PackSelectorV2Integrated:
             pass
 
         # Get package.json name (if exists)
-        package_json = cwd / 'package.json'
+        package_json = cwd / "package.json"
         if package_json.exists():
             try:
                 with open(package_json) as f:
                     data = json.load(f)
-                    if 'name' in data:
-                        context_parts.append(data['name'])
+                    if "name" in data:
+                        context_parts.append(data["name"])
             except:
                 pass
 
-        return ' '.join(context_parts)
+        return " ".join(context_parts)
 
 
-def format_output(packs: List[Dict], metadata: Dict[str, Any], output_format: str = 'text'):
+def format_output(
+    packs: List[Dict], metadata: Dict[str, Any], output_format: str = "text"
+):
     """Format selection results for output"""
 
-    if output_format == 'json':
-        return json.dumps({
-            'packs': packs,
-            'metadata': metadata
-        }, indent=2)
+    if output_format == "json":
+        return json.dumps({"packs": packs, "metadata": metadata}, indent=2)
 
     # Text format
     output = []
@@ -230,9 +218,9 @@ def format_output(packs: List[Dict], metadata: Dict[str, Any], output_format: st
     output.append(f"Budget Used: {metadata['budget_used']} tokens")
     output.append(f"Time: {metadata['selection_time_ms']:.1f}ms")
 
-    if metadata['engine'] == 'v2':
-        v2_metrics = metadata.get('v2_metrics', {})
-        layers_used = v2_metrics.get('layers_used', [])
+    if metadata["engine"] == "v2":
+        v2_metrics = metadata.get("v2_metrics", {})
+        layers_used = v2_metrics.get("layers_used", [])
         output.append(f"Layers Active: {', '.join(layers_used)}")
 
     output.append("\n" + "-" * 60)
@@ -240,35 +228,37 @@ def format_output(packs: List[Dict], metadata: Dict[str, Any], output_format: st
     output.append("-" * 60)
 
     for i, pack in enumerate(packs, 1):
-        pack_id = pack.get('pack_id', pack.get('id', 'unknown'))
-        pack_type = pack.get('type', 'unknown')
+        pack_id = pack.get("pack_id", pack.get("id", "unknown"))
+        pack_type = pack.get("type", "unknown")
 
         # Get content (may be nested)
-        content = pack.get('content', pack)
+        content = pack.get("content", pack)
 
         output.append(f"\n{i}. {pack_id} (type: {pack_type})")
         output.append(f"   Size: {pack.get('size_tokens', 0)} tokens")
 
         # Papers
-        papers = content.get('papers', [])
+        papers = content.get("papers", [])
         if papers:
-            output.append(f"   Papers: {', '.join(p.get('arxiv_id', '') for p in papers[:3])}")
+            output.append(
+                f"   Papers: {', '.join(p.get('arxiv_id', '') for p in papers[:3])}"
+            )
             if len(papers) > 3:
                 output.append(f"           (+{len(papers) - 3} more)")
 
         # Keywords
-        keywords = content.get('keywords', [])
+        keywords = content.get("keywords", [])
         if keywords:
             output.append(f"   Keywords: {', '.join(keywords[:5])}")
             if len(keywords) > 5:
                 output.append(f"             (+{len(keywords) - 5} more)")
 
-    return '\n'.join(output)
+    return "\n".join(output)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Pack Selector V2 Integrated (Production)',
+        description="Pack Selector V2 Integrated (Production)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -286,52 +276,37 @@ Examples:
 
   # Disable pruning (V2 only)
   python3 select_packs_v2_integrated.py --context "..." --no-pruning
-        """
+        """,
     )
 
+    parser.add_argument("--context", type=str, help="Context for pack selection")
     parser.add_argument(
-        '--context',
-        type=str,
-        help='Context for pack selection'
+        "--auto", action="store_true", help="Auto-detect context from current directory"
     )
     parser.add_argument(
-        '--auto',
-        action='store_true',
-        help='Auto-detect context from current directory'
+        "--budget", type=int, default=50000, help="Token budget (default: 50000)"
     )
     parser.add_argument(
-        '--budget',
-        type=int,
-        default=50000,
-        help='Token budget (default: 50000)'
-    )
-    parser.add_argument(
-        '--min-packs',
+        "--min-packs",
         type=int,
         default=1,
-        help='Minimum packs to select (V1 only, default: 1)'
+        help="Minimum packs to select (V1 only, default: 1)",
     )
     parser.add_argument(
-        '--max-packs',
+        "--max-packs",
         type=int,
         default=5,
-        help='Maximum packs to select (V1 only, default: 5)'
+        help="Maximum packs to select (V1 only, default: 5)",
+    )
+    parser.add_argument("--v1", action="store_true", help="Force V1 engine (2 layers)")
+    parser.add_argument(
+        "--no-pruning", action="store_true", help="Disable pruning (V2 only)"
     )
     parser.add_argument(
-        '--v1',
-        action='store_true',
-        help='Force V1 engine (2 layers)'
-    )
-    parser.add_argument(
-        '--no-pruning',
-        action='store_true',
-        help='Disable pruning (V2 only)'
-    )
-    parser.add_argument(
-        '--format',
-        choices=['text', 'json'],
-        default='text',
-        help='Output format (default: text)'
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
     )
 
     args = parser.parse_args()
@@ -350,7 +325,7 @@ Examples:
             token_budget=args.budget,
             min_packs=args.min_packs,
             max_packs=args.max_packs,
-            enable_pruning=not args.no_pruning
+            enable_pruning=not args.no_pruning,
         )
 
         # Format and print output
@@ -363,9 +338,10 @@ Examples:
     except Exception as e:
         print(f"\n❌ Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

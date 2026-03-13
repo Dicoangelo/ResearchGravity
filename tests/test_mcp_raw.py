@@ -52,11 +52,14 @@ def test(name):
             except Exception as e:
                 print(f"  FAIL  {name}: {e}")
                 failed += 1
+
         return wrapper
+
     return decorator
 
 
 # ── Protocol Tests ──────────────────────────────────────────────
+
 
 @test("validate_message: request")
 async def test_validate_request():
@@ -116,10 +119,12 @@ async def test_initialize_result():
 
 # ── UCW Bridge Tests ────────────────────────────────────────────
 
+
 @test("extract_layers: inbound tool call")
 async def test_ucw_tool_call():
     msg = {
-        "jsonrpc": "2.0", "id": 1,
+        "jsonrpc": "2.0",
+        "id": 1,
         "method": "tools/call",
         "params": {"name": "search_learnings", "arguments": {"query": "MCP protocol"}},
     }
@@ -133,9 +138,12 @@ async def test_ucw_tool_call():
 @test("extract_layers: outbound response")
 async def test_ucw_response():
     msg = {
-        "jsonrpc": "2.0", "id": 1,
+        "jsonrpc": "2.0",
+        "id": 1,
         "result": {
-            "content": [{"type": "text", "text": "Found 3 results about cognitive architecture"}]
+            "content": [
+                {"type": "text", "text": "Found 3 results about cognitive architecture"}
+            ]
         },
     }
     data, light, instinct = extract_layers(msg, "out")
@@ -179,6 +187,7 @@ async def test_bridge_adapter():
 
 # ── Capture Engine Tests ────────────────────────────────────────
 
+
 @test("CaptureEngine: basic capture")
 async def test_capture_basic():
     engine = CaptureEngine()
@@ -220,7 +229,12 @@ async def test_capture_with_bridge():
     engine.set_ucw_bridge(UCWBridgeAdapter())
     await engine.capture(
         raw_bytes=b'{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search"}}',
-        parsed={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "search"}},
+        parsed={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "search"},
+        },
         timestamp_ns=time.time_ns(),
         direction="in",
     )
@@ -232,13 +246,19 @@ async def test_capture_with_bridge():
 
 # ── Router Tests ────────────────────────────────────────────────
 
+
 @test("Router: initialize")
 async def test_router_initialize():
     router = Router()
-    msg = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-        "protocolVersion": "2024-11-05",
-        "clientInfo": {"name": "test-client"},
-    }}
+    msg = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "clientInfo": {"name": "test-client"},
+        },
+    }
     result = await router.route("request", msg)
     assert result["protocolVersion"] == "2024-11-05"
     assert result["serverInfo"]["name"] == Config.SERVER_NAME
@@ -255,7 +275,13 @@ async def test_router_tools_list_empty():
 @test("Router: tools/list with registered tools")
 async def test_router_tools_list():
     router = Router()
-    tools = [{"name": "test_tool", "description": "A test", "inputSchema": {"type": "object"}}]
+    tools = [
+        {
+            "name": "test_tool",
+            "description": "A test",
+            "inputSchema": {"type": "object"},
+        }
+    ]
 
     async def handler(name, args):
         return tool_result_content([text_content("ok")])
@@ -270,15 +296,23 @@ async def test_router_tools_list():
 @test("Router: tools/call dispatch")
 async def test_router_tools_call():
     router = Router()
-    tools = [{"name": "greet", "description": "Greet", "inputSchema": {"type": "object"}}]
+    tools = [
+        {"name": "greet", "description": "Greet", "inputSchema": {"type": "object"}}
+    ]
 
     async def handler(name, args):
         return tool_result_content([text_content(f"Hello {args.get('name', 'world')}")])
 
     router.register_tools_module(tools, handler)
-    msg = {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
-        "name": "greet", "arguments": {"name": "UCW"},
-    }}
+    msg = {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/call",
+        "params": {
+            "name": "greet",
+            "arguments": {"name": "UCW"},
+        },
+    }
     result = await router.route("request", msg)
     assert result["content"][0]["text"] == "Hello UCW"
 
@@ -312,9 +346,11 @@ async def test_router_ping():
 
 # ── Database Tests ──────────────────────────────────────────────
 
+
 @test("CaptureDB: initialize and store event")
 async def test_db_store():
     import tempfile
+
     with tempfile.TemporaryDirectory() as tmp:
         db = CaptureDB(db_path=Path(tmp) / "test.db")
         await db.initialize()
@@ -327,8 +363,17 @@ async def test_db_store():
             parsed={"test": True},
         )
         event.data_layer = {"content": "test", "tokens_est": 1}
-        event.light_layer = {"intent": "test", "topic": "testing", "concepts": [], "summary": "test"}
-        event.instinct_layer = {"coherence_potential": 0.5, "emergence_indicators": [], "gut_signal": "routine"}
+        event.light_layer = {
+            "intent": "test",
+            "topic": "testing",
+            "concepts": [],
+            "summary": "test",
+        }
+        event.instinct_layer = {
+            "coherence_potential": 0.5,
+            "emergence_indicators": [],
+            "gut_signal": "routine",
+        }
 
         await db.store_event(event)
 
@@ -341,6 +386,7 @@ async def test_db_store():
 @test("CaptureDB: get_all_stats")
 async def test_db_all_stats():
     import tempfile
+
     with tempfile.TemporaryDirectory() as tmp:
         db = CaptureDB(db_path=Path(tmp) / "test2.db")
         await db.initialize()
@@ -354,9 +400,11 @@ async def test_db_all_stats():
 
 # ── Full Pipeline Test ──────────────────────────────────────────
 
+
 @test("Full pipeline: capture → bridge → db round-trip")
 async def test_full_pipeline():
     import tempfile
+
     with tempfile.TemporaryDirectory() as tmp:
         db = CaptureDB(db_path=Path(tmp) / "pipeline.db")
         await db.initialize()
@@ -367,9 +415,13 @@ async def test_full_pipeline():
 
         # Simulate an inbound tool call
         msg = {
-            "jsonrpc": "2.0", "id": 1,
+            "jsonrpc": "2.0",
+            "id": 1,
             "method": "tools/call",
-            "params": {"name": "search_learnings", "arguments": {"query": "sovereign cognitive architecture"}},
+            "params": {
+                "name": "search_learnings",
+                "arguments": {"query": "sovereign cognitive architecture"},
+            },
         }
         raw = json.dumps(msg).encode()
 
@@ -396,6 +448,7 @@ async def test_full_pipeline():
 
 # ── Runner ──────────────────────────────────────────────────────
 
+
 async def run_all():
     global passed, failed
     print("\n" + "=" * 60)
@@ -403,7 +456,13 @@ async def run_all():
     print("=" * 60 + "\n")
 
     all_globals = list(globals().values())
-    tests = [v for v in all_globals if callable(v) and asyncio.iscoroutinefunction(v) and getattr(v, "__name__", "") not in ("run_all", "main")]
+    tests = [
+        v
+        for v in all_globals
+        if callable(v)
+        and asyncio.iscoroutinefunction(v)
+        and getattr(v, "__name__", "") not in ("run_all", "main")
+    ]
 
     for test_fn in tests:
         await test_fn()

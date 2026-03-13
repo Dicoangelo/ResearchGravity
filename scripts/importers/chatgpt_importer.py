@@ -85,21 +85,29 @@ def extract_messages(conversation: Dict) -> List[Dict]:
             continue
 
         # Filter out non-string parts (images, files, etc.)
-        text = "\n".join(
-            p if isinstance(p, str)
-            else p.get("text", "") if isinstance(p, dict)
-            else str(p)
-            for p in parts
-        ) if parts else ""
+        text = (
+            "\n".join(
+                p
+                if isinstance(p, str)
+                else p.get("text", "")
+                if isinstance(p, dict)
+                else str(p)
+                for p in parts
+            )
+            if parts
+            else ""
+        )
 
         if not text or not text.strip():
             continue
 
-        messages.append({
-            "role": role,
-            "content": text.strip(),
-            "create_time": message.get("create_time", 0),
-        })
+        messages.append(
+            {
+                "role": role,
+                "content": text.strip(),
+                "create_time": message.get("create_time", 0),
+            }
+        )
 
     messages.sort(key=lambda m: m["create_time"])
     return messages
@@ -126,8 +134,12 @@ def conversation_to_session(
         "topic": title,
         "status": "archived",
         "project": "chatgpt-import",
-        "started_at": datetime.fromtimestamp(create_time).isoformat() if create_time else None,
-        "archived_at": datetime.fromtimestamp(update_time).isoformat() if update_time else None,
+        "started_at": datetime.fromtimestamp(create_time).isoformat()
+        if create_time
+        else None,
+        "archived_at": datetime.fromtimestamp(update_time).isoformat()
+        if update_time
+        else None,
         "transcript_tokens": transcript_tokens,
         "finding_count": 0,  # Updated after findings extracted
         "url_count": 0,
@@ -173,18 +185,20 @@ def extract_findings(
         content_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
         finding_id = f"chatgpt-{content_hash}"
 
-        findings.append({
-            "id": finding_id,
-            "session_id": session_id,
-            "content": content,
-            "type": finding_type,
-            "confidence": quality_score,
-            "evidence": {
-                "sources": ["chatgpt_export"],
+        findings.append(
+            {
+                "id": finding_id,
+                "session_id": session_id,
+                "content": content,
+                "type": finding_type,
                 "confidence": quality_score,
-            },
-            "project": "chatgpt-import",
-        })
+                "evidence": {
+                    "sources": ["chatgpt_export"],
+                    "confidence": quality_score,
+                },
+                "project": "chatgpt-import",
+            }
+        )
 
     return findings
 
@@ -203,7 +217,8 @@ async def import_deep_work(
 
     # Filter to target tier
     target_ids = {
-        cid for cid, data in scores_index.items()
+        cid
+        for cid, data in scores_index.items()
         if data.get("metrics", {}).get("cognitive_mode") == tier
     }
 
@@ -230,8 +245,14 @@ async def import_deep_work(
             qs = scores["metrics"]["quality_score"]
             purpose = scores["metrics"]["purpose"]
             msgs = extract_messages(conv)
-            assistant_msgs = [m for m in msgs if m["role"] == "assistant" and len(m["content"]) >= MIN_FINDING_LENGTH]
-            print(f"   {i+1:3d}. [{qs:.3f}] [{purpose:8s}] {title[:60]:60s} → {len(assistant_msgs)} findings")
+            assistant_msgs = [
+                m
+                for m in msgs
+                if m["role"] == "assistant" and len(m["content"]) >= MIN_FINDING_LENGTH
+            ]
+            print(
+                f"   {i + 1:3d}. [{qs:.3f}] [{purpose:8s}] {title[:60]:60s} → {len(assistant_msgs)} findings"
+            )
             if i >= 29:
                 print(f"   ... and {len(conv_lookup) - 30} more")
                 break
@@ -239,9 +260,16 @@ async def import_deep_work(
         total_findings = 0
         for cid, conv in conv_lookup.items():
             msgs = extract_messages(conv)
-            total_findings += len([m for m in msgs if m["role"] == "assistant" and len(m["content"]) >= MIN_FINDING_LENGTH])
+            total_findings += len(
+                [
+                    m
+                    for m in msgs
+                    if m["role"] == "assistant"
+                    and len(m["content"]) >= MIN_FINDING_LENGTH
+                ]
+            )
         print(f"   Total: {len(conv_lookup)} sessions, ~{total_findings} findings")
-        print(f"\n   Run without --dry-run to import.")
+        print("\n   Run without --dry-run to import.")
         return
 
     # Initialize storage engine
@@ -288,7 +316,9 @@ async def import_deep_work(
             total_findings += len(findings)
 
             if (i + 1) % 50 == 0:
-                print(f"   Imported {i + 1}/{len(conv_lookup)}... ({total_findings} findings)")
+                print(
+                    f"   Imported {i + 1}/{len(conv_lookup)}... ({total_findings} findings)"
+                )
 
         except Exception as e:
             errors.append({"conversation_id": cid, "title": title, "error": str(e)})
@@ -299,14 +329,14 @@ async def import_deep_work(
     await engine.close()
 
     # Summary
-    print(f"\n{'='*60}")
-    print(f"IMPORT COMPLETE")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("IMPORT COMPLETE")
+    print(f"{'=' * 60}")
     print(f"   Sessions imported: {total_sessions}")
     print(f"   Findings extracted: {total_findings}")
     if errors:
         print(f"   Errors: {len(errors)}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Save import log
     log_path = export_path / "import_log.json"
@@ -323,7 +353,9 @@ async def import_deep_work(
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 chatgpt_importer.py <export_path> [--tier deep_work] [--dry-run]")
+        print(
+            "Usage: python3 chatgpt_importer.py <export_path> [--tier deep_work] [--dry-run]"
+        )
         sys.exit(1)
 
     export_path = Path(sys.argv[1]).expanduser()

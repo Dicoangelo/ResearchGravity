@@ -23,18 +23,22 @@ from pathlib import Path
 from typing import Optional
 
 from .precision_config import (
-    PRECISION_CONFIG, PRECISION_AGENT_PERSONAS,
-    validate_precision_config
+    PRECISION_CONFIG,
+    PRECISION_AGENT_PERSONAS,
+    validate_precision_config,
 )
 from .precision_orchestrator import (
-    PrecisionResult, PrecisionStatus,
-    execute_precision, get_precision_status
+    PrecisionResult,
+    PrecisionStatus,
+    execute_precision,
+    get_precision_status,
 )
 
 
 # =============================================================================
 # DISPLAY HELPERS
 # =============================================================================
+
 
 def print_header():
     """Print CLI header."""
@@ -51,10 +55,20 @@ def print_status(status: PrecisionStatus):
     filled = int(status.progress / 100 * bar_width)
     bar = "█" * filled + "░" * (bar_width - filled)
 
-    dq_display = f"DQ: {status.current_dq:.2f}/{status.target_dq:.2f}" if status.current_dq > 0 else ""
-    retry_display = f"[Retry {status.retry_attempt}]" if status.retry_attempt > 0 else ""
+    dq_display = (
+        f"DQ: {status.current_dq:.2f}/{status.target_dq:.2f}"
+        if status.current_dq > 0
+        else ""
+    )
+    retry_display = (
+        f"[Retry {status.retry_attempt}]" if status.retry_attempt > 0 else ""
+    )
 
-    print(f"\r[{bar}] {status.progress:3d}% {status.current_step[:40]:40s} {dq_display} {retry_display}", end="", flush=True)
+    print(
+        f"\r[{bar}] {status.progress:3d}% {status.current_step[:40]:40s} {dq_display} {retry_display}",
+        end="",
+        flush=True,
+    )
 
 
 def print_result(result: PrecisionResult, verbose: bool = False):
@@ -71,14 +85,16 @@ def print_result(result: PrecisionResult, verbose: bool = False):
     print("  EVIDENCE SUMMARY")
     print("=" * 70)
 
-    print(f"\nSources ({result.citations_found} cited, {result.citations_verified} verified):")
+    print(
+        f"\nSources ({result.citations_found} cited, {result.citations_verified} verified):"
+    )
     for i, source in enumerate(result.sources[:15], 1):
-        source_type = source.get('type', 'unknown')
-        if source_type == 'arxiv':
-            arxiv_id = source.get('arxiv_id', 'unknown')
+        source_type = source.get("type", "unknown")
+        if source_type == "arxiv":
+            arxiv_id = source.get("arxiv_id", "unknown")
             print(f"  [{i}] arXiv:{arxiv_id}")
-        elif source_type == 'session':
-            session_id = source.get('session_id', 'unknown')
+        elif source_type == "session":
+            session_id = source.get("session_id", "unknown")
             print(f"  [{i}] Session: {session_id}")
         else:
             print(f"  [{i}] {source}")
@@ -86,18 +102,42 @@ def print_result(result: PrecisionResult, verbose: bool = False):
     print("\nCritic Validation:")
     if result.verification:
         v = result.verification
-        evidence_icon = "✅" if v.evidence_score >= 0.85 else "⚠️" if v.evidence_score >= 0.7 else "❌"
-        oracle_icon = "✅" if v.oracle_score >= 0.85 else "⚠️" if v.oracle_score >= 0.7 else "❌"
-        conf_icon = "✅" if v.confidence_score >= 0.80 else "⚠️" if v.confidence_score >= 0.7 else "❌"
+        evidence_icon = (
+            "✅"
+            if v.evidence_score >= 0.85
+            else "⚠️"
+            if v.evidence_score >= 0.7
+            else "❌"
+        )
+        oracle_icon = (
+            "✅" if v.oracle_score >= 0.85 else "⚠️" if v.oracle_score >= 0.7 else "❌"
+        )
+        conf_icon = (
+            "✅"
+            if v.confidence_score >= 0.80
+            else "⚠️"
+            if v.confidence_score >= 0.7
+            else "❌"
+        )
 
-        print(f"  {evidence_icon} EvidenceCritic: {v.evidence_score:.2f} ({v.citations_verified}/{v.citations_found} citations verified)")
+        print(
+            f"  {evidence_icon} EvidenceCritic: {v.evidence_score:.2f} ({v.citations_verified}/{v.citations_found} citations verified)"
+        )
         print(f"  {oracle_icon} OracleConsensus: {v.oracle_score:.2f}")
         print(f"  {conf_icon} ConfidenceScorer: {v.confidence_score:.2f}")
 
         # Ground Truth Diagnostic (v2.2)
-        gt_icon = "✅" if v.ground_truth_score >= 0.7 else "⚠️" if v.ground_truth_score >= 0.5 else "🔬"
-        print(f"\n  Ground Truth (diagnostic):")
-        print(f"    {gt_icon} Score: {v.ground_truth_score:.2f} ({v.claims_verified}/{v.claims_checked} claims matched)")
+        gt_icon = (
+            "✅"
+            if v.ground_truth_score >= 0.7
+            else "⚠️"
+            if v.ground_truth_score >= 0.5
+            else "🔬"
+        )
+        print("\n  Ground Truth (diagnostic):")
+        print(
+            f"    {gt_icon} Score: {v.ground_truth_score:.2f} ({v.claims_verified}/{v.claims_checked} claims matched)"
+        )
         if v.factual_accuracy > 0:
             print(f"       Factual accuracy: {v.factual_accuracy:.2f}")
         if v.cross_source_score > 0:
@@ -107,13 +147,20 @@ def print_result(result: PrecisionResult, verbose: bool = False):
 
         # Needs review flag
         if v.needs_review:
-            print(f"\n  🔍 NEEDS REVIEW: Ground truth issues detected - recommend human verification")
+            print(
+                "\n  🔍 NEEDS REVIEW: Ground truth issues detected - recommend human verification"
+            )
 
         if v.issues:
             print(f"\n  Issues ({len(v.issues)}):")
             for issue in v.issues[:5]:
-                severity_icon = {"critical": "🔴", "error": "🟠", "warning": "🟡", "info": "🔵"}
-                icon = severity_icon.get(issue.get('severity', 'info'), "•")
+                severity_icon = {
+                    "critical": "🔴",
+                    "error": "🟠",
+                    "warning": "🟡",
+                    "info": "🔵",
+                }
+                icon = severity_icon.get(issue.get("severity", "info"), "•")
                 print(f"    {icon} [{issue.get('code')}] {issue.get('message')}")
 
     print("\nExecution:")
@@ -124,7 +171,11 @@ def print_result(result: PrecisionResult, verbose: bool = False):
     print(f"  RG Mode: {result.rg_connection_mode}")
 
     # v2.4 mode flags
-    if result.pioneer_mode or result.trust_context_provided or result.deep_research_used:
+    if (
+        result.pioneer_mode
+        or result.trust_context_provided
+        or result.deep_research_used
+    ):
         mode_parts = []
         if result.deep_research_used:
             mode_parts.append(f"🔬 deep-research ({result.deep_research_provider})")
@@ -139,7 +190,9 @@ def print_result(result: PrecisionResult, verbose: bool = False):
         if result.pioneer_auto_detected and result.pioneer_signals:
             print(f"  Signals: {', '.join(result.pioneer_signals[:3])}")
         if result.deep_research_used and result.deep_research_time_ms:
-            print(f"  Deep research: {result.deep_research_time_ms}ms, {result.deep_research_citations} citations")
+            print(
+                f"  Deep research: {result.deep_research_time_ms}ms, {result.deep_research_citations} citations"
+            )
 
     if result.warnings:
         print("\n⚠️ Warnings:")
@@ -156,7 +209,7 @@ def print_result(result: PrecisionResult, verbose: bool = False):
             print("\nFeedback History:")
             for i, fb in enumerate(result.feedback_history, 1):
                 print(f"  Retry {i}:")
-                for line in fb.split('\n'):
+                for line in fb.split("\n"):
                     print(f"    {line}")
 
     # Follow-up queries (v2.3)
@@ -170,7 +223,9 @@ def print_result(result: PrecisionResult, verbose: bool = False):
     # Run logging info (v2.3)
     if result.run_id:
         tier_icon = "🚀" if result.run_tier == "breakthrough" else "🔄"
-        tier_label = "BREAKTHROUGH" if result.run_tier == "breakthrough" else "DEVELOPING"
+        tier_label = (
+            "BREAKTHROUGH" if result.run_tier == "breakthrough" else "DEVELOPING"
+        )
         print("\n" + "-" * 70)
         print(f"  {tier_icon} Run logged: {tier_label}")
         print(f"     ID: {result.run_id}")
@@ -188,7 +243,7 @@ def print_agents():
     for agent in PRECISION_AGENT_PERSONAS:
         print(f"\n{agent['name']} ({agent['role']})")
         # Print first sentence of prompt
-        prompt_intro = agent['prompt'].split('\n')[0]
+        prompt_intro = agent["prompt"].split("\n")[0]
         print(f"  {prompt_intro[:70]}...")
 
     print()
@@ -202,18 +257,19 @@ def print_config_status():
     print("\nPrecision Mode Configuration:")
     print("-" * 50)
 
-    config = status.get('config', {})
+    config = status.get("config", {})
     for key, value in config.items():
         print(f"  {key}: {value}")
 
     print("\nResearchGravity Status:")
-    rg = status.get('rg_status', {})
+    rg = status.get("rg_status", {})
     for key, value in rg.items():
         print(f"  {key}: {value}")
 
     # v2.2: Ground Truth Corpus stats
     try:
         from .ground_truth import get_corpus
+
         corpus = get_corpus()
         stats = corpus.get_corpus_stats()
         print("\nGround Truth Corpus (v2.2):")
@@ -222,7 +278,7 @@ def print_config_status():
         print(f"  High confidence: {stats['high_confidence']}")
         print(f"  Medium confidence: {stats['medium_confidence']}")
         print(f"  Baseline: {stats['baseline']}")
-        if stats['avg_dq_score'] > 0:
+        if stats["avg_dq_score"] > 0:
             print(f"  Avg DQ score: {stats['avg_dq_score']:.3f}")
     except Exception:
         pass  # Corpus stats optional
@@ -239,6 +295,7 @@ def print_config_status():
 # COMMAND HANDLERS
 # =============================================================================
 
+
 async def cmd_query(args):
     """Execute a precision query."""
     print_header()
@@ -246,12 +303,14 @@ async def cmd_query(args):
     # Load context if provided
     context = None
     if args.context:
-        if args.context.startswith('@'):
+        if args.context.startswith("@"):
             # Load from file
             context_path = Path(args.context[1:])
             if context_path.exists():
                 context = context_path.read_text()
-                print(f"\n📄 Loaded context from {context_path} ({len(context):,} chars)")
+                print(
+                    f"\n📄 Loaded context from {context_path} ({len(context):,} chars)"
+                )
             else:
                 print(f"\n⚠️ Context file not found: {context_path}")
         else:
@@ -260,9 +319,9 @@ async def cmd_query(args):
     print(f"\n📝 Query: {args.query}")
     print(f"🎯 Target DQ: {PRECISION_CONFIG.dq_threshold}")
     print(f"🤖 Agents: {PRECISION_CONFIG.ace_config.agent_count}")
-    enhance = not getattr(args, 'no_enhance', False)
-    pioneer = getattr(args, 'pioneer', False)
-    trust_context = getattr(args, 'trust_context', False)
+    enhance = not getattr(args, "no_enhance", False)
+    pioneer = getattr(args, "pioneer", False)
+    trust_context = getattr(args, "trust_context", False)
     if not enhance:
         print("⏭️  Query enhancement: disabled")
     if pioneer:
@@ -271,10 +330,14 @@ async def cmd_query(args):
         print("🔒 Trust context: enabled (user context treated as Tier 1)")
 
     # Deep research setup
-    deep_research_enabled = getattr(args, 'deep_research', False)
-    deep_provider = getattr(args, 'deep_provider', None)
+    deep_research_enabled = getattr(args, "deep_research", False)
+    deep_provider = getattr(args, "deep_provider", None)
     if deep_research_enabled:
-        from .deep_research import check_deep_research_available, get_best_available_provider
+        from .deep_research import (
+            check_deep_research_available,
+            get_best_available_provider,
+        )
+
         if deep_provider:
             available, msg = check_deep_research_available(deep_provider)
             if not available:
@@ -307,7 +370,7 @@ async def cmd_query(args):
         pioneer=pioneer,
         trust_context=trust_context,
         deep_research=deep_research_enabled,
-        deep_provider=deep_provider
+        deep_provider=deep_provider,
     )
     elapsed = time.time() - start
 
@@ -363,29 +426,31 @@ def format_output(result: PrecisionResult, query: str, context: Optional[str]) -
         "---",
         "",
         "## Evidence",
-        ""
+        "",
     ]
 
     for i, source in enumerate(result.sources[:15], 1):
-        source_type = source.get('type', 'unknown')
-        if source_type == 'arxiv':
-            arxiv_id = source.get('arxiv_id', 'unknown')
+        source_type = source.get("type", "unknown")
+        if source_type == "arxiv":
+            arxiv_id = source.get("arxiv_id", "unknown")
             lines.append(f"- [{i}] https://arxiv.org/abs/{arxiv_id}")
-        elif source_type == 'session':
-            session_id = source.get('session_id', 'unknown')
+        elif source_type == "session":
+            session_id = source.get("session_id", "unknown")
             lines.append(f"- [{i}] Session: {session_id}")
 
-    lines.extend([
-        "",
-        "## Validation",
-        "",
-        f"- Validity: {result.validity:.3f}",
-        f"- Specificity: {result.specificity:.3f}",
-        f"- Correctness: {result.correctness:.3f}",
-        f"- Citations: {result.citations_verified}/{result.citations_found} verified",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Validation",
+            "",
+            f"- Validity: {result.validity:.3f}",
+            f"- Specificity: {result.specificity:.3f}",
+            f"- Correctness: {result.correctness:.3f}",
+            f"- Citations: {result.citations_verified}/{result.citations_found} verified",
+        ]
+    )
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 async def cmd_interactive(args):
@@ -398,18 +463,18 @@ async def cmd_interactive(args):
         try:
             query = input("\n📝 Query: ").strip()
 
-            if query.lower() in ('quit', 'exit', 'q'):
+            if query.lower() in ("quit", "exit", "q"):
                 print("👋 Goodbye!")
                 break
 
             if not query:
                 continue
 
-            if query.lower() == 'status':
+            if query.lower() == "status":
                 print_config_status()
                 continue
 
-            if query.lower() == 'agents':
+            if query.lower() == "agents":
                 print_agents()
                 continue
 
@@ -458,23 +523,24 @@ def show_status():
     print("-" * 50)
 
     from . import check_dependencies
+
     deps = check_dependencies()
 
-    core_deps = ['aiohttp', 'google-genai', 'anthropic']
-    optional_deps = ['arxiv', 'cohere']
+    core_deps = ["aiohttp", "google-genai", "anthropic"]
+    optional_deps = ["arxiv", "cohere"]
 
     print("  Core:")
     for dep in core_deps:
-        info = deps.get(dep, {'installed': False})
-        if info['installed']:
+        info = deps.get(dep, {"installed": False})
+        if info["installed"]:
             print(f"    ✅ {dep}: {info['version']}")
         else:
             print(f"    ❌ {dep}: Not installed")
 
     print("  Optional:")
     for dep in optional_deps:
-        info = deps.get(dep, {'installed': False})
-        if info['installed']:
+        info = deps.get(dep, {"installed": False})
+        if info["installed"]:
             print(f"    ✅ {dep}: {info['version']}")
         else:
             print(f"    ⚠️  {dep}: Not installed")
@@ -511,20 +577,25 @@ def show_status():
     print("\n💾 Deep Research Cache:")
     print("-" * 50)
     cache_stats = get_cache_stats()
-    print(f"  Entries: {cache_stats['valid_entries']}/{cache_stats['total_entries']} valid")
-    print(f"  TTL: {cache_stats['ttl_seconds']}s ({cache_stats['ttl_seconds'] // 60} min)")
+    print(
+        f"  Entries: {cache_stats['valid_entries']}/{cache_stats['total_entries']} valid"
+    )
+    print(
+        f"  TTL: {cache_stats['ttl_seconds']}s ({cache_stats['ttl_seconds'] // 60} min)"
+    )
 
     # Ground Truth Corpus
     print("\n📚 Ground Truth Corpus:")
     print("-" * 50)
     try:
         from .ground_truth import get_corpus
+
         corpus = get_corpus()
         stats = corpus.get_corpus_stats()
         print(f"  Total entries: {stats['total_entries']}")
         print(f"  Total claims: {stats['total_claims']}")
         print(f"  High confidence: {stats['high_confidence']}")
-        if stats['avg_dq_score'] > 0:
+        if stats["avg_dq_score"] > 0:
             print(f"  Avg DQ score: {stats['avg_dq_score']:.3f}")
     except Exception as e:
         print(f"  ⚠️  Unable to load corpus: {str(e)[:50]}")
@@ -552,11 +623,11 @@ def dry_run(args):
     # Flags
     print("\n🎛️  Flags:")
     print("-" * 50)
-    enhance = not getattr(args, 'no_enhance', False)
-    pioneer = getattr(args, 'pioneer', False)
-    trust_context = getattr(args, 'trust_context', False)
-    deep_research = getattr(args, 'deep_research', False)
-    deep_provider = getattr(args, 'deep_provider', None)
+    enhance = not getattr(args, "no_enhance", False)
+    pioneer = getattr(args, "pioneer", False)
+    trust_context = getattr(args, "trust_context", False)
+    deep_research = getattr(args, "deep_research", False)
+    deep_provider = getattr(args, "deep_provider", None)
 
     print(f"  Query enhancement: {'enabled' if enhance else 'disabled'}")
     print(f"  Pioneer mode: {'enabled' if pioneer else 'auto-detect'}")
@@ -567,7 +638,7 @@ def dry_run(args):
 
     # Context
     if args.context:
-        if args.context.startswith('@'):
+        if args.context.startswith("@"):
             print(f"\n📄 Context: From file {args.context[1:]}")
         else:
             print(f"\n📄 Context: {len(args.context)} chars inline")
@@ -600,16 +671,18 @@ def dry_run(args):
     print("-" * 50)
     if pioneer:
         from .precision_config import PIONEER_DQ_WEIGHTS as weights
+
         mode = "Pioneer Mode"
     elif trust_context:
         from .precision_config import TRUST_CONTEXT_DQ_WEIGHTS as weights
+
         mode = "Trust Context Mode"
     else:
         weights = {
-            'validity': 0.30,
-            'specificity': 0.20,
-            'correctness': 0.35,
-            'ground_truth': 0.15,
+            "validity": 0.30,
+            "specificity": 0.20,
+            "correctness": 0.35,
+            "ground_truth": 0.15,
         }
         mode = "Default v2.2"
 
@@ -621,7 +694,7 @@ def dry_run(args):
     if args.output:
         print(f"\n💾 Output: {args.output}")
     if args.json:
-        print(f"  Format: JSON")
+        print("  Format: JSON")
 
     print("\n" + "=" * 70)
     print("  ⏸️  Dry run complete. No API calls were made.")
@@ -639,6 +712,7 @@ async def cmd_agents(args):
 # MAIN
 # =============================================================================
 
+
 def create_parser():
     """Create argument parser."""
     parser = argparse.ArgumentParser(
@@ -652,98 +726,84 @@ Examples:
   cpb-precision --interactive
   cpb-precision --status
   cpb-precision --agents
-        """
+        """,
     )
 
     # Positional argument for query
     parser.add_argument(
-        'query',
-        nargs='?',
-        help='Query to analyze (omit for interactive mode)'
+        "query", nargs="?", help="Query to analyze (omit for interactive mode)"
     )
 
     # Context
     parser.add_argument(
-        '--context', '-c',
-        help='Additional context (use @filename to load from file)'
+        "--context", "-c", help="Additional context (use @filename to load from file)"
     )
 
     # Output options
+    parser.add_argument("--output", "-o", help="Save output to file")
+    parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
     parser.add_argument(
-        '--output', '-o',
-        help='Save output to file'
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Verbose output with detailed metrics",
     )
     parser.add_argument(
-        '--json', '-j',
-        action='store_true',
-        help='Output as JSON'
+        "--quiet", "-q", action="store_true", help="Suppress progress output"
     )
     parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='Verbose output with detailed metrics'
-    )
-    parser.add_argument(
-        '--quiet', '-q',
-        action='store_true',
-        help='Suppress progress output'
-    )
-    parser.add_argument(
-        '--no-enhance',
-        action='store_true',
-        help='Skip query enhancement (use raw query)'
+        "--no-enhance",
+        action="store_true",
+        help="Skip query enhancement (use raw query)",
     )
 
     # Pioneer and Trust Context flags (v2.4)
     parser.add_argument(
-        '--pioneer',
-        action='store_true',
-        help='Pioneer mode for cutting-edge queries (adjusts DQ weights for exploratory research)'
+        "--pioneer",
+        action="store_true",
+        help="Pioneer mode for cutting-edge queries (adjusts DQ weights for exploratory research)",
     )
     parser.add_argument(
-        '--trust-context',
-        action='store_true',
-        help='Mark user-provided context as Tier 1 trusted source'
+        "--trust-context",
+        action="store_true",
+        help="Mark user-provided context as Tier 1 trusted source",
     )
 
     # Deep Research flag (v2.4)
     parser.add_argument(
-        '--deep-research',
-        action='store_true',
-        help='Enable external deep research (Gemini/Perplexity) before agent cascade'
+        "--deep-research",
+        action="store_true",
+        help="Enable external deep research (Gemini/Perplexity) before agent cascade",
     )
     parser.add_argument(
-        '--deep-provider',
-        choices=['gemini', 'perplexity'],
+        "--deep-provider",
+        choices=["gemini", "perplexity"],
         default=None,
-        help='Deep research provider (default: auto-detect best available)'
+        help="Deep research provider (default: auto-detect best available)",
     )
 
     # Mode flags
     parser.add_argument(
-        '--interactive', '-i',
-        action='store_true',
-        help='Run in interactive REPL mode'
+        "--interactive", "-i", action="store_true", help="Run in interactive REPL mode"
     )
     parser.add_argument(
-        '--status', '-s',
-        action='store_true',
-        help='Show system status (dependencies, providers, cache)'
+        "--status",
+        "-s",
+        action="store_true",
+        help="Show system status (dependencies, providers, cache)",
     )
     parser.add_argument(
-        '--agents', '-a',
-        action='store_true',
-        help='Show agent information'
+        "--agents", "-a", action="store_true", help="Show agent information"
     )
     parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Show execution plan without running (v2.5)'
+        "--dry-run",
+        action="store_true",
+        help="Show execution plan without running (v2.5)",
     )
     parser.add_argument(
-        '--config-status',
-        action='store_true',
-        help='Show configuration status (legacy --status behavior)'
+        "--config-status",
+        action="store_true",
+        help="Show configuration status (legacy --status behavior)",
     )
 
     return parser
@@ -762,11 +822,11 @@ def main():
         return 0
 
     # Legacy config status
-    if getattr(args, 'config_status', False):
+    if getattr(args, "config_status", False):
         return asyncio.run(cmd_status(args))
 
     # Dry run - show plan without executing
-    if getattr(args, 'dry_run', False):
+    if getattr(args, "dry_run", False):
         if not args.query:
             print("Error: --dry-run requires a query")
             return 1
@@ -783,5 +843,5 @@ def main():
     return asyncio.run(cmd_query(args))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

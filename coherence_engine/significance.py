@@ -28,6 +28,7 @@ log = logging.getLogger("coherence.significance")
 @dataclass
 class SignificanceResult:
     """Result of a permutation significance test."""
+
     moment_id: str
     real_score: float
     p_value: float
@@ -76,10 +77,12 @@ class SignificanceTester:
                    WHERE platform = $1
                    ORDER BY RANDOM()
                    LIMIT $2""",
-                platform, max(n, self._n_permutations * 2),
+                platform,
+                max(n, self._n_permutations * 2),
             )
 
         import json
+
         events = []
         for row in rows:
             event = dict(row)
@@ -122,7 +125,9 @@ class SignificanceTester:
         concepts_a = set(light_a.get("concepts") or [])
         concepts_b = set(light_b.get("concepts") or [])
         if concepts_a and concepts_b:
-            concept_overlap = len(concepts_a & concepts_b) / max(len(concepts_a | concepts_b), 1)
+            concept_overlap = len(concepts_a & concepts_b) / max(
+                len(concepts_a | concepts_b), 1
+            )
             score += concept_overlap * 0.3
 
         # Coherence signature match
@@ -163,7 +168,9 @@ class SignificanceTester:
 
         # Build null distribution
         null_scores = []
-        sample = random.sample(random_events, min(self._n_permutations, len(random_events)))
+        sample = random.sample(
+            random_events, min(self._n_permutations, len(random_events))
+        )
         for rand_event in sample:
             null_score = self._compute_similarity_score(event_a, rand_event)
             null_scores.append(null_score)
@@ -175,7 +182,8 @@ class SignificanceTester:
         null_mean = sum(null_scores) / len(null_scores) if null_scores else 0
         null_std = (
             (sum((s - null_mean) ** 2 for s in null_scores) / len(null_scores)) ** 0.5
-            if null_scores else 0
+            if null_scores
+            else 0
         )
 
         return SignificanceResult(
@@ -199,6 +207,7 @@ class SignificanceTester:
 @dataclass
 class CoherenceArc:
     """A narrative arc of related coherence moments over time."""
+
     arc_id: str
     title: str
     started_ns: int
@@ -210,8 +219,14 @@ class CoherenceArc:
     arc_strength: float = 0.0
     moment_count: int = 0
 
-    def add_moment(self, moment_id: str, entities: List[str],
-                   platforms: List[str], confidence: float, timestamp_ns: int):
+    def add_moment(
+        self,
+        moment_id: str,
+        entities: List[str],
+        platforms: List[str],
+        confidence: float,
+        timestamp_ns: int,
+    ):
         """Add a moment to this arc, updating all derived fields."""
         self.moment_ids.append(moment_id)
         self.moment_count += 1
@@ -237,16 +252,26 @@ class CoherenceArc:
 def _extract_entities_from_description(description: str) -> List[str]:
     """Extract entity-like tokens from a moment description."""
     import re
+
     entities = set()
 
     # Extract platform names
-    for match in re.finditer(r'\b(chatgpt|claude-code|claude-cli|claude-desktop|grok)\b', description.lower()):
+    for match in re.finditer(
+        r"\b(chatgpt|claude-code|claude-cli|claude-desktop|grok)\b", description.lower()
+    ):
         entities.add(match.group(1))
 
     # Extract topic-like words (after | or : delimiters)
-    for match in re.finditer(r'[|:]\s*(\w[\w\s]{2,30}?)(?:\s*[|]|$)', description):
+    for match in re.finditer(r"[|:]\s*(\w[\w\s]{2,30}?)(?:\s*[|]|$)", description):
         token = match.group(1).strip().lower()
-        if len(token) > 3 and token not in ("the", "and", "for", "with", "from", "about"):
+        if len(token) > 3 and token not in (
+            "the",
+            "and",
+            "for",
+            "with",
+            "from",
+            "about",
+        ):
             entities.add(token)
 
     return list(entities)
@@ -268,8 +293,9 @@ class ArcDetector:
     intellectual narrative over time.
     """
 
-    def __init__(self, pool=None, overlap_threshold: float = 0.2,
-                 dormant_hours: float = 72):
+    def __init__(
+        self, pool=None, overlap_threshold: float = 0.2, dormant_hours: float = 72
+    ):
         self._pool = pool
         self._overlap_threshold = overlap_threshold
         self._dormant_ns = int(dormant_hours * 3600 * 1e9)
@@ -319,12 +345,17 @@ class ArcDetector:
 
             if best_arc:
                 best_arc.add_moment(
-                    row["moment_id"], entities, platforms,
-                    row["confidence"], timestamp_ns,
+                    row["moment_id"],
+                    entities,
+                    platforms,
+                    row["confidence"],
+                    timestamp_ns,
                 )
             else:
                 # Create new arc
-                arc_id = f"arc-{hashlib.sha256(row['moment_id'].encode()).hexdigest()[:12]}"
+                arc_id = (
+                    f"arc-{hashlib.sha256(row['moment_id'].encode()).hexdigest()[:12]}"
+                )
                 # Title from first moment's description
                 desc = (row["description"] or "")[:80]
                 arc = CoherenceArc(
@@ -390,10 +421,19 @@ class ArcDetector:
                            key_entities = EXCLUDED.key_entities,
                            arc_strength = EXCLUDED.arc_strength,
                            moment_count = EXCLUDED.moment_count""",
-                    arc.arc_id, arc.title, arc.started_ns, arc.last_activity_ns,
-                    arc.status, arc.moment_ids, arc.platforms, arc.key_entities,
-                    arc.arc_strength, arc.moment_count,
+                    arc.arc_id,
+                    arc.title,
+                    arc.started_ns,
+                    arc.last_activity_ns,
+                    arc.status,
+                    arc.moment_ids,
+                    arc.platforms,
+                    arc.key_entities,
+                    arc.arc_strength,
+                    arc.moment_count,
                 )
 
         stored = sum(1 for a in arcs if a.moment_count >= 2)
-        log.info(f"Stored {stored} arcs ({sum(a.moment_count for a in arcs if a.moment_count >= 2)} moments)")
+        log.info(
+            f"Stored {stored} arcs ({sum(a.moment_count for a in arcs if a.moment_count >= 2)} moments)"
+        )

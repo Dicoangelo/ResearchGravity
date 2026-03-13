@@ -71,7 +71,10 @@ def get_api_key() -> str:
     print("  export YOUTUBE_API_KEY='your-key-here'", file=sys.stderr)
     print("\nOr add to ~/.agent-core/config.json:", file=sys.stderr)
     print('  {"youtube": {"api_key": "your-key-here"}}', file=sys.stderr)
-    print("\nGet a key at: https://console.cloud.google.com/apis/credentials", file=sys.stderr)
+    print(
+        "\nGet a key at: https://console.cloud.google.com/apis/credentials",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
@@ -82,12 +85,12 @@ def parse_channel_input(channel_input: str) -> str:
 
     # Handle full URLs
     # https://youtube.com/@ChannelName or https://www.youtube.com/@ChannelName/videos
-    url_match = re.search(r'youtube\.com/@([^/?\s]+)', channel_input)
+    url_match = re.search(r"youtube\.com/@([^/?\s]+)", channel_input)
     if url_match:
         return url_match.group(1)
 
     # Handle @ChannelName format
-    if channel_input.startswith('@'):
+    if channel_input.startswith("@"):
         return channel_input[1:]
 
     # Assume it's just the handle
@@ -120,11 +123,13 @@ def resolve_channel(handle: str, api_key: str) -> dict:
         "handle": handle,
         "name": item["snippet"]["title"],
         "description": item["snippet"].get("description", ""),
-        "uploads_playlist": item["contentDetails"]["relatedPlaylists"]["uploads"]
+        "uploads_playlist": item["contentDetails"]["relatedPlaylists"]["uploads"],
     }
 
 
-def fetch_all_videos(playlist_id: str, api_key: str, limit: Optional[int] = None) -> list[dict]:
+def fetch_all_videos(
+    playlist_id: str, api_key: str, limit: Optional[int] = None
+) -> list[dict]:
     """Fetch all videos from uploads playlist."""
     videos = []
     next_page = None
@@ -144,12 +149,14 @@ def fetch_all_videos(playlist_id: str, api_key: str, limit: Optional[int] = None
 
         for item in data.get("items", []):
             video_id = item["snippet"]["resourceId"]["videoId"]
-            videos.append({
-                "id": video_id,
-                "title": item["snippet"]["title"],
-                "published": item["snippet"]["publishedAt"][:10],
-                "url": f"https://youtube.com/watch?v={video_id}"
-            })
+            videos.append(
+                {
+                    "id": video_id,
+                    "title": item["snippet"]["title"],
+                    "published": item["snippet"]["publishedAt"][:10],
+                    "url": f"https://youtube.com/watch?v={video_id}",
+                }
+            )
 
             if limit and len(videos) >= limit:
                 return videos
@@ -169,7 +176,7 @@ def fetch_video_metadata(video_ids: list[str], api_key: str) -> dict[str, dict]:
     metadata = {}
 
     for i in range(0, len(video_ids), 50):
-        batch = video_ids[i:i+50]
+        batch = video_ids[i : i + 50]
         ids_str = ",".join(batch)
         url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id={ids_str}&key={api_key}"
 
@@ -195,21 +202,24 @@ def fetch_video_metadata(video_ids: list[str], api_key: str) -> dict[str, dict]:
                 "views": int(stats.get("viewCount", 0)),
                 "likes": int(stats.get("likeCount", 0)),
                 "comments": int(stats.get("commentCount", 0)),
-                "description": snippet.get("description", "")[:500]  # First 500 chars
+                "description": snippet.get("description", "")[:500],  # First 500 chars
             }
 
-        print(f"  Metadata: {min(i+50, len(video_ids))}/{len(video_ids)}", file=sys.stderr)
+        print(
+            f"  Metadata: {min(i + 50, len(video_ids))}/{len(video_ids)}",
+            file=sys.stderr,
+        )
 
     return metadata
 
 
 def parse_duration(iso_duration: str) -> str:
     """Convert ISO 8601 duration to human readable format."""
-    match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', iso_duration)
+    match = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", iso_duration)
     if not match:
         return iso_duration
 
-    h, m, s = match.groups(default='0')
+    h, m, s = match.groups(default="0")
     h, m, s = int(h), int(m), int(s)
 
     if h > 0:
@@ -220,7 +230,9 @@ def parse_duration(iso_duration: str) -> str:
         return f"{s}s"
 
 
-def write_outputs(channel: dict, videos: list[dict], output_dir: Path, urls_only: bool = False) -> None:
+def write_outputs(
+    channel: dict, videos: list[dict], output_dir: Path, urls_only: bool = False
+) -> None:
     """Write output files."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -249,10 +261,10 @@ def write_outputs(channel: dict, videos: list[dict], output_dir: Path, urls_only
             "id": channel["id"],
             "handle": channel["handle"],
             "name": channel["name"],
-            "scraped_at": datetime.now().isoformat()
+            "scraped_at": datetime.now().isoformat(),
         },
         "videos": videos,
-        "total": len(videos)
+        "total": len(videos),
     }
     full_file.write_text(json.dumps(output, indent=2, ensure_ascii=False))
     print(f"  Written: {full_file}")
@@ -268,13 +280,15 @@ def update_channels_registry(channel: dict, video_count: int) -> None:
         registry = {"channels": []}
 
     # Update or add channel entry
-    existing = next((c for c in registry["channels"] if c["handle"] == channel["handle"]), None)
+    existing = next(
+        (c for c in registry["channels"] if c["handle"] == channel["handle"]), None
+    )
     entry = {
         "handle": channel["handle"],
         "name": channel["name"],
         "id": channel["id"],
         "video_count": video_count,
-        "last_scraped": datetime.now().isoformat()
+        "last_scraped": datetime.now().isoformat(),
     }
 
     if existing:
@@ -346,8 +360,9 @@ def fetch_single_transcript(ytt_api, video_id: str, lang: str) -> dict:
     }
 
 
-def fetch_transcripts(videos: list[dict], output_dir: Path, lang: str = "en",
-                      delay: float = 1.5) -> dict:
+def fetch_transcripts(
+    videos: list[dict], output_dir: Path, lang: str = "en", delay: float = 1.5
+) -> dict:
     """Fetch transcripts for all videos with rate limiting and resume support.
 
     Returns index dict mapping video_id -> transcript metadata.
@@ -418,12 +433,17 @@ def fetch_transcripts(videos: list[dict], output_dir: Path, lang: str = "en",
 
             if consecutive_blocks <= len(backoff_delays):
                 wait = backoff_delays[consecutive_blocks - 1]
-                print(f"  Block detected ({consecutive_blocks}x), backing off {wait}s...",
-                      file=sys.stderr)
+                print(
+                    f"  Block detected ({consecutive_blocks}x), backing off {wait}s...",
+                    file=sys.stderr,
+                )
                 time.sleep(wait)
             else:
-                print(f"  Aborting after {consecutive_blocks} consecutive blocks. "
-                      f"Progress saved.", file=sys.stderr)
+                print(
+                    f"  Aborting after {consecutive_blocks} consecutive blocks. "
+                    f"Progress saved.",
+                    file=sys.stderr,
+                )
                 break
 
         # Checkpoint every 25 videos
@@ -434,8 +454,10 @@ def fetch_transcripts(videos: list[dict], output_dir: Path, lang: str = "en",
         done = extracted + skipped
         status_counts = f"{extracted} extracted, {skipped} resumed"
         remaining = total - (i + 1)
-        print(f"  Transcripts: [{i+1}/{total}] {status_counts}, {remaining} remaining",
-              file=sys.stderr)
+        print(
+            f"  Transcripts: [{i + 1}/{total}] {status_counts}, {remaining} remaining",
+            file=sys.stderr,
+        )
 
     # Final save
     index_file.write_text(json.dumps(index, indent=2))
@@ -443,7 +465,9 @@ def fetch_transcripts(videos: list[dict], output_dir: Path, lang: str = "en",
 
     ok_count = sum(1 for v in index.values() if v.get("status") == "ok")
     no_cap = sum(1 for v in index.values() if v.get("status") == "no_captions")
-    errors = sum(1 for v in index.values() if v.get("status") not in ("ok", "no_captions"))
+    errors = sum(
+        1 for v in index.values() if v.get("status") not in ("ok", "no_captions")
+    )
     print(f"  Summary: {ok_count} extracted, {no_cap} no captions, {errors} errors")
 
     return index
@@ -464,15 +488,17 @@ def log_to_session(channel: dict, video_count: int, tier: int, category: str) ->
         if "urls_visited" not in scratchpad:
             scratchpad["urls_visited"] = []
 
-        scratchpad["urls_visited"].append({
-            "url": f"https://youtube.com/@{channel['handle']}",
-            "source": "YouTube Channel",
-            "tier": tier,
-            "category": category,
-            "channel_name": channel["name"],
-            "videos_count": video_count,
-            "timestamp": datetime.now().isoformat()
-        })
+        scratchpad["urls_visited"].append(
+            {
+                "url": f"https://youtube.com/@{channel['handle']}",
+                "source": "YouTube Channel",
+                "tier": tier,
+                "category": category,
+                "channel_name": channel["name"],
+                "videos_count": video_count,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         scratchpad_file.write_text(json.dumps(scratchpad, indent=2))
         print(f"  Logged to session: {scratchpad_file}")
@@ -490,28 +516,51 @@ Examples:
   %(prog)s https://youtube.com/@anthropic --tier 1 --category labs
   %(prog)s @3blue1brown --limit 100
   %(prog)s @TwoMinutePapers --log-to-session
-        """
+        """,
     )
 
     parser.add_argument("channel", help="Channel URL or @handle")
-    parser.add_argument("--tier", type=int, choices=[1, 2, 3], default=2,
-                        help="Source tier for research tracking (default: 2)")
-    parser.add_argument("--category", choices=["labs", "research", "industry", "video", "education"],
-                        default="video", help="Category (default: video)")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Max videos to fetch (default: all)")
-    parser.add_argument("--output-dir", type=Path, default=None,
-                        help="Custom output directory")
-    parser.add_argument("--urls-only", action="store_true",
-                        help="Only output urls.txt file")
-    parser.add_argument("--log-to-session", action="store_true",
-                        help="Add to active research session")
-    parser.add_argument("--transcripts", action="store_true",
-                        help="Extract video transcripts (requires youtube-transcript-api)")
-    parser.add_argument("--transcript-lang", default="en",
-                        help="Preferred transcript language (default: en)")
-    parser.add_argument("--transcript-delay", type=float, default=1.5,
-                        help="Seconds between transcript requests (default: 1.5)")
+    parser.add_argument(
+        "--tier",
+        type=int,
+        choices=[1, 2, 3],
+        default=2,
+        help="Source tier for research tracking (default: 2)",
+    )
+    parser.add_argument(
+        "--category",
+        choices=["labs", "research", "industry", "video", "education"],
+        default="video",
+        help="Category (default: video)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Max videos to fetch (default: all)"
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, default=None, help="Custom output directory"
+    )
+    parser.add_argument(
+        "--urls-only", action="store_true", help="Only output urls.txt file"
+    )
+    parser.add_argument(
+        "--log-to-session", action="store_true", help="Add to active research session"
+    )
+    parser.add_argument(
+        "--transcripts",
+        action="store_true",
+        help="Extract video transcripts (requires youtube-transcript-api)",
+    )
+    parser.add_argument(
+        "--transcript-lang",
+        default="en",
+        help="Preferred transcript language (default: en)",
+    )
+    parser.add_argument(
+        "--transcript-delay",
+        type=float,
+        default=1.5,
+        help="Seconds between transcript requests (default: 1.5)",
+    )
 
     args = parser.parse_args()
 

@@ -40,9 +40,12 @@ MIGRATION_STATE_FILE = AGENT_CORE_DIR / "storage" / "migration_state.json"
 @dataclass
 class MigrationState:
     """Track migration progress."""
+
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
-    phase: str = "not_started"  # not_started, exporting, importing, validating, complete
+    phase: str = (
+        "not_started"  # not_started, exporting, importing, validating, complete
+    )
     collections_migrated: Dict[str, int] = None
     errors: List[str] = None
 
@@ -111,14 +114,21 @@ async def export_from_qdrant() -> Dict[str, List[Dict[str, Any]]]:
             return {}
 
         # Collections to migrate
-        collections = ["findings", "sessions", "packs", "session_outcomes", "cognitive_states", "error_patterns"]
+        collections = [
+            "findings",
+            "sessions",
+            "packs",
+            "session_outcomes",
+            "cognitive_states",
+            "error_patterns",
+        ]
 
         for collection in collections:
             print(f"Exporting {collection}...")
             try:
                 # Get all points from collection
                 # Note: This requires access to the raw Qdrant client
-                if hasattr(qdrant, '_client'):
+                if hasattr(qdrant, "_client"):
                     from qdrant_client.models import ScrollRequest
 
                     points = []
@@ -134,11 +144,13 @@ async def export_from_qdrant() -> Dict[str, List[Dict[str, Any]]]:
                         )
 
                         for point in result[0]:
-                            points.append({
-                                "id": str(point.id),
-                                "vector": point.vector,
-                                "payload": point.payload,
-                            })
+                            points.append(
+                                {
+                                    "id": str(point.id),
+                                    "vector": point.vector,
+                                    "payload": point.payload,
+                                }
+                            )
 
                         offset = result[1]
                         if offset is None:
@@ -159,7 +171,9 @@ async def export_from_qdrant() -> Dict[str, List[Dict[str, Any]]]:
     return exported
 
 
-async def import_to_sqlite_vec(data: Dict[str, List[Dict[str, Any]]], dry_run: bool = False) -> Dict[str, int]:
+async def import_to_sqlite_vec(
+    data: Dict[str, List[Dict[str, Any]]], dry_run: bool = False
+) -> Dict[str, int]:
     """Import vectors into sqlite-vec."""
     try:
         from storage.sqlite_vec import get_vec_db, SQLITE_VEC_AVAILABLE
@@ -263,7 +277,10 @@ async def validate_migration() -> Dict[str, Any]:
 
         if qdrant_count != vec_count:
             results["match"] = False
-            results[f"mismatch_{key}"] = {"qdrant": qdrant_count, "sqlite_vec": vec_count}
+            results[f"mismatch_{key}"] = {
+                "qdrant": qdrant_count,
+                "sqlite_vec": vec_count,
+            }
 
     return results
 
@@ -375,8 +392,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="Migrate vectors from Qdrant to sqlite-vec"
     )
-    parser.add_argument("--dry-run", action="store_true", help="Preview migration without making changes")
-    parser.add_argument("--validate", action="store_true", help="Validate migration only")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview migration without making changes",
+    )
+    parser.add_argument(
+        "--validate", action="store_true", help="Validate migration only"
+    )
     parser.add_argument("--status", action="store_true", help="Show migration status")
 
     args = parser.parse_args()

@@ -143,7 +143,9 @@ class CursorAdapter(PlatformAdapter):
 
         return events
 
-    def _scan_cursor_dir(self, cursor_dir: Path, project_name: str) -> List[CapturedEvent]:
+    def _scan_cursor_dir(
+        self, cursor_dir: Path, project_name: str
+    ) -> List[CapturedEvent]:
         """Scan a .cursor directory in a project for AI interactions."""
         events: List[CapturedEvent] = []
 
@@ -174,7 +176,9 @@ class CursorAdapter(PlatformAdapter):
         return events
 
     def _extract_chat_events(
-        self, data: dict, workspace_name: str,
+        self,
+        data: dict,
+        workspace_name: str,
     ) -> List[CapturedEvent]:
         """Extract AI chat events from Cursor state data."""
         events: List[CapturedEvent] = []
@@ -188,7 +192,11 @@ class CursorAdapter(PlatformAdapter):
                     continue
 
                 content = msg.get("content", msg.get("text", msg.get("message", "")))
-                if not content or not isinstance(content, str) or len(content.strip()) < 10:
+                if (
+                    not content
+                    or not isinstance(content, str)
+                    or len(content.strip()) < 10
+                ):
                     continue
 
                 role = msg.get("role", msg.get("type", "assistant"))
@@ -199,28 +207,34 @@ class CursorAdapter(PlatformAdapter):
                 if isinstance(ts, str):
                     try:
                         from datetime import datetime
-                        ts = datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+
+                        ts = datetime.fromisoformat(
+                            ts.replace("Z", "+00:00")
+                        ).timestamp()
                     except Exception:
                         ts = time.time()
 
                 session_id = f"cursor-{workspace_name}"
 
-                events.append(CapturedEvent(
-                    platform="cursor",
-                    session_id=session_id,
-                    content=content.strip(),
-                    role="user" if role in ("user", "human") else "assistant",
-                    timestamp=ts,
-                    metadata={
-                        "workspace": workspace_name,
-                        "file_context": msg.get("file", msg.get("filePath", "")),
-                    },
-                ))
+                events.append(
+                    CapturedEvent(
+                        platform="cursor",
+                        session_id=session_id,
+                        content=content.strip(),
+                        role="user" if role in ("user", "human") else "assistant",
+                        timestamp=ts,
+                        metadata={
+                            "workspace": workspace_name,
+                            "file_context": msg.get("file", msg.get("filePath", "")),
+                        },
+                    )
+                )
 
         return events
 
 
 # ── watermark ────────────────────────────────────────────────
+
 
 class _Watermark:
     """Track scanned files and their modification times."""
@@ -242,12 +256,19 @@ class _Watermark:
         try:
             # Prune old entries (keep last 1000)
             if len(self.seen_files) > 1000:
-                sorted_files = sorted(self.seen_files.items(), key=lambda x: x[1], reverse=True)
+                sorted_files = sorted(
+                    self.seen_files.items(), key=lambda x: x[1], reverse=True
+                )
                 self.seen_files = dict(sorted_files[:1000])
 
-            self.path.write_text(json.dumps({
-                "seen_files": self.seen_files,
-                "updated_at": time.time(),
-            }, indent=2))
+            self.path.write_text(
+                json.dumps(
+                    {
+                        "seen_files": self.seen_files,
+                        "updated_at": time.time(),
+                    },
+                    indent=2,
+                )
+            )
         except Exception as exc:
             log.error(f"Watermark save failed: {exc}")

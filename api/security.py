@@ -27,12 +27,14 @@ logger = logging.getLogger("researchgravity.security")
 try:
     from fastapi import HTTPException, Security, Depends, Request
     from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
+
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
 
 try:
     import jwt
+
     JWT_AVAILABLE = True
 except ImportError:
     JWT_AVAILABLE = False
@@ -42,6 +44,7 @@ try:
     from slowapi import Limiter
     from slowapi.util import get_remote_address
     from slowapi.errors import RateLimitExceeded
+
     RATELIMIT_AVAILABLE = True
 except ImportError:
     RATELIMIT_AVAILABLE = False
@@ -72,9 +75,9 @@ RATE_LIMIT_WRITE = "30/minute"
 # =============================================================================
 
 # Patterns for safe input validation
-SAFE_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\.]+$')
-SAFE_SESSION_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_\-]+$')
-SAFE_PROJECT_PATTERN = re.compile(r'^[a-zA-Z0-9_\-]+$')
+SAFE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
+SAFE_SESSION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
+SAFE_PROJECT_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 
 def validate_session_id(session_id: str) -> str:
@@ -98,7 +101,7 @@ def validate_session_id(session_id: str) -> str:
     if not SAFE_SESSION_ID_PATTERN.match(session_id):
         raise HTTPException(
             status_code=400,
-            detail="Invalid session ID format. Only alphanumeric, underscore, and hyphen allowed."
+            detail="Invalid session ID format. Only alphanumeric, underscore, and hyphen allowed.",
         )
 
     # Additional check for path traversal attempts
@@ -118,10 +121,7 @@ def validate_project_id(project_id: str) -> str:
         raise HTTPException(status_code=400, detail="Project ID too long")
 
     if not SAFE_PROJECT_PATTERN.match(project_id):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid project ID format"
-        )
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
 
     return project_id
 
@@ -149,7 +149,9 @@ if FASTAPI_AVAILABLE:
     api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+) -> str:
     """Create a JWT access token.
 
     Args:
@@ -163,7 +165,9 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
         raise HTTPException(status_code=500, detail="JWT not available")
 
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode.update({"exp": expire, "iat": datetime.utcnow()})
 
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -195,9 +199,10 @@ def decode_token(token: str) -> Dict[str, Any]:
 
 
 if FASTAPI_AVAILABLE:
+
     async def get_current_user(
         credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
-        api_key: Optional[str] = Security(api_key_header)
+        api_key: Optional[str] = Security(api_key_header),
     ) -> Dict[str, Any]:
         """Dependency to get the current authenticated user.
 
@@ -225,13 +230,12 @@ if FASTAPI_AVAILABLE:
 
         raise HTTPException(
             status_code=401,
-            detail="Not authenticated. Provide Bearer token or X-API-Key header."
+            detail="Not authenticated. Provide Bearer token or X-API-Key header.",
         )
-
 
     async def optional_auth(
         credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
-        api_key: Optional[str] = Security(api_key_header)
+        api_key: Optional[str] = Security(api_key_header),
     ) -> Optional[Dict[str, Any]]:
         """Optional authentication - returns None if not authenticated."""
         try:
@@ -264,7 +268,7 @@ else:
 import uuid
 from contextvars import ContextVar
 
-request_id_var: ContextVar[str] = ContextVar('request_id', default='')
+request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
 
 def generate_request_id() -> str:
@@ -329,6 +333,7 @@ from typing import List
 
 class ErrorDetail(BaseModel):
     """Standardized error detail."""
+
     code: str
     message: str
     field: Optional[str] = None
@@ -336,6 +341,7 @@ class ErrorDetail(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Standardized error response format."""
+
     error: bool = True
     error_code: str
     message: str
@@ -344,10 +350,10 @@ class ErrorResponse(BaseModel):
     timestamp: str = None
 
     def __init__(self, **data):
-        if 'timestamp' not in data or data['timestamp'] is None:
-            data['timestamp'] = datetime.utcnow().isoformat()
-        if 'request_id' not in data or data['request_id'] is None:
-            data['request_id'] = request_id_var.get() or None
+        if "timestamp" not in data or data["timestamp"] is None:
+            data["timestamp"] = datetime.utcnow().isoformat()
+        if "request_id" not in data or data["request_id"] is None:
+            data["request_id"] = request_id_var.get() or None
         super().__init__(**data)
 
 
@@ -355,7 +361,7 @@ def create_error_response(
     code: str,
     message: str,
     status_code: int = 400,
-    details: Optional[List[Dict[str, Any]]] = None
+    details: Optional[List[Dict[str, Any]]] = None,
 ) -> HTTPException:
     """Create a standardized error response.
 
@@ -371,13 +377,10 @@ def create_error_response(
     error_response = ErrorResponse(
         error_code=code,
         message=message,
-        details=[ErrorDetail(**d) for d in details] if details else None
+        details=[ErrorDetail(**d) for d in details] if details else None,
     )
 
-    raise HTTPException(
-        status_code=status_code,
-        detail=error_response.dict()
-    )
+    raise HTTPException(status_code=status_code, detail=error_response.dict())
 
 
 # =============================================================================

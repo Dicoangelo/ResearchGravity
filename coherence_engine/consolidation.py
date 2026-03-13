@@ -43,7 +43,9 @@ class ConsolidationDaemon:
         log.info("=== Consolidation starting ===")
 
         self._pool = await asyncpg.create_pool(
-            cfg.PG_DSN, min_size=1, max_size=5,
+            cfg.PG_DSN,
+            min_size=1,
+            max_size=5,
         )
 
         results = {}
@@ -147,7 +149,9 @@ class ConsolidationDaemon:
                 significant += 1
 
             # Store significance result in metadata
-            existing_meta = json.loads(row["metadata"] or "{}") if row["metadata"] else {}
+            existing_meta = (
+                json.loads(row["metadata"] or "{}") if row["metadata"] else {}
+            )
             existing_meta["p_value"] = round(result.p_value, 4)
             existing_meta["z_score"] = round(result.z_score, 2)
             existing_meta["significant"] = result.is_significant
@@ -155,7 +159,8 @@ class ConsolidationDaemon:
             async with self._pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE coherence_moments SET metadata = $1::jsonb WHERE moment_id = $2",
-                    json.dumps(existing_meta), row["moment_id"],
+                    json.dumps(existing_meta),
+                    row["moment_id"],
                 )
 
         tester.clear_cache()
@@ -180,7 +185,9 @@ class ConsolidationDaemon:
         total = {"events_processed": 0, "entities_created": 0, "edges_created": 0}
         offset = 0
         while True:
-            result = await extract_and_ingest_batch(self._pool, limit=2000, offset=offset)
+            result = await extract_and_ingest_batch(
+                self._pool, limit=2000, offset=offset
+            )
             if result["events_processed"] == 0:
                 break
             for k in total:

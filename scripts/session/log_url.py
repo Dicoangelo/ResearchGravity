@@ -110,7 +110,7 @@ def log_url(
     category: Optional[str] = None,
     relevance: int = 0,
     signal: str = "",
-    notes: str = ""
+    notes: str = "",
 ):
     """Log a URL to the session with full metadata."""
     session = get_current_session()
@@ -145,21 +145,32 @@ def log_url(
     with open(sources_file, "a", newline="") as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow([
-                "name", "url", "tier", "category", "signal",
-                "relevance", "used", "notes", "timestamp"
-            ])
-        writer.writerow([
-            detected_source,
-            url,
-            tier,
-            category,
-            signal,
-            relevance if relevance else "",
-            status,
-            notes,
-            now.isoformat()
-        ])
+            writer.writerow(
+                [
+                    "name",
+                    "url",
+                    "tier",
+                    "category",
+                    "signal",
+                    "relevance",
+                    "used",
+                    "notes",
+                    "timestamp",
+                ]
+            )
+        writer.writerow(
+            [
+                detected_source,
+                url,
+                tier,
+                category,
+                signal,
+                relevance if relevance else "",
+                status,
+                notes,
+                now.isoformat(),
+            ]
+        )
 
     # Log to session_log.md
     session_log = local_dir / "session_log.md"
@@ -175,18 +186,22 @@ def log_url(
             row = f"| {time_str} | {tier} | {category} | [{detected_source}]({url}) | {signal_str} | {relevance_str} | {status_mark} | {notes} |\n"
 
             # Find where to insert (after the table header)
-            lines = content.split('\n')
+            lines = content.split("\n")
             insert_idx = None
             for i, line in enumerate(lines):
-                if line.startswith("|---") and "Tier" not in lines[i-1] if i > 0 else False:
+                if (
+                    line.startswith("|---") and "Tier" not in lines[i - 1]
+                    if i > 0
+                    else False
+                ):
                     # Skip the first table header we find that's for URLs
-                    if i > 0 and "Category" in lines[i-1]:
+                    if i > 0 and "Category" in lines[i - 1]:
                         insert_idx = i + 1
                         break
 
             if insert_idx:
                 lines.insert(insert_idx, row.strip())
-                session_log.write_text('\n'.join(lines))
+                session_log.write_text("\n".join(lines))
             else:
                 # Fallback: append to file
                 with open(session_log, "a") as f:
@@ -195,11 +210,17 @@ def log_url(
             # Create table if missing
             with open(session_log, "a") as f:
                 f.write("\n\n## URLs Visited\n\n")
-                f.write("| Time | Tier | Category | URL | Signal | Relevance | Used | Notes |\n")
-                f.write("|------|------|----------|-----|--------|-----------|------|-------|\n")
+                f.write(
+                    "| Time | Tier | Category | URL | Signal | Relevance | Used | Notes |\n"
+                )
+                f.write(
+                    "|------|------|----------|-----|--------|-----------|------|-------|\n"
+                )
                 relevance_str = str(relevance) if relevance else "-"
                 signal_str = signal if signal else "-"
-                f.write(f"| {time_str} | {tier} | {category} | [{detected_source}]({url}) | {signal_str} | {relevance_str} | {status_mark} | {notes} |\n")
+                f.write(
+                    f"| {time_str} | {tier} | {category} | [{detected_source}]({url}) | {signal_str} | {relevance_str} | {status_mark} | {notes} |\n"
+                )
 
     # Update scratchpad
     scratchpad_file = local_dir / "scratchpad.json"
@@ -216,7 +237,7 @@ def log_url(
             "relevance": relevance,
             "status": status,
             "notes": notes,
-            "timestamp": now.isoformat()
+            "timestamp": now.isoformat(),
         }
         scratchpad["urls_visited"].append(url_entry)
         scratchpad["last_updated"] = now.isoformat()
@@ -246,20 +267,36 @@ def main():
     parser.add_argument("url", help="The URL to log")
     parser.add_argument("--used", action="store_true", help="Mark as used in output")
     parser.add_argument("--skipped", action="store_true", help="Mark as skipped")
-    parser.add_argument("--tier", type=int, choices=[1, 2, 3],
-                        help="Source tier (1=primary, 2=amplifier, 3=context)")
-    parser.add_argument("--category",
-                        choices=[
-                            "research", "labs", "industry",  # Tier 1
-                            "github", "benchmarks", "social",  # Tier 2
-                            "newsletters", "forums",  # Tier 3
-                            "frontier", "other"
-                        ],
-                        help="Source category")
-    parser.add_argument("--relevance", type=int, choices=[1, 2, 3, 4, 5],
-                        help="Relevance score (1-5)")
-    parser.add_argument("--signal", default="",
-                        help="Quantitative signal (e.g., '177k stars', 'cited 50x')")
+    parser.add_argument(
+        "--tier",
+        type=int,
+        choices=[1, 2, 3],
+        help="Source tier (1=primary, 2=amplifier, 3=context)",
+    )
+    parser.add_argument(
+        "--category",
+        choices=[
+            "research",
+            "labs",
+            "industry",  # Tier 1
+            "github",
+            "benchmarks",
+            "social",  # Tier 2
+            "newsletters",
+            "forums",  # Tier 3
+            "frontier",
+            "other",
+        ],
+        help="Source category",
+    )
+    parser.add_argument(
+        "--relevance", type=int, choices=[1, 2, 3, 4, 5], help="Relevance score (1-5)"
+    )
+    parser.add_argument(
+        "--signal",
+        default="",
+        help="Quantitative signal (e.g., '177k stars', 'cited 50x')",
+    )
     parser.add_argument("--notes", default="", help="Additional notes")
 
     args = parser.parse_args()
@@ -276,7 +313,7 @@ def main():
         category=args.category,
         relevance=args.relevance or 0,
         signal=args.signal,
-        notes=args.notes
+        notes=args.notes,
     )
 
 

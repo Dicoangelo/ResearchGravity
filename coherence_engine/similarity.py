@@ -20,6 +20,7 @@ log = logging.getLogger("coherence.similarity")
 @dataclass
 class SimilarityResult:
     """A similar event found by similarity search."""
+
     event_id: str
     platform: str
     session_id: str
@@ -78,7 +79,10 @@ class SimilarityIndex:
                              AND (ec.{col} <=> $1::vector) < $3
                            ORDER BY distance
                            LIMIT $4""",
-                        vec_str, exclude_platform, dist_threshold, limit,
+                        vec_str,
+                        exclude_platform,
+                        dist_threshold,
+                        limit,
                     )
                 else:
                     rows = await conn.fetch(
@@ -92,7 +96,9 @@ class SimilarityIndex:
                              AND (ec.{col} <=> $1::vector) < $2
                            ORDER BY distance
                            LIMIT $3""",
-                        vec_str, dist_threshold, limit,
+                        vec_str,
+                        dist_threshold,
+                        limit,
                     )
         except Exception as e:
             log.warning(f"pgvector search failed, falling back to brute-force: {e}")
@@ -109,17 +115,19 @@ class SimilarityIndex:
             if isinstance(instinct, str):
                 instinct = json.loads(instinct)
 
-            results.append(SimilarityResult(
-                event_id=row["source_event_id"],
-                platform=row["platform"],
-                session_id=row["session_id"],
-                similarity=round(1.0 - row["distance"], 4),
-                preview=row["content_preview"],
-                coherence_sig=row["coherence_sig"],
-                light_layer=light,
-                instinct_layer=instinct,
-                timestamp_ns=row["timestamp_ns"],
-            ))
+            results.append(
+                SimilarityResult(
+                    event_id=row["source_event_id"],
+                    platform=row["platform"],
+                    session_id=row["session_id"],
+                    similarity=round(1.0 - row["distance"], 4),
+                    preview=row["content_preview"],
+                    coherence_sig=row["coherence_sig"],
+                    light_layer=light,
+                    instinct_layer=instinct,
+                    timestamp_ns=row["timestamp_ns"],
+                )
+            )
 
         return results
 
@@ -186,17 +194,19 @@ class SimilarityIndex:
                     if isinstance(instinct, str):
                         instinct = json.loads(instinct)
 
-                    results.append(SimilarityResult(
-                        event_id=row["source_event_id"],
-                        platform=row["platform"],
-                        session_id=row["session_id"],
-                        similarity=round(sim, 4),
-                        preview=row["content_preview"],
-                        coherence_sig=row["coherence_sig"],
-                        light_layer=light,
-                        instinct_layer=instinct,
-                        timestamp_ns=row["timestamp_ns"],
-                    ))
+                    results.append(
+                        SimilarityResult(
+                            event_id=row["source_event_id"],
+                            platform=row["platform"],
+                            session_id=row["session_id"],
+                            similarity=round(sim, 4),
+                            preview=row["content_preview"],
+                            coherence_sig=row["coherence_sig"],
+                            light_layer=light,
+                            instinct_layer=instinct,
+                            timestamp_ns=row["timestamp_ns"],
+                        )
+                    )
             except Exception:
                 continue
 

@@ -13,7 +13,6 @@ from .base import WebhookHandler, WebhookEvent
 
 
 class GenericHandler(WebhookHandler):
-
     @property
     def provider(self) -> str:
         return "generic"
@@ -53,11 +52,16 @@ class GenericHandler(WebhookHandler):
             or f"generic-{int(time.time())}"
         )
 
-        return [WebhookEvent(
-            event_type=event_type,
-            content=str(content),
-            metadata={"source": "generic-webhook", "keys": list(payload.keys())[:20]},
-            timestamp=time.time(),
-            session_id=session_id,
-            role=payload.get("role", "system"),
-        )]
+        return [
+            WebhookEvent(
+                event_type=event_type,
+                content=str(content),
+                metadata={
+                    "source": "generic-webhook",
+                    "keys": list(payload.keys())[:20],
+                },
+                timestamp=time.time(),
+                session_id=session_id,
+                role=payload.get("role", "system"),
+            )
+        ]

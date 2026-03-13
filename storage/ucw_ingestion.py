@@ -28,10 +28,11 @@ from .engine import StorageEngine, get_engine
 
 class ConflictStrategy(Enum):
     """How to handle duplicate packs."""
-    SKIP = "skip"           # Keep existing, ignore new
-    REPLACE = "replace"     # Replace existing with new
-    MERGE = "merge"         # Merge contents (append findings, etc.)
-    VERSION = "version"     # Keep both with version suffix
+
+    SKIP = "skip"  # Keep existing, ignore new
+    REPLACE = "replace"  # Replace existing with new
+    MERGE = "merge"  # Merge contents (append findings, etc.)
+    VERSION = "version"  # Keep both with version suffix
 
 
 class IngestionResult:
@@ -56,10 +57,13 @@ class IngestionResult:
             "errors": self.errors,
             "pack_ids": self.pack_ids,
             "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "duration_seconds": (
                 (self.completed_at - self.started_at).total_seconds()
-                if self.completed_at else None
+                if self.completed_at
+                else None
             ),
         }
 
@@ -93,7 +97,7 @@ class UCWIngestionPipeline:
         self,
         conflict_strategy: ConflictStrategy = ConflictStrategy.SKIP,
         validate_by_default: bool = False,
-        batch_size: int = 100
+        batch_size: int = 100,
     ):
         self.conflict_strategy = conflict_strategy
         self.validate_by_default = validate_by_default
@@ -149,7 +153,7 @@ class UCWIngestionPipeline:
         wallet_id: str,
         packs: List[Dict[str, Any]],
         validate: Optional[bool] = None,
-        conflict_strategy: Optional[ConflictStrategy] = None
+        conflict_strategy: Optional[ConflictStrategy] = None,
     ) -> IngestionResult:
         """
         Ingest packs from a UCW trade.
@@ -183,38 +187,37 @@ class UCWIngestionPipeline:
 
                     if not validation["approved"] and validation["confidence"] < 0.5:
                         result.skipped += 1
-                        result.errors.append({
-                            "pack_id": pack["id"],
-                            "reason": "validation_failed",
-                            "details": validation,
-                        })
+                        result.errors.append(
+                            {
+                                "pack_id": pack["id"],
+                                "reason": "validation_failed",
+                                "details": validation,
+                            }
+                        )
                         continue
 
                 # Store pack with provenance
                 pack_id = await self.engine.store_pack(
-                    pack,
-                    source="ucw_trade",
-                    source_id=wallet_id
+                    pack, source="ucw_trade", source_id=wallet_id
                 )
 
                 result.imported += 1
                 result.pack_ids.append(pack_id)
 
             except Exception as e:
-                result.errors.append({
-                    "pack_id": pack.get("id"),
-                    "reason": "error",
-                    "details": str(e),
-                })
+                result.errors.append(
+                    {
+                        "pack_id": pack.get("id"),
+                        "reason": "error",
+                        "details": str(e),
+                    }
+                )
 
         result.completed_at = datetime.now()
         return result
 
     async def ingest_from_file(
-        self,
-        file_path: str,
-        source: str = "file_import",
-        validate: bool = False
+        self, file_path: str, source: str = "file_import", validate: bool = False
     ) -> IngestionResult:
         """
         Ingest packs from a JSON file.
@@ -245,10 +248,7 @@ class UCWIngestionPipeline:
             return result
 
         return await self.ingest_packs(
-            packs,
-            source=source,
-            source_id=str(path),
-            validate=validate
+            packs, source=source, source_id=str(path), validate=validate
         )
 
     async def ingest_packs(
@@ -256,7 +256,7 @@ class UCWIngestionPipeline:
         packs: List[Dict[str, Any]],
         source: str = "external",
         source_id: Optional[str] = None,
-        validate: bool = False
+        validate: bool = False,
     ) -> IngestionResult:
         """
         Generic pack ingestion.
@@ -272,7 +272,7 @@ class UCWIngestionPipeline:
 
         # Process in batches
         for i in range(0, len(packs), self.batch_size):
-            batch = packs[i:i + self.batch_size]
+            batch = packs[i : i + self.batch_size]
 
             for pack in batch:
                 try:
@@ -289,19 +289,18 @@ class UCWIngestionPipeline:
                     result.pack_ids.append(pack_id)
 
                 except Exception as e:
-                    result.errors.append({
-                        "pack_id": pack.get("id"),
-                        "error": str(e),
-                    })
+                    result.errors.append(
+                        {
+                            "pack_id": pack.get("id"),
+                            "error": str(e),
+                        }
+                    )
 
         result.completed_at = datetime.now()
         return result
 
     async def ingest_agent_output(
-        self,
-        content: Dict[str, Any],
-        agent_id: str,
-        content_type: str = "finding"
+        self, content: Dict[str, Any], agent_id: str, content_type: str = "finding"
     ) -> str:
         """
         Ingest output from an agent in real-time.
@@ -317,15 +316,17 @@ class UCWIngestionPipeline:
             ID of the stored content
         """
         if content_type == "finding":
-            content["id"] = content.get("id") or f"finding-{agent_id}-{uuid.uuid4().hex[:8]}"
+            content["id"] = (
+                content.get("id") or f"finding-{agent_id}-{uuid.uuid4().hex[:8]}"
+            )
             return await self.engine.store_finding(content, source=f"agent:{agent_id}")
 
         elif content_type == "pack":
-            content["id"] = content.get("id") or f"pack-{agent_id}-{uuid.uuid4().hex[:8]}"
+            content["id"] = (
+                content.get("id") or f"pack-{agent_id}-{uuid.uuid4().hex[:8]}"
+            )
             return await self.engine.store_pack(
-                content,
-                source="agent_produced",
-                source_id=agent_id
+                content, source="agent_produced", source_id=agent_id
             )
 
         elif content_type == "session":
@@ -371,10 +372,9 @@ class UCWIngestionPipeline:
 
 # Convenience functions
 
+
 async def ingest_ucw_trade(
-    wallet_id: str,
-    packs: List[Dict[str, Any]],
-    validate: bool = False
+    wallet_id: str, packs: List[Dict[str, Any]], validate: bool = False
 ) -> IngestionResult:
     """Quick function for UCW trade ingestion."""
     pipeline = UCWIngestionPipeline()

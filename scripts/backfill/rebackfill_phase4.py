@@ -20,8 +20,9 @@ import argparse
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Any
+import sys
 
-import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
 from storage.qdrant_db import QdrantDB
 
 
@@ -66,12 +67,10 @@ async def rebackfill_cognitive_states(dry_run: bool = False) -> int:
     # Recreate collection
     print("\n🔧 Recreating cognitive_states collection...")
     from qdrant_client.http.models import Distance, VectorParams
+
     await qdrant.async_client.create_collection(
         collection_name="cognitive_states",
-        vectors_config=VectorParams(
-            size=1024,
-            distance=Distance.COSINE
-        )
+        vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
     )
     print("   ✅ Collection created")
 
@@ -81,7 +80,7 @@ async def rebackfill_cognitive_states(dry_run: bool = False) -> int:
     count = 0
 
     for i in range(0, len(states), batch_size):
-        batch = states[i:i + batch_size]
+        batch = states[i : i + batch_size]
 
         # Convert to proper format and generate UUID IDs
         batch_formatted = []
@@ -107,7 +106,7 @@ async def rebackfill_cognitive_states(dry_run: bool = False) -> int:
             count += batch_count
             print(f"   Progress: {count}/{len(states)}")
         except Exception as e:
-            print(f"   ⚠️  Error on batch {i//batch_size}: {e}")
+            print(f"   ⚠️  Error on batch {i // batch_size}: {e}")
 
     await qdrant.close()
 
@@ -152,12 +151,10 @@ async def rebackfill_error_patterns(dry_run: bool = False) -> int:
     # Recreate collection
     print("\n🔧 Recreating error_patterns collection...")
     from qdrant_client.http.models import Distance, VectorParams
+
     await qdrant.async_client.create_collection(
         collection_name="error_patterns",
-        vectors_config=VectorParams(
-            size=1024,
-            distance=Distance.COSINE
-        )
+        vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
     )
     print("   ✅ Collection created")
 
@@ -167,7 +164,7 @@ async def rebackfill_error_patterns(dry_run: bool = False) -> int:
     count = 0
 
     for i in range(0, len(patterns), batch_size):
-        batch = patterns[i:i + batch_size]
+        batch = patterns[i : i + batch_size]
 
         # Convert to proper format and generate UUID IDs
         batch_formatted = []
@@ -187,7 +184,7 @@ async def rebackfill_error_patterns(dry_run: bool = False) -> int:
             count += batch_count
             print(f"   Progress: {count}/{len(patterns)}")
         except Exception as e:
-            print(f"   ⚠️  Error on batch {i//batch_size}: {e}")
+            print(f"   ⚠️  Error on batch {i // batch_size}: {e}")
 
     await qdrant.close()
 
@@ -231,12 +228,12 @@ async def verify_counts():
 
     await qdrant.close()
 
-    print(f"\nCognitive States:")
+    print("\nCognitive States:")
     print(f"  SQLite:  {sqlite_cognitive}")
     print(f"  Qdrant:  {qdrant_cognitive}")
     print(f"  Match:   {'✅' if sqlite_cognitive == qdrant_cognitive else '❌'}")
 
-    print(f"\nError Patterns:")
+    print("\nError Patterns:")
     print(f"  SQLite:  {sqlite_errors}")
     print(f"  Qdrant:  {qdrant_errors}")
     print(f"  Match:   {'✅' if sqlite_errors == qdrant_errors else '❌'}")
@@ -246,9 +243,17 @@ async def verify_counts():
 
 async def main():
     parser = argparse.ArgumentParser(description="Phase 4 re-backfill with UUID fix")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without changes")
-    parser.add_argument("--cognitive-only", action="store_true", help="Only re-backfill cognitive states")
-    parser.add_argument("--errors-only", action="store_true", help="Only re-backfill error patterns")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without changes"
+    )
+    parser.add_argument(
+        "--cognitive-only",
+        action="store_true",
+        help="Only re-backfill cognitive states",
+    )
+    parser.add_argument(
+        "--errors-only", action="store_true", help="Only re-backfill error patterns"
+    )
     args = parser.parse_args()
 
     if not ANTIGRAVITY_DB.exists():
@@ -272,6 +277,7 @@ async def main():
     except Exception as e:
         print(f"\n\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
 
 

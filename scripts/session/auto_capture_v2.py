@@ -38,41 +38,93 @@ from enum import Enum
 
 # URL extraction pattern (RFC 3986 compliant)
 URL_PATTERN = re.compile(
-    r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w\-._~:/?#\[\]@!$&\'()*+,;=%]*'
+    r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w\-._~:/?#\[\]@!$&\'()*+,;=%]*"
 )
 
 # Finding extraction patterns (compiled at module level)
 FINDING_PATTERNS = [
     # Thesis patterns
     (re.compile(r"thesis[:\s]+([^\n]{30,500})", re.IGNORECASE), "thesis", 0.9),
-    (re.compile(r"main\s+(?:argument|claim|point)[:\s]+([^\n]{30,500})", re.IGNORECASE), "thesis", 0.85),
+    (
+        re.compile(
+            r"main\s+(?:argument|claim|point)[:\s]+([^\n]{30,500})", re.IGNORECASE
+        ),
+        "thesis",
+        0.85,
+    ),
     (re.compile(r"core\s+insight[:\s]+([^\n]{30,500})", re.IGNORECASE), "thesis", 0.85),
-
     # Gap patterns
     (re.compile(r"gap[:\s]+([^\n]{30,500})", re.IGNORECASE), "gap", 0.9),
-    (re.compile(r"(?:missing|lacking|needs)[:\s]+([^\n]{30,500})", re.IGNORECASE), "gap", 0.75),
-    (re.compile(r"opportunity\s+(?:for|to)[:\s]+([^\n]{30,500})", re.IGNORECASE), "gap", 0.8),
-
+    (
+        re.compile(r"(?:missing|lacking|needs)[:\s]+([^\n]{30,500})", re.IGNORECASE),
+        "gap",
+        0.75,
+    ),
+    (
+        re.compile(r"opportunity\s+(?:for|to)[:\s]+([^\n]{30,500})", re.IGNORECASE),
+        "gap",
+        0.8,
+    ),
     # Innovation patterns
-    (re.compile(r"innovation\s+(?:opportunity|direction)[:\s]+([^\n]{30,500})", re.IGNORECASE), "innovation", 0.9),
-    (re.compile(r"novel\s+approach[:\s]+([^\n]{30,500})", re.IGNORECASE), "innovation", 0.85),
-    (re.compile(r"new\s+method[:\s]+([^\n]{30,500})", re.IGNORECASE), "innovation", 0.8),
-
+    (
+        re.compile(
+            r"innovation\s+(?:opportunity|direction)[:\s]+([^\n]{30,500})",
+            re.IGNORECASE,
+        ),
+        "innovation",
+        0.9,
+    ),
+    (
+        re.compile(r"novel\s+approach[:\s]+([^\n]{30,500})", re.IGNORECASE),
+        "innovation",
+        0.85,
+    ),
+    (
+        re.compile(r"new\s+method[:\s]+([^\n]{30,500})", re.IGNORECASE),
+        "innovation",
+        0.8,
+    ),
     # General findings
-    (re.compile(r"key\s+(?:finding|insight|takeaway)[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.9),
-    (re.compile(r"important(?:ly)?[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.75),
-    (re.compile(r"(?:we\s+)?(?:found|discovered|identified)[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.8),
+    (
+        re.compile(
+            r"key\s+(?:finding|insight|takeaway)[:\s]+([^\n]{30,500})", re.IGNORECASE
+        ),
+        "finding",
+        0.9,
+    ),
+    (
+        re.compile(r"important(?:ly)?[:\s]+([^\n]{30,500})", re.IGNORECASE),
+        "finding",
+        0.75,
+    ),
+    (
+        re.compile(
+            r"(?:we\s+)?(?:found|discovered|identified)[:\s]+([^\n]{30,500})",
+            re.IGNORECASE,
+        ),
+        "finding",
+        0.8,
+    ),
     (re.compile(r"conclusion[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.85),
     (re.compile(r"summary[:\s]+([^\n]{30,500})", re.IGNORECASE), "finding", 0.7),
-
     # Decision quality patterns
-    (re.compile(r"DQ\s+(?:score|metric)[:\s]+([^\n]{30,300})", re.IGNORECASE), "finding", 0.95),
-    (re.compile(r"decision\s+quality[:\s]+([^\n]{30,300})", re.IGNORECASE), "finding", 0.9),
+    (
+        re.compile(r"DQ\s+(?:score|metric)[:\s]+([^\n]{30,300})", re.IGNORECASE),
+        "finding",
+        0.95,
+    ),
+    (
+        re.compile(r"decision\s+quality[:\s]+([^\n]{30,300})", re.IGNORECASE),
+        "finding",
+        0.9,
+    ),
 ]
 
 # Topic detection patterns (compiled at module level)
 TOPIC_PATTERNS = [
-    re.compile(r"research(?:ing)?\s+(?:on\s+)?['\"]?([^'\".\n]{10,80})['\"]?", re.IGNORECASE),
+    re.compile(
+        r"research(?:ing)?\s+(?:on\s+)?['\"]?([^'\".\n]{10,80})['\"]?", re.IGNORECASE
+    ),
     re.compile(r"topic[:\s]+['\"]?([^'\".\n]{10,80})['\"]?", re.IGNORECASE),
     re.compile(r"session[:\s]+['\"]?([^'\".\n]{10,80})['\"]?", re.IGNORECASE),
     re.compile(r"investigating\s+([^.\n]{10,80})", re.IGNORECASE),
@@ -81,11 +133,18 @@ TOPIC_PATTERNS = [
 ]
 
 # URLs to skip (internal/irrelevant)
-SKIP_URL_PATTERNS = frozenset([
-    "localhost", "127.0.0.1", ".local",
-    "chrome://", "file://", "blob:",
-    "placeholder", "example.com"
-])
+SKIP_URL_PATTERNS = frozenset(
+    [
+        "localhost",
+        "127.0.0.1",
+        ".local",
+        "chrome://",
+        "file://",
+        "blob:",
+        "placeholder",
+        "example.com",
+    ]
+)
 
 
 # Paths
@@ -99,6 +158,7 @@ CAPTURE_STATE_FILE = AGENT_CORE_DIR / "auto_capture_v2_state.json"
 
 class SourceTier(Enum):
     """Source quality tiers."""
+
     TIER_1 = 1  # Primary: Research papers, labs, industry leaders
     TIER_2 = 2  # Amplifiers: GitHub, benchmarks, social signals
     TIER_3 = 3  # Context: Newsletters, forums, general web
@@ -107,6 +167,7 @@ class SourceTier(Enum):
 @dataclass
 class CapturedURL:
     """A captured URL with metadata."""
+
     url: str
     tier: int
     category: str
@@ -123,6 +184,7 @@ class CapturedURL:
 @dataclass
 class CapturedFinding:
     """A captured finding/insight."""
+
     text: str
     finding_type: str  # thesis, gap, innovation, finding
     confidence: float
@@ -137,6 +199,7 @@ class CapturedFinding:
 @dataclass
 class CaptureState:
     """Persistent capture state."""
+
     last_scan: Optional[str] = None
     captured_files: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     url_hashes: Set[str] = field(default_factory=set)
@@ -170,67 +233,122 @@ class CaptureState:
 URL_CLASSIFICATIONS: List[Tuple[List[str], Dict[str, Any]]] = [
     # Tier 1: Research
     (["arxiv.org"], {"tier": 1, "category": "research", "source": "arXiv"}),
-    (["huggingface.co/papers"], {"tier": 1, "category": "research", "source": "HuggingFace Papers"}),
+    (
+        ["huggingface.co/papers"],
+        {"tier": 1, "category": "research", "source": "HuggingFace Papers"},
+    ),
     (["openreview.net"], {"tier": 1, "category": "research", "source": "OpenReview"}),
-    (["semanticscholar.org"], {"tier": 1, "category": "research", "source": "Semantic Scholar"}),
-    (["aclanthology.org"], {"tier": 1, "category": "research", "source": "ACL Anthology"}),
-    (["proceedings.neurips.cc"], {"tier": 1, "category": "research", "source": "NeurIPS"}),
+    (
+        ["semanticscholar.org"],
+        {"tier": 1, "category": "research", "source": "Semantic Scholar"},
+    ),
+    (
+        ["aclanthology.org"],
+        {"tier": 1, "category": "research", "source": "ACL Anthology"},
+    ),
+    (
+        ["proceedings.neurips.cc"],
+        {"tier": 1, "category": "research", "source": "NeurIPS"},
+    ),
     (["proceedings.mlr.press"], {"tier": 1, "category": "research", "source": "PMLR"}),
     (["jmlr.org"], {"tier": 1, "category": "research", "source": "JMLR"}),
     (["nature.com"], {"tier": 1, "category": "research", "source": "Nature"}),
     (["science.org"], {"tier": 1, "category": "research", "source": "Science"}),
-
     # Tier 1: Labs
     (["openai.com"], {"tier": 1, "category": "labs", "source": "OpenAI"}),
     (["anthropic.com"], {"tier": 1, "category": "labs", "source": "Anthropic"}),
-    (["deepmind.google", "blog.google/technology/ai"], {"tier": 1, "category": "labs", "source": "Google AI"}),
-    (["ai.meta.com", "research.facebook.com"], {"tier": 1, "category": "labs", "source": "Meta AI"}),
-    (["microsoft.com/research"], {"tier": 1, "category": "labs", "source": "Microsoft Research"}),
-    (["ai.google", "research.google"], {"tier": 1, "category": "labs", "source": "Google Research"}),
-    (["nvidia.com/research"], {"tier": 1, "category": "labs", "source": "NVIDIA Research"}),
-
+    (
+        ["deepmind.google", "blog.google/technology/ai"],
+        {"tier": 1, "category": "labs", "source": "Google AI"},
+    ),
+    (
+        ["ai.meta.com", "research.facebook.com"],
+        {"tier": 1, "category": "labs", "source": "Meta AI"},
+    ),
+    (
+        ["microsoft.com/research"],
+        {"tier": 1, "category": "labs", "source": "Microsoft Research"},
+    ),
+    (
+        ["ai.google", "research.google"],
+        {"tier": 1, "category": "labs", "source": "Google Research"},
+    ),
+    (
+        ["nvidia.com/research"],
+        {"tier": 1, "category": "labs", "source": "NVIDIA Research"},
+    ),
     # Tier 1: Industry
     (["techcrunch.com"], {"tier": 1, "category": "industry", "source": "TechCrunch"}),
     (["theverge.com"], {"tier": 1, "category": "industry", "source": "The Verge"}),
-    (["arstechnica.com"], {"tier": 1, "category": "industry", "source": "Ars Technica"}),
+    (
+        ["arstechnica.com"],
+        {"tier": 1, "category": "industry", "source": "Ars Technica"},
+    ),
     (["wired.com"], {"tier": 1, "category": "industry", "source": "Wired"}),
     (["mit.edu"], {"tier": 1, "category": "industry", "source": "MIT"}),
     (["stanford.edu"], {"tier": 1, "category": "industry", "source": "Stanford"}),
     (["berkeley.edu"], {"tier": 1, "category": "industry", "source": "Berkeley"}),
-
     # Tier 2: GitHub
     (["github.com"], {"tier": 2, "category": "github", "source": "GitHub"}),
     (["gist.github.com"], {"tier": 2, "category": "github", "source": "GitHub Gist"}),
-
     # Tier 2: Benchmarks
     (["metr.org"], {"tier": 2, "category": "benchmarks", "source": "METR"}),
     (["arcprize.org"], {"tier": 2, "category": "benchmarks", "source": "ARC Prize"}),
-    (["paperswithcode.com"], {"tier": 2, "category": "benchmarks", "source": "Papers With Code"}),
-    (["lmarena.ai", "lmsys.org", "chat.lmsys.org"], {"tier": 2, "category": "benchmarks", "source": "LMSYS Arena"}),
-    (["huggingface.co/spaces"], {"tier": 2, "category": "benchmarks", "source": "HF Spaces"}),
-
+    (
+        ["paperswithcode.com"],
+        {"tier": 2, "category": "benchmarks", "source": "Papers With Code"},
+    ),
+    (
+        ["lmarena.ai", "lmsys.org", "chat.lmsys.org"],
+        {"tier": 2, "category": "benchmarks", "source": "LMSYS Arena"},
+    ),
+    (
+        ["huggingface.co/spaces"],
+        {"tier": 2, "category": "benchmarks", "source": "HF Spaces"},
+    ),
     # Tier 2: Social
-    (["twitter.com", "x.com"], {"tier": 2, "category": "social", "source": "X/Twitter"}),
-    (["news.ycombinator.com"], {"tier": 2, "category": "social", "source": "Hacker News"}),
-    (["reddit.com/r/MachineLearning", "reddit.com/r/LocalLLaMA"], {"tier": 2, "category": "social", "source": "Reddit ML"}),
+    (
+        ["twitter.com", "x.com"],
+        {"tier": 2, "category": "social", "source": "X/Twitter"},
+    ),
+    (
+        ["news.ycombinator.com"],
+        {"tier": 2, "category": "social", "source": "Hacker News"},
+    ),
+    (
+        ["reddit.com/r/MachineLearning", "reddit.com/r/LocalLLaMA"],
+        {"tier": 2, "category": "social", "source": "Reddit ML"},
+    ),
     (["linkedin.com"], {"tier": 2, "category": "social", "source": "LinkedIn"}),
-    (["youtube.com", "youtu.be"], {"tier": 2, "category": "social", "source": "YouTube"}),
-
+    (
+        ["youtube.com", "youtu.be"],
+        {"tier": 2, "category": "social", "source": "YouTube"},
+    ),
     # Tier 3: Newsletters
     (["substack.com"], {"tier": 3, "category": "newsletters", "source": "Substack"}),
-    (["deeplearning.ai"], {"tier": 3, "category": "newsletters", "source": "The Batch"}),
+    (
+        ["deeplearning.ai"],
+        {"tier": 3, "category": "newsletters", "source": "The Batch"},
+    ),
     (["importai.net"], {"tier": 3, "category": "newsletters", "source": "Import AI"}),
-
     # Tier 3: Forums
     (["lesswrong.com"], {"tier": 3, "category": "forums", "source": "LessWrong"}),
-    (["alignmentforum.org"], {"tier": 3, "category": "forums", "source": "Alignment Forum"}),
+    (
+        ["alignmentforum.org"],
+        {"tier": 3, "category": "forums", "source": "Alignment Forum"},
+    ),
     (["eaforum.org"], {"tier": 3, "category": "forums", "source": "EA Forum"}),
-    (["stackoverflow.com"], {"tier": 3, "category": "forums", "source": "StackOverflow"}),
-
+    (
+        ["stackoverflow.com"],
+        {"tier": 3, "category": "forums", "source": "StackOverflow"},
+    ),
     # Tier 3: Documentation
     (["docs.python.org"], {"tier": 3, "category": "docs", "source": "Python Docs"}),
     (["pytorch.org/docs"], {"tier": 3, "category": "docs", "source": "PyTorch Docs"}),
-    (["tensorflow.org/api_docs"], {"tier": 3, "category": "docs", "source": "TensorFlow Docs"}),
+    (
+        ["tensorflow.org/api_docs"],
+        {"tier": 3, "category": "docs", "source": "TensorFlow Docs"},
+    ),
 ]
 
 
@@ -305,7 +423,7 @@ def extract_text_from_jsonl(file_path: Path) -> Tuple[str, int]:
     message_count = 0
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             for line in f:
                 try:
                     entry = json.loads(line.strip())
@@ -318,7 +436,7 @@ def extract_text_from_jsonl(file_path: Path) -> Tuple[str, int]:
     except Exception as e:
         print(f"Error reading {file_path}: {e}")
 
-    return '\n'.join(text_parts), message_count
+    return "\n".join(text_parts), message_count
 
 
 def extract_text_from_entry(entry: Dict) -> List[str]:
@@ -355,7 +473,9 @@ def extract_text_from_entry(entry: Dict) -> List[str]:
     return texts
 
 
-def extract_urls(text: str, session_file: str, state: CaptureState) -> List[CapturedURL]:
+def extract_urls(
+    text: str, session_file: str, state: CaptureState
+) -> List[CapturedURL]:
     """Extract URLs with metadata from text.
 
     Uses pre-compiled URL_PATTERN and SKIP_URL_PATTERNS for performance.
@@ -363,7 +483,7 @@ def extract_urls(text: str, session_file: str, state: CaptureState) -> List[Capt
     urls = []
 
     for match in URL_PATTERN.finditer(text):
-        url = match.group(0).rstrip('.,;:)"\']>')
+        url = match.group(0).rstrip(".,;:)\"']>")
 
         # Skip internal/irrelevant URLs using pre-compiled patterns
         url_lower = url.lower()
@@ -378,7 +498,7 @@ def extract_urls(text: str, session_file: str, state: CaptureState) -> List[Capt
         # Get context (200 chars before and after)
         start = max(0, match.start() - 200)
         end = min(len(text), match.end() + 200)
-        context = text[start:end].replace('\n', ' ').strip()
+        context = text[start:end].replace("\n", " ").strip()
 
         # Classify URL
         classification = classify_url(url)
@@ -392,16 +512,18 @@ def extract_urls(text: str, session_file: str, state: CaptureState) -> List[Capt
         else:
             confidence = 0.6
 
-        urls.append(CapturedURL(
-            url=url,
-            tier=classification["tier"],
-            category=classification["category"],
-            source=classification["source"],
-            context=context[:500],
-            captured_at=datetime.now().isoformat(),
-            session_file=str(session_file),
-            confidence=confidence
-        ))
+        urls.append(
+            CapturedURL(
+                url=url,
+                tier=classification["tier"],
+                category=classification["category"],
+                source=classification["source"],
+                context=context[:500],
+                captured_at=datetime.now().isoformat(),
+                session_file=str(session_file),
+                confidence=confidence,
+            )
+        )
 
         # Mark as seen
         state.url_hashes.add(url_hash)
@@ -438,18 +560,20 @@ def extract_findings(text: str, session_file: str) -> List[CapturedFinding]:
             if pattern_match:
                 start = max(0, pattern_match.start() - 100)
                 end = min(len(text), pattern_match.end() + 100)
-                context = text[start:end].replace('\n', ' ').strip()
+                context = text[start:end].replace("\n", " ").strip()
             else:
                 context = match_text
 
-            findings.append(CapturedFinding(
-                text=match_text[:500],
-                finding_type=finding_type,
-                confidence=base_confidence,
-                context=context[:500],
-                captured_at=datetime.now().isoformat(),
-                session_file=str(session_file),
-            ))
+            findings.append(
+                CapturedFinding(
+                    text=match_text[:500],
+                    finding_type=finding_type,
+                    confidence=base_confidence,
+                    context=context[:500],
+                    captured_at=datetime.now().isoformat(),
+                    session_file=str(session_file),
+                )
+            )
 
     return findings
 
@@ -476,7 +600,7 @@ def generate_session_id(topic: str, source_file: Path) -> str:
     mtime = datetime.fromtimestamp(source_file.stat().st_mtime)
     timestamp = mtime.strftime("%Y%m%d-%H%M%S")
     topic_hash = hashlib.md5(topic.encode()).hexdigest()[:6]
-    safe_topic = re.sub(r'[^a-z0-9]+', '-', topic.lower())[:25]
+    safe_topic = re.sub(r"[^a-z0-9]+", "-", topic.lower())[:25]
     return f"auto-{safe_topic}-{timestamp}-{topic_hash}"
 
 
@@ -515,8 +639,11 @@ def scan_sessions(hours: int = 24, min_research_urls: int = 2) -> Dict[str, Any]
         urls = extract_urls(text, session_file, state)
 
         # Filter for research-relevant URLs
-        research_urls = [u for u in urls if u.tier <= 2 or
-                        (u.tier == 3 and u.category in ["forums", "newsletters"])]
+        research_urls = [
+            u
+            for u in urls
+            if u.tier <= 2 or (u.tier == 3 and u.category in ["forums", "newsletters"])
+        ]
 
         if len(research_urls) < min_research_urls:
             # Still save the file state to avoid re-scanning
@@ -548,7 +675,9 @@ def scan_sessions(hours: int = 24, min_research_urls: int = 2) -> Dict[str, Any]
             "source_file": str(session_file),
             "auto_captured": True,
             "captured_at": datetime.now().isoformat(),
-            "original_date": datetime.fromtimestamp(session_file.stat().st_mtime).isoformat(),
+            "original_date": datetime.fromtimestamp(
+                session_file.stat().st_mtime
+            ).isoformat(),
             "status": "archived",
             "message_count": message_count,
             "stats": {
@@ -556,7 +685,7 @@ def scan_sessions(hours: int = 24, min_research_urls: int = 2) -> Dict[str, Any]
                 "research_urls_count": len(research_urls),
                 "findings_count": len(findings),
                 "text_length": len(text),
-            }
+            },
         }
 
         (session_dir / "session.json").write_text(json.dumps(session_data, indent=2))
@@ -583,12 +712,14 @@ def scan_sessions(hours: int = 24, min_research_urls: int = 2) -> Dict[str, Any]
         results["sessions_captured"] += 1
         results["urls_captured"] += len(urls)
         results["findings_captured"] += len(findings)
-        results["new_sessions"].append({
-            "session_id": session_id,
-            "topic": topic,
-            "urls": len(urls),
-            "findings": len(findings),
-        })
+        results["new_sessions"].append(
+            {
+                "session_id": session_id,
+                "topic": topic,
+                "urls": len(urls),
+                "findings": len(findings),
+            }
+        )
 
         print(f"  Captured: {session_id}")
         print(f"    Topic: {topic}")
@@ -599,7 +730,7 @@ def scan_sessions(hours: int = 24, min_research_urls: int = 2) -> Dict[str, Any]
     state.last_scan = datetime.now().isoformat()
     save_state(state)
 
-    print(f"\nScan complete:")
+    print("\nScan complete:")
     print(f"  Sessions scanned: {results['sessions_scanned']}")
     print(f"  Sessions captured: {results['sessions_captured']}")
     print(f"  URLs captured: {results['urls_captured']}")
@@ -690,33 +821,37 @@ def show_status():
     recent = sorted(
         [(k, v) for k, v in state.captured_files.items() if v.get("session_id")],
         key=lambda x: x[1].get("captured_at", ""),
-        reverse=True
+        reverse=True,
     )[:5]
 
     if recent:
         print("Recent captures:")
         for file_path, info in recent:
             print(f"  {info.get('session_id', 'unknown')[:40]}")
-            print(f"    URLs: {info.get('urls_captured', 0)} | Findings: {info.get('findings_captured', 0)}")
+            print(
+                f"    URLs: {info.get('urls_captured', 0)} | Findings: {info.get('findings_captured', 0)}"
+            )
 
     print()
     print("=" * 60)
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="ResearchGravity Auto-Capture V2"
-    )
+    parser = argparse.ArgumentParser(description="ResearchGravity Auto-Capture V2")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Scan
     scan_parser = subparsers.add_parser("scan", help="Scan recent sessions")
     scan_parser.add_argument("--hours", type=int, default=24, help="Hours to scan back")
-    scan_parser.add_argument("--min-urls", type=int, default=2, help="Minimum research URLs")
+    scan_parser.add_argument(
+        "--min-urls", type=int, default=2, help="Minimum research URLs"
+    )
 
     # Watch
     watch_parser = subparsers.add_parser("watch", help="Watch mode (daemon)")
-    watch_parser.add_argument("--interval", type=int, default=300, help="Check interval (seconds)")
+    watch_parser.add_argument(
+        "--interval", type=int, default=300, help="Check interval (seconds)"
+    )
 
     # Capture
     capture_parser = subparsers.add_parser("capture", help="Capture specific session")
@@ -739,6 +874,7 @@ def main():
             try:
                 scan_sessions(hours=1, min_research_urls=2)
                 import time
+
                 time.sleep(args.interval)
             except KeyboardInterrupt:
                 print("\nStopping watch mode")

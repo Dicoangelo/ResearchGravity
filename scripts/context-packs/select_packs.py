@@ -26,16 +26,22 @@ PACK_DIR = AGENT_CORE / "context-packs"
 
 def _get_content(pack: Dict) -> Dict:
     """Get pack content dict, compatible with both old ('content') and new ('context' + top-level keywords) schemas."""
-    if 'content' in pack:
-        return pack['content']
+    if "content" in pack:
+        return pack["content"]
     # Build a content-like dict from new schema
     result = {}
-    result['keywords'] = pack.get('keywords', pack.get('metadata', {}).get('relevance_triggers', []))
-    result['papers'] = pack.get('context', {}).get('papers_implemented', pack.get('context', {}).get('papers_adopted', {}))
-    if isinstance(result['papers'], dict):
-        result['papers'] = [{'arxiv_id': k, 'relevance': 5} for k in result['papers'].keys()]
-    result['learnings'] = pack.get('context', {}).get('learnings', [])
-    result['implementations'] = pack.get('context', {}).get('implementations', [])
+    result["keywords"] = pack.get(
+        "keywords", pack.get("metadata", {}).get("relevance_triggers", [])
+    )
+    result["papers"] = pack.get("context", {}).get(
+        "papers_implemented", pack.get("context", {}).get("papers_adopted", {})
+    )
+    if isinstance(result["papers"], dict):
+        result["papers"] = [
+            {"arxiv_id": k, "relevance": 5} for k in result["papers"].keys()
+        ]
+    result["learnings"] = pack.get("context", {}).get("learnings", [])
+    result["implementations"] = pack.get("context", {}).get("implementations", [])
     return result
 
 
@@ -59,26 +65,22 @@ class DQScorer:
         # Keyword matching
         context_lower = context.lower()
         content = _get_content(pack)
-        keywords = content.get('keywords', [])
+        keywords = content.get("keywords", [])
 
         matches = sum(1 for kw in keywords if kw.lower() in context_lower)
         keyword_score = min(matches / len(keywords) if keywords else 0, 1.0)
 
         # Paper relevance (if papers mentioned in context)
-        papers = content.get('papers', [])
-        paper_ids = [p.get('arxiv_id', '') for p in papers]
+        papers = content.get("papers", [])
+        paper_ids = [p.get("arxiv_id", "") for p in papers]
         paper_matches = sum(1 for pid in paper_ids if pid in context)
         paper_score = min(paper_matches / len(papers) if papers else 0, 1.0)
 
         # Base metadata score
-        base_validity = pack.get('dq_metadata', {}).get('base_validity', 0.5)
+        base_validity = pack.get("dq_metadata", {}).get("base_validity", 0.5)
 
         # Weighted average
-        validity = (
-            keyword_score * 0.5 +
-            paper_score * 0.2 +
-            base_validity * 0.3
-        )
+        validity = keyword_score * 0.5 + paper_score * 0.2 + base_validity * 0.3
 
         return validity
 
@@ -86,33 +88,33 @@ class DQScorer:
         """How targeted is this pack (vs generic)?"""
 
         content = _get_content(pack)
-        keywords = content.get('keywords', [])
+        keywords = content.get("keywords", [])
 
         # More keywords = more specific
         specificity_from_keywords = min(len(keywords) / 10, 1.0)
 
         # More papers = more specific
-        papers = content.get('papers', [])
+        papers = content.get("papers", [])
         specificity_from_papers = min(len(papers) / 5, 1.0)
 
         # Pack type specificity
-        pack_type = pack.get('type', 'domain')
+        pack_type = pack.get("type", "domain")
         type_specificity = {
-            'project': 0.9,  # Very specific
-            'pattern': 0.8,
-            'domain': 0.7,
-            'paper': 0.6
+            "project": 0.9,  # Very specific
+            "pattern": 0.8,
+            "domain": 0.7,
+            "paper": 0.6,
         }.get(pack_type, 0.5)
 
         # Base metadata score
-        base_specificity = pack.get('dq_metadata', {}).get('base_specificity', 0.5)
+        base_specificity = pack.get("dq_metadata", {}).get("base_specificity", 0.5)
 
         # Weighted average
         specificity = (
-            specificity_from_keywords * 0.3 +
-            specificity_from_papers * 0.2 +
-            type_specificity * 0.2 +
-            base_specificity * 0.3
+            specificity_from_keywords * 0.3
+            + specificity_from_papers * 0.2
+            + type_specificity * 0.2
+            + base_specificity * 0.3
         )
 
         return specificity
@@ -121,20 +123,20 @@ class DQScorer:
         """How up-to-date and accurate is this pack?"""
 
         # Recency score
-        created = datetime.fromisoformat(pack['created'].replace('Z', '+00:00'))
+        created = datetime.fromisoformat(pack["created"].replace("Z", "+00:00"))
         age_days = (datetime.now(created.tzinfo) - created).days
         recency_score = max(1.0 - (age_days / 365), 0.3)  # Decay over a year
 
         # Usage-based correctness
-        usage_stats = pack.get('usage_stats', {})
-        times_selected = usage_stats.get('times_selected', 0)
-        avg_relevance = usage_stats.get('avg_session_relevance', 0.0)
+        usage_stats = pack.get("usage_stats", {})
+        times_selected = usage_stats.get("times_selected", 0)
+        avg_relevance = usage_stats.get("avg_session_relevance", 0.0)
 
         # If pack has been used, factor in feedback
         if times_selected > 0:
             usage_score = min(avg_relevance, 1.0)
         else:
-            usage_score = pack.get('dq_metadata', {}).get('base_correctness', 0.5)
+            usage_score = pack.get("dq_metadata", {}).get("base_correctness", 0.5)
 
         # Weighted average
         correctness = (recency_score * 0.4) + (usage_score * 0.6)
@@ -147,18 +149,15 @@ class ACEConsensus:
 
     def __init__(self):
         self.agents = {
-            'relevance_agent': self._relevance_agent,
-            'cost_agent': self._cost_agent,
-            'recency_agent': self._recency_agent,
-            'pattern_agent': self._pattern_agent,
-            'quality_agent': self._quality_agent
+            "relevance_agent": self._relevance_agent,
+            "cost_agent": self._cost_agent,
+            "recency_agent": self._recency_agent,
+            "pattern_agent": self._pattern_agent,
+            "quality_agent": self._quality_agent,
         }
 
     def select(
-        self,
-        scored_packs: Dict[str, float],
-        context: str,
-        pack_data: Dict[str, Dict]
+        self, scored_packs: Dict[str, float], context: str, pack_data: Dict[str, Dict]
     ) -> Dict[str, float]:
         """Multi-agent consensus on pack selection"""
 
@@ -174,34 +173,27 @@ class ACEConsensus:
         consensus_scores = {}
         for pack_id in scored_packs.keys():
             weighted_score = sum(
-                votes[agent][pack_id] * weights[agent]
-                for agent in self.agents.keys()
+                votes[agent][pack_id] * weights[agent] for agent in self.agents.keys()
             )
             consensus_scores[pack_id] = weighted_score
 
         return consensus_scores
 
     def _relevance_agent(
-        self,
-        scored_packs: Dict[str, float],
-        context: str,
-        pack_data: Dict[str, Dict]
+        self, scored_packs: Dict[str, float], context: str, pack_data: Dict[str, Dict]
     ) -> Dict[str, float]:
         """Agent focused on semantic relevance"""
         # Use DQ scores as base
         return scored_packs.copy()
 
     def _cost_agent(
-        self,
-        scored_packs: Dict[str, float],
-        context: str,
-        pack_data: Dict[str, Dict]
+        self, scored_packs: Dict[str, float], context: str, pack_data: Dict[str, Dict]
     ) -> Dict[str, float]:
         """Agent focused on token efficiency"""
         scores = {}
         for pack_id, dq_score in scored_packs.items():
             pack = pack_data[pack_id]
-            size = pack.get('size_tokens', 1000)
+            size = pack.get("size_tokens", 1000)
 
             # Prefer smaller packs for efficiency
             efficiency = 1.0 / (1.0 + (size / 1000))
@@ -212,16 +204,13 @@ class ACEConsensus:
         return scores
 
     def _recency_agent(
-        self,
-        scored_packs: Dict[str, float],
-        context: str,
-        pack_data: Dict[str, Dict]
+        self, scored_packs: Dict[str, float], context: str, pack_data: Dict[str, Dict]
     ) -> Dict[str, float]:
         """Agent focused on freshness"""
         scores = {}
         for pack_id, dq_score in scored_packs.items():
             pack = pack_data[pack_id]
-            created = datetime.fromisoformat(pack['created'].replace('Z', '+00:00'))
+            created = datetime.fromisoformat(pack["created"].replace("Z", "+00:00"))
             age_days = (datetime.now(created.tzinfo) - created).days
 
             # Prefer recent packs
@@ -232,30 +221,33 @@ class ACEConsensus:
         return scores
 
     def _pattern_agent(
-        self,
-        scored_packs: Dict[str, float],
-        context: str,
-        pack_data: Dict[str, Dict]
+        self, scored_packs: Dict[str, float], context: str, pack_data: Dict[str, Dict]
     ) -> Dict[str, float]:
         """Agent focused on workflow patterns"""
         scores = {}
 
         # Detect patterns in context
-        is_debugging = any(w in context.lower() for w in ['debug', 'error', 'bug', 'fix'])
-        is_architecture = any(w in context.lower() for w in ['architecture', 'design', 'system'])
-        is_optimization = any(w in context.lower() for w in ['optimize', 'performance', 'speed'])
+        is_debugging = any(
+            w in context.lower() for w in ["debug", "error", "bug", "fix"]
+        )
+        is_architecture = any(
+            w in context.lower() for w in ["architecture", "design", "system"]
+        )
+        is_optimization = any(
+            w in context.lower() for w in ["optimize", "performance", "speed"]
+        )
 
         for pack_id, dq_score in scored_packs.items():
             pack = pack_data[pack_id]
-            pack_type = pack.get('type', '')
+            pack_type = pack.get("type", "")
 
             # Boost pattern-matching packs
             boost = 1.0
-            if is_debugging and pack_type == 'pattern':
+            if is_debugging and pack_type == "pattern":
                 boost = 1.3
-            elif is_architecture and pack_type == 'domain':
+            elif is_architecture and pack_type == "domain":
                 boost = 1.2
-            elif is_optimization and 'optimization' in pack_id:
+            elif is_optimization and "optimization" in pack_id:
                 boost = 1.25
 
             scores[pack_id] = min(dq_score * boost, 1.0)
@@ -263,19 +255,16 @@ class ACEConsensus:
         return scores
 
     def _quality_agent(
-        self,
-        scored_packs: Dict[str, float],
-        context: str,
-        pack_data: Dict[str, Dict]
+        self, scored_packs: Dict[str, float], context: str, pack_data: Dict[str, Dict]
     ) -> Dict[str, float]:
         """Agent focused on proven quality"""
         scores = {}
         for pack_id, dq_score in scored_packs.items():
             pack = pack_data[pack_id]
-            usage_stats = pack.get('usage_stats', {})
+            usage_stats = pack.get("usage_stats", {})
 
-            times_selected = usage_stats.get('times_selected', 0)
-            avg_relevance = usage_stats.get('avg_session_relevance', 0.5)
+            times_selected = usage_stats.get("times_selected", 0)
+            avg_relevance = usage_stats.get("avg_session_relevance", 0.5)
 
             # Boost packs with good track record
             if times_selected > 5:
@@ -292,29 +281,29 @@ class ACEConsensus:
 
         # Default weights
         weights = {
-            'relevance_agent': 0.3,
-            'cost_agent': 0.2,
-            'recency_agent': 0.15,
-            'pattern_agent': 0.2,
-            'quality_agent': 0.15
+            "relevance_agent": 0.3,
+            "cost_agent": 0.2,
+            "recency_agent": 0.15,
+            "pattern_agent": 0.2,
+            "quality_agent": 0.15,
         }
 
         # Adjust based on context signals
         context_lower = context.lower()
 
         # If context mentions "latest" or "new", boost recency
-        if any(w in context_lower for w in ['latest', 'new', 'recent', '2026']):
-            weights['recency_agent'] += 0.1
-            weights['quality_agent'] -= 0.1
+        if any(w in context_lower for w in ["latest", "new", "recent", "2026"]):
+            weights["recency_agent"] += 0.1
+            weights["quality_agent"] -= 0.1
 
         # If context is about optimization/cost, boost cost agent
-        if any(w in context_lower for w in ['optimize', 'cost', 'efficient', 'token']):
-            weights['cost_agent'] += 0.1
-            weights['relevance_agent'] -= 0.1
+        if any(w in context_lower for w in ["optimize", "cost", "efficient", "token"]):
+            weights["cost_agent"] += 0.1
+            weights["relevance_agent"] -= 0.1
 
         # Normalize to sum to 1.0
         total = sum(weights.values())
-        weights = {k: v/total for k, v in weights.items()}
+        weights = {k: v / total for k, v in weights.items()}
 
         return weights
 
@@ -343,11 +332,11 @@ class PackSelector:
         if pack_id in self.pack_cache:
             return self.pack_cache[pack_id]
 
-        pack_info = self.registry['packs'].get(pack_id)
+        pack_info = self.registry["packs"].get(pack_id)
         if not pack_info:
             return None
 
-        pack_file = self.pack_dir / pack_info['file']
+        pack_file = self.pack_dir / pack_info["file"]
         if not pack_file.exists():
             return None
 
@@ -362,7 +351,7 @@ class PackSelector:
         context: str,
         token_budget: int = 50000,
         min_packs: int = 1,
-        max_packs: int = 5
+        max_packs: int = 5,
     ) -> Tuple[List[str], Dict[str, Any]]:
         """
         Select optimal packs using DQ + ACE
@@ -373,7 +362,7 @@ class PackSelector:
 
         # Load all packs
         all_packs = {}
-        for pack_id in self.registry['packs'].keys():
+        for pack_id in self.registry["packs"].keys():
             pack = self._load_pack(pack_id)
             if pack:
                 all_packs[pack_id] = pack
@@ -395,14 +384,12 @@ class PackSelector:
 
         # Sort by consensus score
         sorted_packs = sorted(
-            consensus_scores.items(),
-            key=lambda x: x[1],
-            reverse=True
+            consensus_scores.items(), key=lambda x: x[1], reverse=True
         )
 
         for pack_id, score in sorted_packs:
             pack = all_packs[pack_id]
-            pack_size = pack['size_tokens']
+            pack_size = pack["size_tokens"]
 
             # Check budget
             if tokens_used + pack_size <= token_budget:
@@ -419,7 +406,7 @@ class PackSelector:
             for pack_id, score in sorted_packs[:min_packs]:
                 if pack_id not in selected:
                     selected.append(pack_id)
-                    tokens_used += all_packs[pack_id]['size_tokens']
+                    tokens_used += all_packs[pack_id]["size_tokens"]
 
         # Metadata
         metadata = {
@@ -431,7 +418,7 @@ class PackSelector:
             "dq_scores": {pid: dq_scores.get(pid, 0) for pid in selected},
             "consensus_scores": {pid: consensus_scores.get(pid, 0) for pid in selected},
             "selection_time_ms": 0,  # TODO: measure
-            "ace_weights": self.ace_consensus._adaptive_weights(context)
+            "ace_weights": self.ace_consensus._adaptive_weights(context),
         }
 
         return selected, metadata
@@ -453,11 +440,12 @@ class PackSelector:
         # Try to read recent git log
         try:
             import subprocess
+
             result = subprocess.run(
-                ['git', 'log', '-5', '--oneline'],
+                ["git", "log", "-5", "--oneline"],
                 capture_output=True,
                 text=True,
-                timeout=2
+                timeout=2,
             )
             if result.returncode == 0:
                 context_parts.append(result.stdout)
@@ -467,10 +455,7 @@ class PackSelector:
         # Check for error patterns in git status
         try:
             result = subprocess.run(
-                ['git', 'diff', '--stat'],
-                capture_output=True,
-                text=True,
-                timeout=2
+                ["git", "diff", "--stat"], capture_output=True, text=True, timeout=2
             )
             if result.returncode == 0:
                 context_parts.append(result.stdout[:200])
@@ -483,28 +468,29 @@ class PackSelector:
         self,
         selected_packs: List[str],
         metadata: Dict[str, Any],
-        format_type: str = "markdown"
+        format_type: str = "markdown",
     ) -> str:
         """Format selection output"""
 
         if format_type == "json":
-            return json.dumps({
-                "selected_packs": selected_packs,
-                "metadata": metadata
-            }, indent=2)
+            return json.dumps(
+                {"selected_packs": selected_packs, "metadata": metadata}, indent=2
+            )
 
         # Markdown format
         lines = []
         lines.append("# Pack Selection Results\n")
         lines.append(f"**Context:** {metadata['context']}\n")
-        lines.append(f"**Selected:** {metadata['num_packs']} packs ({metadata['tokens_used']} tokens)\n")
+        lines.append(
+            f"**Selected:** {metadata['num_packs']} packs ({metadata['tokens_used']} tokens)\n"
+        )
         lines.append(f"**Budget:** {metadata['token_budget']} tokens\n")
         lines.append(f"**Saved:** {metadata['tokens_saved']} tokens\n")
         lines.append("\n## Selected Packs\n")
 
         for pack_id in selected_packs:
-            dq = metadata['dq_scores'].get(pack_id, 0)
-            consensus = metadata['consensus_scores'].get(pack_id, 0)
+            dq = metadata["dq_scores"].get(pack_id, 0)
+            consensus = metadata["consensus_scores"].get(pack_id, 0)
             pack = self._load_pack(pack_id)
 
             lines.append(f"### {pack_id}")
@@ -512,10 +498,12 @@ class PackSelector:
             lines.append(f"- Size: {pack['size_tokens']} tokens")
             lines.append(f"- DQ Score: {dq:.3f}")
             lines.append(f"- Consensus Score: {consensus:.3f}")
-            lines.append(f"- Keywords: {', '.join(_get_content(pack).get('keywords', []))}\n")
+            lines.append(
+                f"- Keywords: {', '.join(_get_content(pack).get('keywords', []))}\n"
+            )
 
         lines.append("\n## ACE Agent Weights\n")
-        for agent, weight in metadata['ace_weights'].items():
+        for agent, weight in metadata["ace_weights"].items():
             lines.append(f"- {agent}: {weight:.2f}")
 
         return "\n".join(lines)
@@ -526,43 +514,29 @@ def main():
         description="Select optimal context packs using DQ + ACE"
     )
 
+    parser.add_argument("--context", help="Context description for pack selection")
+
     parser.add_argument(
-        '--context',
-        help="Context description for pack selection"
+        "--auto", action="store_true", help="Auto-detect context from current directory"
     )
 
     parser.add_argument(
-        '--auto',
-        action='store_true',
-        help="Auto-detect context from current directory"
+        "--budget", type=int, default=50000, help="Token budget (default: 50000)"
     )
 
     parser.add_argument(
-        '--budget',
-        type=int,
-        default=50000,
-        help="Token budget (default: 50000)"
+        "--min-packs", type=int, default=1, help="Minimum packs to select"
     )
 
     parser.add_argument(
-        '--min-packs',
-        type=int,
-        default=1,
-        help="Minimum packs to select"
+        "--max-packs", type=int, default=5, help="Maximum packs to select"
     )
 
     parser.add_argument(
-        '--max-packs',
-        type=int,
-        default=5,
-        help="Maximum packs to select"
-    )
-
-    parser.add_argument(
-        '--format',
-        choices=['markdown', 'json'],
-        default='markdown',
-        help="Output format"
+        "--format",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="Output format",
     )
 
     args = parser.parse_args()
@@ -584,7 +558,7 @@ def main():
         context=context,
         token_budget=args.budget,
         min_packs=args.min_packs,
-        max_packs=args.max_packs
+        max_packs=args.max_packs,
     )
 
     # Output
@@ -592,5 +566,5 @@ def main():
     print(output)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -33,6 +33,7 @@ def _build_manager() -> CaptureManager:
     # ChatGPT adapter (always available — watches export dir)
     try:
         from .chatgpt.adapter import ChatGPTAdapter
+
         manager.register(ChatGPTAdapter())
     except Exception as exc:
         log.warning(f"ChatGPT adapter unavailable: {exc}")
@@ -40,6 +41,7 @@ def _build_manager() -> CaptureManager:
     # Cursor adapter (available if data dir exists)
     try:
         from .cursor.adapter import CursorAdapter
+
         manager.register(CursorAdapter())
     except Exception as exc:
         log.warning(f"Cursor adapter unavailable: {exc}")
@@ -47,6 +49,7 @@ def _build_manager() -> CaptureManager:
     # Grok adapter (available if API key set)
     try:
         from .grok.adapter import GrokAdapter
+
         adapter = GrokAdapter()
         manager.register(adapter)
     except Exception as exc:
@@ -55,6 +58,7 @@ def _build_manager() -> CaptureManager:
     # Claude Code adapter (watches CLI session transcripts)
     try:
         from .claudecode.adapter import ClaudeCodeAdapter
+
         manager.register(ClaudeCodeAdapter())
     except Exception as exc:
         log.warning(f"Claude Code adapter unavailable: {exc}")
@@ -62,6 +66,7 @@ def _build_manager() -> CaptureManager:
     # CCC adapter (ingests from claude.db operational data)
     try:
         from .ccc.adapter import CCCAdapter
+
         manager.register(CCCAdapter())
     except Exception as exc:
         log.warning(f"CCC adapter unavailable: {exc}")
@@ -103,8 +108,12 @@ async def cmd_status():
     # Quick initialize to check DB
     try:
         import asyncpg
+
         pool = await asyncpg.create_pool(
-            cfg.PG_DSN, min_size=1, max_size=2, command_timeout=10,
+            cfg.PG_DSN,
+            min_size=1,
+            max_size=2,
+            command_timeout=10,
         )
 
         async with pool.acquire() as conn:
@@ -120,7 +129,7 @@ async def cmd_status():
         print("Capture Status")
         print("=" * 50)
         print(f"\nDatabase: {cfg.PG_DSN}")
-        print(f"\nEvents by platform:")
+        print("\nEvents by platform:")
         for r in rows:
             print(f"  {r['platform']}: {r['cnt']}")
         if not rows:
@@ -129,14 +138,16 @@ async def cmd_status():
     except Exception as exc:
         print(f"Database unavailable: {exc}")
 
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  ChatGPT export: {cfg.CHATGPT_EXPORT_PATH}")
     print(f"  ChatGPT poll interval: {cfg.CHATGPT_POLL_INTERVAL_S}s")
     print(f"  Cursor data: {cfg.CURSOR_DATA_DIR}")
     print(f"  Cursor poll interval: {cfg.CURSOR_POLL_INTERVAL_S}s")
     print(f"  Grok API: {'configured' if cfg.GROK_API_KEY else 'not configured'}")
     print(f"  Grok poll interval: {cfg.GROK_POLL_INTERVAL_S}s")
-    print(f"  Claude Code transcripts: {Path.home() / '.claude/projects/-Users-dicoangelo'}")
+    print(
+        f"  Claude Code transcripts: {Path.home() / '.claude/projects/-Users-dicoangelo'}"
+    )
     print(f"  CCC database: {Path.home() / '.claude/data/claude.db'}")
     print(f"  Dedup window: {cfg.DEDUP_WINDOW_HOURS}h")
 
@@ -149,9 +160,19 @@ def cmd_list_adapters():
     transcript_dir = str(Path.home() / ".claude/projects/-Users-dicoangelo")
     ccc_db = str(Path.home() / ".claude/data/claude.db")
     adapters = [
-        ("ChatGPT", "chatgpt", "Export-diff polling + OpenAI API", cfg.CHATGPT_EXPORT_PATH),
+        (
+            "ChatGPT",
+            "chatgpt",
+            "Export-diff polling + OpenAI API",
+            cfg.CHATGPT_EXPORT_PATH,
+        ),
         ("Cursor", "cursor", "Workspace file watcher", cfg.CURSOR_DATA_DIR),
-        ("Grok/X", "grok", "X API polling", "API key" if cfg.GROK_API_KEY else "not configured"),
+        (
+            "Grok/X",
+            "grok",
+            "X API polling",
+            "API key" if cfg.GROK_API_KEY else "not configured",
+        ),
         ("Claude Code", "claude-code", "JSONL transcript watcher", transcript_dir),
         ("CCC", "ccc", "SQLite operational data (claude.db)", ccc_db),
     ]

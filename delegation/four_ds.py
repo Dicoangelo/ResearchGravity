@@ -53,6 +53,7 @@ import uuid
 # Try to import LLM client for enhanced analysis
 try:
     from cpb.llm_client import get_llm_client, LLMRequest
+
     HAS_LLM_CLIENT = True
 except ImportError:
     HAS_LLM_CLIENT = False
@@ -77,18 +78,16 @@ class FourDsGate:
             db_path: Path to SQLite database for event logging
         """
         if not db_path:
-            db_path = str(Path.home() / ".agent-core" / "storage" / "delegation_events.db")
+            db_path = str(
+                Path.home() / ".agent-core" / "storage" / "delegation_events.db"
+            )
         self.db_path = db_path
 
     # ========================================================================
     # GATE 1: DELEGATION
     # ========================================================================
 
-    def delegation_gate(
-        self,
-        task: str,
-        profile: TaskProfile
-    ) -> Tuple[bool, str]:
+    def delegation_gate(self, task: str, profile: TaskProfile) -> Tuple[bool, str]:
         """
         Gate 1: Should this task be delegated to AI?
 
@@ -105,9 +104,9 @@ class FourDsGate:
         """
         # High-risk combination: subjective + critical + irreversible
         high_risk = (
-            profile.subjectivity > 0.7 and
-            profile.criticality > 0.8 and
-            profile.reversibility < 0.2
+            profile.subjectivity > 0.7
+            and profile.criticality > 0.8
+            and profile.reversibility < 0.2
         )
 
         if high_risk:
@@ -126,13 +125,15 @@ class FourDsGate:
                     "reason": reason,
                     "subjectivity": profile.subjectivity,
                     "criticality": profile.criticality,
-                    "reversibility": profile.reversibility
-                }
+                    "reversibility": profile.reversibility,
+                },
             )
             return False, reason
 
         # Additional check: critical + low verifiability OR critical + irreversible
-        if profile.criticality >= 0.8 and (profile.verifiability < 0.3 or profile.reversibility < 0.3):
+        if profile.criticality >= 0.8 and (
+            profile.verifiability < 0.3 or profile.reversibility < 0.3
+        ):
             if profile.verifiability < 0.3:
                 reason = (
                     f"Task blocked: high criticality ({profile.criticality:.2f}) + "
@@ -152,8 +153,8 @@ class FourDsGate:
                     "approved": False,
                     "reason": reason,
                     "criticality": profile.criticality,
-                    "verifiability": profile.verifiability
-                }
+                    "verifiability": profile.verifiability,
+                },
             )
             return False, reason
 
@@ -163,11 +164,7 @@ class FourDsGate:
             task_id=self._hash_task(task),
             event_type="delegation_gate",
             status="approved",
-            details={
-                "gate": "delegation",
-                "approved": True,
-                "reason": reason
-            }
+            details={"gate": "delegation", "approved": True, "reason": reason},
         )
         return True, reason
 
@@ -176,9 +173,7 @@ class FourDsGate:
     # ========================================================================
 
     def description_gate(
-        self,
-        task_description: str,
-        use_llm: bool = True
+        self, task_description: str, use_llm: bool = True
     ) -> Tuple[float, str]:
         """
         Gate 2: How well is this task described?
@@ -202,8 +197,7 @@ class FourDsGate:
             try:
                 score, suggestions = asyncio.run(
                     asyncio.wait_for(
-                        self._llm_description_analysis(task_description),
-                        timeout=3.0
+                        self._llm_description_analysis(task_description), timeout=3.0
                     )
                 )
                 self._log_event(
@@ -214,8 +208,8 @@ class FourDsGate:
                         "gate": "description",
                         "score": score,
                         "suggestions": suggestions,
-                        "method": "llm"
-                    }
+                        "method": "llm",
+                    },
                 )
                 return score, suggestions
             except Exception:
@@ -231,8 +225,8 @@ class FourDsGate:
                 "gate": "description",
                 "score": score,
                 "suggestions": suggestions,
-                "method": "heuristic"
-            }
+                "method": "heuristic",
+            },
         )
         return score, suggestions
 
@@ -242,11 +236,26 @@ class FourDsGate:
         scores = []
 
         # Specificity: Look for vague language
-        vague_words = ["thing", "stuff", "something", "somehow", "figure out", "handle", "deal with"]
+        vague_words = [
+            "thing",
+            "stuff",
+            "something",
+            "somehow",
+            "figure out",
+            "handle",
+            "deal with",
+        ]
         has_vague = any(word in description.lower() for word in vague_words)
 
         # Look for specific terms
-        specific_indicators = ["implement", "create", "build", "analyze", "verify", "test"]
+        specific_indicators = [
+            "implement",
+            "create",
+            "build",
+            "analyze",
+            "verify",
+            "test",
+        ]
         has_specific = any(word in description.lower() for word in specific_indicators)
 
         specificity = 0.3 if has_vague else (0.8 if has_specific else 0.5)
@@ -270,14 +279,32 @@ class FourDsGate:
         scores.append(completeness * 0.3)  # 30% weight
 
         # Constraint clarity: Look for success criteria
-        has_criteria = any(word in description.lower() for word in ["should", "must", "verify", "test", "expect", "ensure", "include", "output"])
-        has_metrics = any(char in description for char in ["<", ">", "=", "%"]) or any(word in description.lower() for word in ["at least", "minimum", "maximum"])
+        has_criteria = any(
+            word in description.lower()
+            for word in [
+                "should",
+                "must",
+                "verify",
+                "test",
+                "expect",
+                "ensure",
+                "include",
+                "output",
+            ]
+        )
+        has_metrics = any(char in description for char in ["<", ">", "=", "%"]) or any(
+            word in description.lower() for word in ["at least", "minimum", "maximum"]
+        )
 
-        constraint_clarity = 0.8 if (has_criteria and has_metrics) else (0.6 if has_criteria else 0.3)
+        constraint_clarity = (
+            0.8 if (has_criteria and has_metrics) else (0.6 if has_criteria else 0.3)
+        )
         scores.append(constraint_clarity * 0.3)  # 30% weight
 
         if not has_criteria:
-            suggestions.append("Define success criteria (what should the output satisfy?)")
+            suggestions.append(
+                "Define success criteria (what should the output satisfy?)"
+            )
         if not has_metrics:
             suggestions.append("Add measurable constraints where applicable")
 
@@ -311,13 +338,13 @@ Score on:
 
 Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
             temperature=0.3,
-            model="haiku"
+            model="haiku",
         )
 
         response = await client.generate(request)
 
         # Parse JSON from response
-        json_match = re.search(r'\{.*\}', response.strip(), re.DOTALL)
+        json_match = re.search(r"\{.*\}", response.strip(), re.DOTALL)
         if json_match:
             data = json.loads(json_match.group(0))
             score = max(0.0, min(1.0, float(data.get("score", 0.5))))
@@ -331,10 +358,7 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
     # ========================================================================
 
     def discernment_gate(
-        self,
-        output: str,
-        expected: str,
-        profile: TaskProfile
+        self, output: str, expected: str, profile: TaskProfile
     ) -> Tuple[float, List[str]]:
         """
         Gate 3: Is this AI output acceptable?
@@ -361,16 +385,28 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
         # Completeness: Compare length and keywords
         output_words = set(output.lower().split())
         expected_words = set(expected.lower().split())
-        keyword_overlap = len(output_words & expected_words) / max(len(expected_words), 1)
+        keyword_overlap = len(output_words & expected_words) / max(
+            len(expected_words), 1
+        )
 
         completeness = min(1.0, keyword_overlap + 0.3)  # Boost base score
         scores.append(completeness * 0.4)  # 40% weight
 
         if completeness < 0.5:
-            issues.append(f"Low completeness ({completeness:.2f}): output may be missing key requirements")
+            issues.append(
+                f"Low completeness ({completeness:.2f}): output may be missing key requirements"
+            )
 
         # Correctness: Look for error indicators
-        error_indicators = ["error", "failed", "exception", "undefined", "null", "nan", "invalid"]
+        error_indicators = [
+            "error",
+            "failed",
+            "exception",
+            "undefined",
+            "null",
+            "nan",
+            "invalid",
+        ]
         has_errors = any(indicator in output.lower() for indicator in error_indicators)
 
         correctness = 0.3 if has_errors else 0.8
@@ -395,7 +431,10 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
 
         # Flag for review if score < 0.7
         if total_score < 0.7:
-            issues.insert(0, f"Quality score {total_score:.2f} < 0.7 threshold — flagged for human review")
+            issues.insert(
+                0,
+                f"Quality score {total_score:.2f} < 0.7 threshold — flagged for human review",
+            )
 
         if not issues:
             issues.append("Output quality acceptable")
@@ -410,8 +449,8 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
                 "issues": issues,
                 "completeness": completeness,
                 "correctness": correctness,
-                "consistency": consistency
-            }
+                "consistency": consistency,
+            },
         )
 
         return total_score, issues
@@ -420,11 +459,7 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
     # GATE 4: DILIGENCE
     # ========================================================================
 
-    def diligence_gate(
-        self,
-        task: str,
-        profile: TaskProfile
-    ) -> Tuple[bool, List[str]]:
+    def diligence_gate(self, task: str, profile: TaskProfile) -> Tuple[bool, List[str]]:
         """
         Gate 4: Are ethical and safety constraints satisfied?
 
@@ -444,23 +479,48 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
 
         # Check for data sensitivity
         sensitive_keywords = [
-            "password", "credential", "secret", "api_key", "token", "private_key",
-            "ssn", "credit_card", "personal", "pii", "confidential"
+            "password",
+            "credential",
+            "secret",
+            "api_key",
+            "token",
+            "private_key",
+            "ssn",
+            "credit_card",
+            "personal",
+            "pii",
+            "confidential",
         ]
-        has_sensitive_data = any(keyword in task.lower() for keyword in sensitive_keywords)
+        has_sensitive_data = any(
+            keyword in task.lower() for keyword in sensitive_keywords
+        )
 
         if has_sensitive_data:
-            warnings.append("Task involves sensitive data — ensure proper access controls")
+            warnings.append(
+                "Task involves sensitive data — ensure proper access controls"
+            )
 
         # Check for destructive operations
         destructive_keywords = [
-            "delete", "drop", "remove", "destroy", "wipe", "erase",
-            "truncate", "clear", "purge", "reset"
+            "delete",
+            "drop",
+            "remove",
+            "destroy",
+            "wipe",
+            "erase",
+            "truncate",
+            "clear",
+            "purge",
+            "reset",
         ]
-        is_destructive = any(keyword in task.lower() for keyword in destructive_keywords)
+        is_destructive = any(
+            keyword in task.lower() for keyword in destructive_keywords
+        )
 
         if is_destructive and profile.reversibility < 0.5:
-            warnings.append(f"Destructive operation with low reversibility ({profile.reversibility:.2f}) — high risk")
+            warnings.append(
+                f"Destructive operation with low reversibility ({profile.reversibility:.2f}) — high risk"
+            )
 
         # Check for irreversible high-criticality tasks
         if profile.criticality > 0.8 and profile.reversibility < 0.3:
@@ -482,15 +542,19 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
         # Determine if task is safe
         # Block if: (sensitive + destructive + irreversible) OR (destructive keywords + very low reversibility)
         unsafe = (
-            (has_sensitive_data and is_destructive and profile.reversibility < 0.2) or
-            (is_destructive and profile.reversibility < 0.15)
-        )
+            has_sensitive_data and is_destructive and profile.reversibility < 0.2
+        ) or (is_destructive and profile.reversibility < 0.15)
 
         if unsafe:
             if has_sensitive_data:
-                warnings.insert(0, "BLOCKED: Sensitive + destructive + irreversible combination")
+                warnings.insert(
+                    0, "BLOCKED: Sensitive + destructive + irreversible combination"
+                )
             else:
-                warnings.insert(0, "BLOCKED: Destructive operation with critically low reversibility")
+                warnings.insert(
+                    0,
+                    "BLOCKED: Destructive operation with critically low reversibility",
+                )
             safe = False
         else:
             safe = True
@@ -500,15 +564,17 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
         self._log_event(
             task_id=self._hash_task(task),
             event_type="diligence_gate",
-            status="blocked" if not safe else ("warning" if len(warnings) > 1 else "safe"),
+            status="blocked"
+            if not safe
+            else ("warning" if len(warnings) > 1 else "safe"),
             details={
                 "gate": "diligence",
                 "safe": safe,
                 "warnings": warnings,
                 "has_sensitive_data": has_sensitive_data,
                 "is_destructive": is_destructive,
-                "is_production": is_production
-            }
+                "is_production": is_production,
+            },
         )
 
         return safe, warnings
@@ -521,13 +587,7 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
         """Generate a short hash for task identification."""
         return hashlib.md5(task.encode()).hexdigest()[:8]
 
-    def _log_event(
-        self,
-        task_id: str,
-        event_type: str,
-        status: str,
-        details: dict
-    ):
+    def _log_event(self, task_id: str, event_type: str, status: str, details: dict):
         """Log a 4Ds gate event to database (sync — safe from any context)."""
         try:
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -547,22 +607,25 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
                 )
             """)
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO delegation_events (
                     event_id, delegation_id, timestamp, event_type,
                     agent_id, task_id, status, gate_type, details
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                uuid.uuid4().hex[:8],
-                "4ds-gate",
-                time.time(),
-                event_type,
-                "4ds-gate-system",
-                task_id,
-                status,
-                details.get("gate", ""),
-                json.dumps(details)
-            ))
+            """,
+                (
+                    uuid.uuid4().hex[:8],
+                    "4ds-gate",
+                    time.time(),
+                    event_type,
+                    "4ds-gate-system",
+                    task_id,
+                    status,
+                    details.get("gate", ""),
+                    json.dumps(details),
+                ),
+            )
 
             conn.commit()
             conn.close()
@@ -573,6 +636,7 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
 # ============================================================================
 # PUBLIC API
 # ============================================================================
+
 
 def delegation_gate(task: str, profile: TaskProfile) -> Tuple[bool, str]:
     """
@@ -614,9 +678,7 @@ def description_gate(task_description: str, use_llm: bool = True) -> Tuple[float
 
 
 def discernment_gate(
-    output: str,
-    expected: str,
-    profile: TaskProfile
+    output: str, expected: str, profile: TaskProfile
 ) -> Tuple[float, List[str]]:
     """
     Gate 3: Is this AI output acceptable?

@@ -22,11 +22,11 @@ _DOMAIN_KEYWORDS = {
 }
 
 _INTENT_SIGNALS = {
-    "search":   ["search", "find", "look", "where"],
-    "create":   ["create", "build", "write", "make", "generate"],
-    "analyze":  ["analyze", "review", "check", "explain", "why"],
+    "search": ["search", "find", "look", "where"],
+    "create": ["create", "build", "write", "make", "generate"],
+    "analyze": ["analyze", "review", "check", "explain", "why"],
     "retrieve": ["get", "read", "list", "show", "fetch"],
-    "execute":  ["call", "run", "execute", "invoke"],
+    "execute": ["call", "run", "execute", "invoke"],
 }
 
 
@@ -38,7 +38,9 @@ def extract_layers(msg: Dict[str, Any], direction: str) -> Tuple[Dict, Dict, Dic
     return data, light, instinct
 
 
-def coherence_signature(intent: str, topic: str, timestamp_ns: int, content: str) -> str:
+def coherence_signature(
+    intent: str, topic: str, timestamp_ns: int, content: str
+) -> str:
     """SHA-256 coherence signature for cross-platform matching (5-min buckets)."""
     bucket = timestamp_ns // (5 * 60 * 1_000_000_000)
     blob = f"{intent}::{topic}::{bucket}::{content[:1024]}"
@@ -46,6 +48,7 @@ def coherence_signature(intent: str, topic: str, timestamp_ns: int, content: str
 
 
 # ── internal helpers ──────────────────────────────────────────────────────────
+
 
 def _data_layer(msg: Dict, direction: str) -> Dict:
     method = msg.get("method", "")
@@ -124,8 +127,10 @@ def _instinct_layer(light: Dict) -> Dict:
         "coherence_potential": round(cp, 3),
         "emergence_indicators": indicators,
         "gut_signal": (
-            "breakthrough_potential" if len(indicators) >= 2
-            else "interesting" if indicators
+            "breakthrough_potential"
+            if len(indicators) >= 2
+            else "interesting"
+            if indicators
             else "routine"
         ),
     }
@@ -142,8 +147,21 @@ def _classify(text: str, mapping: Dict[str, List[str]], *, default: str) -> str:
 
 def _extract_concepts(text: str) -> List[str]:
     targets = [
-        "mcp", "ucw", "database", "schema", "coherence", "protocol",
-        "cognitive", "semantic", "embedding", "sovereign", "platform",
-        "research", "session", "capture", "agent", "orchestrat",
+        "mcp",
+        "ucw",
+        "database",
+        "schema",
+        "coherence",
+        "protocol",
+        "cognitive",
+        "semantic",
+        "embedding",
+        "sovereign",
+        "platform",
+        "research",
+        "session",
+        "capture",
+        "agent",
+        "orchestrat",
     ]
     return [t for t in targets if t in text]

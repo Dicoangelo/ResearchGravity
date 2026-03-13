@@ -15,7 +15,9 @@ from ..quality import score_event
 class CursorNormalizer(BaseNormalizer):
     """Normalize Cursor AI interactions into cognitive_events rows."""
 
-    def to_cognitive_event(self, captured: CapturedEvent, session_topic: str = "") -> dict:
+    def to_cognitive_event(
+        self, captured: CapturedEvent, session_topic: str = ""
+    ) -> dict:
         """Override to inject Cursor-specific metadata."""
         # Use workspace name as session topic
         topic = captured.metadata.get("workspace", session_topic or "coding")

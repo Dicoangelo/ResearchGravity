@@ -36,6 +36,7 @@ URL_VALUE = 0.05  # USD per captured URL
 @dataclass
 class ValueBreakdown:
     """Detailed breakdown of wallet value calculation."""
+
     base_value: float
     concept_value: float
     connection_premium: float
@@ -172,13 +173,22 @@ class CognitiveAppreciationEngine:
         content_lower = concept.content.lower()
 
         # Simple keyword-based inference
-        if any(kw in content_lower for kw in ["arxiv", "paper", "research", "llm", "agent", "model"]):
+        if any(
+            kw in content_lower
+            for kw in ["arxiv", "paper", "research", "llm", "agent", "model"]
+        ):
             return "AI/ML"
-        elif any(kw in content_lower for kw in ["code", "github", "api", "function", "class"]):
+        elif any(
+            kw in content_lower for kw in ["code", "github", "api", "function", "class"]
+        ):
             return "Software Engineering"
-        elif any(kw in content_lower for kw in ["product", "user", "feature", "design"]):
+        elif any(
+            kw in content_lower for kw in ["product", "user", "feature", "design"]
+        ):
             return "Product"
-        elif any(kw in content_lower for kw in ["market", "revenue", "business", "customer"]):
+        elif any(
+            kw in content_lower for kw in ["market", "revenue", "business", "customer"]
+        ):
             return "Business"
         else:
             return "General"
@@ -189,9 +199,10 @@ class CognitiveAppreciationEngine:
             return self.quality_base
 
         # Count concepts with verified sources (arXiv papers)
-        arxiv_pattern = re.compile(r'\d{4}\.\d{4,5}')
+        arxiv_pattern = re.compile(r"\d{4}\.\d{4,5}")
         verified = sum(
-            1 for c in wallet.concepts.values()
+            1
+            for c in wallet.concepts.values()
             if any(arxiv_pattern.search(s) for s in c.sources)
         )
 
@@ -259,12 +270,14 @@ class CognitiveAppreciationEngine:
         total_urls = sum(len(s.urls) for s in wallet.sessions.values())
 
         # Record current value in history
-        wallet.value_metrics.history.append({
-            "timestamp": datetime.now().isoformat(),
-            "value": breakdown.total_value,
-            "concepts": len(wallet.concepts),
-            "sessions": len(wallet.sessions),
-        })
+        wallet.value_metrics.history.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "value": breakdown.total_value,
+                "concepts": len(wallet.concepts),
+                "sessions": len(wallet.sessions),
+            }
+        )
 
         # Update metrics
         wallet.value_metrics.total_value = breakdown.total_value
@@ -322,11 +335,13 @@ def format_value_display(wallet: CognitiveWallet) -> str:
             lines.append(f"    {domain}: {pct:.0f}%")
         lines.append("")
 
-    lines.extend([
-        f"  Appreciation Rate: {breakdown.appreciation_rate * 100:.1f}% per session",
-        "",
-        "  ═══════════════════════════════════════",
-        "",
-    ])
+    lines.extend(
+        [
+            f"  Appreciation Rate: {breakdown.appreciation_rate * 100:.1f}% per session",
+            "",
+            "  ═══════════════════════════════════════",
+            "",
+        ]
+    )
 
     return "\n".join(lines)

@@ -220,9 +220,7 @@ class CaptureDB:
         cur = self._conn.execute("SELECT COUNT(*) FROM sessions")
         total_sessions = cur.fetchone()[0]
 
-        cur = self._conn.execute(
-            "SELECT SUM(content_length) FROM cognitive_events"
-        )
+        cur = self._conn.execute("SELECT SUM(content_length) FROM cognitive_events")
         total_bytes = cur.fetchone()[0] or 0
 
         cur = self._conn.execute(

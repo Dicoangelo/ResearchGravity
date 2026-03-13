@@ -37,12 +37,15 @@ SESSIONS_DIR = AGENT_CORE / "sessions"
 # PAPER FETCHING
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class ResearchSync:
     def __init__(self):
         self.baselines_file = BASELINES_FILE
         self.sessions_dir = SESSIONS_DIR
 
-    def generate_search_queries(self, topic: str = "LLM routing") -> Dict[str, List[str]]:
+    def generate_search_queries(
+        self, topic: str = "LLM routing"
+    ) -> Dict[str, List[str]]:
         """Generate multi-tier search queries"""
         year = datetime.now().year
 
@@ -51,25 +54,22 @@ class ResearchSync:
                 f"{topic} model selection",
                 f"{topic} complexity estimation",
                 f"{topic} adaptive inference",
-                f"query complexity LLM {year}"
+                f"query complexity LLM {year}",
             ],
             "tier1_optimization": [
                 f"cost optimization LLM {year}",
                 "inference optimization language models",
-                "query complexity classification"
+                "query complexity classification",
             ],
             "tier2_empirical": [
                 f"LLM routing evaluation {year}",
                 "model selection benchmarks",
-                f"adaptive model routing {year}"
-            ]
+                f"adaptive model routing {year}",
+            ],
         }
 
     def fetch_papers(
-        self,
-        query: str,
-        days: int = 90,
-        max_results: int = 50
+        self, query: str, days: int = 90, max_results: int = 50
     ) -> List[Dict]:
         """Fetch recent papers from arXiv"""
         if arxiv is None:
@@ -86,7 +86,7 @@ class ResearchSync:
         search = arxiv.Search(
             query=f"cat:cs.AI AND ({query})",
             max_results=max_results,
-            sort_by=arxiv.SortCriterion.SubmittedDate
+            sort_by=arxiv.SortCriterion.SubmittedDate,
         )
 
         papers = []
@@ -96,16 +96,18 @@ class ResearchSync:
                 if result.published < cutoff_date:
                     continue
 
-                papers.append({
-                    "arxiv_id": result.get_short_id(),
-                    "title": result.title,
-                    "published": result.published.isoformat(),
-                    "summary": result.summary,
-                    "authors": [a.name for a in result.authors],
-                    "url": result.entry_id,
-                    "pdf_url": result.pdf_url,
-                    "categories": result.categories
-                })
+                papers.append(
+                    {
+                        "arxiv_id": result.get_short_id(),
+                        "title": result.title,
+                        "published": result.published.isoformat(),
+                        "summary": result.summary,
+                        "authors": [a.name for a in result.authors],
+                        "url": result.entry_id,
+                        "pdf_url": result.pdf_url,
+                        "categories": result.categories,
+                    }
+                )
 
             print(f"✓ Found {len(papers)} recent papers")
             return papers
@@ -118,7 +120,7 @@ class ResearchSync:
         self,
         papers: List[Dict],
         focus_areas: Optional[List[str]] = None,
-        model: str = "sonnet"
+        model: str = "sonnet",
     ) -> List[Dict]:
         """Use LLM to extract actionable insights from papers"""
         if focus_areas is None:
@@ -126,7 +128,7 @@ class ResearchSync:
                 "complexity thresholds",
                 "cost optimization",
                 "accuracy metrics",
-                "routing strategies"
+                "routing strategies",
             ]
 
         print(f"\n🤖 Extracting insights from {len(papers)} papers...")
@@ -140,14 +142,14 @@ class ResearchSync:
             # Construct prompt for LLM analysis
             prompt = f"""Analyze this research paper on LLM routing and extract actionable insights.
 
-Title: {paper['title']}
-Published: {paper['published'][:10]}
-arXiv ID: {paper['arxiv_id']}
+Title: {paper["title"]}
+Published: {paper["published"][:10]}
+arXiv ID: {paper["arxiv_id"]}
 
 Abstract (first 600 chars):
-{paper['summary'][:600]}
+{paper["summary"][:600]}
 
-Extract insights for: {', '.join(focus_areas)}
+Extract insights for: {", ".join(focus_areas)}
 
 Provide your analysis in this JSON format:
 {{
@@ -171,11 +173,13 @@ Only include insights that are directly applicable to routing decisions. Use nul
                 insight = self._extract_json(result)
 
                 if insight:
-                    insight['source_paper'] = paper['arxix_id']
-                    insight['title'] = paper['title']
-                    insight['published'] = paper['published']
+                    insight["source_paper"] = paper["arxix_id"]
+                    insight["title"] = paper["title"]
+                    insight["published"] = paper["published"]
                     insights.append(insight)
-                    print(f"  ✓ Extracted insights (confidence: {insight.get('confidence', 'N/A')})")
+                    print(
+                        f"  ✓ Extracted insights (confidence: {insight.get('confidence', 'N/A')})"
+                    )
                 else:
                     print("  ⚠️  Could not parse insights")
 
@@ -190,10 +194,10 @@ Only include insights that are directly applicable to routing decisions. Use nul
         """Call Claude via CLI for analysis"""
         try:
             result = subprocess.run(
-                ['claude', '--model', model, '-p', prompt],
+                ["claude", "--model", model, "-p", prompt],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
             )
             return result.stdout
         except subprocess.TimeoutExpired:
@@ -206,7 +210,7 @@ Only include insights that are directly applicable to routing decisions. Use nul
         import re
 
         # Try to find JSON block
-        json_match = re.search(r'\{[\s\S]*\}', text)
+        json_match = re.search(r"\{[\s\S]*\}", text)
         if not json_match:
             return None
 
@@ -216,9 +220,7 @@ Only include insights that are directly applicable to routing decisions. Use nul
             return None
 
     def update_baselines(
-        self,
-        insights: List[Dict],
-        dry_run: bool = True
+        self, insights: List[Dict], dry_run: bool = True
     ) -> List[Dict]:
         """Update baselines.json with research-backed modifications"""
         if not self.baselines_file.exists():
@@ -234,40 +236,46 @@ Only include insights that are directly applicable to routing decisions. Use nul
 
         for insight in insights:
             # Filter by confidence and applicability
-            confidence = insight.get('confidence', 0)
-            applicability = insight.get('applicability', 'low')
+            confidence = insight.get("confidence", 0)
+            applicability = insight.get("applicability", "low")
 
-            if confidence < 0.6 or applicability == 'low':
+            if confidence < 0.6 or applicability == "low":
                 print(f"  ⊘ Skipping low-confidence insight (conf: {confidence})")
                 continue
 
             # Parse threshold recommendations
-            if 'thresholds' in insight and insight['thresholds']:
-                for model, threshold in insight['thresholds'].items():
-                    if model not in baselines['complexity_thresholds']:
+            if "thresholds" in insight and insight["thresholds"]:
+                for model, threshold in insight["thresholds"].items():
+                    if model not in baselines["complexity_thresholds"]:
                         continue
 
-                    if threshold is None or 'max' not in threshold:
+                    if threshold is None or "max" not in threshold:
                         continue
 
                     current_path = f"complexity_thresholds.{model}.range[1]"
-                    old_value = baselines['complexity_thresholds'][model]['range'][1]
-                    new_value = threshold['max']
+                    old_value = baselines["complexity_thresholds"][model]["range"][1]
+                    new_value = threshold["max"]
 
                     # Only update if change is significant (>5%)
                     if abs(new_value - old_value) / old_value > 0.05:
-                        modifications.append({
-                            "target": current_path,
-                            "old_value": old_value,
-                            "new_value": new_value,
-                            "source_paper": insight.get('source_paper', 'unknown'),
-                            "paper_title": insight.get('title', 'Unknown'),
-                            "rationale": insight.get('rationale', 'Research-backed threshold'),
-                            "confidence": confidence,
-                            "applied": datetime.now().isoformat()
-                        })
+                        modifications.append(
+                            {
+                                "target": current_path,
+                                "old_value": old_value,
+                                "new_value": new_value,
+                                "source_paper": insight.get("source_paper", "unknown"),
+                                "paper_title": insight.get("title", "Unknown"),
+                                "rationale": insight.get(
+                                    "rationale", "Research-backed threshold"
+                                ),
+                                "confidence": confidence,
+                                "applied": datetime.now().isoformat(),
+                            }
+                        )
 
-                        print(f"  📝 Proposed: {current_path}: {old_value} → {new_value}")
+                        print(
+                            f"  📝 Proposed: {current_path}: {old_value} → {new_value}"
+                        )
                         print(f"     Source: {insight.get('source_paper', 'unknown')}")
                         print(f"     Confidence: {confidence:.2f}")
 
@@ -285,20 +293,20 @@ Only include insights that are directly applicable to routing decisions. Use nul
         # Apply modifications
         for mod in modifications:
             # Parse target path
-            target = mod['target']
-            if 'complexity_thresholds' in target:
-                model = target.split('.')[1]
-                baselines['complexity_thresholds'][model]['range'][1] = mod['new_value']
+            target = mod["target"]
+            if "complexity_thresholds" in target:
+                model = target.split(".")[1]
+                baselines["complexity_thresholds"][model]["range"][1] = mod["new_value"]
 
         # Update research lineage
-        if 'research_lineage' not in baselines:
-            baselines['research_lineage'] = []
+        if "research_lineage" not in baselines:
+            baselines["research_lineage"] = []
 
-        baselines['research_lineage'].extend(modifications)
-        baselines['last_updated'] = datetime.now().isoformat()
+        baselines["research_lineage"].extend(modifications)
+        baselines["last_updated"] = datetime.now().isoformat()
 
         # Save updated baselines
-        with open(self.baselines_file, 'w') as f:
+        with open(self.baselines_file, "w") as f:
             json.dump(baselines, indent=2, fp=f)
 
         print(f"\n✅ Applied {len(modifications)} updates to baselines.json")
@@ -315,72 +323,90 @@ Only include insights that are directly applicable to routing decisions. Use nul
         with open(self.baselines_file) as f:
             baselines = json.load(f)
 
-        lineage = baselines.get('research_lineage', [])
+        lineage = baselines.get("research_lineage", [])
 
         # Find most recent modification for this parameter
         for mod in reversed(lineage):
-            if mod['target'] == parameter:
+            if mod["target"] == parameter:
                 return {
                     "parameter": parameter,
-                    "current_value": mod['new_value'],
-                    "previous_value": mod['old_value'],
-                    "last_modified": mod['applied'],
-                    "source_paper": mod['source_paper'],
-                    "paper_title": mod.get('paper_title', 'Unknown'),
-                    "rationale": mod['rationale'],
-                    "confidence": mod.get('confidence', 'N/A')
+                    "current_value": mod["new_value"],
+                    "previous_value": mod["old_value"],
+                    "last_modified": mod["applied"],
+                    "source_paper": mod["source_paper"],
+                    "paper_title": mod.get("paper_title", "Unknown"),
+                    "rationale": mod["rationale"],
+                    "confidence": mod.get("confidence", "N/A"),
                 }
 
         return None
 
+
 # ═══════════════════════════════════════════════════════════════════════════
 # CLI INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="Research-driven baseline optimization for routing system"
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Fetch papers
-    fetch_parser = subparsers.add_parser('fetch-papers', help='Fetch papers from arXiv')
-    fetch_parser.add_argument('--query', default="LLM routing", help='Search query')
-    fetch_parser.add_argument('--days', type=int, default=90, help='Days back to search')
-    fetch_parser.add_argument('--max-results', type=int, default=50)
-    fetch_parser.add_argument('--output', help='Output JSON file')
+    fetch_parser = subparsers.add_parser("fetch-papers", help="Fetch papers from arXiv")
+    fetch_parser.add_argument("--query", default="LLM routing", help="Search query")
+    fetch_parser.add_argument(
+        "--days", type=int, default=90, help="Days back to search"
+    )
+    fetch_parser.add_argument("--max-results", type=int, default=50)
+    fetch_parser.add_argument("--output", help="Output JSON file")
 
     # Extract insights
-    insights_parser = subparsers.add_parser('extract-insights', help='Extract insights from papers')
-    insights_parser.add_argument('--papers', required=True, help='Papers JSON file')
-    insights_parser.add_argument('--focus', help='Comma-separated focus areas')
-    insights_parser.add_argument('--model', default='sonnet', choices=['haiku', 'sonnet', 'opus'])
-    insights_parser.add_argument('--output', help='Output JSON file')
+    insights_parser = subparsers.add_parser(
+        "extract-insights", help="Extract insights from papers"
+    )
+    insights_parser.add_argument("--papers", required=True, help="Papers JSON file")
+    insights_parser.add_argument("--focus", help="Comma-separated focus areas")
+    insights_parser.add_argument(
+        "--model", default="sonnet", choices=["haiku", "sonnet", "opus"]
+    )
+    insights_parser.add_argument("--output", help="Output JSON file")
 
     # Update baselines
-    update_parser = subparsers.add_parser('update-baselines', help='Update baselines from insights')
-    update_parser.add_argument('--insights', required=True, help='Insights JSON file')
-    update_parser.add_argument('--dry-run', action='store_true', help='Preview changes without applying')
-    update_parser.add_argument('--apply', action='store_true', help='Apply changes to baselines')
+    update_parser = subparsers.add_parser(
+        "update-baselines", help="Update baselines from insights"
+    )
+    update_parser.add_argument("--insights", required=True, help="Insights JSON file")
+    update_parser.add_argument(
+        "--dry-run", action="store_true", help="Preview changes without applying"
+    )
+    update_parser.add_argument(
+        "--apply", action="store_true", help="Apply changes to baselines"
+    )
 
     # Trace parameter
-    trace_parser = subparsers.add_parser('trace', help='Trace origin of a parameter')
-    trace_parser.add_argument('--parameter', required=True, help='Parameter path (e.g., complexity_thresholds.haiku.range[1])')
+    trace_parser = subparsers.add_parser("trace", help="Trace origin of a parameter")
+    trace_parser.add_argument(
+        "--parameter",
+        required=True,
+        help="Parameter path (e.g., complexity_thresholds.haiku.range[1])",
+    )
 
     # Generate queries
-    queries_parser = subparsers.add_parser('generate-queries', help='Generate search queries')
-    queries_parser.add_argument('--topic', default='LLM routing')
+    queries_parser = subparsers.add_parser(
+        "generate-queries", help="Generate search queries"
+    )
+    queries_parser.add_argument("--topic", default="LLM routing")
 
     args = parser.parse_args()
 
     sync = ResearchSync()
 
-    if args.command == 'fetch-papers':
+    if args.command == "fetch-papers":
         papers = sync.fetch_papers(
-            query=args.query,
-            days=args.days,
-            max_results=args.max_results
+            query=args.query, days=args.days, max_results=args.max_results
         )
 
         if args.output:
@@ -389,14 +415,12 @@ def main():
         else:
             print(json.dumps(papers, indent=2))
 
-    elif args.command == 'extract-insights':
+    elif args.command == "extract-insights":
         papers_data = json.loads(Path(args.papers).read_text())
-        focus_areas = args.focus.split(',') if args.focus else None
+        focus_areas = args.focus.split(",") if args.focus else None
 
         insights = sync.extract_insights(
-            papers=papers_data,
-            focus_areas=focus_areas,
-            model=args.model
+            papers=papers_data, focus_areas=focus_areas, model=args.model
         )
 
         if args.output:
@@ -405,23 +429,20 @@ def main():
         else:
             print(json.dumps(insights, indent=2))
 
-    elif args.command == 'update-baselines':
+    elif args.command == "update-baselines":
         insights_data = json.loads(Path(args.insights).read_text())
 
         # Determine mode
         dry_run = not args.apply
 
-        modifications = sync.update_baselines(
-            insights=insights_data,
-            dry_run=dry_run
-        )
+        modifications = sync.update_baselines(insights=insights_data, dry_run=dry_run)
 
         if modifications:
             print("\n📋 Modifications:")
             for mod in modifications:
                 print(f"  {mod['target']}: {mod['old_value']} → {mod['new_value']}")
 
-    elif args.command == 'trace':
+    elif args.command == "trace":
         result = sync.trace_parameter(args.parameter)
 
         if result:
@@ -429,12 +450,13 @@ def main():
         else:
             print(f"No lineage found for parameter: {args.parameter}")
 
-    elif args.command == 'generate-queries':
+    elif args.command == "generate-queries":
         queries = sync.generate_search_queries(args.topic)
         print(json.dumps(queries, indent=2))
 
     else:
         parser.print_help()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -17,7 +17,9 @@ from ..quality import score_event
 class ClaudeCodeNormalizer(BaseNormalizer):
     """Normalize Claude Code transcript messages into cognitive_events rows."""
 
-    def to_cognitive_event(self, captured: CapturedEvent, session_topic: str = "") -> dict:
+    def to_cognitive_event(
+        self, captured: CapturedEvent, session_topic: str = ""
+    ) -> dict:
         """Override to inject Claude Code-specific metadata."""
         # Use cwd as session topic hint
         cwd = captured.metadata.get("cwd", "")
@@ -34,7 +36,9 @@ class ClaudeCodeNormalizer(BaseNormalizer):
         # Enrich method with tool context
         tool_uses = captured.metadata.get("tool_uses", [])
         if tool_uses:
-            row["method"] = f"claude-code.{captured.role}.tools({','.join(tool_uses[:3])})"
+            row["method"] = (
+                f"claude-code.{captured.role}.tools({','.join(tool_uses[:3])})"
+            )
         else:
             row["method"] = f"claude-code.{captured.role}"
 

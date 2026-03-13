@@ -33,14 +33,18 @@ _TABLE_MODES = {
 class CCCNormalizer(BaseNormalizer):
     """Normalize CCC operational data into cognitive_events rows."""
 
-    def to_cognitive_event(self, captured: CapturedEvent, session_topic: str = "") -> dict:
+    def to_cognitive_event(
+        self, captured: CapturedEvent, session_topic: str = ""
+    ) -> dict:
         """Override to inject CCC-specific metadata."""
         table = captured.metadata.get("table", "")
         topic = f"ccc-{table}" if table else session_topic or "infrastructure"
 
         # Score quality
         qs, mode = score_event(captured.content, captured.role, captured.platform)
-        captured.quality_score = max(qs, 0.5)  # CCC data is always at least moderate quality
+        captured.quality_score = max(
+            qs, 0.5
+        )  # CCC data is always at least moderate quality
         captured.cognitive_mode = _TABLE_MODES.get(table, mode)
 
         row = super().to_cognitive_event(captured, session_topic=topic)

@@ -339,17 +339,17 @@ IMAGE_COST = {
 # Controls max reasoning depth before responding.
 # low = fast planning/simple tasks, medium = balanced, high = deep critique
 THINKING_LEVELS = {
-    "planner": "medium",   # Plan stage: balanced speed vs quality
-    "stylist": "low",      # Stylist: mostly pattern-matching, speed matters
-    "critic": "high",      # Critic: deep analysis is the whole point
+    "planner": "medium",  # Plan stage: balanced speed vs quality
+    "stylist": "low",  # Stylist: mostly pattern-matching, speed matters
+    "critic": "high",  # Critic: deep analysis is the whole point
 }
 
 # ── Media resolution for VLM vision ────────────────────────────────────
 # How deeply the VLM processes input images. ultra_high = max detail for critique.
 MEDIA_RESOLUTIONS = {
-    "planner": "medium",     # Planner doesn't look at images
-    "stylist": "medium",     # Stylist doesn't look at images
-    "critic": "high",        # Critic MUST see every pixel (high = max available)
+    "planner": "medium",  # Planner doesn't look at images
+    "stylist": "medium",  # Stylist doesn't look at images
+    "critic": "high",  # Critic MUST see every pixel (high = max available)
 }
 
 
@@ -427,9 +427,7 @@ class RefinedPipeline:
 
         parts = []
         if image_bytes:
-            parts.append(
-                types.Part.from_bytes(data=image_bytes, mime_type=image_mime)
-            )
+            parts.append(types.Part.from_bytes(data=image_bytes, mime_type=image_mime))
         parts.append(types.Part.from_text(text=prompt))
 
         contents = [types.Content(role="user", parts=parts)]
@@ -727,22 +725,26 @@ class RefinedPipeline:
             plan_start = datetime.now()
             description = await self.plan(source_context, caption)
             plan_elapsed = (datetime.now() - plan_start).total_seconds()
-            pipeline_trace.append({
-                "stage": "planner",
-                "elapsed_s": round(plan_elapsed, 1),
-                "description_length": len(description),
-            })
+            pipeline_trace.append(
+                {
+                    "stage": "planner",
+                    "elapsed_s": round(plan_elapsed, 1),
+                    "description_length": len(description),
+                }
+            )
 
         # ── STAGE 2: Stylist ─────────────────────────────────────────────
         if not skip_planning:
             style_start = datetime.now()
             styled_description = await self.stylize(description, source_context)
             style_elapsed = (datetime.now() - style_start).total_seconds()
-            pipeline_trace.append({
-                "stage": "stylist",
-                "elapsed_s": round(style_elapsed, 1),
-                "description_length": len(styled_description),
-            })
+            pipeline_trace.append(
+                {
+                    "stage": "stylist",
+                    "elapsed_s": round(style_elapsed, 1),
+                    "description_length": len(styled_description),
+                }
+            )
         else:
             styled_description = description
             pipeline_trace.append({"stage": "stylist", "status": "skipped"})
@@ -775,11 +777,13 @@ class RefinedPipeline:
             gen_elapsed = (datetime.now() - gen_start).total_seconds()
 
             if not success:
-                iteration_results.append({
-                    "iteration": t + 1,
-                    "status": "generation_failed",
-                    "elapsed_s": round(gen_elapsed, 1),
-                })
+                iteration_results.append(
+                    {
+                        "iteration": t + 1,
+                        "status": "generation_failed",
+                        "elapsed_s": round(gen_elapsed, 1),
+                    }
+                )
                 # If generation fails, try with current description again
                 continue
 
@@ -787,7 +791,9 @@ class RefinedPipeline:
                 "iteration": t + 1,
                 "png_path": str(iter_path.resolve()),
                 "gen_elapsed_s": round(gen_elapsed, 1),
-                "file_size_bytes": iter_path.stat().st_size if iter_path.exists() else 0,
+                "file_size_bytes": iter_path.stat().st_size
+                if iter_path.exists()
+                else 0,
             }
 
             # ── Critique (skip on final iteration — just keep the image) ─
@@ -842,6 +848,7 @@ class RefinedPipeline:
                             final_path = out_dir / f"{asset_id}_{timestamp}.png"
                         if iter_path != final_path:
                             import shutil
+
                             shutil.copy2(str(iter_path), str(final_path))
                             iter_path = final_path
                         iteration_results.append(iter_result)
@@ -852,12 +859,16 @@ class RefinedPipeline:
             )
             iteration_results.append(iter_result)
 
-            pipeline_trace.append({
-                "stage": f"iteration_{t + 1}",
-                "generated": success,
-                "description_refined": iter_result.get("description_refined", False),
-                "elapsed_s": iter_result["total_elapsed_s"],
-            })
+            pipeline_trace.append(
+                {
+                    "stage": f"iteration_{t + 1}",
+                    "generated": success,
+                    "description_refined": iter_result.get(
+                        "description_refined", False
+                    ),
+                    "elapsed_s": iter_result["total_elapsed_s"],
+                }
+            )
 
         # ── Build result ─────────────────────────────────────────────────
         total_elapsed = (datetime.now() - started_at).total_seconds()

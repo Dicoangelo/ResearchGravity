@@ -60,35 +60,52 @@ DIRECTION_MAP = {
 
 # Intent signals for light layer classification
 _INTENT_SIGNALS = {
-    "search":   ["search", "find", "look", "where", "grep", "glob"],
-    "create":   ["create", "build", "write", "make", "generate", "implement"],
-    "analyze":  ["analyze", "review", "check", "explain", "why", "debug"],
+    "search": ["search", "find", "look", "where", "grep", "glob"],
+    "create": ["create", "build", "write", "make", "generate", "implement"],
+    "analyze": ["analyze", "review", "check", "explain", "why", "debug"],
     "retrieve": ["get", "read", "list", "show", "fetch", "cat"],
-    "execute":  ["call", "run", "execute", "invoke", "bash", "test"],
+    "execute": ["call", "run", "execute", "invoke", "bash", "test"],
 }
 
 # Domain keywords for topic classification
 _DOMAIN_KEYWORDS = {
     "mcp_protocol": ["mcp", "protocol", "stdio", "json-rpc", "transport"],
-    "database":     ["database", "sql", "schema", "query", "postgres", "sqlite"],
-    "ucw":          ["ucw", "cognitive wallet", "coherence", "sovereignty"],
-    "ai_agents":    ["agent", "multi-agent", "orchestrat", "coordinat"],
-    "research":     ["research", "paper", "arxiv", "finding", "hypothesis"],
-    "coding":       ["function", "class", "import", "variable", "refactor", "debug"],
-    "devops":       ["git", "deploy", "docker", "ci", "cd", "build", "npm"],
-    "frontend":     ["react", "component", "css", "html", "vite", "next"],
+    "database": ["database", "sql", "schema", "query", "postgres", "sqlite"],
+    "ucw": ["ucw", "cognitive wallet", "coherence", "sovereignty"],
+    "ai_agents": ["agent", "multi-agent", "orchestrat", "coordinat"],
+    "research": ["research", "paper", "arxiv", "finding", "hypothesis"],
+    "coding": ["function", "class", "import", "variable", "refactor", "debug"],
+    "devops": ["git", "deploy", "docker", "ci", "cd", "build", "npm"],
+    "frontend": ["react", "component", "css", "html", "vite", "next"],
 }
 
 # Concepts to detect for instinct layer
 _CONCEPT_TARGETS = [
-    "mcp", "ucw", "database", "schema", "coherence", "protocol",
-    "cognitive", "semantic", "embedding", "sovereign", "platform",
-    "research", "session", "capture", "agent", "orchestrat",
-    "kernel", "routing", "memory", "prefetch",
+    "mcp",
+    "ucw",
+    "database",
+    "schema",
+    "coherence",
+    "protocol",
+    "cognitive",
+    "semantic",
+    "embedding",
+    "sovereign",
+    "platform",
+    "research",
+    "session",
+    "capture",
+    "agent",
+    "orchestrat",
+    "kernel",
+    "routing",
+    "memory",
+    "prefetch",
 ]
 
 
 # ─── Text Extraction ────────────────────────────────────────────────────────
+
 
 def extract_text_content(message: Any) -> str:
     """Extract text content from a JSONL message field.
@@ -176,6 +193,7 @@ def extract_files_touched(records: List[Dict]) -> List[str]:
 
 # ─── Layer Extraction (adapted from ucw_bridge for CLI context) ──────────────
 
+
 def _classify(text: str, mapping: Dict[str, List[str]], *, default: str) -> str:
     best, best_score = default, 0
     for label, keywords in mapping.items():
@@ -229,14 +247,17 @@ def build_instinct_layer(light: Dict) -> Dict:
         "coherence_potential": round(cp, 3),
         "emergence_indicators": indicators,
         "gut_signal": (
-            "breakthrough_potential" if len(indicators) >= 2
-            else "interesting" if indicators
+            "breakthrough_potential"
+            if len(indicators) >= 2
+            else "interesting"
+            if indicators
             else "routine"
         ),
     }
 
 
 # ─── Session Processing ─────────────────────────────────────────────────────
+
 
 def classify_cognitive_mode(message_count: int) -> str:
     """Classify cognitive mode based on session message count."""
@@ -375,15 +396,17 @@ def process_session_file(filepath: Path) -> Tuple[Optional[Dict], List[Dict]]:
         "summary": summary_text or filepath.stem,
         "cognitive_mode": cognitive_mode,
         "quality_score": None,  # No scoring yet
-        "metadata": json.dumps({
-            "source_file": str(filepath),
-            "cwd": cwd,
-            "git_branch": git_branch,
-            "tools_used": tools_used,
-            "files_touched": files_touched[:10],  # Top 10 for session metadata
-            "total_records": len(records),
-            "imported_records": len(importable_records),
-        }),
+        "metadata": json.dumps(
+            {
+                "source_file": str(filepath),
+                "cwd": cwd,
+                "git_branch": git_branch,
+                "tools_used": tools_used,
+                "files_touched": files_touched[:10],  # Top 10 for session metadata
+                "total_records": len(records),
+                "imported_records": len(importable_records),
+            }
+        ),
     }
 
     # Second pass: convert importable records to events
@@ -475,11 +498,13 @@ def process_session_file(filepath: Path) -> Tuple[Optional[Dict], List[Dict]]:
             "parent_event_id": rec.get("parentUuid"),
             "turn": turn_counter,
             "raw_bytes": text.encode("utf-8")[:10000],
-            "parsed_json": json.dumps({
-                "type": rec_type,
-                "role": msg.get("role", rec_type),
-                "content_preview": text[:500],
-            }),
+            "parsed_json": json.dumps(
+                {
+                    "type": rec_type,
+                    "role": msg.get("role", rec_type),
+                    "content_preview": text[:500],
+                }
+            ),
             "content_length": len(text),
             "error": None,
             "data_layer": json.dumps(data_layer),
@@ -498,6 +523,7 @@ def process_session_file(filepath: Path) -> Tuple[Optional[Dict], List[Dict]]:
 
 
 # ─── File Discovery ──────────────────────────────────────────────────────────
+
 
 def discover_jsonl_files() -> List[Path]:
     """Find all JSONL files across all project folders.
@@ -523,11 +549,12 @@ def discover_jsonl_files() -> List[Path]:
 
 # ─── Database Operations ─────────────────────────────────────────────────────
 
+
 async def insert_sessions(pool, sessions: List[Dict]) -> int:
     """Batch insert sessions with ON CONFLICT DO NOTHING."""
     inserted = 0
     for i in range(0, len(sessions), BATCH_SIZE):
-        batch = sessions[i:i + BATCH_SIZE]
+        batch = sessions[i : i + BATCH_SIZE]
         async with pool.acquire() as conn:
             for cs in batch:
                 try:
@@ -538,10 +565,18 @@ async def insert_sessions(pool, sessions: List[Dict]) -> int:
                             cognitive_mode, quality_score, metadata)
                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                            ON CONFLICT (session_id) DO NOTHING""",
-                        cs["session_id"], cs["started_ns"], cs["ended_ns"],
-                        cs["platform"], cs["status"], cs["event_count"],
-                        cs["turn_count"], cs["topics"], cs["summary"],
-                        cs["cognitive_mode"], cs["quality_score"], cs["metadata"],
+                        cs["session_id"],
+                        cs["started_ns"],
+                        cs["ended_ns"],
+                        cs["platform"],
+                        cs["status"],
+                        cs["event_count"],
+                        cs["turn_count"],
+                        cs["topics"],
+                        cs["summary"],
+                        cs["cognitive_mode"],
+                        cs["quality_score"],
+                        cs["metadata"],
                     )
                     if "INSERT 0 1" in result:
                         inserted += 1
@@ -554,7 +589,7 @@ async def insert_events(pool, events: List[Dict]) -> int:
     """Batch insert events with ON CONFLICT DO NOTHING."""
     inserted = 0
     for i in range(0, len(events), BATCH_SIZE):
-        batch = events[i:i + BATCH_SIZE]
+        batch = events[i : i + BATCH_SIZE]
         async with pool.acquire() as conn:
             for ev in batch:
                 try:
@@ -570,14 +605,27 @@ async def insert_events(pool, events: List[Dict]) -> int:
                                    $10, $11, $12, $13, $14, $15, $16,
                                    $17, $18, $19, $20, $21)
                            ON CONFLICT (event_id) DO NOTHING""",
-                        ev["event_id"], ev["session_id"], ev["timestamp_ns"],
-                        ev["direction"], ev["stage"], ev["method"],
-                        ev["request_id"], ev["parent_event_id"], ev["turn"],
-                        ev["raw_bytes"], ev["parsed_json"], ev["content_length"],
-                        ev["error"], ev["data_layer"], ev["light_layer"],
-                        ev["instinct_layer"], ev["coherence_sig"],
-                        ev["platform"], ev["protocol"],
-                        ev["quality_score"], ev["cognitive_mode"],
+                        ev["event_id"],
+                        ev["session_id"],
+                        ev["timestamp_ns"],
+                        ev["direction"],
+                        ev["stage"],
+                        ev["method"],
+                        ev["request_id"],
+                        ev["parent_event_id"],
+                        ev["turn"],
+                        ev["raw_bytes"],
+                        ev["parsed_json"],
+                        ev["content_length"],
+                        ev["error"],
+                        ev["data_layer"],
+                        ev["light_layer"],
+                        ev["instinct_layer"],
+                        ev["coherence_sig"],
+                        ev["platform"],
+                        ev["protocol"],
+                        ev["quality_score"],
+                        ev["cognitive_mode"],
                     )
                     if "INSERT 0 1" in result:
                         inserted += 1
@@ -588,6 +636,7 @@ async def insert_events(pool, events: List[Dict]) -> int:
 
 
 # ─── Main ────────────────────────────────────────────────────────────────────
+
 
 async def run_import(dry_run: bool = False, limit: int = None, verbose: bool = False):
     """Main import pipeline."""
@@ -636,11 +685,15 @@ async def run_import(dry_run: bool = False, limit: int = None, verbose: bool = F
                 folder_counts[folder] += 1
 
                 if verbose:
-                    print(f"  [{i+1:5d}] {filepath.name[:60]:60s} -> {len(events):4d} events ({session['cognitive_mode']})")
+                    print(
+                        f"  [{i + 1:5d}] {filepath.name[:60]:60s} -> {len(events):4d} events ({session['cognitive_mode']})"
+                    )
             else:
                 skipped_files += 1
                 if verbose:
-                    print(f"  [{i+1:5d}] {filepath.name[:60]:60s} -> SKIPPED (no importable content)")
+                    print(
+                        f"  [{i + 1:5d}] {filepath.name[:60]:60s} -> SKIPPED (no importable content)"
+                    )
 
         except Exception as e:
             errors.append({"file": str(filepath), "error": str(e)})
@@ -648,7 +701,9 @@ async def run_import(dry_run: bool = False, limit: int = None, verbose: bool = F
                 print(f"  ERROR on {filepath.name[:50]}: {e}")
 
         if (i + 1) % 200 == 0 and not verbose:
-            print(f"  Processed {i+1}/{len(all_files)} files... ({len(all_events)} events)")
+            print(
+                f"  Processed {i + 1}/{len(all_files)} files... ({len(all_events)} events)"
+            )
 
     print(f"\n  Processed: {len(all_files)} files")
     print(f"  Sessions:  {len(all_sessions)}")
@@ -678,10 +733,10 @@ async def run_import(dry_run: bool = False, limit: int = None, verbose: bool = F
         method_counts[ev["method"]] += 1
 
     print("Event breakdown:")
-    print(f"  Direction:")
+    print("  Direction:")
     for d in ["in", "out"]:
         print(f"    {d:5s}: {dir_counts.get(d, 0):8d}")
-    print(f"  Method:")
+    print("  Method:")
     for m, c in sorted(method_counts.items(), key=lambda x: -x[1]):
         print(f"    {m:15s}: {c:8d}")
     print()
@@ -696,8 +751,10 @@ async def run_import(dry_run: bool = False, limit: int = None, verbose: bool = F
             print("\nSample events (first 5):")
             for ev in all_events[:5]:
                 pj = json.loads(ev["parsed_json"])
-                print(f"  [{ev['direction']:3s}] {ev['method']:10s} | "
-                      f"{pj.get('content_preview', '')[:80]}...")
+                print(
+                    f"  [{ev['direction']:3s}] {ev['method']:10s} | "
+                    f"{pj.get('content_preview', '')[:80]}..."
+                )
         return
 
     # Connect to PostgreSQL
@@ -706,26 +763,36 @@ async def run_import(dry_run: bool = False, limit: int = None, verbose: bool = F
 
     # Check existing data
     async with pool.acquire() as conn:
-        existing_sessions = await conn.fetchval("SELECT COUNT(*) FROM cognitive_sessions")
+        existing_sessions = await conn.fetchval(
+            "SELECT COUNT(*) FROM cognitive_sessions"
+        )
         existing_events = await conn.fetchval("SELECT COUNT(*) FROM cognitive_events")
         existing_cli = await conn.fetchval(
             "SELECT COUNT(*) FROM cognitive_events WHERE platform = 'claude-cli'"
         )
-    print(f"  Existing: {existing_sessions} sessions, {existing_events} events ({existing_cli} claude-cli)")
+    print(
+        f"  Existing: {existing_sessions} sessions, {existing_events} events ({existing_cli} claude-cli)"
+    )
     print()
 
     # Insert sessions
     print(f"Inserting {len(all_sessions)} sessions...")
     inserted_sessions = await insert_sessions(pool, all_sessions)
-    print(f"  Inserted: {inserted_sessions} new sessions (skipped {len(all_sessions) - inserted_sessions} duplicates)")
+    print(
+        f"  Inserted: {inserted_sessions} new sessions (skipped {len(all_sessions) - inserted_sessions} duplicates)"
+    )
 
     # Insert events
     print(f"\nInserting {len(all_events)} events...")
     t0 = time.time()
     inserted_events = await insert_events(pool, all_events)
     elapsed = time.time() - t0
-    print(f"  Inserted: {inserted_events} new events (skipped {len(all_events) - inserted_events} duplicates)")
-    print(f"  Time: {elapsed:.1f}s ({len(all_events) / max(elapsed, 0.1):.0f} events/sec)")
+    print(
+        f"  Inserted: {inserted_events} new events (skipped {len(all_events) - inserted_events} duplicates)"
+    )
+    print(
+        f"  Time: {elapsed:.1f}s ({len(all_events) / max(elapsed, 0.1):.0f} events/sec)"
+    )
 
     # Verification
     print("\nVerification:")
@@ -754,7 +821,7 @@ async def run_import(dry_run: bool = False, limit: int = None, verbose: bool = F
     print(f"  Claude CLI events:    {cli_events}")
     print(f"  ChatGPT events:       {chatgpt_events}")
     print(f"  Unique coherence sigs:{coherence_sigs}")
-    print(f"  CLI mode distribution:")
+    print("  CLI mode distribution:")
     for row in mode_dist:
         print(f"    {row['cognitive_mode'] or 'null':15s}: {row['cnt']}")
 

@@ -22,6 +22,7 @@ from typing import Optional
 
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
@@ -48,34 +49,34 @@ def load_yaml_or_json(path: Path) -> dict:
     current_indent = 0
     buffer = []
 
-    for line in content.split('\n'):
+    for line in content.split("\n"):
         # Skip comments and empty lines
-        if line.strip().startswith('#') or not line.strip():
+        if line.strip().startswith("#") or not line.strip():
             continue
 
         # Detect principle name (e.g., "  dont_swallow_errors:")
-        if re.match(r'^  [a-z_]+:$', line):
+        if re.match(r"^  [a-z_]+:$", line):
             if current_principle and buffer:
                 # Save previous principle
                 pass
-            current_principle = line.strip().rstrip(':')
+            current_principle = line.strip().rstrip(":")
             result["principles"][current_principle] = {}
             continue
 
         # Detect key-value pairs
         if current_principle:
-            match = re.match(r'^    ([a-z_]+):\s*(.*)$', line)
+            match = re.match(r"^    ([a-z_]+):\s*(.*)$", line)
             if match:
                 key, value = match.groups()
                 if value.strip():
                     # Inline value
-                    value = value.strip().strip('"\'')
+                    value = value.strip().strip("\"'")
                     result["principles"][current_principle][key] = value
                 else:
                     # Multi-line value starts
                     current_key = key
                     buffer = []
-            elif current_key and line.startswith('      '):
+            elif current_key and line.startswith("      "):
                 # Continuation of multi-line
                 buffer.append(line.strip())
 
@@ -102,7 +103,7 @@ def get_principles_for_context(
     layer: Optional[str] = None,
     task_type: Optional[str] = None,
     categories: Optional[list[str]] = None,
-    include_examples: bool = False
+    include_examples: bool = False,
 ) -> str:
     """
     Generate principle guidance block for agent context.
@@ -165,29 +166,33 @@ def get_principles_for_context(
         output += f"**Category:** {p.get('category', 'general')}\n\n"
 
         # Description
-        desc = p.get('description', '')
+        desc = p.get("description", "")
         if desc:
             output += f"{desc.strip()}\n\n"
 
         # Agent instruction (most important)
-        instruction = p.get('agent_instruction', '')
+        instruction = p.get("agent_instruction", "")
         if instruction:
             output += f"**Agent Instruction:**\n{instruction.strip()}\n\n"
 
         # Layer-specific application
         if layer:
-            applications = p.get('applications', {})
+            applications = p.get("applications", {})
             layer_app = applications.get(f"{layer}_layer") or applications.get(layer)
             if layer_app:
                 output += f"**{layer.title()} Layer Application:** {layer_app}\n\n"
 
         # Examples (optional)
         if include_examples:
-            examples = p.get('examples', {})
-            if examples.get('good'):
-                output += f"**Good Example:**\n```python\n{examples['good'].strip()}\n```\n\n"
-            if examples.get('bad'):
-                output += f"**Bad Example:**\n```python\n{examples['bad'].strip()}\n```\n\n"
+            examples = p.get("examples", {})
+            if examples.get("good"):
+                output += (
+                    f"**Good Example:**\n```python\n{examples['good'].strip()}\n```\n\n"
+                )
+            if examples.get("bad"):
+                output += (
+                    f"**Bad Example:**\n```python\n{examples['bad'].strip()}\n```\n\n"
+                )
 
         output += "---\n\n"
 
@@ -202,13 +207,21 @@ def get_oracle_integration_guidance() -> str:
     definitions = load_definitions()
 
     # Find writer_critic_validation principle
-    writer_critic = definitions.get("principles", {}).get("writer_critic_validation", {})
+    writer_critic = definitions.get("principles", {}).get(
+        "writer_critic_validation", {}
+    )
     oracle_config = writer_critic.get("oracle_integration", {})
 
     output = "## ORACLE INTEGRATION FOR VALIDATION\n\n"
-    output += "Use existing Oracle multi-stream consensus for Writer-Critic pattern:\n\n"
-    output += f"- **Streams:** {oracle_config.get('streams', 3)} concurrent perspectives\n"
-    output += f"- **Method:** {oracle_config.get('method', 'intersection → synthesis')}\n"
+    output += (
+        "Use existing Oracle multi-stream consensus for Writer-Critic pattern:\n\n"
+    )
+    output += (
+        f"- **Streams:** {oracle_config.get('streams', 3)} concurrent perspectives\n"
+    )
+    output += (
+        f"- **Method:** {oracle_config.get('method', 'intersection → synthesis')}\n"
+    )
     output += f"- **Confidence Threshold:** {oracle_config.get('confidence_threshold', 0.7)}\n\n"
     output += "**Protocol:**\n"
     output += "1. Writer generates initial output\n"
@@ -251,6 +264,7 @@ def inject_into_claude_md(principles_content: str, target: str = "global"):
     if start_marker in content:
         # Replace existing
         import re
+
         pattern = f"{re.escape(start_marker)}.*?{re.escape(end_marker)}"
         content = re.sub(pattern, injection, content, flags=re.DOTALL)
     else:
@@ -278,46 +292,30 @@ def get_layer_summary() -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Inject principles into agent context"
-    )
+    parser = argparse.ArgumentParser(description="Inject principles into agent context")
     parser.add_argument(
         "--layer",
         choices=["capture", "sorting", "intelligence", "storage", "retrieval"],
-        help="Filter by layer"
+        help="Filter by layer",
     )
     parser.add_argument(
         "--task",
-        help="Filter by task type (build, research, archive, synthesis, query)"
+        help="Filter by task type (build, research, archive, synthesis, query)",
     )
     parser.add_argument(
         "--categories",
-        help="Comma-separated categories (reliability, architecture, quality, maintenance)"
+        help="Comma-separated categories (reliability, architecture, quality, maintenance)",
+    )
+    parser.add_argument("--examples", action="store_true", help="Include code examples")
+    parser.add_argument("--inject", action="store_true", help="Inject into ~/CLAUDE.md")
+    parser.add_argument(
+        "--inject-project", action="store_true", help="Inject into ./CLAUDE.md"
     )
     parser.add_argument(
-        "--examples",
-        action="store_true",
-        help="Include code examples"
+        "--oracle", action="store_true", help="Show Oracle integration guidance"
     )
     parser.add_argument(
-        "--inject",
-        action="store_true",
-        help="Inject into ~/CLAUDE.md"
-    )
-    parser.add_argument(
-        "--inject-project",
-        action="store_true",
-        help="Inject into ./CLAUDE.md"
-    )
-    parser.add_argument(
-        "--oracle",
-        action="store_true",
-        help="Show Oracle integration guidance"
-    )
-    parser.add_argument(
-        "--summary",
-        action="store_true",
-        help="Show layer-principle mapping summary"
+        "--summary", action="store_true", help="Show layer-principle mapping summary"
     )
 
     args = parser.parse_args()
@@ -337,7 +335,7 @@ def main():
             layer=args.layer,
             task_type=args.task,
             categories=categories,
-            include_examples=args.examples
+            include_examples=args.examples,
         )
 
     # Output

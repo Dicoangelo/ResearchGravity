@@ -50,21 +50,23 @@ from .models import TaskProfile, SubTask
 
 class OversightLevel(str, Enum):
     """Human oversight intensity levels."""
-    NONE = "none"                  # Fully autonomous (low-risk, high-trust)
+
+    NONE = "none"  # Fully autonomous (low-risk, high-trust)
     NOTIFICATION = "notification"  # Human notified after-the-fact
-    APPROVAL = "approval"          # Human must approve before execution
-    SUPERVISION = "supervision"    # Human must actively supervise execution
-    DIRECT = "direct"              # Human must perform the action themselves
+    APPROVAL = "approval"  # Human must approve before execution
+    SUPERVISION = "supervision"  # Human must actively supervise execution
+    DIRECT = "direct"  # Human must perform the action themselves
 
 
 @dataclass
 class OversightDecision:
     """Result of human oversight evaluation."""
+
     requires_human: bool
     oversight_level: OversightLevel
     reason: str
     cognitive_friction_score: float  # 0.0-1.0: how much friction to apply
-    zone_of_indifference: bool      # True if task is in "auto-approve" zone
+    zone_of_indifference: bool  # True if task is in "auto-approve" zone
     metadata: Dict = field(default_factory=dict)
 
 
@@ -127,10 +129,10 @@ class HumanOversight:
 
         # Cognitive friction calculation
         friction = (
-            profile.criticality * 0.4 +
-            (1.0 - profile.reversibility) * 0.3 +
-            profile.uncertainty * 0.2 +
-            depth_penalty * 0.1
+            profile.criticality * 0.4
+            + (1.0 - profile.reversibility) * 0.3
+            + profile.uncertainty * 0.2
+            + depth_penalty * 0.1
         )
         friction = max(0.0, min(1.0, friction))
 
@@ -140,10 +142,10 @@ class HumanOversight:
 
         # Zone of indifference: routine tasks (low criticality + high reversibility)
         zone_of_indifference = (
-            profile.criticality < 0.3 and
-            profile.reversibility > 0.7 and
-            profile.uncertainty < 0.3 and
-            chain_depth <= 1
+            profile.criticality < 0.3
+            and profile.reversibility > 0.7
+            and profile.uncertainty < 0.3
+            and chain_depth <= 1
         )
 
         # Determine oversight level from friction score
@@ -214,11 +216,13 @@ class HumanOversight:
             decision_time_seconds: How long the human took to decide
             approved: Whether they approved or rejected
         """
-        self._approval_history.append({
-            "timestamp": time.time(),
-            "decision_time": decision_time_seconds,
-            "approved": approved,
-        })
+        self._approval_history.append(
+            {
+                "timestamp": time.time(),
+                "decision_time": decision_time_seconds,
+                "approved": approved,
+            }
+        )
 
         # Keep last 50 decisions for analysis
         if len(self._approval_history) > 50:
@@ -240,8 +244,7 @@ class HumanOversight:
 
         # Rubber-stamping: fast approvals with high approval rate
         is_rubber_stamping = (
-            avg_time < self._rubber_stamp_threshold and
-            approval_rate > 0.95
+            avg_time < self._rubber_stamp_threshold and approval_rate > 0.95
         )
 
         return is_rubber_stamping, avg_time
@@ -255,16 +258,17 @@ class HumanOversight:
 @dataclass
 class HandoffRecord:
     """Immutable record of a delegation handoff between agents."""
+
     handoff_id: str
     chain_id: str
     from_agent: str
     to_agent: str
     subtask_id: str
     timestamp: float
-    permissions_granted: List[str]    # List of tool names granted
-    access_level: str                 # AccessLevel value
-    rationale: str                    # Why this delegation happened
-    depth: int                        # Position in chain (0 = originator)
+    permissions_granted: List[str]  # List of tool names granted
+    access_level: str  # AccessLevel value
+    rationale: str  # Why this delegation happened
+    depth: int  # Position in chain (0 = originator)
 
 
 @dataclass
@@ -277,13 +281,14 @@ class LiabilityFirebreak:
     - Human approval was obtained
     - Permissions were attenuated
     """
+
     firebreak_id: str
     chain_id: str
-    position: int                     # Depth in chain where firebreak sits
-    agent_id: str                     # Agent at this boundary
-    human_approved: bool              # Was human approval obtained here?
-    permissions_before: List[str]     # Permissions going in
-    permissions_after: List[str]      # Permissions going out (attenuated)
+    position: int  # Depth in chain where firebreak sits
+    agent_id: str  # Agent at this boundary
+    human_approved: bool  # Was human approval obtained here?
+    permissions_before: List[str]  # Permissions going in
+    permissions_after: List[str]  # Permissions going out (attenuated)
     timestamp: float
 
 
@@ -360,7 +365,7 @@ class AccountabilityChain:
     ):
         """Create a liability firebreak at this position in the chain."""
         # Attenuate permissions at firebreak
-        attenuated = permissions[:max(1, len(permissions) // 2)]
+        attenuated = permissions[: max(1, len(permissions) // 2)]
 
         firebreak = LiabilityFirebreak(
             firebreak_id=f"firebreak-{uuid.uuid4().hex[:8]}",
@@ -406,7 +411,8 @@ class AccountabilityChain:
                     "position": f.position,
                     "agent": f.agent_id,
                     "human_approved": f.human_approved,
-                    "permissions_attenuated": len(f.permissions_before) > len(f.permissions_after),
+                    "permissions_attenuated": len(f.permissions_before)
+                    > len(f.permissions_after),
                 }
                 for f in self.firebreaks
             ],
@@ -432,8 +438,7 @@ class AccountabilityChain:
 
         # Find the nearest firebreak at or below this depth
         relevant_firebreaks = [
-            f for f in self.firebreaks
-            if f.position <= depth and f.human_approved
+            f for f in self.firebreaks if f.position <= depth and f.human_approved
         ]
 
         if relevant_firebreaks:
@@ -452,10 +457,11 @@ class AccountabilityChain:
 
 class ServiceTierName(str, Enum):
     """Service tier levels for delegation."""
-    BASIC = "basic"            # Low-cost, routine tasks
-    STANDARD = "standard"      # Normal delegation with verification
-    PREMIUM = "premium"        # Enhanced oversight and verification
-    CRITICAL = "critical"      # Maximum assurance, human-gated
+
+    BASIC = "basic"  # Low-cost, routine tasks
+    STANDARD = "standard"  # Normal delegation with verification
+    PREMIUM = "premium"  # Enhanced oversight and verification
+    CRITICAL = "critical"  # Maximum assurance, human-gated
 
 
 @dataclass
@@ -469,11 +475,12 @@ class ServiceTier:
     - Retry budget
     - Quality thresholds
     """
+
     name: ServiceTierName
-    safety_floor: float           # Minimum quality score to accept (0.0-1.0)
-    max_retries: int              # Maximum retry attempts
-    verification_required: bool   # Whether verification is mandatory
-    human_gate: bool              # Whether human approval is required
+    safety_floor: float  # Minimum quality score to accept (0.0-1.0)
+    max_retries: int  # Maximum retry attempts
+    verification_required: bool  # Whether verification is mandatory
+    human_gate: bool  # Whether human approval is required
     oversight_level: OversightLevel
     estimated_cost_multiplier: float  # Cost multiplier vs basic tier
 
@@ -566,7 +573,10 @@ def enforce_safety_floor(
         Tuple of (passes: bool, reason: str)
     """
     if quality_score >= tier.safety_floor:
-        return True, f"Quality {quality_score:.3f} meets {tier.name.value} floor {tier.safety_floor}"
+        return (
+            True,
+            f"Quality {quality_score:.3f} meets {tier.name.value} floor {tier.safety_floor}",
+        )
 
     return False, (
         f"Quality {quality_score:.3f} below {tier.name.value} "

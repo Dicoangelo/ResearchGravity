@@ -20,6 +20,7 @@ from datetime import datetime
 
 try:
     import httpx
+
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
@@ -30,9 +31,7 @@ API_BASE_URL = "http://localhost:3847"
 
 
 async def predict_session(
-    intent: str,
-    cognitive_state: Optional[Dict[str, Any]] = None,
-    track: bool = False
+    intent: str, cognitive_state: Optional[Dict[str, Any]] = None, track: bool = False
 ):
     """Call session prediction endpoint."""
     if not HTTPX_AVAILABLE:
@@ -44,9 +43,9 @@ async def predict_session(
             json={
                 "intent": intent,
                 "cognitive_state": cognitive_state,
-                "track_prediction": track
+                "track_prediction": track,
             },
-            timeout=30.0
+            timeout=30.0,
         )
 
         if response.status_code == 200:
@@ -65,11 +64,8 @@ async def predict_errors(intent: str, preventable_only: bool = True):
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{API_BASE_URL}/api/v2/predict/errors",
-            json={
-                "intent": intent,
-                "include_preventable_only": preventable_only
-            },
-            timeout=30.0
+            json={"intent": intent, "include_preventable_only": preventable_only},
+            timeout=30.0,
         )
 
         if response.status_code == 200:
@@ -88,11 +84,8 @@ async def predict_optimal_time(intent: str, current_hour: Optional[int] = None):
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{API_BASE_URL}/api/v2/predict/optimal-time",
-            json={
-                "intent": intent,
-                "current_hour": current_hour
-            },
-            timeout=30.0
+            json={"intent": intent, "current_hour": current_hour},
+            timeout=30.0,
         )
 
         if response.status_code == 200:
@@ -112,7 +105,7 @@ async def get_accuracy(days: int = 30):
         response = await client.get(
             f"{API_BASE_URL}/api/v2/predict/accuracy",
             params={"days": days},
-            timeout=30.0
+            timeout=30.0,
         )
 
         if response.status_code == 200:
@@ -132,7 +125,7 @@ async def multi_search(query: str, limit: int = 5):
         response = await client.get(
             f"{API_BASE_URL}/api/v2/predict/multi-search",
             params={"query": query, "limit": limit},
-            timeout=30.0
+            timeout=30.0,
         )
 
         if response.status_code == 200:
@@ -173,7 +166,9 @@ def format_prediction(prediction: Dict[str, Any]):
     if similar:
         print(f"\n📚 Similar Sessions: {len(similar)}")
         for i, session in enumerate(similar[:3], 1):
-            print(f"   {i}. {session.get('intent', 'Unknown')} → {session.get('outcome', 'unknown')} ({session.get('quality', 0)}/5)")
+            print(
+                f"   {i}. {session.get('intent', 'Unknown')} → {session.get('outcome', 'unknown')} ({session.get('quality', 0)}/5)"
+            )
 
     # Recommended research
     research = prediction.get("recommended_research", [])
@@ -194,10 +189,12 @@ def format_prediction(prediction: Dict[str, Any]):
     # Signals
     signals = prediction.get("signals", {})
     if signals:
-        print(f"\n📊 Signal Breakdown:")
+        print("\n📊 Signal Breakdown:")
         print(f"   Outcome Score: {signals.get('outcome_score', 0):.2f}")
         print(f"   Cognitive Alignment: {signals.get('cognitive_alignment', 0):.2f}")
-        print(f"   Research Availability: {signals.get('research_availability', 0):.2f}")
+        print(
+            f"   Research Availability: {signals.get('research_availability', 0):.2f}"
+        )
         print(f"   Error Probability: {signals.get('error_probability', 0):.2f}")
 
     # Prediction ID (if tracked)
@@ -238,7 +235,7 @@ def format_errors(errors_response: Dict[str, Any]):
 
         solution = error.get("solution", "")
         if solution:
-            brief = solution.split('\n')[0][:80]
+            brief = solution.split("\n")[0][:80]
             print(f"   💡 {brief}...")
 
     print("\n" + "=" * 70)
@@ -256,7 +253,9 @@ def format_optimal_time(result: Dict[str, Any]):
     reasoning = result.get("reasoning", "")
 
     print(f"\n📍 Optimal Hour: {optimal_hour}:00")
-    print(f"   Current Status: {'✅ Optimal now!' if is_optimal else f'⏳ Wait {wait_hours}h'}")
+    print(
+        f"   Current Status: {'✅ Optimal now!' if is_optimal else f'⏳ Wait {wait_hours}h'}"
+    )
     print(f"   Reasoning: {reasoning}")
 
     print("\n" + "=" * 70)
@@ -303,7 +302,9 @@ def format_multi_search(results: Dict[str, Any]):
     if outcomes:
         print(f"\n📝 Session Outcomes ({len(outcomes)}):")
         for i, outcome in enumerate(outcomes[:3], 1):
-            print(f"   {i}. {outcome.get('intent', 'Unknown')} → {outcome.get('outcome', 'unknown')} ({outcome.get('quality', 0)}/5)")
+            print(
+                f"   {i}. {outcome.get('intent', 'Unknown')} → {outcome.get('outcome', 'unknown')} ({outcome.get('quality', 0)}/5)"
+            )
 
     # Cognitive
     cognitive = results.get("cognitive", [])
@@ -344,14 +345,18 @@ async def main():
     predict_parser.add_argument("intent", help="Task intent/description")
     predict_parser.add_argument("--hour", type=int, help="Current hour (0-23)")
     predict_parser.add_argument("--mode", help="Cognitive mode (peak, dip, etc.)")
-    predict_parser.add_argument("--track", action="store_true", help="Store prediction for tracking")
+    predict_parser.add_argument(
+        "--track", action="store_true", help="Store prediction for tracking"
+    )
 
     # Predict errors
     errors_parser = subparsers.add_parser("errors", help="Predict potential errors")
     errors_parser.add_argument("intent", help="Task intent/description")
 
     # Optimal time
-    time_parser = subparsers.add_parser("optimal-time", help="Find optimal time for task")
+    time_parser = subparsers.add_parser(
+        "optimal-time", help="Find optimal time for task"
+    )
     time_parser.add_argument("intent", help="Task intent/description")
     time_parser.add_argument("--hour", type=int, help="Current hour (0-23)")
 
@@ -362,7 +367,9 @@ async def main():
     # Multi-search
     search_parser = subparsers.add_parser("multi-search", help="Multi-vector search")
     search_parser.add_argument("query", help="Search query")
-    search_parser.add_argument("--limit", type=int, default=5, help="Results per dimension")
+    search_parser.add_argument(
+        "--limit", type=int, default=5, help="Results per dimension"
+    )
 
     args = parser.parse_args()
 
@@ -385,9 +392,7 @@ async def main():
                     cognitive_state["mode"] = args.mode
 
             result = await predict_session(
-                args.intent,
-                cognitive_state=cognitive_state,
-                track=args.track
+                args.intent, cognitive_state=cognitive_state, track=args.track
             )
             if result:
                 format_prediction(result)
@@ -418,6 +423,7 @@ async def main():
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
 
 

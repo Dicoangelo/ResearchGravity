@@ -40,6 +40,7 @@ class OpenAIAdapter(PlatformAdapter):
 
         # Check for OpenAI API key (suggests OpenAI usage)
         import os
+
         if os.environ.get("OPENAI_API_KEY"):
             return True
 
@@ -121,22 +122,26 @@ class OpenAIAdapter(PlatformAdapter):
                         url_pattern = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
                         found_urls = url_pattern.findall(part)
                         for url in found_urls:
-                            urls.append(URL(
-                                url=url,
-                                tier=2,
-                                category="research" if "arxiv" in url else "other",
-                                source="ChatGPT",
-                                context="",
-                                captured_at=date,
-                            ))
+                            urls.append(
+                                URL(
+                                    url=url,
+                                    tier=2,
+                                    category="research" if "arxiv" in url else "other",
+                                    source="ChatGPT",
+                                    context="",
+                                    captured_at=date,
+                                )
+                            )
 
             # Extract arXiv paper IDs
-            arxiv_pattern = re.compile(r'(\d{4}\.\d{4,5})')
+            arxiv_pattern = re.compile(r"(\d{4}\.\d{4,5})")
             full_text = " ".join(messages)
             papers = list(set(arxiv_pattern.findall(full_text)))
 
             return Session(
-                id=f"gpt_{conv_id[:8]}" if conv_id else f"gpt_{hash(title) % 10000:04d}",
+                id=f"gpt_{conv_id[:8]}"
+                if conv_id
+                else f"gpt_{hash(title) % 10000:04d}",
                 topic=title,
                 date=date,
                 findings=[],
@@ -175,9 +180,7 @@ class OpenAIAdapter(PlatformAdapter):
 
         # Recent sessions
         recent_sessions = sorted(
-            wallet.sessions.values(),
-            key=lambda s: s.date,
-            reverse=True
+            wallet.sessions.values(), key=lambda s: s.date, reverse=True
         )[:5]
 
         if recent_sessions:
@@ -192,9 +195,7 @@ class OpenAIAdapter(PlatformAdapter):
 
         # Key concepts (prioritize high-confidence)
         concepts = sorted(
-            wallet.concepts.values(),
-            key=lambda c: c.confidence,
-            reverse=True
+            wallet.concepts.values(), key=lambda c: c.confidence, reverse=True
         )[:10]
 
         if concepts:
@@ -210,19 +211,20 @@ class OpenAIAdapter(PlatformAdapter):
             lines.append("### Expertise Domains")
             lines.append("")
             for domain, weight in sorted(
-                wallet.value_metrics.domains.items(),
-                key=lambda x: -x[1]
+                wallet.value_metrics.domains.items(), key=lambda x: -x[1]
             )[:3]:
                 pct = weight * 100
                 lines.append(f"- {domain}: {pct:.0f}%")
             lines.append("")
 
         # Add instruction for AI
-        lines.extend([
-            "---",
-            "Use this cognitive context to inform responses. Reference relevant",
-            "concepts and papers when applicable. Build on established insights.",
-        ])
+        lines.extend(
+            [
+                "---",
+                "Use this cognitive context to inform responses. Reference relevant",
+                "concepts and papers when applicable. Build on established insights.",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -294,6 +296,7 @@ if __name__ == "__main__":
 
     # Test with mock wallet
     from ..export import build_wallet_from_agent_core
+
     try:
         wallet = build_wallet_from_agent_core()
         print("\nGenerated context:")

@@ -33,6 +33,7 @@ ROUTING_METRICS_FILE = HOME / ".claude/data/routing-metrics.jsonl"
 # DQ SCORER
 # =============================================================================
 
+
 class DQScorer:
     """
     DQ (Decisional Quality) Scorer for CPB.
@@ -69,7 +70,7 @@ class DQScorer:
         query: str,
         response: str,
         context: Optional[str] = None,
-        ground_truth: Optional[str] = None
+        ground_truth: Optional[str] = None,
     ) -> DQScore:
         """
         Calculate DQ score for a query-response pair.
@@ -93,14 +94,11 @@ class DQScorer:
             overall=round(overall, 3),
             validity=round(validity, 3),
             specificity=round(specificity, 3),
-            correctness=round(correctness, 3)
+            correctness=round(correctness, 3),
         )
 
     def _score_validity(
-        self,
-        query: str,
-        response: str,
-        context: Optional[str] = None
+        self, query: str, response: str, context: Optional[str] = None
     ) -> float:
         """
         Score validity: Does the response address the query?
@@ -116,10 +114,7 @@ class DQScorer:
         response_lower = response.lower()
 
         # Extract meaningful query words (>3 chars)
-        query_words = set(
-            w for w in re.findall(r'\b\w+\b', query_lower)
-            if len(w) > 3
-        )
+        query_words = set(w for w in re.findall(r"\b\w+\b", query_lower) if len(w) > 3)
 
         # Count matches in response
         if query_words:
@@ -130,29 +125,30 @@ class DQScorer:
 
         # Check for direct address patterns
         direct_patterns = [
-            r'to answer your',
-            r'regarding your question',
-            r'the answer is',
-            r'in response to',
-            r'you asked about',
-            r'addressing your query'
+            r"to answer your",
+            r"regarding your question",
+            r"the answer is",
+            r"in response to",
+            r"you asked about",
+            r"addressing your query",
         ]
-        has_direct_address = any(
-            re.search(p, response_lower) for p in direct_patterns
-        )
+        has_direct_address = any(re.search(p, response_lower) for p in direct_patterns)
 
         # Context relevance bonus
         context_bonus = 0
         if context:
             context_words = set(
-                w for w in re.findall(r'\b\w+\b', context.lower())
-                if len(w) > 4
+                w for w in re.findall(r"\b\w+\b", context.lower()) if len(w) > 4
             )[:50]  # Limit to top 50 words
             if context_words:
                 context_matches = sum(1 for w in context_words if w in response_lower)
                 context_bonus = min(0.1, context_matches / len(context_words) * 0.2)
 
-        validity = (keyword_coverage * 0.65) + (0.25 if has_direct_address else 0.1) + context_bonus
+        validity = (
+            (keyword_coverage * 0.65)
+            + (0.25 if has_direct_address else 0.1)
+            + context_bonus
+        )
 
         return min(1.0, validity)
 
@@ -184,49 +180,59 @@ class DQScorer:
             length_score = 0.7  # Very long might be verbose
 
         # Specific details
-        has_numbers = bool(re.search(r'\b\d+\b', response))
-        has_percentages = bool(re.search(r'\d+%', response))
-        has_examples = bool(re.search(r'(for example|such as|e\.g\.|i\.e\.|specifically|in particular)', response.lower()))
-        has_code = bool(re.search(r'```|`[^`]+`', response))
+        has_numbers = bool(re.search(r"\b\d+\b", response))
+        has_percentages = bool(re.search(r"\d+%", response))
+        has_examples = bool(
+            re.search(
+                r"(for example|such as|e\.g\.|i\.e\.|specifically|in particular)",
+                response.lower(),
+            )
+        )
+        has_code = bool(re.search(r"```|`[^`]+`", response))
 
         detail_score = (
-            (0.15 if has_numbers else 0) +
-            (0.1 if has_percentages else 0) +
-            (0.15 if has_examples else 0) +
-            (0.1 if has_code else 0)
+            (0.15 if has_numbers else 0)
+            + (0.1 if has_percentages else 0)
+            + (0.15 if has_examples else 0)
+            + (0.1 if has_code else 0)
         )
 
         # Structure
-        has_lists = bool(re.search(r'\n[-*•]\s', response))
-        has_sections = bool(re.search(r'\n#{1,3}\s|\n\*\*[^*]+\*\*\n', response))
-        has_numbered = bool(re.search(r'\n\d+\.\s', response))
+        has_lists = bool(re.search(r"\n[-*•]\s", response))
+        has_sections = bool(re.search(r"\n#{1,3}\s|\n\*\*[^*]+\*\*\n", response))
+        has_numbered = bool(re.search(r"\n\d+\.\s", response))
 
         structure_score = (
-            (0.1 if has_lists else 0) +
-            (0.1 if has_sections else 0) +
-            (0.05 if has_numbered else 0)
+            (0.1 if has_lists else 0)
+            + (0.1 if has_sections else 0)
+            + (0.05 if has_numbered else 0)
         )
 
         # Technical depth (presence of technical terms)
         technical_patterns = [
-            r'algorithm', r'implementation', r'architecture',
-            r'performance', r'optimization', r'latency',
-            r'throughput', r'complexity', r'scalab'
+            r"algorithm",
+            r"implementation",
+            r"architecture",
+            r"performance",
+            r"optimization",
+            r"latency",
+            r"throughput",
+            r"complexity",
+            r"scalab",
         ]
         technical_count = sum(
-            1 for p in technical_patterns
-            if re.search(p, response.lower())
+            1 for p in technical_patterns if re.search(p, response.lower())
         )
         technical_score = min(0.15, technical_count * 0.03)
 
-        specificity = (length_score * 0.4) + detail_score + structure_score + technical_score
+        specificity = (
+            (length_score * 0.4) + detail_score + structure_score + technical_score
+        )
 
         return min(1.0, specificity)
 
     def _score_correctness(
-        self,
-        response: str,
-        ground_truth: Optional[str] = None
+        self, response: str, ground_truth: Optional[str] = None
     ) -> float:
         """
         Score correctness: Is the response factually grounded?
@@ -245,37 +251,46 @@ class DQScorer:
 
         # Citations and sources (strong positive)
         citation_patterns = [
-            r'arxiv', r'doi:', r'https?://',
-            r'according to', r'research shows',
-            r'studies indicate', r'source:', r'reference:'
+            r"arxiv",
+            r"doi:",
+            r"https?://",
+            r"according to",
+            r"research shows",
+            r"studies indicate",
+            r"source:",
+            r"reference:",
         ]
         citation_count = sum(
-            1 for p in citation_patterns
-            if re.search(p, response_lower)
+            1 for p in citation_patterns if re.search(p, response_lower)
         )
         citation_bonus = min(0.2, citation_count * 0.05)
 
         # Confidence indicators (moderate positive)
         confidence_patterns = [
-            r'clearly', r'certainly', r'definitely',
-            r'the fact is', r'evidence shows', r'proven'
+            r"clearly",
+            r"certainly",
+            r"definitely",
+            r"the fact is",
+            r"evidence shows",
+            r"proven",
         ]
         confidence_count = sum(
-            1 for p in confidence_patterns
-            if re.search(p, response_lower)
+            1 for p in confidence_patterns if re.search(p, response_lower)
         )
         confidence_bonus = min(0.15, confidence_count * 0.05)
 
         # Hedging indicators (slight negative)
         hedging_patterns = [
-            r'\bmight\b', r'\bmaybe\b', r'\bpossibly\b',
-            r"i think", r"not sure", r"uncertain",
-            r"i'm not certain", r"it could be"
+            r"\bmight\b",
+            r"\bmaybe\b",
+            r"\bpossibly\b",
+            r"i think",
+            r"not sure",
+            r"uncertain",
+            r"i'm not certain",
+            r"it could be",
         ]
-        hedging_count = sum(
-            1 for p in hedging_patterns
-            if re.search(p, response_lower)
-        )
+        hedging_count = sum(1 for p in hedging_patterns if re.search(p, response_lower))
         hedging_penalty = min(0.15, hedging_count * 0.03)
 
         # Ground truth comparison (if provided)
@@ -288,11 +303,11 @@ class DQScorer:
             ground_truth_bonus = overlap * 0.2
 
         correctness = (
-            base_score +
-            citation_bonus +
-            confidence_bonus -
-            hedging_penalty +
-            ground_truth_bonus
+            base_score
+            + citation_bonus
+            + confidence_bonus
+            - hedging_penalty
+            + ground_truth_bonus
         )
 
         return max(0.0, min(1.0, correctness))
@@ -306,26 +321,26 @@ class DQScorer:
         query: str,
         response: str,
         dq_score: DQScore,
-        model: str = 'unknown',
+        model: str = "unknown",
         path: Optional[CPBPath] = None,
-        complexity: float = 0.0
+        complexity: float = 0.0,
     ):
         """Log DQ score to metrics file for tracking"""
         entry = {
-            'ts': int(time.time() * 1000),
-            'query': query[:200],  # Truncate for storage
-            'dq': dq_score.overall,
-            'dqScore': dq_score.overall,  # Legacy field name
-            'validity': dq_score.validity,
-            'specificity': dq_score.specificity,
-            'correctness': dq_score.correctness,
-            'model': model,
-            'complexity': complexity,
-            'path': path.value if path else None
+            "ts": int(time.time() * 1000),
+            "query": query[:200],  # Truncate for storage
+            "dq": dq_score.overall,
+            "dqScore": dq_score.overall,  # Legacy field name
+            "validity": dq_score.validity,
+            "specificity": dq_score.specificity,
+            "correctness": dq_score.correctness,
+            "model": model,
+            "complexity": complexity,
+            "path": path.value if path else None,
         }
 
-        with open(DQ_SCORES_FILE, 'a') as f:
-            f.write(json.dumps(entry) + '\n')
+        with open(DQ_SCORES_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
 
     def get_recent_scores(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent DQ scores"""
@@ -348,43 +363,40 @@ class DQScorer:
         scores = self.get_recent_scores(1000)
 
         if not scores:
-            return {'message': 'No scores recorded'}
+            return {"message": "No scores recorded"}
 
         # Filter by time
         cutoff = time.time() * 1000 - (days * 24 * 60 * 60 * 1000)
-        recent = [s for s in scores if s.get('ts', 0) > cutoff]
+        recent = [s for s in scores if s.get("ts", 0) > cutoff]
 
         if not recent:
-            return {'message': f'No scores in last {days} days'}
+            return {"message": f"No scores in last {days} days"}
 
-        dq_values = [s.get('dq', 0) for s in recent]
+        dq_values = [s.get("dq", 0) for s in recent]
 
         return {
-            'period_days': days,
-            'total_scored': len(recent),
-            'avg_dq': sum(dq_values) / len(dq_values),
-            'min_dq': min(dq_values),
-            'max_dq': max(dq_values),
-            'above_threshold': sum(1 for d in dq_values if d >= self.THRESHOLD_GOOD),
-            'below_min': sum(1 for d in dq_values if d < self.THRESHOLD_MIN),
-            'by_model': self._group_by_field(recent, 'model'),
-            'by_path': self._group_by_field(recent, 'path')
+            "period_days": days,
+            "total_scored": len(recent),
+            "avg_dq": sum(dq_values) / len(dq_values),
+            "min_dq": min(dq_values),
+            "max_dq": max(dq_values),
+            "above_threshold": sum(1 for d in dq_values if d >= self.THRESHOLD_GOOD),
+            "below_min": sum(1 for d in dq_values if d < self.THRESHOLD_MIN),
+            "by_model": self._group_by_field(recent, "model"),
+            "by_path": self._group_by_field(recent, "path"),
         }
 
     def _group_by_field(self, scores: List[Dict], field: str) -> Dict[str, Any]:
         """Group scores by a field and calculate stats"""
         groups = {}
         for s in scores:
-            key = s.get(field, 'unknown')
+            key = s.get(field, "unknown")
             if key not in groups:
                 groups[key] = []
-            groups[key].append(s.get('dq', 0))
+            groups[key].append(s.get("dq", 0))
 
         return {
-            k: {
-                'count': len(v),
-                'avg_dq': sum(v) / len(v) if v else 0
-            }
+            k: {"count": len(v), "avg_dq": sum(v) / len(v) if v else 0}
             for k, v in groups.items()
         }
 
@@ -392,7 +404,9 @@ class DQScorer:
     # QUALITY VALIDATION
     # =========================================================================
 
-    def meets_threshold(self, dq_score: DQScore, threshold: Optional[float] = None) -> bool:
+    def meets_threshold(
+        self, dq_score: DQScore, threshold: Optional[float] = None
+    ) -> bool:
         """Check if DQ score meets threshold"""
         target = threshold if threshold is not None else self.THRESHOLD_GOOD
         return dq_score.overall >= target
@@ -400,25 +414,31 @@ class DQScorer:
     def get_quality_tier(self, dq_score: DQScore) -> str:
         """Get quality tier from DQ score"""
         if dq_score.overall >= self.THRESHOLD_EXCELLENT:
-            return 'excellent'
+            return "excellent"
         if dq_score.overall >= self.THRESHOLD_GOOD:
-            return 'good'
+            return "good"
         if dq_score.overall >= self.THRESHOLD_MIN:
-            return 'acceptable'
-        return 'below_threshold'
+            return "acceptable"
+        return "below_threshold"
 
     def suggest_improvements(self, dq_score: DQScore) -> List[str]:
         """Suggest improvements based on component scores"""
         suggestions = []
 
         if dq_score.validity < 0.7:
-            suggestions.append("Improve validity: Ensure response directly addresses the query")
+            suggestions.append(
+                "Improve validity: Ensure response directly addresses the query"
+            )
 
         if dq_score.specificity < 0.7:
-            suggestions.append("Improve specificity: Add examples, numbers, or structured details")
+            suggestions.append(
+                "Improve specificity: Add examples, numbers, or structured details"
+            )
 
         if dq_score.correctness < 0.7:
-            suggestions.append("Improve correctness: Add citations or reduce hedging language")
+            suggestions.append(
+                "Improve correctness: Add citations or reduce hedging language"
+            )
 
         return suggestions
 
@@ -433,6 +453,7 @@ dq_scorer = DQScorer()
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def score(query: str, response: str, context: Optional[str] = None) -> DQScore:
     """Score a query-response pair"""

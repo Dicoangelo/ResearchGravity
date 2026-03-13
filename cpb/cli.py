@@ -37,14 +37,14 @@ def cmd_analyze(args):
     print(f"🎯 Confidence: {result['confidence']}%")
 
     print("\n📡 Signals:")
-    signals = result['signals']
+    signals = result["signals"]
     for key, value in signals.items():
         indicator = "✓" if value else "✗" if isinstance(value, bool) else str(value)
         print(f"   {key}: {indicator}")
 
-    if result['alternatives']:
+    if result["alternatives"]:
         print("\n🔄 Alternatives:")
-        for alt in result['alternatives']:
+        for alt in result["alternatives"]:
             print(f"   • {alt['path']} (score: {alt['score']:.2f})")
             print(f"     Tradeoff: {alt['tradeoff']}")
 
@@ -72,7 +72,7 @@ def cmd_score(args):
     bar_length = 30
     filled = int(dq.overall * bar_length)
     bar = "█" * filled + "░" * (bar_length - filled)
-    print(f"   [{bar}] {dq.overall*100:.1f}%")
+    print(f"   [{bar}] {dq.overall * 100:.1f}%")
 
     print("\n📈 Component Breakdown:")
     print(f"   Validity (40%):    {dq.validity:.3f}")
@@ -80,7 +80,12 @@ def cmd_score(args):
     print(f"   Correctness (30%): {dq.correctness:.3f}")
 
     tier = dq_scorer.get_quality_tier(dq)
-    tier_emoji = {"excellent": "🌟", "good": "✅", "acceptable": "⚠️", "below_threshold": "❌"}
+    tier_emoji = {
+        "excellent": "🌟",
+        "good": "✅",
+        "acceptable": "⚠️",
+        "below_threshold": "❌",
+    }
     print(f"\n🏆 Quality Tier: {tier_emoji.get(tier, '')} {tier.upper()}")
 
     suggestions = dq_scorer.suggest_improvements(dq)
@@ -90,7 +95,7 @@ def cmd_score(args):
             print(f"   • {s}")
 
     if args.log:
-        dq_scorer.log_score(args.query, args.response, dq, model=args.model or 'cli')
+        dq_scorer.log_score(args.query, args.response, dq, model=args.model or "cli")
         print("\n✅ Score logged to metrics")
 
     print("\n" + "=" * 60)
@@ -104,7 +109,7 @@ def cmd_stats(args):
     print(f"  DQ STATISTICS (Last {args.days} days)")
     print("=" * 60)
 
-    if 'message' in stats:
+    if "message" in stats:
         print(f"\n{stats['message']}")
         return
 
@@ -114,15 +119,15 @@ def cmd_stats(args):
     print(f"✅ Above 0.75:   {stats['above_threshold']}")
     print(f"❌ Below 0.60:   {stats['below_min']}")
 
-    if stats.get('by_model'):
+    if stats.get("by_model"):
         print("\n📊 By Model:")
-        for model, data in stats['by_model'].items():
+        for model, data in stats["by_model"].items():
             if model:
                 print(f"   {model}: {data['count']} scored, avg {data['avg_dq']:.3f}")
 
-    if stats.get('by_path'):
+    if stats.get("by_path"):
         print("\n🔀 By Path:")
-        for path, data in stats['by_path'].items():
+        for path, data in stats["by_path"].items():
             if path:
                 print(f"   {path}: {data['count']} scored, avg {data['avg_dq']:.3f}")
 
@@ -170,10 +175,12 @@ def cmd_status(args):
 
     print(f"\n🏷️  Tier: {status['tier'].upper()}")
     print(f"📚 Learning: {'Enabled' if status['learning_enabled'] else 'Disabled'}")
-    print(f"✅ Verification: {'Enabled' if status['verification_enabled'] else 'Disabled'}")
+    print(
+        f"✅ Verification: {'Enabled' if status['verification_enabled'] else 'Disabled'}"
+    )
 
     print("\n⚙️  Configuration:")
-    for key, value in status['config'].items():
+    for key, value in status["config"].items():
         print(f"   {key}: {value}")
 
     if warnings:
@@ -183,9 +190,9 @@ def cmd_status(args):
 
     # Get learned preferences
     prefs = cpb.get_learned_preferences()
-    if 'by_path' in prefs:
+    if "by_path" in prefs:
         print(f"\n📊 Learned Patterns ({prefs['total_patterns']} recorded):")
-        for path, data in prefs['by_path'].items():
+        for path, data in prefs["by_path"].items():
             print(f"   {path}: {data['count']} uses, avg DQ {data['avg_dq']:.3f}")
         print(f"   Recommended default: {prefs['recommended_default']}")
 
@@ -200,23 +207,25 @@ def cmd_learn(args):
     print("  CPB LEARNED PATTERNS")
     print("=" * 60)
 
-    if 'message' in prefs:
+    if "message" in prefs:
         print(f"\n{prefs['message']}")
         return
 
     print(f"\n📊 Total Patterns: {prefs['total_patterns']}")
 
-    if prefs.get('by_path'):
+    if prefs.get("by_path"):
         print("\n📈 Performance by Path:")
-        for path, data in prefs['by_path'].items():
-            success_pct = data.get('success_rate', 0) * 100
+        for path, data in prefs["by_path"].items():
+            success_pct = data.get("success_rate", 0) * 100
             print(f"\n   🔀 {path.upper()}")
             print(f"      Uses: {data['count']}")
             print(f"      Avg DQ: {data['avg_dq']:.3f}")
             print(f"      Avg Time: {data['avg_time_ms']:.0f}ms")
             print(f"      Success: {success_pct:.1f}%")
 
-    print(f"\n🎯 Recommended Default Path: {prefs.get('recommended_default', 'cascade')}")
+    print(
+        f"\n🎯 Recommended Default Path: {prefs.get('recommended_default', 'cascade')}"
+    )
     print("\n" + "=" * 60)
 
 
@@ -232,60 +241,62 @@ Examples:
   python3 -m cpb.cli ace-prompts "Compare REST vs GraphQL"
   python3 -m cpb.cli status
   python3 -m cpb.cli learn
-        """
+        """,
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Analyze command
-    analyze_p = subparsers.add_parser('analyze', help='Analyze query complexity')
-    analyze_p.add_argument('query', help='Query to analyze')
-    analyze_p.add_argument('--context', '-c', help='Optional context')
-    analyze_p.add_argument('--json', '-j', action='store_true', help='Output JSON')
+    analyze_p = subparsers.add_parser("analyze", help="Analyze query complexity")
+    analyze_p.add_argument("query", help="Query to analyze")
+    analyze_p.add_argument("--context", "-c", help="Optional context")
+    analyze_p.add_argument("--json", "-j", action="store_true", help="Output JSON")
 
     # Score command
-    score_p = subparsers.add_parser('score', help='Score a response')
-    score_p.add_argument('--query', '-q', required=True, help='Original query')
-    score_p.add_argument('--response', '-r', required=True, help='Response to score')
-    score_p.add_argument('--context', '-c', help='Optional context')
-    score_p.add_argument('--log', '-l', action='store_true', help='Log score to metrics')
-    score_p.add_argument('--model', '-m', help='Model name for logging')
+    score_p = subparsers.add_parser("score", help="Score a response")
+    score_p.add_argument("--query", "-q", required=True, help="Original query")
+    score_p.add_argument("--response", "-r", required=True, help="Response to score")
+    score_p.add_argument("--context", "-c", help="Optional context")
+    score_p.add_argument(
+        "--log", "-l", action="store_true", help="Log score to metrics"
+    )
+    score_p.add_argument("--model", "-m", help="Model name for logging")
 
     # Stats command
-    stats_p = subparsers.add_parser('stats', help='Show DQ statistics')
-    stats_p.add_argument('--days', '-d', type=int, default=7, help='Days to analyze')
+    stats_p = subparsers.add_parser("stats", help="Show DQ statistics")
+    stats_p.add_argument("--days", "-d", type=int, default=7, help="Days to analyze")
 
     # ACE prompts command
-    ace_p = subparsers.add_parser('ace-prompts', help='Generate ACE consensus prompts')
-    ace_p.add_argument('query', help='Query for ACE analysis')
-    ace_p.add_argument('--context', '-c', help='Optional context')
-    ace_p.add_argument('--agents', '-a', type=int, default=5, help='Number of agents')
-    ace_p.add_argument('--full', '-f', action='store_true', help='Show full prompts')
-    ace_p.add_argument('--json', '-j', action='store_true', help='Output JSON')
+    ace_p = subparsers.add_parser("ace-prompts", help="Generate ACE consensus prompts")
+    ace_p.add_argument("query", help="Query for ACE analysis")
+    ace_p.add_argument("--context", "-c", help="Optional context")
+    ace_p.add_argument("--agents", "-a", type=int, default=5, help="Number of agents")
+    ace_p.add_argument("--full", "-f", action="store_true", help="Show full prompts")
+    ace_p.add_argument("--json", "-j", action="store_true", help="Output JSON")
 
     # Status command
-    status_p = subparsers.add_parser('status', help='Show CPB status')
+    status_p = subparsers.add_parser("status", help="Show CPB status")
 
     # Learn command
-    learn_p = subparsers.add_parser('learn', help='View learned patterns')
+    learn_p = subparsers.add_parser("learn", help="View learned patterns")
 
     args = parser.parse_args()
 
-    if args.command == 'analyze':
+    if args.command == "analyze":
         cmd_analyze(args)
-    elif args.command == 'score':
+    elif args.command == "score":
         cmd_score(args)
-    elif args.command == 'stats':
+    elif args.command == "stats":
         cmd_stats(args)
-    elif args.command == 'ace-prompts':
+    elif args.command == "ace-prompts":
         cmd_ace_prompts(args)
-    elif args.command == 'status':
+    elif args.command == "status":
         cmd_status(args)
-    elif args.command == 'learn':
+    elif args.command == "learn":
         cmd_learn(args)
     else:
         parser.print_help()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

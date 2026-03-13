@@ -26,11 +26,22 @@ class CaptureEvent:
     """A single capture event at a lifecycle stage."""
 
     __slots__ = (
-        "event_id", "timestamp_ns", "direction", "stage",
-        "raw_bytes", "parsed", "method", "request_id",
-        "parent_protocol_id", "turn", "error",
-        "data_layer", "light_layer", "instinct_layer",
-        "coherence_signature", "content_length",
+        "event_id",
+        "timestamp_ns",
+        "direction",
+        "stage",
+        "raw_bytes",
+        "parsed",
+        "method",
+        "request_id",
+        "parent_protocol_id",
+        "turn",
+        "error",
+        "data_layer",
+        "light_layer",
+        "instinct_layer",
+        "coherence_signature",
+        "content_length",
     )
 
     def __init__(

@@ -30,12 +30,13 @@ BASELINES_FILE = HOME / ".claude/kernel/baselines.json"
 COST_PER_MTOK = {
     "haiku": {"input": 0.25, "output": 1.25},
     "sonnet": {"input": 3.0, "output": 15.0},
-    "opus": {"input": 15.0, "output": 75.0}
+    "opus": {"input": 15.0, "output": 75.0},
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # METRICS COLLECTION
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class RoutingMetrics:
     def __init__(self):
@@ -53,7 +54,7 @@ class RoutingMetrics:
                     "routing_accuracy": 0.75,
                     "cost_reduction_vs_random": 0.20,
                     "routing_latency_ms": 50,
-                    "avg_dq_score": 0.70
+                    "avg_dq_score": 0.70,
                 }
             }
 
@@ -63,7 +64,9 @@ class RoutingMetrics:
     def load_metrics(self, days: int = 7) -> List[Dict]:
         """Load metrics from last N days (from either metrics or history file)"""
         # Try metrics file first, fall back to history file
-        source_file = self.metrics_file if self.metrics_file.exists() else self.history_file
+        source_file = (
+            self.metrics_file if self.metrics_file.exists() else self.history_file
+        )
 
         if not source_file.exists():
             return []
@@ -78,7 +81,7 @@ class RoutingMetrics:
                 try:
                     entry = json.loads(line)
                     # Handle both ms and seconds timestamps
-                    ts = entry.get('ts', 0)
+                    ts = entry.get("ts", 0)
                     if ts > 1e12:  # Milliseconds
                         ts = ts / 1000
                     entry_time = datetime.fromtimestamp(ts)
@@ -138,7 +141,7 @@ class RoutingMetrics:
             return 0.0
 
         # Factor 1: DQ score variance (lower is better, 0.0-0.3)
-        dq_scores = [d.get('dq', d.get('dqScore', 0.5)) for d in data]
+        dq_scores = [d.get("dq", d.get("dqScore", 0.5)) for d in data]
         try:
             dq_variance = statistics.variance(dq_scores) if len(dq_scores) > 1 else 0.5
             variance_score = max(0, 1.0 - (dq_variance / 0.3))  # Normalize to 0-1
@@ -147,12 +150,12 @@ class RoutingMetrics:
 
         # Factor 2: Feedback rate (higher is better)
         history = self._load_history()
-        feedback_count = sum(1 for h in history if 'success' in h or 'failure' in h)
+        feedback_count = sum(1 for h in history if "success" in h or "failure" in h)
         feedback_rate = feedback_count / max(len(data), 1)
         feedback_score = min(1.0, feedback_rate * 2)  # 50% feedback = 1.0 score
 
         # Factor 3: Model distribution (not all one model)
-        models = [d.get('model', 'sonnet') for d in data]
+        models = [d.get("model", "sonnet") for d in data]
         unique_models = len(set(models))
         distribution_score = min(1.0, unique_models / 3)  # All 3 models = 1.0
 
@@ -161,10 +164,10 @@ class RoutingMetrics:
 
         # Weighted average
         quality = (
-            variance_score * 0.25 +
-            feedback_score * 0.35 +
-            distribution_score * 0.20 +
-            sample_score * 0.20
+            variance_score * 0.25
+            + feedback_score * 0.35
+            + distribution_score * 0.20
+            + sample_score * 0.20
         )
 
         return quality
@@ -174,26 +177,28 @@ class RoutingMetrics:
         history = self._load_history()
 
         # Filter to entries with feedback
-        with_feedback = [h for h in history if 'success' in h]
+        with_feedback = [h for h in history if "success" in h]
 
         if not with_feedback:
             return None
 
-        successful = [h for h in with_feedback if h['success']]
+        successful = [h for h in with_feedback if h["success"]]
         return len(successful) / len(with_feedback)
 
     def _estimate_cost(self, entry: Dict) -> float:
         """Estimate cost for a routing decision"""
-        model = entry.get('model', 'sonnet')
+        model = entry.get("model", "sonnet")
 
         # Estimate tokens (rough heuristic: 4 chars = 1 token)
         # Average query ~100 tokens, average response ~500 tokens
         est_input_tokens = 100
         est_output_tokens = 500
 
-        cost_config = COST_PER_MTOK.get(model, COST_PER_MTOK['sonnet'])
-        cost = (est_input_tokens * cost_config['input'] / 1_000_000 +
-                est_output_tokens * cost_config['output'] / 1_000_000)
+        cost_config = COST_PER_MTOK.get(model, COST_PER_MTOK["sonnet"])
+        cost = (
+            est_input_tokens * cost_config["input"] / 1_000_000
+            + est_output_tokens * cost_config["output"] / 1_000_000
+        )
 
         return cost
 
@@ -206,17 +211,21 @@ class RoutingMetrics:
         actual_cost = sum(self._estimate_cost(m) for m in metrics)
 
         # Baseline: random selection (33% each model)
-        avg_cost_haiku = (100 * COST_PER_MTOK['haiku']['input'] / 1_000_000 +
-                          500 * COST_PER_MTOK['haiku']['output'] / 1_000_000)
-        avg_cost_sonnet = (100 * COST_PER_MTOK['sonnet']['input'] / 1_000_000 +
-                           500 * COST_PER_MTOK['sonnet']['output'] / 1_000_000)
-        avg_cost_opus = (100 * COST_PER_MTOK['opus']['input'] / 1_000_000 +
-                         500 * COST_PER_MTOK['opus']['output'] / 1_000_000)
+        avg_cost_haiku = (
+            100 * COST_PER_MTOK["haiku"]["input"] / 1_000_000
+            + 500 * COST_PER_MTOK["haiku"]["output"] / 1_000_000
+        )
+        avg_cost_sonnet = (
+            100 * COST_PER_MTOK["sonnet"]["input"] / 1_000_000
+            + 500 * COST_PER_MTOK["sonnet"]["output"] / 1_000_000
+        )
+        avg_cost_opus = (
+            100 * COST_PER_MTOK["opus"]["input"] / 1_000_000
+            + 500 * COST_PER_MTOK["opus"]["output"] / 1_000_000
+        )
 
         baseline_cost = len(metrics) * (
-            0.33 * avg_cost_haiku +
-            0.33 * avg_cost_sonnet +
-            0.33 * avg_cost_opus
+            0.33 * avg_cost_haiku + 0.33 * avg_cost_sonnet + 0.33 * avg_cost_opus
         )
 
         if baseline_cost == 0:
@@ -232,33 +241,36 @@ class RoutingMetrics:
 
         counts = defaultdict(int)
         for m in metrics:
-            counts[m.get('model', 'sonnet')] += 1
+            counts[m.get("model", "sonnet")] += 1
 
         total = len(metrics)
-        return {
-            model: counts[model] / total
-            for model in ['haiku', 'sonnet', 'opus']
-        }
+        return {model: counts[model] / total for model in ["haiku", "sonnet", "opus"]}
 
     def _avg_dq(self, metrics: List[Dict]) -> Optional[float]:
         """Calculate average DQ score"""
         # Support both 'dq' and 'dqScore' field names
-        scores = [m.get('dq', m.get('dqScore', 0)) for m in metrics if 'dq' in m or 'dqScore' in m]
+        scores = [
+            m.get("dq", m.get("dqScore", 0))
+            for m in metrics
+            if "dq" in m or "dqScore" in m
+        ]
         return statistics.mean(scores) if scores else None
 
     def _avg_complexity(self, metrics: List[Dict]) -> Optional[float]:
         """Calculate average complexity"""
-        complexities = [m.get('complexity', 0) for m in metrics if 'complexity' in m]
+        complexities = [m.get("complexity", 0) for m in metrics if "complexity" in m]
         return statistics.mean(complexities) if complexities else None
 
     def _avg_latency(self, metrics: List[Dict]) -> Optional[float]:
         """Calculate average routing latency"""
-        latencies = [m.get('latency_ms', 0) for m in metrics if 'latency_ms' in m]
+        latencies = [m.get("latency_ms", 0) for m in metrics if "latency_ms" in m]
         return statistics.mean(latencies) if latencies else None
 
     def _percentile(self, metrics: List[Dict], p: int) -> Optional[float]:
         """Calculate percentile for latency"""
-        latencies = sorted([m.get('latency_ms', 0) for m in metrics if 'latency_ms' in m])
+        latencies = sorted(
+            [m.get("latency_ms", 0) for m in metrics if "latency_ms" in m]
+        )
 
         if not latencies:
             return None
@@ -274,7 +286,7 @@ class RoutingMetrics:
 
     def _check_targets(self, metrics: List[Dict]) -> Dict[str, bool]:
         """Check if performance targets are met"""
-        targets = self.baselines.get('performance_targets', {})
+        targets = self.baselines.get("performance_targets", {})
 
         accuracy = self.calculate_accuracy(metrics)
         cost_reduction = self.calculate_cost_efficiency(metrics)
@@ -283,21 +295,23 @@ class RoutingMetrics:
 
         results = {}
 
-        if 'routing_accuracy' in targets and accuracy is not None:
-            results['accuracy'] = accuracy >= targets['routing_accuracy']
+        if "routing_accuracy" in targets and accuracy is not None:
+            results["accuracy"] = accuracy >= targets["routing_accuracy"]
 
-        if 'cost_reduction_vs_random' in targets and cost_reduction is not None:
-            results['cost_reduction'] = cost_reduction >= targets['cost_reduction_vs_random']
+        if "cost_reduction_vs_random" in targets and cost_reduction is not None:
+            results["cost_reduction"] = (
+                cost_reduction >= targets["cost_reduction_vs_random"]
+            )
 
-        if 'avg_dq_score' in targets and avg_dq is not None:
-            results['avg_dq'] = avg_dq >= targets['avg_dq_score']
+        if "avg_dq_score" in targets and avg_dq is not None:
+            results["avg_dq"] = avg_dq >= targets["avg_dq_score"]
 
-        if 'routing_latency_ms' in targets and p95_latency is not None:
-            results['p95_latency'] = p95_latency <= targets['routing_latency_ms']
+        if "routing_latency_ms" in targets and p95_latency is not None:
+            results["p95_latency"] = p95_latency <= targets["routing_latency_ms"]
 
         return results
 
-    def generate_report(self, days: int = 7, format: str = 'text') -> str:
+    def generate_report(self, days: int = 7, format: str = "text") -> str:
         """Generate performance report"""
         metrics = self.load_metrics(days)
 
@@ -313,14 +327,14 @@ class RoutingMetrics:
             "routing_latency": {
                 "avg": self._avg_latency(metrics),
                 "p50": self._percentile(metrics, 50),
-                "p95": self._percentile(metrics, 95)
+                "p95": self._percentile(metrics, 95),
             },
             "accuracy": self.calculate_accuracy(metrics),
             "cost_reduction": self.calculate_cost_efficiency(metrics),
-            "targets_met": self._check_targets(metrics)
+            "targets_met": self._check_targets(metrics),
         }
 
-        if format == 'json':
+        if format == "json":
             return json.dumps(report_data, indent=2)
 
         # Text format
@@ -332,37 +346,39 @@ class RoutingMetrics:
         lines.append(f"Total Queries: {report_data['total_queries']}")
 
         lines.append("\n📊 Model Distribution:")
-        dist = report_data['model_distribution']
-        for model in ['haiku', 'sonnet', 'opus']:
+        dist = report_data["model_distribution"]
+        for model in ["haiku", "sonnet", "opus"]:
             pct = dist.get(model, 0) * 100
             lines.append(f"  {model:8s}: {pct:5.1f}%")
 
         lines.append("\n📈 Performance Metrics:")
-        if report_data['avg_dq_score'] is not None:
+        if report_data["avg_dq_score"] is not None:
             lines.append(f"  Avg DQ Score:   {report_data['avg_dq_score']:.3f}")
-        if report_data['avg_complexity'] is not None:
+        if report_data["avg_complexity"] is not None:
             lines.append(f"  Avg Complexity: {report_data['avg_complexity']:.3f}")
 
         lines.append("\n⏱️  Routing Latency:")
-        lat = report_data['routing_latency']
-        if lat['avg'] is not None:
+        lat = report_data["routing_latency"]
+        if lat["avg"] is not None:
             lines.append(f"  Average: {lat['avg']:.1f}ms")
-        if lat['p50'] is not None:
+        if lat["p50"] is not None:
             lines.append(f"  p50:     {lat['p50']:.1f}ms")
-        if lat['p95'] is not None:
+        if lat["p95"] is not None:
             lines.append(f"  p95:     {lat['p95']:.1f}ms")
 
         lines.append("\n🎯 Quality & Cost:")
-        if report_data['accuracy'] is not None:
-            lines.append(f"  Accuracy:       {report_data['accuracy']*100:.1f}%")
+        if report_data["accuracy"] is not None:
+            lines.append(f"  Accuracy:       {report_data['accuracy'] * 100:.1f}%")
         else:
             lines.append("  Accuracy:       N/A (no feedback yet)")
 
-        if report_data['cost_reduction'] is not None:
-            lines.append(f"  Cost Reduction: {report_data['cost_reduction']*100:.1f}% vs random")
+        if report_data["cost_reduction"] is not None:
+            lines.append(
+                f"  Cost Reduction: {report_data['cost_reduction'] * 100:.1f}% vs random"
+            )
 
         lines.append("\n✅ Targets Met:")
-        targets = report_data['targets_met']
+        targets = report_data["targets_met"]
         if targets:
             met_count = sum(1 for v in targets.values() if v)
             total_count = len(targets)
@@ -377,9 +393,11 @@ class RoutingMetrics:
 
         return "\n".join(lines)
 
+
 # ═══════════════════════════════════════════════════════════════════════════
 # A/B TESTING FRAMEWORK
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class ABTest:
     """A/B testing framework for routing optimization"""
@@ -391,24 +409,21 @@ class ABTest:
 
     def create_experiment(self, config: Dict) -> str:
         """Create new A/B test experiment"""
-        experiment_id = config.get('experiment_id', self._generate_id())
+        experiment_id = config.get("experiment_id", self._generate_id())
 
         experiment = {
             "id": experiment_id,
-            "name": config['name'],
+            "name": config["name"],
             "created": datetime.now().isoformat(),
             "active": True,
-            "control": config['control'],
-            "variant": config['variant'],
-            "split": config.get('split', 0.5),
-            "primary_metric": config['primary_metric'],
-            "secondary_metrics": config.get('secondary_metrics', []),
-            "min_samples": config.get('min_samples', 100),
-            "success_criteria": config.get('success_criteria', {}),
-            "results": {
-                "control": [],
-                "variant": []
-            }
+            "control": config["control"],
+            "variant": config["variant"],
+            "split": config.get("split", 0.5),
+            "primary_metric": config["primary_metric"],
+            "secondary_metrics": config.get("secondary_metrics", []),
+            "min_samples": config.get("min_samples", 100),
+            "success_criteria": config.get("success_criteria", {}),
+            "results": {"control": [], "variant": []},
         }
 
         exp_file = self.experiments_dir / f"{experiment_id}.json"
@@ -425,12 +440,12 @@ class ABTest:
     def should_use_variant(self, experiment_id: str, query_hash: str) -> bool:
         """Deterministically assign query to control or variant"""
         experiment = self.load_experiment(experiment_id)
-        if not experiment or not experiment['active']:
+        if not experiment or not experiment["active"]:
             return False
 
         # Use query hash for deterministic assignment
         hash_value = int(hashlib.md5(query_hash.encode()).hexdigest(), 16)
-        return (hash_value % 100) < (experiment['split'] * 100)
+        return (hash_value % 100) < (experiment["split"] * 100)
 
     def record_result(self, experiment_id: str, is_variant: bool, metrics: Dict):
         """Record result for experiment"""
@@ -438,11 +453,10 @@ class ABTest:
         if not experiment:
             return
 
-        target = 'variant' if is_variant else 'control'
-        experiment['results'][target].append({
-            "ts": datetime.now().isoformat(),
-            "metrics": metrics
-        })
+        target = "variant" if is_variant else "control"
+        experiment["results"][target].append(
+            {"ts": datetime.now().isoformat(), "metrics": metrics}
+        )
 
         self._save_experiment(experiment)
 
@@ -461,12 +475,12 @@ class ABTest:
         for exp_file in self.experiments_dir.glob("*.json"):
             try:
                 exp = json.loads(exp_file.read_text())
-                if not active_only or exp.get('active', False):
+                if not active_only or exp.get("active", False):
                     experiments.append(exp)
             except (json.JSONDecodeError, KeyError):
                 continue
 
-        return sorted(experiments, key=lambda x: x.get('created', ''), reverse=True)
+        return sorted(experiments, key=lambda x: x.get("created", ""), reverse=True)
 
     def analyze_experiment(self, experiment_id: str) -> Dict:
         """Analyze experiment results with statistical significance"""
@@ -474,8 +488,8 @@ class ABTest:
         if not experiment:
             return {"error": "Experiment not found"}
 
-        control_results = experiment['results']['control']
-        variant_results = experiment['results']['variant']
+        control_results = experiment["results"]["control"]
+        variant_results = experiment["results"]["variant"]
 
         if len(control_results) < 2 or len(variant_results) < 2:
             return {
@@ -483,27 +497,37 @@ class ABTest:
                 "status": "insufficient_data",
                 "control_samples": len(control_results),
                 "variant_samples": len(variant_results),
-                "min_required": experiment['min_samples']
+                "min_required": experiment["min_samples"],
             }
 
-        primary_metric = experiment['primary_metric']
+        primary_metric = experiment["primary_metric"]
 
         # Extract primary metric values
-        control_values = [r['metrics'].get(primary_metric, 0) for r in control_results]
-        variant_values = [r['metrics'].get(primary_metric, 0) for r in variant_results]
+        control_values = [r["metrics"].get(primary_metric, 0) for r in control_results]
+        variant_values = [r["metrics"].get(primary_metric, 0) for r in variant_results]
 
         # Calculate statistics
         control_mean = statistics.mean(control_values)
         variant_mean = statistics.mean(variant_values)
-        improvement = ((variant_mean - control_mean) / control_mean * 100) if control_mean != 0 else 0
+        improvement = (
+            ((variant_mean - control_mean) / control_mean * 100)
+            if control_mean != 0
+            else 0
+        )
 
         # Simple t-test approximation
-        pooled_std = statistics.stdev(control_values + variant_values) if len(control_values + variant_values) > 1 else 0
+        pooled_std = (
+            statistics.stdev(control_values + variant_values)
+            if len(control_values + variant_values) > 1
+            else 0
+        )
         n_control = len(control_values)
         n_variant = len(variant_values)
 
         if pooled_std > 0:
-            t_stat = (variant_mean - control_mean) / (pooled_std * ((1/n_control + 1/n_variant) ** 0.5))
+            t_stat = (variant_mean - control_mean) / (
+                pooled_std * ((1 / n_control + 1 / n_variant) ** 0.5)
+            )
             # Rough p-value approximation (for t_stat > 2, p < 0.05)
             p_value = 0.05 if abs(t_stat) > 2 else 0.1
         else:
@@ -513,24 +537,30 @@ class ABTest:
         significant = p_value < 0.05
 
         # Check success criteria
-        success_criteria = experiment.get('success_criteria', {})
+        success_criteria = experiment.get("success_criteria", {})
         meets_criteria = True
 
-        if 'min_improvement' in success_criteria:
-            meets_criteria = meets_criteria and (improvement >= success_criteria['min_improvement'])
+        if "min_improvement" in success_criteria:
+            meets_criteria = meets_criteria and (
+                improvement >= success_criteria["min_improvement"]
+            )
 
-        if 'max_p_value' in success_criteria:
-            meets_criteria = meets_criteria and (p_value <= success_criteria['max_p_value'])
+        if "max_p_value" in success_criteria:
+            meets_criteria = meets_criteria and (
+                p_value <= success_criteria["max_p_value"]
+            )
 
         return {
             "experiment_id": experiment_id,
-            "name": experiment['name'],
-            "status": "complete" if len(control_results) + len(variant_results) >= experiment['min_samples'] else "in_progress",
+            "name": experiment["name"],
+            "status": "complete"
+            if len(control_results) + len(variant_results) >= experiment["min_samples"]
+            else "in_progress",
             "samples": {
                 "control": len(control_results),
                 "variant": len(variant_results),
                 "total": len(control_results) + len(variant_results),
-                "min_required": experiment['min_samples']
+                "min_required": experiment["min_samples"],
             },
             "primary_metric": primary_metric,
             "results": {
@@ -539,10 +569,12 @@ class ABTest:
                 "improvement_pct": improvement,
                 "statistically_significant": significant,
                 "p_value": p_value,
-                "t_statistic": t_stat
+                "t_statistic": t_stat,
             },
-            "recommendation": "apply_variant" if (meets_criteria and significant and improvement > 0) else "keep_control",
-            "meets_success_criteria": meets_criteria
+            "recommendation": "apply_variant"
+            if (meets_criteria and significant and improvement > 0)
+            else "keep_control",
+            "meets_success_criteria": meets_criteria,
         }
 
     def apply_variant(self, experiment_id: str, dry_run: bool = True) -> Dict:
@@ -553,11 +585,11 @@ class ABTest:
 
         analysis = self.analyze_experiment(experiment_id)
 
-        if analysis.get('recommendation') != 'apply_variant':
+        if analysis.get("recommendation") != "apply_variant":
             return {
                 "error": "Variant not recommended",
                 "reason": f"Recommendation: {analysis.get('recommendation')}",
-                "analysis": analysis
+                "analysis": analysis,
             }
 
         # Load baselines
@@ -567,49 +599,51 @@ class ABTest:
         baselines = json.loads(self.baselines_file.read_text())
 
         # Apply variant configuration
-        variant_config = experiment['variant']
+        variant_config = experiment["variant"]
         modifications = []
 
         for target, new_value in variant_config.items():
             # Parse target path (e.g., "complexity_thresholds.haiku.range[1]")
             old_value = self._get_nested_value(baselines, target)
 
-            modifications.append({
-                "target": target,
-                "old_value": old_value,
-                "new_value": new_value,
-                "experiment_id": experiment_id,
-                "improvement": analysis['results']['improvement_pct']
-            })
+            modifications.append(
+                {
+                    "target": target,
+                    "old_value": old_value,
+                    "new_value": new_value,
+                    "experiment_id": experiment_id,
+                    "improvement": analysis["results"]["improvement_pct"],
+                }
+            )
 
             if not dry_run:
                 self._set_nested_value(baselines, target, new_value)
 
         if not dry_run:
             # Update research lineage
-            if 'ab_test_lineage' not in baselines:
-                baselines['ab_test_lineage'] = []
+            if "ab_test_lineage" not in baselines:
+                baselines["ab_test_lineage"] = []
 
-            baselines['ab_test_lineage'].extend(modifications)
-            baselines['last_updated'] = datetime.now().isoformat()
+            baselines["ab_test_lineage"].extend(modifications)
+            baselines["last_updated"] = datetime.now().isoformat()
 
             # Save baselines
             self.baselines_file.write_text(json.dumps(baselines, indent=2))
 
             # Mark experiment as inactive
-            experiment['active'] = False
-            experiment['applied'] = datetime.now().isoformat()
+            experiment["active"] = False
+            experiment["applied"] = datetime.now().isoformat()
             self._save_experiment(experiment)
 
         return {
             "status": "dry_run" if dry_run else "applied",
             "modifications": modifications,
-            "experiment": experiment_id
+            "experiment": experiment_id,
         }
 
     def _get_nested_value(self, data: Dict, path: str):
         """Get value from nested dict using dot notation"""
-        parts = path.replace('[', '.').replace(']', '').split('.')
+        parts = path.replace("[", ".").replace("]", "").split(".")
         current = data
 
         for part in parts:
@@ -624,7 +658,7 @@ class ABTest:
 
     def _set_nested_value(self, data: Dict, path: str, value):
         """Set value in nested dict using dot notation"""
-        parts = path.replace('[', '.').replace(']', '').split('.')
+        parts = path.replace("[", ".").replace("]", "").split(".")
         current = data
 
         for i, part in enumerate(parts[:-1]):
@@ -646,94 +680,123 @@ class ABTest:
         exp_file = self.experiments_dir / f"{experiment['id']}.json"
         exp_file.write_text(json.dumps(experiment, indent=2))
 
+
 # ═══════════════════════════════════════════════════════════════════════════
 # CLI INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="Routing performance metrics and analysis"
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Commands')
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Report command
-    report_parser = subparsers.add_parser('report', help='Generate performance report')
-    report_parser.add_argument('--days', type=int, default=7, help='Days to analyze')
-    report_parser.add_argument('--format', choices=['text', 'json'], default='text')
+    report_parser = subparsers.add_parser("report", help="Generate performance report")
+    report_parser.add_argument("--days", type=int, default=7, help="Days to analyze")
+    report_parser.add_argument("--format", choices=["text", "json"], default="text")
 
     # Check targets command (usage-based options)
-    targets_parser = subparsers.add_parser('check-targets', help='Check if targets are met')
-    targets_parser.add_argument('--days', type=int, default=None, help='Days to analyze (time-based)')
-    targets_parser.add_argument('--last-n-queries', type=int, default=None, help='Check last N queries (usage-based)')
-    targets_parser.add_argument('--all-time', action='store_true', help='Check all-time performance')
+    targets_parser = subparsers.add_parser(
+        "check-targets", help="Check if targets are met"
+    )
+    targets_parser.add_argument(
+        "--days", type=int, default=None, help="Days to analyze (time-based)"
+    )
+    targets_parser.add_argument(
+        "--last-n-queries",
+        type=int,
+        default=None,
+        help="Check last N queries (usage-based)",
+    )
+    targets_parser.add_argument(
+        "--all-time", action="store_true", help="Check all-time performance"
+    )
 
     # Data quality check (usage-based)
-    quality_parser = subparsers.add_parser('check-data-quality', help='Check data quality metrics')
-    quality_parser.add_argument('--all-time', action='store_true', help='Check all-time data quality')
-    quality_parser.add_argument('--days', type=int, default=None, help='Days to analyze')
+    quality_parser = subparsers.add_parser(
+        "check-data-quality", help="Check data quality metrics"
+    )
+    quality_parser.add_argument(
+        "--all-time", action="store_true", help="Check all-time data quality"
+    )
+    quality_parser.add_argument(
+        "--days", type=int, default=None, help="Days to analyze"
+    )
 
     # Export command
-    export_parser = subparsers.add_parser('export', help='Export metrics')
-    export_parser.add_argument('--days', type=int, default=30)
-    export_parser.add_argument('--format', choices=['json', 'csv'], default='json')
-    export_parser.add_argument('--output', help='Output file')
+    export_parser = subparsers.add_parser("export", help="Export metrics")
+    export_parser.add_argument("--days", type=int, default=30)
+    export_parser.add_argument("--format", choices=["json", "csv"], default="json")
+    export_parser.add_argument("--output", help="Output file")
 
     # A/B test commands
-    ab_parser = subparsers.add_parser('ab-test', help='A/B testing framework')
-    ab_subparsers = ab_parser.add_subparsers(dest='ab_command', help='A/B test commands')
+    ab_parser = subparsers.add_parser("ab-test", help="A/B testing framework")
+    ab_subparsers = ab_parser.add_subparsers(
+        dest="ab_command", help="A/B test commands"
+    )
 
     # Create experiment
-    ab_create = ab_subparsers.add_parser('create', help='Create new experiment')
-    ab_create.add_argument('--config', required=True, help='Experiment config JSON file')
+    ab_create = ab_subparsers.add_parser("create", help="Create new experiment")
+    ab_create.add_argument(
+        "--config", required=True, help="Experiment config JSON file"
+    )
 
     # List experiments
-    ab_list = ab_subparsers.add_parser('list', help='List experiments')
-    ab_list.add_argument('--active-only', action='store_true', help='Show only active experiments')
+    ab_list = ab_subparsers.add_parser("list", help="List experiments")
+    ab_list.add_argument(
+        "--active-only", action="store_true", help="Show only active experiments"
+    )
 
     # Analyze experiment
-    ab_analyze = ab_subparsers.add_parser('analyze', help='Analyze experiment results')
-    ab_analyze.add_argument('--experiment', required=True, help='Experiment ID')
+    ab_analyze = ab_subparsers.add_parser("analyze", help="Analyze experiment results")
+    ab_analyze.add_argument("--experiment", required=True, help="Experiment ID")
 
     # Apply variant
-    ab_apply = ab_subparsers.add_parser('apply', help='Apply winning variant')
-    ab_apply.add_argument('--experiment', required=True, help='Experiment ID')
-    ab_apply.add_argument('--dry-run', action='store_true', help='Preview without applying')
+    ab_apply = ab_subparsers.add_parser("apply", help="Apply winning variant")
+    ab_apply.add_argument("--experiment", required=True, help="Experiment ID")
+    ab_apply.add_argument(
+        "--dry-run", action="store_true", help="Preview without applying"
+    )
 
     # Experiment status
-    ab_status = ab_subparsers.add_parser('status', help='Show all active experiments status')
+    ab_status = ab_subparsers.add_parser(
+        "status", help="Show all active experiments status"
+    )
 
     # CPB commands (Cognitive Precision Bridge)
-    cpb_parser = subparsers.add_parser('cpb', help='CPB precision routing')
-    cpb_subparsers = cpb_parser.add_subparsers(dest='cpb_command', help='CPB commands')
+    cpb_parser = subparsers.add_parser("cpb", help="CPB precision routing")
+    cpb_subparsers = cpb_parser.add_subparsers(dest="cpb_command", help="CPB commands")
 
     # CPB analyze
-    cpb_analyze = cpb_subparsers.add_parser('analyze', help='Analyze query complexity')
-    cpb_analyze.add_argument('query', help='Query to analyze')
-    cpb_analyze.add_argument('--context', '-c', help='Optional context')
+    cpb_analyze = cpb_subparsers.add_parser("analyze", help="Analyze query complexity")
+    cpb_analyze.add_argument("query", help="Query to analyze")
+    cpb_analyze.add_argument("--context", "-c", help="Optional context")
 
     # CPB score
-    cpb_score = cpb_subparsers.add_parser('score', help='Score a response')
-    cpb_score.add_argument('--query', '-q', required=True, help='Original query')
-    cpb_score.add_argument('--response', '-r', required=True, help='Response to score')
+    cpb_score = cpb_subparsers.add_parser("score", help="Score a response")
+    cpb_score.add_argument("--query", "-q", required=True, help="Original query")
+    cpb_score.add_argument("--response", "-r", required=True, help="Response to score")
 
     # CPB stats
-    cpb_stats = cpb_subparsers.add_parser('stats', help='Show CPB statistics')
-    cpb_stats.add_argument('--days', '-d', type=int, default=7, help='Days to analyze')
+    cpb_stats = cpb_subparsers.add_parser("stats", help="Show CPB statistics")
+    cpb_stats.add_argument("--days", "-d", type=int, default=7, help="Days to analyze")
 
     # CPB status
-    cpb_status = cpb_subparsers.add_parser('status', help='Show CPB status')
+    cpb_status = cpb_subparsers.add_parser("status", help="Show CPB status")
 
     args = parser.parse_args()
 
     metrics = RoutingMetrics()
     ab_test = ABTest()
 
-    if args.command == 'report':
+    if args.command == "report":
         report = metrics.generate_report(days=args.days, format=args.format)
         print(report)
 
-    elif args.command == 'check-targets':
+    elif args.command == "check-targets":
         # Usage-based: last-n-queries or all-time
         if args.last_n_queries:
             data = metrics.load_last_n_queries(args.last_n_queries)
@@ -759,7 +822,7 @@ def main():
 
         sys.exit(0 if met_count == total_count else 1)
 
-    elif args.command == 'check-data-quality':
+    elif args.command == "check-data-quality":
         # Calculate data quality score
         if args.all_time:
             data = metrics.load_metrics(days=999)
@@ -770,10 +833,10 @@ def main():
         print(f"{quality_score:.2f}")
         sys.exit(0)
 
-    elif args.command == 'export':
+    elif args.command == "export":
         data = metrics.load_metrics(days=args.days)
 
-        if args.format == 'json':
+        if args.format == "json":
             output = json.dumps(data, indent=2)
         else:  # CSV
             import csv
@@ -792,8 +855,8 @@ def main():
         else:
             print(output)
 
-    elif args.command == 'ab-test':
-        if args.ab_command == 'create':
+    elif args.command == "ab-test":
+        if args.ab_command == "create":
             config = json.loads(Path(args.config).read_text())
             exp_id = ab_test.create_experiment(config)
             print(f"✓ Created experiment: {exp_id}")
@@ -801,7 +864,7 @@ def main():
             print(f"  Control: {config['control']}")
             print(f"  Variant: {config['variant']}")
 
-        elif args.ab_command == 'list':
+        elif args.ab_command == "list":
             experiments = ab_test.list_experiments(active_only=args.active_only)
 
             if not experiments:
@@ -812,19 +875,19 @@ def main():
             print("=" * 80)
 
             for exp in experiments:
-                exp_id = exp['id']
-                name = exp['name'][:28]
-                status = "active" if exp.get('active') else "inactive"
-                control_samples = len(exp['results']['control'])
-                variant_samples = len(exp['results']['variant'])
+                exp_id = exp["id"]
+                name = exp["name"][:28]
+                status = "active" if exp.get("active") else "inactive"
+                control_samples = len(exp["results"]["control"])
+                variant_samples = len(exp["results"]["variant"])
                 samples = f"{control_samples + variant_samples}"
 
                 print(f"{exp_id:<30} {name:<30} {status:<10} {samples:<10}")
 
-        elif args.ab_command == 'analyze':
+        elif args.ab_command == "analyze":
             analysis = ab_test.analyze_experiment(args.experiment)
 
-            if 'error' in analysis:
+            if "error" in analysis:
                 print(f"❌ {analysis['error']}")
                 return
 
@@ -837,10 +900,12 @@ def main():
             print("\n📊 Samples:")
             print(f"  Control: {analysis['samples']['control']}")
             print(f"  Variant: {analysis['samples']['variant']}")
-            print(f"  Total:   {analysis['samples']['total']} / {analysis['samples']['min_required']} required")
+            print(
+                f"  Total:   {analysis['samples']['total']} / {analysis['samples']['min_required']} required"
+            )
 
             print(f"\n📈 Results ({analysis['primary_metric']}):")
-            results = analysis['results']
+            results = analysis["results"]
             print(f"  Control Mean: {results['control_mean']:.4f}")
             print(f"  Variant Mean: {results['variant_mean']:.4f}")
             print(f"  Improvement:  {results['improvement_pct']:+.2f}%")
@@ -848,41 +913,47 @@ def main():
             print("\n📉 Statistical Significance:")
             print(f"  t-statistic: {results['t_statistic']:.3f}")
             print(f"  p-value:     {results['p_value']:.3f}")
-            print(f"  Significant: {'Yes' if results['statistically_significant'] else 'No'}")
+            print(
+                f"  Significant: {'Yes' if results['statistically_significant'] else 'No'}"
+            )
 
             print("\n🎯 Recommendation:")
-            rec = analysis['recommendation']
-            if rec == 'apply_variant':
+            rec = analysis["recommendation"]
+            if rec == "apply_variant":
                 print("  ✅ APPLY VARIANT (statistically significant improvement)")
             else:
                 print("  ⊘ KEEP CONTROL (no significant improvement)")
 
-            print(f"\nSuccess Criteria Met: {'Yes' if analysis['meets_success_criteria'] else 'No'}")
+            print(
+                f"\nSuccess Criteria Met: {'Yes' if analysis['meets_success_criteria'] else 'No'}"
+            )
             print("\n" + "=" * 60)
 
-        elif args.ab_command == 'apply':
+        elif args.ab_command == "apply":
             result = ab_test.apply_variant(args.experiment, dry_run=args.dry_run)
 
-            if 'error' in result:
+            if "error" in result:
                 print(f"❌ {result['error']}")
-                if 'reason' in result:
+                if "reason" in result:
                     print(f"   {result['reason']}")
                 return
 
-            print(f"\n{'🔍 DRY RUN' if result['status'] == 'dry_run' else '✅ APPLIED'}")
+            print(
+                f"\n{'🔍 DRY RUN' if result['status'] == 'dry_run' else '✅ APPLIED'}"
+            )
             print(f"\nExperiment: {result['experiment']}")
             print("\nModifications:")
 
-            for mod in result['modifications']:
+            for mod in result["modifications"]:
                 print(f"  {mod['target']}")
                 print(f"    Old: {mod['old_value']}")
                 print(f"    New: {mod['new_value']}")
                 print(f"    Improvement: {mod['improvement']:+.2f}%")
 
-            if result['status'] == 'dry_run':
+            if result["status"] == "dry_run":
                 print("\n💡 Run without --dry-run to apply changes")
 
-        elif args.ab_command == 'status':
+        elif args.ab_command == "status":
             experiments = ab_test.list_experiments(active_only=True)
 
             if not experiments:
@@ -894,21 +965,25 @@ def main():
             print("=" * 70)
 
             for exp in experiments:
-                analysis = ab_test.analyze_experiment(exp['id'])
+                analysis = ab_test.analyze_experiment(exp["id"])
 
                 print(f"\n📊 {exp['name']} ({exp['id']})")
                 print(f"   Status: {analysis['status']}")
-                print(f"   Samples: {analysis['samples']['total']} / {analysis['samples']['min_required']}")
+                print(
+                    f"   Samples: {analysis['samples']['total']} / {analysis['samples']['min_required']}"
+                )
 
-                if analysis['status'] == 'complete':
-                    results = analysis['results']
+                if analysis["status"] == "complete":
+                    results = analysis["results"]
                     print(f"   Improvement: {results['improvement_pct']:+.2f}%")
-                    print(f"   Significant: {'Yes' if results['statistically_significant'] else 'No'}")
+                    print(
+                        f"   Significant: {'Yes' if results['statistically_significant'] else 'No'}"
+                    )
                     print(f"   Recommendation: {analysis['recommendation']}")
 
             print("\n" + "=" * 70)
 
-    elif args.command == 'cpb':
+    elif args.command == "cpb":
         # Import CPB module
         try:
             from cpb import cpb, dq_scorer
@@ -916,7 +991,7 @@ def main():
             print("❌ CPB module not found. Ensure cpb/ directory exists.")
             sys.exit(1)
 
-        if args.cpb_command == 'analyze':
+        if args.cpb_command == "analyze":
             result = cpb.analyze(args.query, args.context)
 
             print("\n" + "=" * 60)
@@ -928,7 +1003,7 @@ def main():
             print(f"📝 {result['reasoning']}")
             print("=" * 60)
 
-        elif args.cpb_command == 'score':
+        elif args.cpb_command == "score":
             dq = dq_scorer.score(args.query, args.response)
 
             print("\n" + "=" * 60)
@@ -943,14 +1018,14 @@ def main():
             print(f"\n🏆 Tier: {tier.upper()}")
             print("=" * 60)
 
-        elif args.cpb_command == 'stats':
+        elif args.cpb_command == "stats":
             stats = dq_scorer.get_stats(args.days)
 
             print("\n" + "=" * 60)
             print(f"  CPB DQ STATISTICS ({args.days} days)")
             print("=" * 60)
 
-            if 'message' in stats:
+            if "message" in stats:
                 print(f"\n{stats['message']}")
             else:
                 print(f"\n📊 Total: {stats['total_scored']}")
@@ -960,7 +1035,7 @@ def main():
 
             print("=" * 60)
 
-        elif args.cpb_command == 'status':
+        elif args.cpb_command == "status":
             status = cpb.get_status()
 
             print("\n" + "=" * 60)
@@ -970,7 +1045,7 @@ def main():
             print(f"📚 Learning: {'✓' if status['learning_enabled'] else '✗'}")
             print(f"✅ Verification: {'✓' if status['verification_enabled'] else '✗'}")
             print("\n⚙️  Config:")
-            for k, v in status['config'].items():
+            for k, v in status["config"].items():
                 print(f"   {k}: {v}")
             print("=" * 60)
 
@@ -980,5 +1055,6 @@ def main():
     else:
         parser.print_help()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

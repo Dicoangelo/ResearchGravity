@@ -48,43 +48,47 @@ PATTERN_RESEARCH_PAPERS = {
     "debugging": {
         "papers": ["2512.20845", "2506.08410"],  # MAR, multi-agent reflexion
         "focus": ["error patterns", "root cause analysis", "fix verification"],
-        "suggested_tools": ["/debug", "git diff"]
+        "suggested_tools": ["/debug", "git diff"],
     },
     "research": {
-        "papers": ["2511.16931", "2512.12686", "2512.12818"],  # OmniScientist, Memoria, Hindsight
+        "papers": [
+            "2511.16931",
+            "2512.12686",
+            "2512.12818",
+        ],  # OmniScientist, Memoria, Hindsight
         "focus": ["papers", "learnings", "thesis gaps", "synthesis"],
-        "suggested_tools": ["log_url.py", "archive_session.py"]
+        "suggested_tools": ["log_url.py", "archive_session.py"],
     },
     "refactoring": {
         "papers": ["2505.02888", "2503.00735"],  # LADDER - recursive refinement
         "focus": ["code patterns", "test coverage", "before/after"],
-        "suggested_tools": ["/refactor", "npm test"]
+        "suggested_tools": ["/refactor", "npm test"],
     },
     "testing": {
         "papers": ["2510.24797", "2601.03511"],  # IntroLM - self-evaluation
         "focus": ["coverage", "edge cases", "test patterns"],
-        "suggested_tools": ["/test", "npm run test:coverage"]
+        "suggested_tools": ["/test", "npm run test:coverage"],
     },
     "architecture": {
         "papers": ["2507.14241", "2501.12689"],  # Promptomatix, IC-Cache
         "focus": ["system design", "component boundaries", "trade-offs"],
-        "suggested_tools": ["/arch", "prefetch --papers"]
+        "suggested_tools": ["/arch", "prefetch --papers"],
     },
     "performance": {
         "papers": ["2501.12689", "2502.00299"],  # IC-Cache, ChunkKV
         "focus": ["profiling", "bottlenecks", "optimization"],
-        "suggested_tools": ["npm run build", "lighthouse"]
+        "suggested_tools": ["npm run build", "lighthouse"],
     },
     "deployment": {
         "papers": [],
         "focus": ["CI/CD", "production checks", "rollback"],
-        "suggested_tools": ["/pr", "git status"]
+        "suggested_tools": ["/pr", "git status"],
     },
     "learning": {
         "papers": ["2512.12686", "2512.12818"],  # Memoria, Hindsight
         "focus": ["concepts", "examples", "documentation"],
-        "suggested_tools": ["prefetch --topic"]
-    }
+        "suggested_tools": ["prefetch --topic"],
+    },
 }
 
 
@@ -149,7 +153,7 @@ class ContextPrefetcher:
             range(14, 17): {"architecture": 0.5, "refactoring": 0.3, "debugging": 0.2},
             range(17, 20): {"debugging": 0.4, "testing": 0.3, "deployment": 0.3},
             range(20, 24): {"research": 0.4, "learning": 0.4, "refactoring": 0.2},
-            range(0, 6): {"research": 0.5, "learning": 0.5}
+            range(0, 6): {"research": 0.5, "learning": 0.5},
         }
 
         for hour_range, weights in hour_pattern_weights.items():
@@ -222,7 +226,7 @@ class ContextPrefetcher:
             lines.append(memory_context)
             lines.append("")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _load_pattern_memories(self, pattern: str) -> str:
         """Load pattern-specific memories from learnings."""
@@ -240,7 +244,7 @@ class ContextPrefetcher:
             "architecture": ["design", "system", "component", "architecture"],
             "performance": ["performance", "optimize", "slow", "memory"],
             "deployment": ["deploy", "release", "production", "CI"],
-            "learning": ["learn", "understand", "concept", "tutorial"]
+            "learning": ["learn", "understand", "concept", "tutorial"],
         }
 
         keywords = pattern_keywords.get(pattern, [])
@@ -249,22 +253,24 @@ class ContextPrefetcher:
 
         # Find relevant sections
         relevant = []
-        sections = re.split(r'\n## ', content)
+        sections = re.split(r"\n## ", content)
 
         for section in sections[:20]:  # Limit scan
             section_lower = section.lower()
             if any(kw in section_lower for kw in keywords):
                 # Extract first meaningful line
-                first_lines = section.split('\n')[:3]
-                summary = ' '.join(first_lines)[:150]
+                first_lines = section.split("\n")[:3]
+                summary = " ".join(first_lines)[:150]
                 if len(summary) > 50:
                     relevant.append(f"- {summary}...")
                 if len(relevant) >= 3:
                     break
 
-        return '\n'.join(relevant)
+        return "\n".join(relevant)
 
-    def get_proactive_suggestions(self, pattern: Optional[str] = None) -> Dict[str, Any]:
+    def get_proactive_suggestions(
+        self, pattern: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Get proactive suggestions based on predicted or detected pattern.
 
@@ -277,11 +283,7 @@ class ContextPrefetcher:
             pattern = self.predict_pattern()
 
         if not pattern:
-            return {
-                "predicted_pattern": None,
-                "suggestions": [],
-                "research_papers": []
-            }
+            return {"predicted_pattern": None, "suggestions": [], "research_papers": []}
 
         pattern_data = PATTERN_RESEARCH_PAPERS.get(pattern, {})
 
@@ -293,7 +295,7 @@ class ContextPrefetcher:
             "research_papers": [
                 {"id": p, "url": f"https://arxiv.org/abs/{p}"}
                 for p in pattern_data.get("papers", [])
-            ]
+            ],
         }
 
     def _load_projects(self) -> Dict[str, Any]:
@@ -345,7 +347,7 @@ class ContextPrefetcher:
         project: Optional[str] = None,
         topic: Optional[str] = None,
         days: Optional[int] = None,
-        limit: int = 10
+        limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         Load and filter learnings from learnings.md.
@@ -363,15 +365,15 @@ class ContextPrefetcher:
         learnings = []
 
         # Parse learnings by section (## headers)
-        sections = re.split(r'\n## ', content)
+        sections = re.split(r"\n## ", content)
 
         for section in sections[1:]:  # Skip header
             if not section.strip():
                 continue
 
             # Extract date from first line
-            first_line = section.split('\n')[0]
-            date_match = re.match(r'(\d{4}-\d{2}-\d{2})', first_line)
+            first_line = section.split("\n")[0]
+            date_match = re.match(r"(\d{4}-\d{2}-\d{2})", first_line)
             if not date_match:
                 continue
 
@@ -390,9 +392,14 @@ class ContextPrefetcher:
             # Apply project filter
             if project:
                 project_lower = project.lower()
-                if f"**project:** {project_lower}" not in section.lower() and project_lower not in section.lower():
+                if (
+                    f"**project:** {project_lower}" not in section.lower()
+                    and project_lower not in section.lower()
+                ):
                     # Check if project is linked in lineage
-                    project_data = self.projects_data.get("projects", {}).get(project, {})
+                    project_data = self.projects_data.get("projects", {}).get(
+                        project, {}
+                    )
                     sessions = project_data.get("sessions", [])
                     session_in_section = any(s[:30] in section for s in sessions)
                     if not session_in_section:
@@ -404,11 +411,9 @@ class ContextPrefetcher:
                 if topic_lower not in section.lower():
                     continue
 
-            learnings.append({
-                "date": date_str,
-                "content": "## " + section.strip(),
-                "raw": section
-            })
+            learnings.append(
+                {"date": date_str, "content": "## " + section.strip(), "raw": section}
+            )
 
         # Sort by date (most recent first) and limit
         learnings.sort(key=lambda x: x["date"], reverse=True)
@@ -431,9 +436,7 @@ class ContextPrefetcher:
         return None
 
     def load_relevant_papers(
-        self,
-        project: Optional[str] = None,
-        topic: Optional[str] = None
+        self, project: Optional[str] = None, topic: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Load relevant arXiv papers from paper_index."""
         papers = []
@@ -457,24 +460,28 @@ class ContextPrefetcher:
                 include = True
 
             if include:
-                papers.append({
-                    "id": arxiv_id,
-                    "projects": info.get("projects", []),
-                    "sessions": info.get("sessions", []),
-                    "url": f"https://arxiv.org/abs/{arxiv_id}"
-                })
+                papers.append(
+                    {
+                        "id": arxiv_id,
+                        "projects": info.get("projects", []),
+                        "sessions": info.get("sessions", []),
+                        "url": f"https://arxiv.org/abs/{arxiv_id}",
+                    }
+                )
 
         # Also get papers from project's key_papers
         if project:
             project_data = self.projects_data.get("projects", {}).get(project, {})
             for paper in project_data.get("key_papers", []):
                 if paper.get("id") not in [p["id"] for p in papers]:
-                    papers.append({
-                        "id": paper.get("id", ""),
-                        "title": paper.get("title", ""),
-                        "topic": paper.get("topic", ""),
-                        "url": f"https://arxiv.org/abs/{paper.get('id', '')}"
-                    })
+                    papers.append(
+                        {
+                            "id": paper.get("id", ""),
+                            "title": paper.get("title", ""),
+                            "topic": paper.get("topic", ""),
+                            "url": f"https://arxiv.org/abs/{paper.get('id', '')}",
+                        }
+                    )
 
         return papers
 
@@ -493,7 +500,7 @@ class ContextPrefetcher:
         learnings: List[Dict[str, Any]],
         project_memory: Optional[str],
         papers: List[Dict[str, Any]],
-        include_papers: bool = True
+        include_papers: bool = True,
     ) -> str:
         """Format all context as Claude-ready markdown block."""
         now = datetime.now().strftime("%Y-%m-%dT%H:%M")
@@ -513,7 +520,9 @@ class ContextPrefetcher:
                 if project_info.get("focus"):
                     lines.append(f"**Focus:** {', '.join(project_info['focus'])}")
                 if project_info.get("tech_stack"):
-                    lines.append(f"**Tech Stack:** {', '.join(project_info['tech_stack'])}")
+                    lines.append(
+                        f"**Tech Stack:** {', '.join(project_info['tech_stack'])}"
+                    )
                 if project_info.get("status"):
                     lines.append(f"**Status:** {project_info['status']}")
                 lines.append("")
@@ -539,7 +548,11 @@ class ContextPrefetcher:
                 # Extract just the key parts
                 content = learning["content"]
                 # Get first 500 chars of each section
-                lines.append(content[:800] if len(content) <= 800 else content[:800] + "\n\n*[truncated]*")
+                lines.append(
+                    content[:800]
+                    if len(content) <= 800
+                    else content[:800] + "\n\n*[truncated]*"
+                )
                 lines.append("")
 
         # Research papers
@@ -567,7 +580,9 @@ class ContextPrefetcher:
 
                 if lineage.get("research_sessions"):
                     sessions = lineage["research_sessions"][:3]
-                    lines.append(f"**Research Sessions:** {', '.join(s[:40] for s in sessions)}")
+                    lines.append(
+                        f"**Research Sessions:** {', '.join(s[:40] for s in sessions)}"
+                    )
 
                 if lineage.get("features_implemented"):
                     features = lineage["features_implemented"]
@@ -588,7 +603,7 @@ class ContextPrefetcher:
         include_papers: bool = True,
         output_mode: str = "stdout",
         pattern: Optional[str] = None,
-        proactive: bool = False
+        proactive: bool = False,
     ) -> str:
         """Main prefetch orchestration."""
 
@@ -602,10 +617,7 @@ class ContextPrefetcher:
 
         # Load components
         learnings = self.load_learnings(
-            project=project,
-            topic=topic,
-            days=days,
-            limit=limit
+            project=project, topic=topic, days=days, limit=limit
         )
 
         project_memory = None
@@ -622,7 +634,7 @@ class ContextPrefetcher:
             learnings=learnings,
             project_memory=project_memory,
             papers=papers,
-            include_papers=include_papers
+            include_papers=include_papers,
         )
 
         # Add pattern-based context if pattern specified or predicted
@@ -631,8 +643,7 @@ class ContextPrefetcher:
             if pattern_context:
                 # Insert pattern context before the closing marker
                 context = context.replace(
-                    CONTEXT_END,
-                    f"\n{pattern_context}\n{CONTEXT_END}"
+                    CONTEXT_END, f"\n{pattern_context}\n{CONTEXT_END}"
                 )
 
         # Output handling
@@ -647,11 +658,11 @@ class ContextPrefetcher:
         """Copy text to clipboard (macOS)."""
         try:
             process = subprocess.Popen(
-                ['pbcopy'],
+                ["pbcopy"],
                 stdin=subprocess.PIPE,
-                env={**os.environ, 'LANG': 'en_US.UTF-8'}
+                env={**os.environ, "LANG": "en_US.UTF-8"},
             )
-            process.communicate(text.encode('utf-8'))
+            process.communicate(text.encode("utf-8"))
         except Exception as e:
             print(f"Warning: Could not copy to clipboard: {e}")
 
@@ -666,11 +677,13 @@ class ContextPrefetcher:
         # Check if markers exist
         if CONTEXT_START in content and CONTEXT_END in content:
             # Replace between markers
-            pattern = re.escape(CONTEXT_START) + r'.*?' + re.escape(CONTEXT_END)
+            pattern = re.escape(CONTEXT_START) + r".*?" + re.escape(CONTEXT_END)
             new_content = re.sub(pattern, context, content, flags=re.DOTALL)
         else:
             # Add at the end of the file
-            new_content = content.rstrip() + "\n\n## Dynamic Context\n\n" + context + "\n"
+            new_content = (
+                content.rstrip() + "\n\n## Dynamic Context\n\n" + context + "\n"
+            )
 
         HOME_CLAUDE_MD.write_text(new_content)
         print(f"✓ Context injected into {HOME_CLAUDE_MD}")
@@ -680,32 +693,58 @@ def main():
     parser = argparse.ArgumentParser(
         description="Context Prefetcher - Memory injection for Claude sessions"
     )
-    parser.add_argument("--project", "-p",
-                        help="Project ID to load context for")
-    parser.add_argument("--topic", "-t",
-                        help="Filter by topic")
-    parser.add_argument("--days", "-d", type=int, default=14,
-                        help="Limit to last N days (default: 14)")
-    parser.add_argument("--limit", "-l", type=int, default=5,
-                        help="Max learning entries to include (default: 5)")
-    parser.add_argument("--papers", action="store_true",
-                        help="Include relevant arXiv papers")
-    parser.add_argument("--clipboard", "-c", action="store_true",
-                        help="Copy to clipboard (macOS)")
-    parser.add_argument("--inject", "-i", action="store_true",
-                        help="Inject into ~/CLAUDE.md")
-    parser.add_argument("--json", action="store_true",
-                        help="Output as JSON instead of markdown")
-    parser.add_argument("--quiet", "-q", action="store_true",
-                        help="Suppress informational output")
-    parser.add_argument("--pattern", "--pat",
-                        choices=["debugging", "research", "refactoring", "testing",
-                                "architecture", "performance", "deployment", "learning"],
-                        help="Load pattern-specific context")
-    parser.add_argument("--proactive", action="store_true",
-                        help="Auto-predict pattern from time/history")
-    parser.add_argument("--suggest", action="store_true",
-                        help="Show proactive suggestions for current pattern")
+    parser.add_argument("--project", "-p", help="Project ID to load context for")
+    parser.add_argument("--topic", "-t", help="Filter by topic")
+    parser.add_argument(
+        "--days", "-d", type=int, default=14, help="Limit to last N days (default: 14)"
+    )
+    parser.add_argument(
+        "--limit",
+        "-l",
+        type=int,
+        default=5,
+        help="Max learning entries to include (default: 5)",
+    )
+    parser.add_argument(
+        "--papers", action="store_true", help="Include relevant arXiv papers"
+    )
+    parser.add_argument(
+        "--clipboard", "-c", action="store_true", help="Copy to clipboard (macOS)"
+    )
+    parser.add_argument(
+        "--inject", "-i", action="store_true", help="Inject into ~/CLAUDE.md"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Output as JSON instead of markdown"
+    )
+    parser.add_argument(
+        "--quiet", "-q", action="store_true", help="Suppress informational output"
+    )
+    parser.add_argument(
+        "--pattern",
+        "--pat",
+        choices=[
+            "debugging",
+            "research",
+            "refactoring",
+            "testing",
+            "architecture",
+            "performance",
+            "deployment",
+            "learning",
+        ],
+        help="Load pattern-specific context",
+    )
+    parser.add_argument(
+        "--proactive",
+        action="store_true",
+        help="Auto-predict pattern from time/history",
+    )
+    parser.add_argument(
+        "--suggest",
+        action="store_true",
+        help="Show proactive suggestions for current pattern",
+    )
 
     args = parser.parse_args()
 
@@ -745,7 +784,7 @@ def main():
         include_papers=args.papers,
         output_mode=output_mode,
         pattern=args.pattern,
-        proactive=args.proactive
+        proactive=args.proactive,
     )
 
     if args.json:
@@ -753,7 +792,7 @@ def main():
         output = {
             "project": args.project or prefetcher.detect_project(),
             "context": result,
-            "generated_at": datetime.now().isoformat()
+            "generated_at": datetime.now().isoformat(),
         }
         print(json.dumps(output, indent=2))
     else:

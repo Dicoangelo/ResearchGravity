@@ -85,22 +85,26 @@ def export_session_outcomes():
 
     for s in sessions:
         # Try to get richer metadata from session JSON
-        meta = load_session_metadata(s['id'])
+        meta = load_session_metadata(s["id"])
 
         # Get topic from multiple sources
-        topic = s['topic'] or meta.get('topic') or meta.get('title', '')
-        if not topic and '-' in s['id']:
+        topic = s["topic"] or meta.get("topic") or meta.get("title", "")
+        if not topic and "-" in s["id"]:
             # Extract topic from session ID (e.g., "multi-agent-orchestr-20260113...")
-            topic = s['id'].rsplit('-', 3)[0].replace('-', ' ').title()
+            topic = s["id"].rsplit("-", 3)[0].replace("-", " ").title()
 
         # Get dates
-        started = s['started_at'] or meta.get('started_at') or meta.get('created_at', '')
-        archived = s['archived_at'] or meta.get('archived_at') or meta.get('completed_at', '')
+        started = (
+            s["started_at"] or meta.get("started_at") or meta.get("created_at", "")
+        )
+        archived = (
+            s["archived_at"] or meta.get("archived_at") or meta.get("completed_at", "")
+        )
 
         # Get tokens - from DB or estimate from transcript file
-        tokens = s['transcript_tokens'] or meta.get('tokens', 0)
+        tokens = s["transcript_tokens"] or meta.get("tokens", 0)
         if not tokens:
-            transcript_file = SESSIONS_DIR / s['id'] / "full_transcript.txt"
+            transcript_file = SESSIONS_DIR / s["id"] / "full_transcript.txt"
             if transcript_file.exists():
                 try:
                     text = transcript_file.read_text()
@@ -109,38 +113,40 @@ def export_session_outcomes():
                     tokens = 0
 
         # Estimate messages
-        messages = meta.get('messages', 0) or meta.get('message_count', 0)
+        messages = meta.get("messages", 0) or meta.get("message_count", 0)
         if not messages:
             messages = max(10, tokens // 500)  # ~500 tokens per message
 
         # Get tool count
-        tools = meta.get('tools', 0) or meta.get('tool_calls', 0)
+        tools = meta.get("tools", 0) or meta.get("tool_calls", 0)
         if not tools:
-            tools = max(5, s['finding_count'] + s['url_count'])
+            tools = max(5, s["finding_count"] + s["url_count"])
 
         total_tokens += tokens
         total_messages += messages
 
         outcome = {
-            "sessionId": s['id'],
+            "sessionId": s["id"],
             "topic": topic or "Research Session",
-            "status": s['status'] or "completed",
-            "project": s['project'] or meta.get('project', 'general'),
+            "status": s["status"] or "completed",
+            "project": s["project"] or meta.get("project", "general"),
             "startedAt": started,
             "archivedAt": archived,
             "messages": messages,
             "tools": tools,
-            "findings": s['finding_count'],
-            "urls": s['url_count'],
+            "findings": s["finding_count"],
+            "urls": s["url_count"],
             "tokens": tokens,
-            "outcome": "success" if s['status'] in ('completed', 'archived') else "active"
+            "outcome": "success"
+            if s["status"] in ("completed", "archived")
+            else "active",
         }
         outcomes.append(outcome)
 
     # Write to file
-    with open(CCC_SESSION_OUTCOMES, 'w') as f:
+    with open(CCC_SESSION_OUTCOMES, "w") as f:
         for o in outcomes:
-            f.write(json.dumps(o) + '\n')
+            f.write(json.dumps(o) + "\n")
 
     conn.close()
     return len(outcomes), total_tokens, total_messages
@@ -166,17 +172,21 @@ def export_stats_cache():
                     try:
                         s = json.loads(line)
                         total_sessions += 1
-                        total_messages += s.get('messages', 0)
-                        total_tokens += s.get('tokens', 0)
-                        total_tools += s.get('tools', 0)
+                        total_messages += s.get("messages", 0)
+                        total_tokens += s.get("tokens", 0)
+                        total_tools += s.get("tools", 0)
 
                         # Parse date for daily activity
-                        date_str = s.get('startedAt', '') or s.get('archivedAt', '')
+                        date_str = s.get("startedAt", "") or s.get("archivedAt", "")
                         if date_str:
-                            date = date_str.split('T')[0] if 'T' in date_str else date_str[:10]
-                            daily_data[date]['sessions'] += 1
-                            daily_data[date]['messages'] += s.get('messages', 0)
-                            daily_data[date]['tokens'] += s.get('tokens', 0)
+                            date = (
+                                date_str.split("T")[0]
+                                if "T" in date_str
+                                else date_str[:10]
+                            )
+                            daily_data[date]["sessions"] += 1
+                            daily_data[date]["messages"] += s.get("messages", 0)
+                            daily_data[date]["tokens"] += s.get("tokens", 0)
                     except:
                         continue
 
@@ -197,15 +207,10 @@ def export_stats_cache():
     daily_tokens_list = []
     for date in sorted(daily_data.keys())[-30:]:
         d = daily_data[date]
-        daily_activity.append({
-            "date": date,
-            "sessions": d['sessions'],
-            "messages": d['messages']
-        })
-        daily_tokens_list.append({
-            "date": date,
-            "tokens": d['tokens']
-        })
+        daily_activity.append(
+            {"date": date, "sessions": d["sessions"], "messages": d["messages"]}
+        )
+        daily_tokens_list.append({"date": date, "tokens": d["tokens"]})
 
     # Build stats cache
     stats = {
@@ -223,26 +228,26 @@ def export_stats_cache():
                 "inputTokens": total_tokens // 4,
                 "outputTokens": total_tokens // 8,
                 "cacheReadInputTokens": int(total_tokens * 0.6),
-                "cacheCreationInputTokens": int(total_tokens * 0.1)
+                "cacheCreationInputTokens": int(total_tokens * 0.1),
             },
             "claude-3-sonnet": {
                 "sessions": total_sessions // 2,
                 "inputTokens": total_tokens // 2,
-                "outputTokens": total_tokens // 4
+                "outputTokens": total_tokens // 4,
             },
             "claude-3-haiku": {
                 "sessions": total_sessions // 4,
                 "inputTokens": total_tokens // 4,
-                "outputTokens": total_tokens // 8
-            }
+                "outputTokens": total_tokens // 8,
+            },
         },
         "hourCounts": {},  # Would need timestamp parsing
         "lastUpdated": datetime.now().isoformat(),
-        "source": "storage-triad"
+        "source": "storage-triad",
     }
 
     # Write stats cache
-    with open(CCC_STATS_FILE, 'w') as f:
+    with open(CCC_STATS_FILE, "w") as f:
         json.dump(stats, f, indent=2)
 
     return True

@@ -12,11 +12,7 @@ from . import ucw_tools
 from . import coherence_tools
 
 # Aggregate all tools for router discovery
-ALL_TOOLS = (
-    research_tools.TOOLS +
-    ucw_tools.TOOLS +
-    coherence_tools.TOOLS
-)
+ALL_TOOLS = research_tools.TOOLS + ucw_tools.TOOLS + coherence_tools.TOOLS
 
 # Dispatch map: tool_name -> (module, handler)
 _DISPATCH = {}
@@ -34,4 +30,5 @@ async def handle_tool(name: str, args: dict) -> dict:
     if handler:
         return await handler(name, args)
     from mcp_raw.protocol import tool_result_content, text_content
+
     return tool_result_content([text_content(f"Unknown tool: {name}")], is_error=True)

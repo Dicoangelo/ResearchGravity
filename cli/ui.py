@@ -17,6 +17,7 @@ try:
     from rich.text import Text
     from rich.style import Style
     from rich.box import ROUNDED, SIMPLE
+
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -25,6 +26,7 @@ except ImportError:
 @dataclass
 class SessionStats:
     """Session statistics for display."""
+
     session_id: str
     topic: str
     urls_count: int
@@ -94,12 +96,14 @@ class SessionUI:
         Type 'help' for commands, 'quit' to exit
 """
         if self.console:
-            self.console.print(Panel(
-                banner,
-                title="ResearchGravity REPL",
-                border_style="blue",
-                box=ROUNDED
-            ))
+            self.console.print(
+                Panel(
+                    banner,
+                    title="ResearchGravity REPL",
+                    border_style="blue",
+                    box=ROUNDED,
+                )
+            )
         else:
             print(banner)
             print("-" * 60)
@@ -172,12 +176,14 @@ class SessionUI:
         bar = f"[green]{'█' * bar_filled}[/green][dim]{'░' * bar_empty}[/dim] {confidence_pct}%"
         table.add_row("Confidence", bar)
 
-        self.console.print(Panel(
-            table,
-            title="[bold]Session Status[/bold]",
-            border_style="cyan",
-            box=ROUNDED
-        ))
+        self.console.print(
+            Panel(
+                table,
+                title="[bold]Session Status[/bold]",
+                border_style="cyan",
+                box=ROUNDED,
+            )
+        )
 
     def _print_session_status_plain(self, stats: SessionStats):
         """Print session status without rich."""
@@ -185,7 +191,9 @@ class SessionUI:
         print(f"Session: {stats.session_id}")
         print(f"Topic: {stats.topic}")
         print()
-        print(f"URLs: {stats.urls_count} (T1:{stats.tier1_count} T2:{stats.tier2_count} T3:{stats.tier3_count})")
+        print(
+            f"URLs: {stats.urls_count} (T1:{stats.tier1_count} T2:{stats.tier2_count} T3:{stats.tier3_count})"
+        )
         print(f"Findings: {stats.findings_count}")
         print()
         synthesis = []
@@ -272,19 +280,21 @@ class SessionUI:
             else:
                 table.add_row(key, str(value))
 
-        self.console.print(Panel(
-            table,
-            title="[bold]Predictions[/bold]",
-            border_style="magenta",
-            box=ROUNDED
-        ))
+        self.console.print(
+            Panel(
+                table,
+                title="[bold]Predictions[/bold]",
+                border_style="magenta",
+                box=ROUNDED,
+            )
+        )
 
     def print_auto_capture_notification(self, urls_found: int, session_file: str):
         """Print notification about auto-captured URLs."""
         if self.console:
             self.console.print(
                 f"[dim][Auto-capture][/dim] Found {urls_found} URLs from {session_file}",
-                style="dim"
+                style="dim",
             )
         else:
             print(f"[Auto-capture] Found {urls_found} URLs from {session_file}")
@@ -298,14 +308,14 @@ class SessionUI:
         self._progress = Progress(
             SpinnerColumn(),
             TextColumn("[bold blue]{task.description}"),
-            console=self.console
+            console=self.console,
         )
         self._progress.start()
         self._task = self._progress.add_task(message)
 
     def stop_spinner(self):
         """Stop the progress spinner."""
-        if hasattr(self, '_progress'):
+        if hasattr(self, "_progress"):
             self._progress.stop()
 
     def print_help(self):
@@ -314,12 +324,14 @@ class SessionUI:
             print(self._get_help_text())
             return
 
-        self.console.print(Panel(
-            self._get_help_text(),
-            title="[bold]ResearchGravity REPL Help[/bold]",
-            border_style="blue",
-            box=ROUNDED
-        ))
+        self.console.print(
+            Panel(
+                self._get_help_text(),
+                title="[bold]ResearchGravity REPL Help[/bold]",
+                border_style="blue",
+                box=ROUNDED,
+            )
+        )
 
     def _get_help_text(self) -> str:
         return """

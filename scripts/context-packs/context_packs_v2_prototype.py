@@ -23,37 +23,47 @@ from collections import defaultdict
 
 try:
     import numpy as np
+
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
     print("⚠️  numpy not installed.")
+
     # Create minimal mock
     class MockNumpy:
         @staticmethod
         def array(x):
             return x
+
         @staticmethod
         def dot(a, b):
-            return sum(x*y for x, y in zip(a, b))
+            return sum(x * y for x, y in zip(a, b))
+
         @staticmethod
         def random():
             class R:
                 @staticmethod
                 def rand(n):
                     import random
+
                     return [random.random() for _ in range(n)]
+
             return R()
+
         class linalg:
             @staticmethod
             def norm(x):
-                return sum(v**2 for v in x)**0.5
+                return sum(v**2 for v in x) ** 0.5
+
         @staticmethod
         def mean(x):
             return sum(x) / len(x) if x else 0
+
     np = MockNumpy()
 
 try:
     from sentence_transformers import SentenceTransformer
+
     EMBEDDINGS_AVAILABLE = True
 except ImportError:
     EMBEDDINGS_AVAILABLE = False
@@ -61,25 +71,32 @@ except ImportError:
 
 try:
     import networkx as nx
+
     NETWORKX_AVAILABLE = True
 except ImportError:
     NETWORKX_AVAILABLE = False
     print("⚠️  networkx not installed. Using mock graphs.")
+
     # Create minimal mock graph
     class MockDiGraph:
         def __init__(self):
             self.nodes_data = {}
             self.edges_data = []
+
         def add_node(self, node_id, **attrs):
             self.nodes_data[node_id] = attrs
+
         def add_edge(self, u, v, **attrs):
             self.edges_data.append((u, v, attrs))
+
     class MockNX:
         DiGraph = MockDiGraph
+
         @staticmethod
         def single_source_shortest_path_length(G, source, cutoff=None):
             # Mock: return just the source with distance 0
             return {source: 0}
+
     nx = MockNX()
 
 if not (NUMPY_AVAILABLE or EMBEDDINGS_AVAILABLE or NETWORKX_AVAILABLE):
@@ -90,9 +107,11 @@ if not (NUMPY_AVAILABLE or EMBEDDINGS_AVAILABLE or NETWORKX_AVAILABLE):
 # Layer 1: Multi-Graph Pack Memory (MAGMA-inspired)
 # ============================================================================
 
+
 @dataclass
 class PackNode:
     """A pack in the multi-graph memory system"""
+
     pack_id: str
     pack_type: str
     content: Dict[str, Any]
@@ -112,7 +131,7 @@ class MultiGraphPackMemory:
     - Entity: paper/keyword co-occurrence
     """
 
-    def __init__(self, embedding_model: str = 'all-MiniLM-L6-v2'):
+    def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
         self.semantic_graph = nx.DiGraph()
         self.temporal_graph = nx.DiGraph()
         self.causal_graph = nx.DiGraph()
@@ -136,6 +155,7 @@ class MultiGraphPackMemory:
             # Mock embedding for testing without dependencies
             import hashlib
             import random
+
             hash_val = int(hashlib.md5(text.encode()).hexdigest(), 16)
             random.seed(hash_val % (2**32))
             if NUMPY_AVAILABLE:
@@ -147,13 +167,13 @@ class MultiGraphPackMemory:
     def add_pack(self, pack_data: Dict[str, Any]) -> PackNode:
         """Add a pack to all graphs with appropriate relationships"""
         # Handle V1 pack structure (pack_id + content nested) or V2 (id + flat)
-        pack_id = pack_data.get('pack_id') or pack_data.get('id')
+        pack_id = pack_data.get("pack_id") or pack_data.get("id")
         if not pack_id:
             raise ValueError("Pack must have 'pack_id' or 'id' field")
 
         # Extract content (may be nested in V1 packs)
-        if 'content' in pack_data and isinstance(pack_data['content'], dict):
-            content = pack_data['content']
+        if "content" in pack_data and isinstance(pack_data["content"], dict):
+            content = pack_data["content"]
         else:
             content = pack_data
 
@@ -164,14 +184,16 @@ class MultiGraphPackMemory:
         # Create pack node
         pack_node = PackNode(
             pack_id=pack_id,
-            pack_type=pack_data.get('type', 'unknown'),
+            pack_type=pack_data.get("type", "unknown"),
             content=pack_data,  # Store full pack data including metadata
             embedding=embedding,
             metadata={
-                'created': pack_data.get('created', ''),
-                'version': pack_data.get('version', 1),
-                'tokens': pack_data.get('size_tokens') or pack_data.get('metadata', {}).get('estimated_tokens', 0) or pack_data.get('estimated_tokens', 0)
-            }
+                "created": pack_data.get("created", ""),
+                "version": pack_data.get("version", 1),
+                "tokens": pack_data.get("size_tokens")
+                or pack_data.get("metadata", {}).get("estimated_tokens", 0)
+                or pack_data.get("estimated_tokens", 0),
+            },
         )
 
         self.packs[pack_id] = pack_node
@@ -193,37 +215,37 @@ class MultiGraphPackMemory:
         parts = []
 
         # Keywords (at root in both old and new schemas)
-        if 'keywords' in pack_data:
-            parts.append(' '.join(pack_data['keywords']))
+        if "keywords" in pack_data:
+            parts.append(" ".join(pack_data["keywords"]))
 
         # Description (new schema)
-        if 'description' in pack_data:
-            parts.append(pack_data['description'])
+        if "description" in pack_data:
+            parts.append(pack_data["description"])
 
         # Papers — old schema: root 'papers', new schema: context.papers_implemented/papers_adopted
-        if 'papers' in pack_data:
-            parts.extend([p.get('arxiv_id', '') for p in pack_data['papers']])
-        elif 'context' in pack_data:
-            ctx = pack_data['context']
-            papers = ctx.get('papers_implemented', ctx.get('papers_adopted', {}))
+        if "papers" in pack_data:
+            parts.extend([p.get("arxiv_id", "") for p in pack_data["papers"]])
+        elif "context" in pack_data:
+            ctx = pack_data["context"]
+            papers = ctx.get("papers_implemented", ctx.get("papers_adopted", {}))
             if isinstance(papers, dict):
                 parts.extend(papers.keys())
             elif isinstance(papers, list):
-                parts.extend([p.get('arxiv_id', '') for p in papers])
+                parts.extend([p.get("arxiv_id", "") for p in papers])
 
         # Learnings — old schema: root 'learnings', new schema: context.learnings
-        if 'learnings' in pack_data:
-            parts.extend(pack_data['learnings'][:5])
-        elif 'context' in pack_data:
-            ctx_learnings = pack_data['context'].get('learnings', [])
+        if "learnings" in pack_data:
+            parts.extend(pack_data["learnings"][:5])
+        elif "context" in pack_data:
+            ctx_learnings = pack_data["context"].get("learnings", [])
             parts.extend(ctx_learnings[:5])
 
         # Relevance triggers from metadata (new schema)
-        triggers = pack_data.get('metadata', {}).get('relevance_triggers', [])
+        triggers = pack_data.get("metadata", {}).get("relevance_triggers", [])
         if triggers:
-            parts.append(' '.join(triggers))
+            parts.append(" ".join(triggers))
 
-        return ' '.join(parts)
+        return " ".join(parts)
 
     def _build_semantic_edges(self, pack_node: PackNode):
         """Build semantic similarity edges to existing packs"""
@@ -235,16 +257,13 @@ class MultiGraphPackMemory:
                 continue
 
             similarity = self._cosine_similarity(
-                pack_node.embedding,
-                other_node.embedding
+                pack_node.embedding, other_node.embedding
             )
 
             # Add edge if similarity exceeds threshold
             if similarity > 0.5:  # Tunable threshold
                 self.semantic_graph.add_edge(
-                    pack_id, other_id,
-                    weight=similarity,
-                    type='semantic'
+                    pack_id, other_id, weight=similarity, type="semantic"
                 )
 
     def _build_entity_edges(self, pack_node: PackNode):
@@ -253,8 +272,8 @@ class MultiGraphPackMemory:
         pack_data = pack_node.content
 
         # Extract entities
-        pack_papers = {p.get('arxiv_id') for p in pack_data.get('papers', [])}
-        pack_keywords = set(pack_data.get('keywords', []))
+        pack_papers = {p.get("arxiv_id") for p in pack_data.get("papers", [])}
+        pack_keywords = set(pack_data.get("keywords", []))
 
         # Find overlaps with other packs
         for other_id, other_node in self.packs.items():
@@ -262,8 +281,8 @@ class MultiGraphPackMemory:
                 continue
 
             other_data = other_node.content
-            other_papers = {p.get('arxiv_id') for p in other_data.get('papers', [])}
-            other_keywords = set(other_data.get('keywords', []))
+            other_papers = {p.get("arxiv_id") for p in other_data.get("papers", [])}
+            other_keywords = set(other_data.get("keywords", []))
 
             # Calculate overlap
             paper_overlap = len(pack_papers & other_papers)
@@ -272,16 +291,17 @@ class MultiGraphPackMemory:
             if paper_overlap > 0 or keyword_overlap > 1:
                 overlap_score = paper_overlap * 0.5 + keyword_overlap * 0.3
                 self.entity_graph.add_edge(
-                    pack_id, other_id,
+                    pack_id,
+                    other_id,
                     weight=overlap_score,
-                    type='entity',
+                    type="entity",
                     papers=paper_overlap,
-                    keywords=keyword_overlap
+                    keywords=keyword_overlap,
                 )
 
     def _cosine_similarity(self, vec1: Any, vec2: Any) -> float:
         """Calculate cosine similarity between two vectors"""
-        if NUMPY_AVAILABLE and hasattr(vec1, 'shape'):
+        if NUMPY_AVAILABLE and hasattr(vec1, "shape"):
             dot_product = np.dot(vec1, vec2)
             norm_product = np.linalg.norm(vec1) * np.linalg.norm(vec2)
         else:
@@ -296,9 +316,9 @@ class MultiGraphPackMemory:
     def adaptive_retrieve(
         self,
         query: str,
-        intent: str = 'semantic',
+        intent: str = "semantic",
         max_packs: int = 5,
-        max_depth: int = 2
+        max_depth: int = 2,
     ) -> List[Tuple[str, float]]:
         """
         Route retrieval through appropriate graph based on query intent
@@ -314,23 +334,20 @@ class MultiGraphPackMemory:
         """
         query_embedding = self.embed(query)
 
-        if intent == 'semantic':
+        if intent == "semantic":
             return self._semantic_retrieve(query_embedding, max_packs, max_depth)
-        elif intent == 'temporal':
+        elif intent == "temporal":
             return self._temporal_retrieve(max_packs)
-        elif intent == 'causal':
+        elif intent == "causal":
             return self._causal_retrieve(query, max_packs)
-        elif intent == 'entity':
+        elif intent == "entity":
             return self._entity_retrieve(query, max_packs)
         else:
             # Default to semantic
             return self._semantic_retrieve(query_embedding, max_packs, max_depth)
 
     def _semantic_retrieve(
-        self,
-        query_embedding: np.ndarray,
-        max_packs: int,
-        max_depth: int
+        self, query_embedding: np.ndarray, max_packs: int, max_depth: int
     ) -> List[Tuple[str, float]]:
         """Semantic retrieval with graph expansion"""
         # Step 1: Get initial candidates via similarity
@@ -355,7 +372,7 @@ class MultiGraphPackMemory:
                 for neighbor_id, depth in neighbors.items():
                     if neighbor_id != pack_id:
                         # Decay score by depth
-                        decay_factor = 0.7 ** depth
+                        decay_factor = 0.7**depth
                         expanded.add((neighbor_id, score * decay_factor))
 
         # Sort and return top max_packs
@@ -367,11 +384,11 @@ class MultiGraphPackMemory:
         now = datetime.now(timezone.utc)
         temporal_scores = []
         for pack_id, pack_node in self.packs.items():
-            created = pack_node.metadata.get('created', '')
+            created = pack_node.metadata.get("created", "")
             if created:
                 try:
                     # Parse ISO timestamp (handles both Z suffix and +00:00)
-                    ts = created.replace('Z', '+00:00')
+                    ts = created.replace("Z", "+00:00")
                     created_dt = datetime.fromisoformat(ts)
                     age_days = (now - created_dt).total_seconds() / 86400
                     score = max(1.0 - (age_days / 180), 0.2)
@@ -401,15 +418,15 @@ class MultiGraphPackMemory:
             score = 0.0
 
             # Match keywords
-            keywords = pack_node.content.get('keywords', [])
+            keywords = pack_node.content.get("keywords", [])
             for kw in keywords:
                 if kw.lower() in query_lower:
                     score += 0.3
 
             # Match paper topics (arxiv IDs in query)
-            papers = pack_node.content.get('papers', [])
+            papers = pack_node.content.get("papers", [])
             for paper in papers:
-                arxiv_id = paper.get('arxiv_id', '')
+                arxiv_id = paper.get("arxiv_id", "")
                 if arxiv_id in query:
                     score += 0.5
 
@@ -424,9 +441,11 @@ class MultiGraphPackMemory:
 # Layer 2: Role-Aware Multi-Agent Routing (RCR-Router inspired)
 # ============================================================================
 
+
 @dataclass
 class Agent:
     """Specialized agent for pack selection"""
+
     agent_id: str
     role: str
     weight: float
@@ -445,22 +464,28 @@ class MultiAgentPackRouter:
 
         # Define specialized agents
         self.agents = [
-            Agent('relevance', 'semantic_matcher', 0.45, ['keywords', 'papers', 'embeddings']),
-            Agent('efficiency', 'cost_optimizer', 0.15, ['token_size', 'compression']),
-            Agent('recency', 'temporal_prioritizer', 0.10, ['created', 'updated']),
-            Agent('quality', 'outcome_analyzer', 0.15, ['dq_scores', 'success_rate']),
-            Agent('diversity', 'coverage_maximizer', 0.15, ['uniqueness', 'complementarity'])
+            Agent(
+                "relevance",
+                "semantic_matcher",
+                0.45,
+                ["keywords", "papers", "embeddings"],
+            ),
+            Agent("efficiency", "cost_optimizer", 0.15, ["token_size", "compression"]),
+            Agent("recency", "temporal_prioritizer", 0.10, ["created", "updated"]),
+            Agent("quality", "outcome_analyzer", 0.15, ["dq_scores", "success_rate"]),
+            Agent(
+                "diversity",
+                "coverage_maximizer",
+                0.15,
+                ["uniqueness", "complementarity"],
+            ),
         ]
 
         # Shared semantic memory (cross-agent context)
         self.shared_memory = {}
 
     def route(
-        self,
-        query: str,
-        context: Dict[str, Any],
-        token_budget: int,
-        rounds: int = 3
+        self, query: str, context: Dict[str, Any], token_budget: int, rounds: int = 3
     ) -> Tuple[List[str], Dict[str, Any]]:
         """
         Multi-agent pack selection with iterative refinement
@@ -476,10 +501,10 @@ class MultiAgentPackRouter:
         """
         # Initialize shared memory
         self.shared_memory = {
-            'query': query,
-            'context': context,
-            'budget': token_budget,
-            'round': 0
+            "query": query,
+            "context": context,
+            "budget": token_budget,
+            "round": 0,
         }
 
         # Get all packs
@@ -489,7 +514,7 @@ class MultiAgentPackRouter:
         agent_votes = {agent.agent_id: {} for agent in self.agents}
 
         for round_num in range(1, rounds + 1):
-            self.shared_memory['round'] = round_num
+            self.shared_memory["round"] = round_num
 
             # Each agent votes
             for agent in self.agents:
@@ -498,7 +523,7 @@ class MultiAgentPackRouter:
 
                 # Share top picks with other agents
                 top_picks = sorted(votes.items(), key=lambda x: x[1], reverse=True)[:3]
-                self.shared_memory[f'{agent.agent_id}_top'] = top_picks
+                self.shared_memory[f"{agent.agent_id}_top"] = top_picks
 
         # Aggregate votes via weighted consensus
         consensus_scores = self._consensus_aggregation(agent_votes)
@@ -508,40 +533,35 @@ class MultiAgentPackRouter:
 
         # Metadata
         metadata = {
-            'rounds': rounds,
-            'agent_votes': agent_votes,
-            'consensus_scores': consensus_scores,
-            'agents_used': [a.agent_id for a in self.agents],
-            'budget_used': sum(
-                self.memory.packs[p].metadata['tokens']
-                for p in selected_packs
-            )
+            "rounds": rounds,
+            "agent_votes": agent_votes,
+            "consensus_scores": consensus_scores,
+            "agents_used": [a.agent_id for a in self.agents],
+            "budget_used": sum(
+                self.memory.packs[p].metadata["tokens"] for p in selected_packs
+            ),
         }
 
         return selected_packs, metadata
 
     def _agent_vote(
-        self,
-        agent: Agent,
-        all_packs: List[str],
-        query: str,
-        context: Dict[str, Any]
+        self, agent: Agent, all_packs: List[str], query: str, context: Dict[str, Any]
     ) -> Dict[str, float]:
         """Individual agent voting logic"""
         votes = {}
 
-        if agent.agent_id == 'relevance':
+        if agent.agent_id == "relevance":
             # Semantic matching + keyword boost
             candidates = self.memory.adaptive_retrieve(
-                query, intent='semantic', max_packs=10
+                query, intent="semantic", max_packs=10
             )
             query_lower = query.lower()
             for pack_id, score in candidates:
                 # Keyword overlap boost (handles both V1 and V2 schemas)
                 pack_data = self.memory.packs[pack_id].content
-                keywords = pack_data.get('keywords', [])
-                if not keywords and 'content' in pack_data:
-                    keywords = pack_data['content'].get('keywords', [])
+                keywords = pack_data.get("keywords", [])
+                if not keywords and "content" in pack_data:
+                    keywords = pack_data["content"].get("keywords", [])
                 if keywords:
                     matches = sum(1 for kw in keywords if kw.lower() in query_lower)
                     boost = min(matches / len(keywords), 0.4)
@@ -549,43 +569,43 @@ class MultiAgentPackRouter:
                     boost = 0.0
                 votes[pack_id] = score + boost
 
-        elif agent.agent_id == 'efficiency':
+        elif agent.agent_id == "efficiency":
             # Token efficiency
             for pack_id in all_packs:
                 pack_node = self.memory.packs[pack_id]
-                tokens = pack_node.metadata.get('tokens', 100) or 100
+                tokens = pack_node.metadata.get("tokens", 100) or 100
                 # Lower tokens = higher score
                 votes[pack_id] = 1.0 / (tokens / 100.0)
 
-        elif agent.agent_id == 'recency':
+        elif agent.agent_id == "recency":
             # Temporal priority
             candidates = self.memory.adaptive_retrieve(
-                query, intent='temporal', max_packs=10
+                query, intent="temporal", max_packs=10
             )
             for pack_id, score in candidates:
                 votes[pack_id] = score
 
-        elif agent.agent_id == 'quality':
+        elif agent.agent_id == "quality":
             # Historical quality from pack-metrics.json
-            metrics_path = os.path.expanduser('~/.claude/data/pack-metrics.json')
+            metrics_path = os.path.expanduser("~/.claude/data/pack-metrics.json")
             pack_dq = {}
             try:
-                with open(metrics_path, 'r') as f:
+                with open(metrics_path, "r") as f:
                     metrics_data = json.load(f)
-                for item in metrics_data.get('pack_inventory', []):
-                    name = item.get('name', '')
-                    dq = item.get('avg_dq_score', 0)
+                for item in metrics_data.get("pack_inventory", []):
+                    name = item.get("name", "")
+                    dq = item.get("avg_dq_score", 0)
                     pack_dq[name] = dq if dq > 0 else 0.5
             except (FileNotFoundError, json.JSONDecodeError, KeyError):
                 pass  # Fall through to default
             for pack_id in all_packs:
                 votes[pack_id] = pack_dq.get(pack_id, 0.5)
 
-        elif agent.agent_id == 'diversity':
+        elif agent.agent_id == "diversity":
             # Type-based coverage: boost packs whose pack_type is underrepresented
             type_counts = defaultdict(int)
             for other_agent_id, top_picks in self.shared_memory.items():
-                if '_top' in str(other_agent_id):
+                if "_top" in str(other_agent_id):
                     for pack_id_score in top_picks:
                         pid = pack_id_score[0]
                         if pid in self.memory.packs:
@@ -600,8 +620,7 @@ class MultiAgentPackRouter:
         return votes
 
     def _consensus_aggregation(
-        self,
-        agent_votes: Dict[str, Dict[str, float]]
+        self, agent_votes: Dict[str, Dict[str, float]]
     ) -> Dict[str, float]:
         """Weighted consensus across all agents"""
         consensus = defaultdict(float)
@@ -614,23 +633,19 @@ class MultiAgentPackRouter:
         return dict(consensus)
 
     def _greedy_select(
-        self,
-        consensus_scores: Dict[str, float],
-        token_budget: int
+        self, consensus_scores: Dict[str, float], token_budget: int
     ) -> List[str]:
         """Greedy knapsack selection within token budget"""
         # Sort by consensus score
         sorted_packs = sorted(
-            consensus_scores.items(),
-            key=lambda x: x[1],
-            reverse=True
+            consensus_scores.items(), key=lambda x: x[1], reverse=True
         )
 
         selected = []
         tokens_used = 0
 
         for pack_id, score in sorted_packs:
-            pack_tokens = self.memory.packs[pack_id].metadata.get('tokens', 0)
+            pack_tokens = self.memory.packs[pack_id].metadata.get("tokens", 0)
 
             if tokens_used + pack_tokens <= token_budget:
                 selected.append(pack_id)
@@ -643,6 +658,7 @@ class MultiAgentPackRouter:
 # Layer 3: Attention-Guided Pack Pruning (AttentionRAG inspired)
 # ============================================================================
 
+
 class AttentionPackPruner:
     """
     Prune pack content using simulated attention scores
@@ -653,9 +669,7 @@ class AttentionPackPruner:
         self.compression_ratio = 0.63  # Target 6.3x compression
 
     def prune_pack(
-        self,
-        pack_data: Dict[str, Any],
-        query: str
+        self, pack_data: Dict[str, Any], query: str
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Prune pack content to most relevant elements
@@ -664,18 +678,18 @@ class AttentionPackPruner:
             (pruned_pack, pruning_metrics)
         """
         # Handle V1 ('content') and V2 ('context' + top-level keywords) schemas
-        pack_id = pack_data.get('pack_id') or pack_data.get('id')
-        if 'content' in pack_data:
-            content = pack_data['content']
+        pack_id = pack_data.get("pack_id") or pack_data.get("id")
+        if "content" in pack_data:
+            content = pack_data["content"]
         else:
-            ctx = pack_data.get('context', {})
-            papers = ctx.get('papers_implemented', ctx.get('papers_adopted', {}))
+            ctx = pack_data.get("context", {})
+            papers = ctx.get("papers_implemented", ctx.get("papers_adopted", {}))
             if isinstance(papers, dict):
-                papers = [{'arxiv_id': k, 'relevance': 5} for k in papers.keys()]
+                papers = [{"arxiv_id": k, "relevance": 5} for k in papers.keys()]
             content = {
-                'keywords': pack_data.get('keywords', []),
-                'papers': papers if isinstance(papers, list) else [],
-                'learnings': ctx.get('learnings', []),
+                "keywords": pack_data.get("keywords", []),
+                "papers": papers if isinstance(papers, list) else [],
+                "learnings": ctx.get("learnings", []),
             }
 
         # Simulate attention scores for different pack elements
@@ -686,86 +700,84 @@ class AttentionPackPruner:
 
         # Prune elements below threshold (preserve size_tokens for display)
         pruned_pack = {
-            'pack_id': pack_id,
-            'id': pack_id,
-            'type': pack_data.get('type', 'unknown'),
-            'size_tokens': pack_data.get('size_tokens', pack_data.get('metadata', {}).get('estimated_tokens', 0)),
-            'papers': [],
-            'learnings': [],
-            'keywords': []
+            "pack_id": pack_id,
+            "id": pack_id,
+            "type": pack_data.get("type", "unknown"),
+            "size_tokens": pack_data.get(
+                "size_tokens", pack_data.get("metadata", {}).get("estimated_tokens", 0)
+            ),
+            "papers": [],
+            "learnings": [],
+            "keywords": [],
         }
 
         # Keep high-attention papers
-        for i, paper in enumerate(content.get('papers', [])):
-            if attention_scores['papers'][i] > threshold:
-                pruned_pack['papers'].append(paper)
+        for i, paper in enumerate(content.get("papers", [])):
+            if attention_scores["papers"][i] > threshold:
+                pruned_pack["papers"].append(paper)
 
         # Keep high-attention learnings
-        for i, learning in enumerate(content.get('learnings', [])):
-            if attention_scores['learnings'][i] > threshold:
-                pruned_pack['learnings'].append(learning)
+        for i, learning in enumerate(content.get("learnings", [])):
+            if attention_scores["learnings"][i] > threshold:
+                pruned_pack["learnings"].append(learning)
 
         # Keep high-attention keywords
-        for i, keyword in enumerate(content.get('keywords', [])):
-            if attention_scores['keywords'][i] > threshold:
-                pruned_pack['keywords'].append(keyword)
+        for i, keyword in enumerate(content.get("keywords", [])):
+            if attention_scores["keywords"][i] > threshold:
+                pruned_pack["keywords"].append(keyword)
 
         # Metrics
         original_elements = (
-            len(content.get('papers', [])) +
-            len(content.get('learnings', [])) +
-            len(content.get('keywords', []))
+            len(content.get("papers", []))
+            + len(content.get("learnings", []))
+            + len(content.get("keywords", []))
         )
         pruned_elements = (
-            len(pruned_pack['papers']) +
-            len(pruned_pack['learnings']) +
-            len(pruned_pack['keywords'])
+            len(pruned_pack["papers"])
+            + len(pruned_pack["learnings"])
+            + len(pruned_pack["keywords"])
         )
 
         metrics = {
-            'original_elements': original_elements,
-            'pruned_elements': pruned_elements,
-            'compression_ratio': pruned_elements / original_elements if original_elements > 0 else 1.0,
-            'threshold': threshold
+            "original_elements": original_elements,
+            "pruned_elements": pruned_elements,
+            "compression_ratio": pruned_elements / original_elements
+            if original_elements > 0
+            else 1.0,
+            "threshold": threshold,
         }
 
         return pruned_pack, metrics
 
     def _calculate_attention(
-        self,
-        pack_data: Dict[str, Any],
-        query: str
+        self, pack_data: Dict[str, Any], query: str
     ) -> Dict[str, List[float]]:
         """
         Simulate attention scores for pack elements
         In production, use actual LLM attention via API
         """
         query_lower = query.lower()
-        scores = {
-            'papers': [],
-            'learnings': [],
-            'keywords': []
-        }
+        scores = {"papers": [], "learnings": [], "keywords": []}
 
         # Papers attention
-        for paper in pack_data.get('papers', []):
-            arxiv_id = paper.get('arxiv_id', '')
+        for paper in pack_data.get("papers", []):
+            arxiv_id = paper.get("arxiv_id", "")
             # Mock: higher score if arxiv mentioned
             score = 0.8 if arxiv_id in query else 0.5
-            scores['papers'].append(score)
+            scores["papers"].append(score)
 
         # Learnings attention
-        for learning in pack_data.get('learnings', []):
+        for learning in pack_data.get("learnings", []):
             # Mock: overlap with query
             overlap = sum(1 for word in learning.lower().split() if word in query_lower)
             score = min(1.0, 0.3 + overlap * 0.1)
-            scores['learnings'].append(score)
+            scores["learnings"].append(score)
 
         # Keywords attention
-        for keyword in pack_data.get('keywords', []):
+        for keyword in pack_data.get("keywords", []):
             # Mock: direct match
             score = 0.9 if keyword.lower() in query_lower else 0.4
-            scores['keywords'].append(score)
+            scores["keywords"].append(score)
 
         return scores
 
@@ -795,6 +807,7 @@ class AttentionPackPruner:
 # Main V2 Engine - Integration of All Layers
 # ============================================================================
 
+
 class ContextPacksV2Engine:
     """
     Adaptive Multi-Graph Context Engine
@@ -803,7 +816,7 @@ class ContextPacksV2Engine:
 
     def __init__(self, pack_storage_dir: str = None):
         if pack_storage_dir is None:
-            pack_storage_dir = os.path.expanduser('~/.agent-core/context-packs')
+            pack_storage_dir = os.path.expanduser("~/.agent-core/context-packs")
 
         self.pack_storage_dir = pack_storage_dir
 
@@ -817,6 +830,7 @@ class ContextPacksV2Engine:
         self.rl_manager = None
         try:
             from context_packs_v2_layer4_rl import RLPackManager
+
             self.rl_manager = RLPackManager(pack_storage_dir)
             print("✓ Layer 4 (RL Pack Manager) loaded")
         except ImportError:
@@ -827,7 +841,12 @@ class ContextPacksV2Engine:
         self.continuum_memory = None
         self.trainable_graph = None
         try:
-            from context_packs_v2_layer5_focus import FocusAgent, ContinuumMemory, TrainablePackGraph
+            from context_packs_v2_layer5_focus import (
+                FocusAgent,
+                ContinuumMemory,
+                TrainablePackGraph,
+            )
+
             self.focus_agent = FocusAgent()
             self.continuum_memory = ContinuumMemory(pack_storage_dir)
             self.trainable_graph = TrainablePackGraph()
@@ -842,15 +861,15 @@ class ContextPacksV2Engine:
 
     def _load_packs(self):
         """Load all packs from storage into memory graphs"""
-        pack_types = ['domain', 'project', 'pattern', 'paper']
+        pack_types = ["domain", "project", "pattern", "paper"]
 
         for pack_type in pack_types:
             type_dir = os.path.join(self.pack_storage_dir, pack_type)
             if not os.path.exists(type_dir):
                 continue
 
-            for pack_file in Path(type_dir).glob('*.pack.json'):
-                with open(pack_file, 'r') as f:
+            for pack_file in Path(type_dir).glob("*.pack.json"):
+                with open(pack_file, "r") as f:
                     pack_data = json.load(f)
                     self.memory.add_pack(pack_data)
 
@@ -859,7 +878,7 @@ class ContextPacksV2Engine:
         query: str,
         context: Dict[str, Any] = None,
         token_budget: int = 50000,
-        enable_pruning: bool = True
+        enable_pruning: bool = True,
     ) -> Tuple[List[Dict], Dict[str, Any]]:
         """
         End-to-end pack selection and compression
@@ -905,12 +924,12 @@ class ContextPacksV2Engine:
         # Modify router context to include weights and boosts
         enhanced_context = context.copy() if context else {}
         if self.trainable_graph:
-            enhanced_context['trainable_weights'] = {
+            enhanced_context["trainable_weights"] = {
                 pack_id: self.trainable_graph.get_weight(pack_id)
                 for pack_id in self.memory.packs.keys()
             }
         if self.continuum_memory:
-            enhanced_context['importance_boosts'] = importance_boosts
+            enhanced_context["importance_boosts"] = importance_boosts
 
         selected_pack_ids, routing_metadata = self.router.route(
             query, enhanced_context, token_budget, rounds=3
@@ -918,7 +937,7 @@ class ContextPacksV2Engine:
 
         print(f"  → Selected {len(selected_pack_ids)} packs")
         for pack_id in selected_pack_ids[:3]:
-            consensus = routing_metadata['consensus_scores'].get(pack_id, 0)
+            consensus = routing_metadata["consensus_scores"].get(pack_id, 0)
             print(f"    • {pack_id}: consensus={consensus:.3f}")
 
         # Step 4: RL-based pack operations (Layer 4)
@@ -928,10 +947,10 @@ class ContextPacksV2Engine:
             for pack_id in selected_pack_ids:
                 pack_data = self.memory.packs[pack_id].content
                 operation = self.rl_manager.decide_operation(
-                    pack_data, query, session_id='current'
+                    pack_data, query, session_id="current"
                 )
-                rl_operations.append({'pack_id': pack_id, 'operation': operation})
-                if operation != 'NOOP':
+                rl_operations.append({"pack_id": pack_id, "operation": operation})
+                if operation != "NOOP":
                     print(f"  → {pack_id}: {operation}")
 
         # Step 5: Focus compression (Layer 5) - Applied before attention pruning
@@ -944,13 +963,15 @@ class ContextPacksV2Engine:
                 focused_pack, metrics = self.focus_agent.compress_pack(pack_data, query)
                 focused_packs.append(focused_pack)
                 focus_metrics.append(metrics)
-                if metrics['reduction_rate'] > 0.15:
+                if metrics["reduction_rate"] > 0.15:
                     print(f"  → {pack_id}: {metrics['reduction_rate']:.1%} reduction")
 
             # Use focused packs for next step
             temp_packs = focused_packs
         else:
-            temp_packs = [self.memory.packs[pack_id].content for pack_id in selected_pack_ids]
+            temp_packs = [
+                self.memory.packs[pack_id].content for pack_id in selected_pack_ids
+            ]
 
         # Step 6: Attention-guided pruning (Layer 3)
         final_packs = []
@@ -964,8 +985,12 @@ class ContextPacksV2Engine:
                 final_packs.append(pruned_pack)
                 pruning_metrics.append(prune_metrics)
 
-            compression_ratios = [m['compression_ratio'] for m in pruning_metrics]
-            avg_compression = sum(compression_ratios) / len(compression_ratios) if compression_ratios else 1.0
+            compression_ratios = [m["compression_ratio"] for m in pruning_metrics]
+            avg_compression = (
+                sum(compression_ratios) / len(compression_ratios)
+                if compression_ratios
+                else 1.0
+            )
             print(f"  → Average compression: {avg_compression:.1%} of original")
         else:
             for pack_id in selected_pack_ids:
@@ -974,29 +999,31 @@ class ContextPacksV2Engine:
         # Calculate metrics
         total_time = time.time() - start_time
 
-        layers_used = ['multi_graph_memory']
+        layers_used = ["multi_graph_memory"]
         if self.trainable_graph:
-            layers_used.append('trainable_pack_weights')
+            layers_used.append("trainable_pack_weights")
         if self.continuum_memory:
-            layers_used.append('continuum_memory')
-        layers_used.append('multi_agent_routing')
+            layers_used.append("continuum_memory")
+        layers_used.append("multi_agent_routing")
         if self.rl_manager:
-            layers_used.append('rl_pack_operations')
+            layers_used.append("rl_pack_operations")
         if self.focus_agent and enable_pruning:
-            layers_used.append('active_focus_compression')
+            layers_used.append("active_focus_compression")
         if enable_pruning:
-            layers_used.append('attention_pruning')
+            layers_used.append("attention_pruning")
 
         metrics = {
-            'selection_time_ms': total_time * 1000,
-            'packs_selected': len(selected_pack_ids),
-            'routing_metadata': routing_metadata,
-            'rl_operations': rl_operations if self.rl_manager else None,
-            'focus_compression': focus_metrics if self.focus_agent and enable_pruning else None,
-            'pruning_enabled': enable_pruning,
-            'pruning_metrics': pruning_metrics if enable_pruning else None,
-            'layers_used': layers_used,
-            'total_layers': len(layers_used)
+            "selection_time_ms": total_time * 1000,
+            "packs_selected": len(selected_pack_ids),
+            "routing_metadata": routing_metadata,
+            "rl_operations": rl_operations if self.rl_manager else None,
+            "focus_compression": focus_metrics
+            if self.focus_agent and enable_pruning
+            else None,
+            "pruning_enabled": enable_pruning,
+            "pruning_metrics": pruning_metrics if enable_pruning else None,
+            "layers_used": layers_used,
+            "total_layers": len(layers_used),
         }
 
         return final_packs, metrics
@@ -1006,42 +1033,33 @@ class ContextPacksV2Engine:
 # CLI Interface
 # ============================================================================
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description='Context Packs V2 - Prototype'
+    parser = argparse.ArgumentParser(description="Context Packs V2 - Prototype")
+    parser.add_argument(
+        "--query", type=str, required=True, help="Query/context for pack selection"
     )
     parser.add_argument(
-        '--query',
+        "--budget", type=int, default=50000, help="Token budget (default: 50000)"
+    )
+    parser.add_argument(
+        "--no-pruning", action="store_true", help="Disable attention-guided pruning"
+    )
+    parser.add_argument(
+        "--intent",
         type=str,
-        required=True,
-        help='Query/context for pack selection'
+        choices=["semantic", "temporal", "causal", "entity"],
+        default="semantic",
+        help="Retrieval intent for graph traversal",
     )
     parser.add_argument(
-        '--budget',
-        type=int,
-        default=50000,
-        help='Token budget (default: 50000)'
-    )
-    parser.add_argument(
-        '--no-pruning',
-        action='store_true',
-        help='Disable attention-guided pruning'
-    )
-    parser.add_argument(
-        '--intent',
+        "--format",
         type=str,
-        choices=['semantic', 'temporal', 'causal', 'entity'],
-        default='semantic',
-        help='Retrieval intent for graph traversal'
-    )
-    parser.add_argument(
-        '--format',
-        type=str,
-        choices=['text', 'json'],
-        default='text',
-        help='Output format'
+        choices=["text", "json"],
+        default="text",
+        help="Output format",
     )
 
     args = parser.parse_args()
@@ -1051,36 +1069,30 @@ def main():
 
     # Select and compress
     final_packs, metrics = engine.select_and_compress(
-        query=args.query,
-        token_budget=args.budget,
-        enable_pruning=not args.no_pruning
+        query=args.query, token_budget=args.budget, enable_pruning=not args.no_pruning
     )
 
     # Output results
-    if args.format == 'json':
-        result = {
-            'query': args.query,
-            'packs': final_packs,
-            'metrics': metrics
-        }
+    if args.format == "json":
+        result = {"query": args.query, "packs": final_packs, "metrics": metrics}
         print(json.dumps(result, indent=2))
     else:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("CONTEXT PACKS V2 - SELECTION RESULTS")
-        print("="*60)
+        print("=" * 60)
         print(f"\nQuery: {args.query}")
         print(f"Budget: {args.budget:,} tokens")
         print(f"Selected: {len(final_packs)} packs")
         print(f"Time: {metrics['selection_time_ms']:.1f}ms")
         print(f"Layers: {', '.join(metrics['layers_used'])}")
 
-        print("\n" + "-"*60)
+        print("\n" + "-" * 60)
         print("SELECTED PACKS:")
-        print("-"*60)
+        print("-" * 60)
 
         for i, pack in enumerate(final_packs, 1):
-            pack_id = pack['id']
-            pack_type = pack['type']
+            pack_id = pack["id"]
+            pack_type = pack["type"]
 
             print(f"\n{i}. {pack_id} (type: {pack_type})")
             print(f"   Papers: {len(pack.get('papers', []))}")
@@ -1088,13 +1100,15 @@ def main():
             print(f"   Keywords: {', '.join(pack.get('keywords', [])[:5])}")
 
             if args.no_pruning:
-                consensus = metrics['routing_metadata']['consensus_scores'].get(pack_id, 0)
+                consensus = metrics["routing_metadata"]["consensus_scores"].get(
+                    pack_id, 0
+                )
                 print(f"   Consensus: {consensus:.3f}")
             else:
-                if metrics['pruning_metrics']:
-                    prune_metric = metrics['pruning_metrics'][i-1]
+                if metrics["pruning_metrics"]:
+                    prune_metric = metrics["pruning_metrics"][i - 1]
                     print(f"   Compression: {prune_metric['compression_ratio']:.1%}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

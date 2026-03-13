@@ -135,13 +135,9 @@ class XTrustBridge:
                 duration=0.0,
             )
 
-        return await self._ledger.get_trust_score(
-            parsed["agent_id"], TASK_TYPE
-        )
+        return await self._ledger.get_trust_score(parsed["agent_id"], TASK_TYPE)
 
-    async def sync_top_authors(
-        self, authors_json: str
-    ) -> List[Dict[str, Any]]:
+    async def sync_top_authors(self, authors_json: str) -> List[Dict[str, Any]]:
         """
         Sync multiple X authors from top_authors MCP output.
 
@@ -151,25 +147,27 @@ class XTrustBridge:
         Returns:
             List of synced entries with agent_id, trust_score, username
         """
-        data = json.loads(authors_json) if isinstance(authors_json, str) else authors_json
+        data = (
+            json.loads(authors_json) if isinstance(authors_json, str) else authors_json
+        )
         authors = data.get("top_authors", data) if isinstance(data, dict) else data
 
         results = []
         for author in authors:
             score = await self.sync_author_data(author)
-            results.append({
-                "agent_id": self._agent_id(author["username"]),
-                "username": author["username"],
-                "x_trust": author.get("trust_score", 0.5),
-                "delegation_trust": score,
-                "synced_at": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
-            })
+            results.append(
+                {
+                    "agent_id": self._agent_id(author["username"]),
+                    "username": author["username"],
+                    "x_trust": author.get("trust_score", 0.5),
+                    "delegation_trust": score,
+                    "synced_at": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
+                }
+            )
 
         return results
 
-    async def get_combined_trust(
-        self, username: str
-    ) -> Dict[str, Any]:
+    async def get_combined_trust(self, username: str) -> Dict[str, Any]:
         """
         Get combined trust view for an X author across both systems.
 
@@ -192,5 +190,7 @@ class XTrustBridge:
                 "success_count": stats.success_count if stats else 0,
                 "failure_count": stats.failure_count if stats else 0,
                 "avg_quality": stats.avg_quality if stats else 0.0,
-            } if stats else None,
+            }
+            if stats
+            else None,
         }

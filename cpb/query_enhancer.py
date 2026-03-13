@@ -22,6 +22,7 @@ from .llm_client import complete
 @dataclass
 class EnhancedQuery:
     """Result of query enhancement."""
+
     original: str
     enhanced: str
     reasoning: str
@@ -146,9 +147,7 @@ Now enhance this query:
 
 
 async def enhance_query(
-    query: str,
-    context: Optional[str] = None,
-    model: str = "haiku"
+    query: str, context: Optional[str] = None, model: str = "haiku"
 ) -> EnhancedQuery:
     """
     Enhance a query into a research-grade prompt.
@@ -174,7 +173,7 @@ async def enhance_query(
             user_prompt=prompt,
             model=model,
             temperature=0.3,
-            max_tokens=1000
+            max_tokens=1000,
         )
         response = llm_response.content
 
@@ -199,7 +198,7 @@ async def enhance_query(
             dimensions=result.get("dimensions", []),
             was_enhanced=result.get("was_enhanced", True),
             suggest_pioneer=result.get("suggest_pioneer", False),
-            pioneer_signals=result.get("pioneer_signals", [])
+            pioneer_signals=result.get("pioneer_signals", []),
         )
 
     except Exception as e:
@@ -210,14 +209,12 @@ async def enhance_query(
             reasoning=f"Enhancement failed: {str(e)[:50]}",
             follow_ups=[],
             dimensions=[],
-            was_enhanced=False
+            was_enhanced=False,
         )
 
 
 def enhance_query_sync(
-    query: str,
-    context: Optional[str] = None,
-    model: str = "haiku"
+    query: str, context: Optional[str] = None, model: str = "haiku"
 ) -> EnhancedQuery:
     """Synchronous wrapper for enhance_query."""
     return asyncio.run(enhance_query(query, context, model))
@@ -237,7 +234,7 @@ if __name__ == "__main__":
     print(f"Enhanced: {result.enhanced}")
     print(f"\nReasoning: {result.reasoning}")
     print(f"\nDimensions: {', '.join(result.dimensions)}")
-    print(f"\nFollow-ups:")
+    print("\nFollow-ups:")
     for i, f in enumerate(result.follow_ups, 1):
         print(f"  {i}. {f}")
     print(f"\nWas enhanced: {result.was_enhanced}")

@@ -34,6 +34,7 @@ def _get_model():
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
+
         _model = SentenceTransformer(_model_name, trust_remote_code=True)
         log.info(f"Loaded embedding model: {_model_name} ({_dimensions}d)")
     return _model
@@ -58,9 +59,15 @@ def _parse_event_layers(event_or_dict):
         light_raw = event_or_dict.get("light_layer", "{}")
         data_raw = event_or_dict.get("data_layer", "{}")
         instinct_raw = event_or_dict.get("instinct_layer", "{}")
-        light = json.loads(light_raw) if isinstance(light_raw, str) else (light_raw or {})
+        light = (
+            json.loads(light_raw) if isinstance(light_raw, str) else (light_raw or {})
+        )
         data = json.loads(data_raw) if isinstance(data_raw, str) else (data_raw or {})
-        instinct = json.loads(instinct_raw) if isinstance(instinct_raw, str) else (instinct_raw or {})
+        instinct = (
+            json.loads(instinct_raw)
+            if isinstance(instinct_raw, str)
+            else (instinct_raw or {})
+        )
         platform = event_or_dict.get("platform", "")
         cog_mode = event_or_dict.get("cognitive_mode", "")
     else:
@@ -154,7 +161,9 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def embed_texts(texts: List[str], batch_size: int = 64, prefix: str = "search_document") -> List[List[float]]:
+def embed_texts(
+    texts: List[str], batch_size: int = 64, prefix: str = "search_document"
+) -> List[List[float]]:
     """Embed a batch of texts. Returns list of float vectors.
 
     Nomic requires prefix: 'search_document' for indexing, 'search_query' for queries.
@@ -174,18 +183,23 @@ def embed_single(text: str, prefix: str = "search_document") -> List[float]:
 async def embed_single_async(text: str, prefix: str = "search_document") -> List[float]:
     """Async wrapper — runs SBERT in a thread to avoid blocking the event loop."""
     import asyncio
+
     return await asyncio.to_thread(embed_single, text, prefix)
 
 
-async def embed_texts_async(texts: List[str], batch_size: int = 64, prefix: str = "search_document") -> List[List[float]]:
+async def embed_texts_async(
+    texts: List[str], batch_size: int = 64, prefix: str = "search_document"
+) -> List[List[float]]:
     """Async wrapper — runs SBERT batch in a thread to avoid blocking the event loop."""
     import asyncio
+
     return await asyncio.to_thread(embed_texts, texts, batch_size, prefix)
 
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
     """Cosine similarity between two vectors."""
     import numpy as np
+
     a_arr = np.array(a)
     b_arr = np.array(b)
     dot = np.dot(a_arr, b_arr)
@@ -220,7 +234,9 @@ class EmbeddingPipeline:
 
         if self._pool:
             await self._store_embedding(
-                ch, text[:200], embedding,
+                ch,
+                text[:200],
+                embedding,
                 source_event_id=getattr(event, "event_id", None),
             )
 
@@ -285,7 +301,7 @@ class EmbeddingPipeline:
         batch_size = 64
         all_embeddings = []
         for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+            batch = texts[i : i + batch_size]
             embs = await embed_texts_async(batch, batch_size=batch_size)
             all_embeddings.extend(embs)
             if (i + batch_size) % 1000 == 0:
@@ -298,7 +314,7 @@ class EmbeddingPipeline:
             for eid, text, emb in zip(event_ids, texts, all_embeddings):
                 try:
                     ch = content_hash(text)
-                    vec_str = '[' + ','.join(str(x) for x in emb) + ']'
+                    vec_str = "[" + ",".join(str(x) for x in emb) + "]"
                     result = await conn.execute(
                         f"""INSERT INTO embedding_cache
                            (content_hash, content_preview, {_embedding_column}, model, dimensions, source_event_id)
@@ -307,7 +323,12 @@ class EmbeddingPipeline:
                                {_embedding_column} = $3::vector,
                                model = $4,
                                dimensions = $5""",
-                        ch, text[:200], vec_str, _model_name, _dimensions, eid,
+                        ch,
+                        text[:200],
+                        vec_str,
+                        _model_name,
+                        _dimensions,
+                        eid,
                     )
                     # UPSERT always affects 1 row
                     stored += 1
@@ -316,8 +337,10 @@ class EmbeddingPipeline:
 
         elapsed = time.time() - t0
         rate = len(texts) / elapsed if elapsed > 0 else 0
-        log.info(f"Embedded {stored} events in {elapsed:.1f}s ({rate:.0f}/sec)"
-                 + (f", {skipped_dupes} content dupes skipped" if skipped_dupes else ""))
+        log.info(
+            f"Embedded {stored} events in {elapsed:.1f}s ({rate:.0f}/sec)"
+            + (f", {skipped_dupes} content dupes skipped" if skipped_dupes else "")
+        )
         return stored
 
     async def find_similar(
@@ -367,14 +390,16 @@ class EmbeddingPipeline:
                 emb = json.loads(emb_str) if isinstance(emb_str, str) else list(emb_str)
                 sim = cosine_similarity(query_emb, emb)
                 if sim >= threshold:
-                    results.append({
-                        "event_id": row["source_event_id"],
-                        "platform": row["platform"],
-                        "session_id": row["session_id"],
-                        "similarity": round(sim, 4),
-                        "preview": row["content_preview"],
-                        "coherence_sig": row["coherence_sig"],
-                    })
+                    results.append(
+                        {
+                            "event_id": row["source_event_id"],
+                            "platform": row["platform"],
+                            "session_id": row["session_id"],
+                            "similarity": round(sim, 4),
+                            "preview": row["content_preview"],
+                            "coherence_sig": row["coherence_sig"],
+                        }
+                    )
             except Exception:
                 continue
 
@@ -397,7 +422,7 @@ class EmbeddingPipeline:
             return []
 
         query_emb = await embed_single_async(text, prefix="search_query")
-        vec_str = '[' + ','.join(str(x) for x in query_emb) + ']'
+        vec_str = "[" + ",".join(str(x) for x in query_emb) + "]"
         col = _embedding_column
 
         async with self._pool.acquire() as conn:
@@ -412,7 +437,9 @@ class EmbeddingPipeline:
                        WHERE ce.platform != $2 AND ec.{col} IS NOT NULL
                        ORDER BY ec.{col} <=> $1::vector
                        LIMIT $3""",
-                    vec_str, exclude_platform, limit,
+                    vec_str,
+                    exclude_platform,
+                    limit,
                 )
             else:
                 rows = await conn.fetch(
@@ -425,7 +452,8 @@ class EmbeddingPipeline:
                        WHERE ec.{col} IS NOT NULL
                        ORDER BY ec.{col} <=> $1::vector
                        LIMIT $2""",
-                    vec_str, limit,
+                    vec_str,
+                    limit,
                 )
 
         return [
@@ -485,7 +513,9 @@ class EmbeddingPipeline:
                    WHERE 1 - (src.emb <=> tgt.emb) >= $2
                    ORDER BY similarity DESC
                    LIMIT $3""",
-                platform, threshold, limit,
+                platform,
+                threshold,
+                limit,
             )
 
         return [
@@ -513,7 +543,7 @@ class EmbeddingPipeline:
             return
         try:
             async with self._pool.acquire() as conn:
-                vec_str = '[' + ','.join(str(x) for x in embedding) + ']'
+                vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
                 await conn.execute(
                     f"""INSERT INTO embedding_cache
                        (content_hash, content_preview, {_embedding_column}, model, dimensions, source_event_id)
@@ -522,7 +552,12 @@ class EmbeddingPipeline:
                            {_embedding_column} = $3::vector,
                            model = $4,
                            dimensions = $5""",
-                    ch, preview, vec_str, _model_name, _dimensions, source_event_id,
+                    ch,
+                    preview,
+                    vec_str,
+                    _model_name,
+                    _dimensions,
+                    source_event_id,
                 )
         except Exception as e:
             log.error(f"Store embedding error: {e}")

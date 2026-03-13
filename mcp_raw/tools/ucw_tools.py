@@ -30,6 +30,7 @@ def set_db(db):
         _pool = db._pool
     log.info("UCW tools: DB injected (pool=%s)", "yes" if _pool else "no")
 
+
 # ── Tool definitions ─────────────────────────────────────────────────────────
 
 TOOLS: List[Dict[str, Any]] = [
@@ -82,6 +83,7 @@ TOOLS: List[Dict[str, Any]] = [
 
 # ── Dispatcher ───────────────────────────────────────────────────────────────
 
+
 async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     handlers = {
         "ucw_capture_stats": _ucw_capture_stats,
@@ -91,31 +93,44 @@ async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
 
     handler = handlers.get(name)
     if not handler:
-        return tool_result_content([text_content(f"Unknown UCW tool: {name}")], is_error=True)
+        return tool_result_content(
+            [text_content(f"Unknown UCW tool: {name}")], is_error=True
+        )
 
     try:
         return await handler(args)
     except Exception as exc:
         log.error(f"Tool {name} failed: {exc}", exc_info=True)
-        return tool_result_content([text_content(f"Error in {name}: {exc}")], is_error=True)
+        return tool_result_content(
+            [text_content(f"Error in {name}: {exc}")], is_error=True
+        )
 
 
 # ── Implementations ──────────────────────────────────────────────────────────
 
+
 async def _ucw_capture_stats(args: Dict) -> Dict:
     """Return current + all-time capture statistics."""
     if not _db:
-        return tool_result_content([text_content(
-            "No capture data available. Database not injected — server may not have started."
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    "No capture data available. Database not injected — server may not have started."
+                )
+            ]
+        )
 
     session_stats = await _db.get_session_stats()
     all_stats = await _db.get_all_stats()
 
     if not session_stats and not all_stats:
-        return tool_result_content([text_content(
-            "No capture data available. Database may not be initialized."
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    "No capture data available. Database may not be initialized."
+                )
+            ]
+        )
 
     output = "# UCW Capture Statistics\n\n"
 
@@ -143,7 +158,9 @@ async def _ucw_capture_stats(args: Dict) -> Dict:
         output += "## All-Time\n\n"
         output += f"**Total Events:** {all_stats.get('total_events', 0)}\n"
         output += f"**Total Sessions:** {all_stats.get('total_sessions', 0)}\n"
-        output += f"**Bytes Captured:** {all_stats.get('total_bytes_captured', 0):,}\n\n"
+        output += (
+            f"**Bytes Captured:** {all_stats.get('total_bytes_captured', 0):,}\n\n"
+        )
 
         all_signals = all_stats.get("gut_signals", {})
         if all_signals:
@@ -162,7 +179,9 @@ async def _ucw_timeline(args: Dict) -> Dict:
     limit = int(args.get("limit", 50))
 
     if not _pool:
-        return tool_result_content([text_content("Database not initialized.")], is_error=True)
+        return tool_result_content(
+            [text_content("Database not initialized.")], is_error=True
+        )
 
     # Build parameterized query (PostgreSQL $1, $2, ...)
     query = """SELECT event_id, timestamp_ns, direction, method, platform,
@@ -193,7 +212,18 @@ async def _ucw_timeline(args: Dict) -> Dict:
     output = f"# Cognitive Event Timeline ({len(rows)} events)\n\n"
 
     for row in reversed(rows):  # Chronological order (oldest first)
-        event_id, ts, direction, method, plat, topic, intent, summary, gut, coherence = row
+        (
+            event_id,
+            ts,
+            direction,
+            method,
+            plat,
+            topic,
+            intent,
+            summary,
+            gut,
+            coherence,
+        ) = row
         arrow = "->" if direction == "out" else "<-"
         coherence_str = f" [coherence={coherence:.2f}]" if coherence else ""
         output += (
@@ -210,7 +240,9 @@ async def _detect_emergence(args: Dict) -> Dict:
     limit = int(args.get("limit", 100))
 
     if not _pool:
-        return tool_result_content([text_content("Database not initialized.")], is_error=True)
+        return tool_result_content(
+            [text_content("Database not initialized.")], is_error=True
+        )
 
     async with _pool.acquire() as conn:
         rows = await conn.fetch(
@@ -247,44 +279,55 @@ async def _detect_emergence(args: Dict) -> Dict:
         concepts = _safe_json_list(concepts_json)
 
         if coherence and coherence > 0.7:
-            high_coherence.append({
-                "event_id": event_id,
-                "coherence": coherence,
-                "topic": topic,
-                "method": method,
-            })
+            high_coherence.append(
+                {
+                    "event_id": event_id,
+                    "coherence": coherence,
+                    "topic": topic,
+                    "method": method,
+                }
+            )
 
         if len(concepts) >= 3:
-            concept_clusters.append({
-                "event_id": event_id,
-                "concepts": concepts,
-                "topic": topic,
-            })
+            concept_clusters.append(
+                {
+                    "event_id": event_id,
+                    "concepts": concepts,
+                    "topic": topic,
+                }
+            )
 
         if "meta_cognitive" in indicators:
-            meta_cognitive.append({
-                "event_id": event_id,
-                "topic": topic,
-                "indicators": indicators,
-            })
+            meta_cognitive.append(
+                {
+                    "event_id": event_id,
+                    "topic": topic,
+                    "indicators": indicators,
+                }
+            )
 
         if gut == "breakthrough_potential":
-            breakthrough_signals.append({
-                "event_id": event_id,
-                "topic": topic,
-                "coherence": coherence,
-            })
+            breakthrough_signals.append(
+                {
+                    "event_id": event_id,
+                    "topic": topic,
+                    "coherence": coherence,
+                }
+            )
 
     # Build report
     total_scanned = len(rows)
-    emergence_score = min(1.0, (
-        len(high_coherence) * 0.15 +
-        len(concept_clusters) * 0.1 +
-        len(meta_cognitive) * 0.25 +
-        len(breakthrough_signals) * 0.3
-    ))
+    emergence_score = min(
+        1.0,
+        (
+            len(high_coherence) * 0.15
+            + len(concept_clusters) * 0.1
+            + len(meta_cognitive) * 0.25
+            + len(breakthrough_signals) * 0.3
+        ),
+    )
 
-    output = f"# Emergence Detection Report\n\n"
+    output = "# Emergence Detection Report\n\n"
     output += f"**Events Scanned:** {total_scanned}\n"
     output += f"**Emergence Score:** {emergence_score:.3f}\n\n"
 
@@ -321,6 +364,7 @@ async def _detect_emergence(args: Dict) -> Dict:
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _safe_json_list(value) -> List[str]:
     """Safely parse a JSON array string."""
