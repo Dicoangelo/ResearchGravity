@@ -22,6 +22,7 @@ try:
     from paperbanana.core.config import Settings as PBSettings
     from paperbanana.core.pipeline import PaperBananaPipeline
     from paperbanana.core.types import DiagramType, GenerationInput
+
     PAPERBANANA_AVAILABLE = True
 except ImportError:
     pass
@@ -156,7 +157,9 @@ class PaperBananaAdapter:
             "session_id": session_id,
             "diagram_type": "methodology",
             "metadata": {
-                "iterations": result.metadata.iterations_run if hasattr(result, "metadata") else self.config.max_iterations,
+                "iterations": result.metadata.iterations_run
+                if hasattr(result, "metadata")
+                else self.config.max_iterations,
                 "vlm_model": self.config.vlm_model,
                 "image_model": self.config.image_model,
                 "resolution": self.config.image_resolution,
@@ -249,10 +252,18 @@ class PaperBananaAdapter:
             )
 
             return {
-                "faithfulness": scores.faithfulness if hasattr(scores, "faithfulness") else 0.0,
-                "readability": scores.readability if hasattr(scores, "readability") else 0.0,
-                "conciseness": scores.conciseness if hasattr(scores, "conciseness") else 0.0,
-                "aesthetics": scores.aesthetics if hasattr(scores, "aesthetics") else 0.0,
+                "faithfulness": scores.faithfulness
+                if hasattr(scores, "faithfulness")
+                else 0.0,
+                "readability": scores.readability
+                if hasattr(scores, "readability")
+                else 0.0,
+                "conciseness": scores.conciseness
+                if hasattr(scores, "conciseness")
+                else 0.0,
+                "aesthetics": scores.aesthetics
+                if hasattr(scores, "aesthetics")
+                else 0.0,
                 "overall": getattr(scores, "overall", 0.0),
             }
         except Exception as e:
@@ -284,17 +295,17 @@ class PaperBananaAdapter:
 
         # Filter findings that have enough content for diagram generation
         diagrammable = [
-            f for f in findings
+            f
+            for f in findings
             if f.get("type") in ("innovation", "implementation", "thesis")
             and len(f.get("text", "")) > 50
         ]
 
         if not diagrammable:
             # Fall back to any finding with substantial text
-            diagrammable = [
-                f for f in findings
-                if len(f.get("text", "")) > 100
-            ][:3]  # Max 3 diagrams
+            diagrammable = [f for f in findings if len(f.get("text", "")) > 100][
+                :3
+            ]  # Max 3 diagrams
 
         for finding in diagrammable[:5]:  # Cap at 5 diagrams per session
             try:

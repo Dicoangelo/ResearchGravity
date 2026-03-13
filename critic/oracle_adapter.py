@@ -31,13 +31,17 @@ from enum import Enum
 from typing import List, Dict, Any
 
 from .base import (
-    BaseCritic, CriticResult, ValidationIssue,
-    IssueSeverity, IssueCategory
+    BaseCritic,
+    CriticResult,
+    ValidationIssue,
+    IssueSeverity,
+    IssueCategory,
 )
 
 
 class OraclePerspective(Enum):
     """Validation perspectives for Oracle streams."""
+
     ACCURACY = "accuracy"
     COMPLETENESS = "completeness"
     RELEVANCE = "relevance"
@@ -46,6 +50,7 @@ class OraclePerspective(Enum):
 @dataclass
 class OracleStream:
     """Result from a single Oracle validation stream."""
+
     stream_id: str
     perspective: OraclePerspective
     confidence: float
@@ -60,13 +65,14 @@ class OracleStream:
             "confidence": self.confidence,
             "validated_claims": self.validated_claims,
             "issues": self.issues,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
 
 
 @dataclass
 class OracleConsensus:
     """Consensus result from Oracle multi-stream validation."""
+
     consensus_id: str
     approved: bool
     confidence: float
@@ -85,7 +91,7 @@ class OracleConsensus:
             "intersection": self.intersection,
             "issues": self.issues,
             "summary": self.summary,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
 
 
@@ -114,9 +120,7 @@ def _generate_consensus_id(streams: List[OracleStream]) -> str:
 
 
 def run_perspective_stream(
-    critic: BaseCritic,
-    content: dict,
-    perspective: OraclePerspective
+    critic: BaseCritic, content: dict, perspective: OraclePerspective
 ) -> OracleStream:
     """
     Run a single Oracle stream with a specific perspective.
@@ -182,7 +186,7 @@ def run_perspective_stream(
         perspective=perspective,
         confidence=min(perspective_confidence, 1.0),
         validated_claims=validated_claims,
-        issues=perspective_issues
+        issues=perspective_issues,
     )
 
 
@@ -190,7 +194,7 @@ def run_oracle_consensus(
     critic: BaseCritic,
     content: dict,
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
-    max_issues: int = DEFAULT_MAX_ISSUES
+    max_issues: int = DEFAULT_MAX_ISSUES,
 ) -> OracleConsensus:
     """
     Run Oracle multi-stream consensus validation.
@@ -237,15 +241,13 @@ def run_oracle_consensus(
 
     # Determine approval
     approved = (
-        weighted_confidence >= confidence_threshold and
-        len(unique_issues) <= max_issues
+        weighted_confidence >= confidence_threshold and len(unique_issues) <= max_issues
     )
 
     # Generate summary
-    stream_status = ", ".join([
-        f"{s.perspective.value}: {s.confidence:.2f}"
-        for s in streams
-    ])
+    stream_status = ", ".join(
+        [f"{s.perspective.value}: {s.confidence:.2f}" for s in streams]
+    )
 
     if approved:
         summary = f"Oracle approved (confidence: {weighted_confidence:.2f}). Streams: {stream_status}"
@@ -261,7 +263,7 @@ def run_oracle_consensus(
         streams=streams,
         intersection=intersection,
         issues=unique_issues,
-        summary=summary
+        summary=summary,
     )
 
 
@@ -277,7 +279,7 @@ class OracleValidator:
         self,
         critics: List[BaseCritic],
         confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
-        require_all_approved: bool = False
+        require_all_approved: bool = False,
     ):
         """
         Initialize Oracle validator.
@@ -306,11 +308,7 @@ class OracleValidator:
         all_approved = True
 
         for critic in self.critics:
-            consensus = run_oracle_consensus(
-                critic,
-                content,
-                self.confidence_threshold
-            )
+            consensus = run_oracle_consensus(critic, content, self.confidence_threshold)
 
             critic_results[critic.name] = consensus.to_dict()
             confidences.append(consensus.confidence)
@@ -333,7 +331,7 @@ class OracleValidator:
             "critic_count": len(self.critics),
             "all_approved": all_approved,
             "critic_results": critic_results,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     def validate_with_critic_result(self, content: dict) -> CriticResult:
@@ -352,11 +350,13 @@ class OracleValidator:
         issues = []
         for critic_name, consensus in result["critic_results"].items():
             for issue_msg in consensus.get("issues", []):
-                issues.append(ValidationIssue(
-                    category=IssueCategory.QUALITY,
-                    severity=IssueSeverity.WARNING,
-                    message=f"[{critic_name}] {issue_msg}"
-                ))
+                issues.append(
+                    ValidationIssue(
+                        category=IssueCategory.QUALITY,
+                        severity=IssueSeverity.WARNING,
+                        message=f"[{critic_name}] {issue_msg}",
+                    )
+                )
 
         summary = f"Oracle validated {result['critic_count']} critics, confidence: {result['confidence']:.2f}"
 
@@ -368,15 +368,15 @@ class OracleValidator:
             summary=summary,
             metadata={
                 "all_approved": result["all_approved"],
-                "critic_results": result["critic_results"]
-            }
+                "critic_results": result["critic_results"],
+            },
         )
 
 
 def validate_with_oracle(
     content: dict,
     critics: List[BaseCritic] = None,
-    confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD
+    confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
 ) -> CriticResult:
     """
     Convenience function for Oracle validation.

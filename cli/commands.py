@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 @dataclass
 class CommandResult:
     """Result of a command execution."""
+
     success: bool
     message: str
     data: Optional[Dict[str, Any]] = None
@@ -25,6 +26,7 @@ class CommandResult:
 @dataclass
 class ActiveSession:
     """Current active research session state."""
+
     session_id: str
     topic: str
     started_at: str
@@ -86,6 +88,7 @@ class CommandHandler:
         """Initialize storage engine."""
         try:
             from storage.engine import get_engine
+
             self.storage_engine = await get_engine()
         except ImportError:
             print("Warning: Storage engine not available. Using file-based storage.")
@@ -115,8 +118,7 @@ class CommandHandler:
 
         if cmd not in self._commands:
             return CommandResult(
-                False,
-                f"Unknown command: {cmd}. Type 'help' for available commands."
+                False, f"Unknown command: {cmd}. Type 'help' for available commands."
             )
 
         handler = self._commands[cmd]
@@ -133,17 +135,17 @@ class CommandHandler:
         project = None
         topic = args
         if "--project" in args:
-            match = re.search(r'--project\s+(\S+)', args)
+            match = re.search(r"--project\s+(\S+)", args)
             if match:
                 project = match.group(1)
-                topic = re.sub(r'--project\s+\S+', '', args).strip()
+                topic = re.sub(r"--project\s+\S+", "", args).strip()
 
         if not topic:
             return CommandResult(False, "Please provide a topic for the session.")
 
         # Generate session ID
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        safe_topic = re.sub(r'[^a-z0-9]+', '-', topic.lower())[:25]
+        safe_topic = re.sub(r"[^a-z0-9]+", "-", topic.lower())[:25]
         session_id = f"repl-{safe_topic}-{timestamp}"
 
         # Create session
@@ -182,7 +184,7 @@ class CommandHandler:
         # Parse tier
         tier = None
         if "--tier" in args:
-            match = re.search(r'--tier\s+(\d)', args)
+            match = re.search(r"--tier\s+(\d)", args)
             if match:
                 tier = int(match.group(1))
 
@@ -191,7 +193,7 @@ class CommandHandler:
         if "--notes" in args:
             match = re.search(r'--notes\s+"([^"]+)"', args)
             if not match:
-                match = re.search(r'--notes\s+(\S+)', args)
+                match = re.search(r"--notes\s+(\S+)", args)
             if match:
                 notes = match.group(1)
 
@@ -216,7 +218,7 @@ class CommandHandler:
         return CommandResult(
             True,
             f"Logged: {classification['source']} (Tier {classification['tier']})\n  {url}",
-            url_entry
+            url_entry,
         )
 
     async def cmd_finding(self, args: str) -> CommandResult:
@@ -239,9 +241,7 @@ class CommandHandler:
         self._save_session()
 
         return CommandResult(
-            True,
-            f"Finding captured (#{len(self.session.findings)})",
-            finding
+            True, f"Finding captured (#{len(self.session.findings)})", finding
         )
 
     async def cmd_thesis(self, args: str) -> CommandResult:
@@ -300,7 +300,9 @@ class CommandHandler:
 
         if not args:
             if self.session.innovation_direction:
-                return CommandResult(True, f"Current direction: {self.session.innovation_direction}")
+                return CommandResult(
+                    True, f"Current direction: {self.session.innovation_direction}"
+                )
             return CommandResult(False, "Usage: direction <text>")
 
         self.session.innovation_direction = args
@@ -320,7 +322,9 @@ class CommandHandler:
     async def cmd_status(self, args: str) -> CommandResult:
         """Show current session status."""
         if not self.session:
-            return CommandResult(True, "No active session. Use 'start <topic>' to begin.")
+            return CommandResult(
+                True, "No active session. Use 'start <topic>' to begin."
+            )
 
         # Count URLs by tier
         tier_counts = {1: 0, 2: 0, 3: 0}
@@ -388,9 +392,7 @@ class CommandHandler:
         self._save_session()
 
         return CommandResult(
-            True,
-            f"Checkpoint #{len(self.session.checkpoints)} saved",
-            checkpoint
+            True, f"Checkpoint #{len(self.session.checkpoints)} saved", checkpoint
         )
 
     async def cmd_archive(self, args: str) -> CommandResult:
@@ -411,7 +413,7 @@ class CommandHandler:
             warning_str = "\n  - ".join(warnings)
             return CommandResult(
                 False,
-                f"Session incomplete:\n  - {warning_str}\n\nUse 'archive --force' to archive anyway."
+                f"Session incomplete:\n  - {warning_str}\n\nUse 'archive --force' to archive anyway.",
             )
 
         # Update status
@@ -434,12 +436,14 @@ class CommandHandler:
 
                 for f in self.session.findings:
                     f["session_id"] = self.session.session_id
-                await self.storage_engine.store_findings_batch(self.session.findings, source="repl")
+                await self.storage_engine.store_findings_batch(
+                    self.session.findings, source="repl"
+                )
 
             except Exception as e:
                 return CommandResult(
                     True,
-                    f"Session archived (storage sync failed: {e})\n  {self.session.session_id}"
+                    f"Session archived (storage sync failed: {e})\n  {self.session.session_id}",
                 )
 
         session_id = self.session.session_id
@@ -448,7 +452,7 @@ class CommandHandler:
         return CommandResult(
             True,
             f"Session archived successfully\n  {session_id}",
-            {"session_id": session_id}
+            {"session_id": session_id},
         )
 
     # --- Search and Intelligence Commands ---
@@ -492,6 +496,7 @@ class CommandHandler:
         """Show session quality predictions."""
         try:
             from intelligence import predict_session_quality
+
             result = await predict_session_quality(args or "current task")
             return CommandResult(True, f"Prediction:\n{json.dumps(result, indent=2)}")
         except ImportError:
@@ -599,7 +604,7 @@ OTHER
                 return CommandResult(
                     True,
                     "Active session with content. Use 'archive' to save or 'quit --force' to discard.",
-                    continue_repl=True
+                    continue_repl=True,
                 )
 
         return CommandResult(True, "Goodbye!", continue_repl=False)
@@ -613,32 +618,59 @@ OTHER
         classifications = [
             # Tier 1: Research
             (["arxiv.org"], {"tier": 1, "category": "research", "source": "arXiv"}),
-            (["huggingface.co/papers"], {"tier": 1, "category": "research", "source": "HuggingFace"}),
-            (["openreview.net"], {"tier": 1, "category": "research", "source": "OpenReview"}),
-
+            (
+                ["huggingface.co/papers"],
+                {"tier": 1, "category": "research", "source": "HuggingFace"},
+            ),
+            (
+                ["openreview.net"],
+                {"tier": 1, "category": "research", "source": "OpenReview"},
+            ),
             # Tier 1: Labs
             (["openai.com"], {"tier": 1, "category": "labs", "source": "OpenAI"}),
             (["anthropic.com"], {"tier": 1, "category": "labs", "source": "Anthropic"}),
-            (["deepmind.google", "blog.google/technology/ai"], {"tier": 1, "category": "labs", "source": "Google AI"}),
-
+            (
+                ["deepmind.google", "blog.google/technology/ai"],
+                {"tier": 1, "category": "labs", "source": "Google AI"},
+            ),
             # Tier 1: Industry
-            (["techcrunch.com"], {"tier": 1, "category": "industry", "source": "TechCrunch"}),
-            (["theverge.com"], {"tier": 1, "category": "industry", "source": "The Verge"}),
-
+            (
+                ["techcrunch.com"],
+                {"tier": 1, "category": "industry", "source": "TechCrunch"},
+            ),
+            (
+                ["theverge.com"],
+                {"tier": 1, "category": "industry", "source": "The Verge"},
+            ),
             # Tier 2: GitHub
             (["github.com"], {"tier": 2, "category": "github", "source": "GitHub"}),
-
             # Tier 2: Benchmarks
-            (["paperswithcode.com"], {"tier": 2, "category": "benchmarks", "source": "Papers With Code"}),
-            (["lmarena.ai", "lmsys.org"], {"tier": 2, "category": "benchmarks", "source": "LMSYS"}),
-
+            (
+                ["paperswithcode.com"],
+                {"tier": 2, "category": "benchmarks", "source": "Papers With Code"},
+            ),
+            (
+                ["lmarena.ai", "lmsys.org"],
+                {"tier": 2, "category": "benchmarks", "source": "LMSYS"},
+            ),
             # Tier 2: Social
-            (["twitter.com", "x.com"], {"tier": 2, "category": "social", "source": "X/Twitter"}),
-            (["news.ycombinator.com"], {"tier": 2, "category": "social", "source": "Hacker News"}),
-
+            (
+                ["twitter.com", "x.com"],
+                {"tier": 2, "category": "social", "source": "X/Twitter"},
+            ),
+            (
+                ["news.ycombinator.com"],
+                {"tier": 2, "category": "social", "source": "Hacker News"},
+            ),
             # Tier 3: Forums
-            (["lesswrong.com"], {"tier": 3, "category": "forums", "source": "LessWrong"}),
-            (["substack.com"], {"tier": 3, "category": "newsletters", "source": "Substack"}),
+            (
+                ["lesswrong.com"],
+                {"tier": 3, "category": "forums", "source": "LessWrong"},
+            ),
+            (
+                ["substack.com"],
+                {"tier": 3, "category": "newsletters", "source": "Substack"},
+            ),
         ]
 
         for patterns, classification in classifications:

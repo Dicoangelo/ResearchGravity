@@ -67,10 +67,16 @@ def scan_archived_sessions(since_days: Optional[int] = None) -> List[Path]:
 
             # Check date filter
             if cutoff:
-                date_str = data.get("original_date") or data.get("started") or data.get("backfilled_at")
+                date_str = (
+                    data.get("original_date")
+                    or data.get("started")
+                    or data.get("backfilled_at")
+                )
                 if date_str:
                     try:
-                        session_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                        session_date = datetime.fromisoformat(
+                            date_str.replace("Z", "+00:00")
+                        )
                         if session_date.replace(tzinfo=None) < cutoff:
                             continue
                     except (ValueError, TypeError):
@@ -84,7 +90,9 @@ def scan_archived_sessions(since_days: Optional[int] = None) -> List[Path]:
     return sorted(sessions, key=lambda x: x.name)
 
 
-def extract_session_learnings(session_dir: Path, include_evidence: bool = False) -> Dict[str, Any]:
+def extract_session_learnings(
+    session_dir: Path, include_evidence: bool = False
+) -> Dict[str, Any]:
     """
     Extract learnings from a single session.
 
@@ -124,7 +132,11 @@ def extract_session_learnings(session_dir: Path, include_evidence: bool = False)
             result["topic"] = data.get("topic", "Unknown")
 
             # Get date (prefer original_date for backfilled sessions)
-            date_str = data.get("original_date") or data.get("started") or data.get("backfilled_at")
+            date_str = (
+                data.get("original_date")
+                or data.get("started")
+                or data.get("backfilled_at")
+            )
             if date_str:
                 try:
                     dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
@@ -144,13 +156,20 @@ def extract_session_learnings(session_dir: Path, include_evidence: bool = False)
             evidenced = json.loads(evidenced_file.read_text())
             for f in evidenced:
                 if "evidence" in f and f["evidence"].get("confidence", 0) >= 0.5:
-                    result["evidenced_findings"].append({
-                        "content": f.get("content", "")[:200],
-                        "type": f.get("type", "finding"),
-                        "confidence": f["evidence"].get("confidence", 0),
-                        "sources": [s.get("url", "") for s in f["evidence"].get("sources", [])[:3]],
-                        "validated": f["evidence"].get("validation", {}).get("validated", False),
-                    })
+                    result["evidenced_findings"].append(
+                        {
+                            "content": f.get("content", "")[:200],
+                            "type": f.get("type", "finding"),
+                            "confidence": f["evidence"].get("confidence", 0),
+                            "sources": [
+                                s.get("url", "")
+                                for s in f["evidence"].get("sources", [])[:3]
+                            ],
+                            "validated": f["evidence"]
+                            .get("validation", {})
+                            .get("validated", False),
+                        }
+                    )
         except (json.JSONDecodeError, IOError):
             pass
 
@@ -178,29 +197,51 @@ def extract_session_learnings(session_dir: Path, include_evidence: bool = False)
                     continue
 
                 # Extract arXiv references
-                arxiv_matches = re.findall(r'arXiv[:\s]*(\d{4}\.\d{4,5})', text, re.IGNORECASE)
+                arxiv_matches = re.findall(
+                    r"arXiv[:\s]*(\d{4}\.\d{4,5})", text, re.IGNORECASE
+                )
                 for arxiv_id in arxiv_matches:
                     if arxiv_id not in [p.get("id") for p in result["papers"]]:
-                        result["papers"].append({
-                            "id": arxiv_id,
-                            "context": text[:200]
-                        })
+                        result["papers"].append({"id": arxiv_id, "context": text[:200]})
 
                 # Categorize by type
                 if f_type == "thesis" and len(text) > 50:
                     # Look for actual thesis statements
-                    if any(kw in text.lower() for kw in ["because", "which means", "therefore", "approach", "sound", "optimize"]):
+                    if any(
+                        kw in text.lower()
+                        for kw in [
+                            "because",
+                            "which means",
+                            "therefore",
+                            "approach",
+                            "sound",
+                            "optimize",
+                        ]
+                    ):
                         if not result["thesis"] or len(text) > len(result["thesis"]):
                             result["thesis"] = text[:500]
 
                 elif f_type == "gap" and len(text) > 30:
-                    if any(kw in text.lower() for kw in ["missing", "gap", "need", "lack", "without"]):
+                    if any(
+                        kw in text.lower()
+                        for kw in ["missing", "gap", "need", "lack", "without"]
+                    ):
                         if not result["gap"] or len(text) > len(result["gap"]):
                             result["gap"] = text[:500]
 
                 elif f_type == "finding":
                     # Clean up and add meaningful findings
-                    if any(kw in text.lower() for kw in ["voting", "consensus", "agent", "performance", "framework", "tool"]):
+                    if any(
+                        kw in text.lower()
+                        for kw in [
+                            "voting",
+                            "consensus",
+                            "agent",
+                            "performance",
+                            "framework",
+                            "tool",
+                        ]
+                    ):
                         result["findings"].append(text[:300])
 
                 elif f_type == "innovation":
@@ -224,27 +265,33 @@ def extract_session_learnings(session_dir: Path, include_evidence: bool = False)
                 if tier <= 2:
                     # Extract meaningful URLs
                     if "arxiv.org" in url:
-                        arxiv_match = re.search(r'(\d{4}\.\d{4,5})', url)
+                        arxiv_match = re.search(r"(\d{4}\.\d{4,5})", url)
                         if arxiv_match:
                             arxiv_id = arxiv_match.group(1)
                             if arxiv_id not in [p.get("id") for p in result["papers"]]:
-                                result["papers"].append({
-                                    "id": arxiv_id,
-                                    "url": url,
-                                    "context": u.get("context", "")[:100]
-                                })
+                                result["papers"].append(
+                                    {
+                                        "id": arxiv_id,
+                                        "url": url,
+                                        "context": u.get("context", "")[:100],
+                                    }
+                                )
 
-                    elif "github.com" in url and "/blob/" not in url and "/tree/" not in url:
+                    elif (
+                        "github.com" in url
+                        and "/blob/" not in url
+                        and "/tree/" not in url
+                    ):
                         # Extract repo info
-                        match = re.search(r'github\.com/([^/]+)/([^/\s?#]+)', url)
+                        match = re.search(r"github\.com/([^/]+)/([^/\s?#]+)", url)
                         if match:
                             repo_name = f"{match.group(1)}/{match.group(2)}"
-                            if repo_name not in [t.get("name") for t in result["tools"]]:
-                                result["tools"].append({
-                                    "name": repo_name,
-                                    "url": url,
-                                    "source": source
-                                })
+                            if repo_name not in [
+                                t.get("name") for t in result["tools"]
+                            ]:
+                                result["tools"].append(
+                                    {"name": repo_name, "url": url, "source": source}
+                                )
 
         except (json.JSONDecodeError, IOError):
             pass
@@ -256,12 +303,16 @@ def extract_session_learnings(session_dir: Path, include_evidence: bool = False)
     return result
 
 
-def format_learning_entry(session_data: Dict[str, Any], include_evidence: bool = False) -> str:
+def format_learning_entry(
+    session_data: Dict[str, Any], include_evidence: bool = False
+) -> str:
     """Format learnings as a markdown section."""
     lines = []
 
     # Header
-    lines.append(f"\n## {session_data['date']} - {session_data['topic']} (`{session_data['session_id'][:50]}`)")
+    lines.append(
+        f"\n## {session_data['date']} - {session_data['topic']} (`{session_data['session_id'][:50]}`)"
+    )
     lines.append("")
 
     # Project linkage
@@ -279,7 +330,9 @@ def format_learning_entry(session_data: Dict[str, Any], include_evidence: bool =
         pass_rate = stats.get("validation_pass_rate", 0)
         if confidence > 0:
             badge = "🟢" if confidence >= 0.7 else "🟡" if confidence >= 0.5 else "🔴"
-            lines.append(f"**Evidence:** {badge} {confidence:.2f} confidence, {pass_rate*100:.0f}% validated")
+            lines.append(
+                f"**Evidence:** {badge} {confidence:.2f} confidence, {pass_rate * 100:.0f}% validated"
+            )
             lines.append("")
 
     # Papers (most valuable)
@@ -370,7 +423,7 @@ def format_learning_entry(session_data: Dict[str, Any], include_evidence: bool =
 def create_learnings_file(
     all_sessions: List[Dict[str, Any]],
     dry_run: bool = False,
-    include_evidence: bool = False
+    include_evidence: bool = False,
 ) -> Path:
     """
     Create ~/.agent-core/memory/learnings.md from extracted session data.
@@ -390,7 +443,7 @@ def create_learnings_file(
 
 **Last Updated:** {now}
 **Total Sessions:** {len(all_sessions)}
-**Projects Linked:** {', '.join(sorted(projects_linked)) if projects_linked else 'None'}
+**Projects Linked:** {", ".join(sorted(projects_linked)) if projects_linked else "None"}
 **Papers Referenced:** {total_papers}
 **Key Findings:** {total_findings}
 
@@ -403,7 +456,13 @@ def create_learnings_file(
     # Add each session (most recent first)
     for session in reversed(all_sessions):
         # Skip sessions with no meaningful content
-        if not (session["papers"] or session["findings"] or session["thesis"] or session["tools"] or session.get("evidenced_findings")):
+        if not (
+            session["papers"]
+            or session["findings"]
+            or session["thesis"]
+            or session["tools"]
+            or session.get("evidenced_findings")
+        ):
             continue
 
         entry = format_learning_entry(session, include_evidence=include_evidence)
@@ -429,16 +488,22 @@ def main():
     parser = argparse.ArgumentParser(
         description="Backfill learnings from archived sessions"
     )
-    parser.add_argument("--since", "-s", type=int,
-                        help="Only process sessions from last N days")
-    parser.add_argument("--session", "-id",
-                        help="Process specific session ID only")
-    parser.add_argument("--dry-run", "-n", action="store_true",
-                        help="Preview output without writing")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Show detailed extraction info")
-    parser.add_argument("--with-evidence", "-e", action="store_true",
-                        help="Include evidence chains in output")
+    parser.add_argument(
+        "--since", "-s", type=int, help="Only process sessions from last N days"
+    )
+    parser.add_argument("--session", "-id", help="Process specific session ID only")
+    parser.add_argument(
+        "--dry-run", "-n", action="store_true", help="Preview output without writing"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show detailed extraction info"
+    )
+    parser.add_argument(
+        "--with-evidence",
+        "-e",
+        action="store_true",
+        help="Include evidence chains in output",
+    )
 
     args = parser.parse_args()
 
@@ -466,7 +531,9 @@ def main():
     for session_dir in sessions:
         print(f"  → Processing: {session_dir.name[:50]}...")
 
-        data = extract_session_learnings(session_dir, include_evidence=args.with_evidence)
+        data = extract_session_learnings(
+            session_dir, include_evidence=args.with_evidence
+        )
 
         if args.verbose:
             print(f"    Topic: {data['topic']}")
@@ -483,9 +550,7 @@ def main():
     # Create learnings file
     print()
     output_path = create_learnings_file(
-        all_learnings,
-        dry_run=args.dry_run,
-        include_evidence=args.with_evidence
+        all_learnings, dry_run=args.dry_run, include_evidence=args.with_evidence
     )
 
     if not args.dry_run:

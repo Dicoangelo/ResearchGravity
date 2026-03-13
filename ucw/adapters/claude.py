@@ -35,6 +35,7 @@ class ClaudeAdapter(PlatformAdapter):
 
         # Check for Claude Code specific env vars
         import os
+
         if os.environ.get("CLAUDE_CODE_VERSION"):
             return True
 
@@ -64,9 +65,9 @@ class ClaudeAdapter(PlatformAdapter):
         try:
             messages = []
             urls = []
-            arxiv_pattern = re.compile(r'(\d{4}\.\d{4,5})')
+            arxiv_pattern = re.compile(r"(\d{4}\.\d{4,5})")
 
-            with open(jsonl_path, 'r') as f:
+            with open(jsonl_path, "r") as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
@@ -74,7 +75,8 @@ class ClaudeAdapter(PlatformAdapter):
                             content = entry.get("message", {}).get("content", "")
                             if isinstance(content, list):
                                 content = " ".join(
-                                    c.get("text", "") for c in content
+                                    c.get("text", "")
+                                    for c in content
                                     if isinstance(c, dict)
                                 )
                             messages.append(content)
@@ -83,15 +85,21 @@ class ClaudeAdapter(PlatformAdapter):
                             url_pattern = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
                             found_urls = url_pattern.findall(content)
                             for url in found_urls:
-                                tier = 1 if "arxiv.org" in url else (2 if "github.com" in url else 3)
-                                urls.append(URL(
-                                    url=url,
-                                    tier=tier,
-                                    category="research" if tier == 1 else "other",
-                                    source="arXiv" if "arxiv" in url else "Web",
-                                    context="",
-                                    captured_at=datetime.now(),
-                                ))
+                                tier = (
+                                    1
+                                    if "arxiv.org" in url
+                                    else (2 if "github.com" in url else 3)
+                                )
+                                urls.append(
+                                    URL(
+                                        url=url,
+                                        tier=tier,
+                                        category="research" if tier == 1 else "other",
+                                        source="arXiv" if "arxiv" in url else "Web",
+                                        context="",
+                                        captured_at=datetime.now(),
+                                    )
+                                )
                     except json.JSONDecodeError:
                         continue
 
@@ -146,9 +154,7 @@ class ClaudeAdapter(PlatformAdapter):
 
         # Recent sessions (most recent first)
         recent_sessions = sorted(
-            wallet.sessions.values(),
-            key=lambda s: s.date,
-            reverse=True
+            wallet.sessions.values(), key=lambda s: s.date, reverse=True
         )[:5]
 
         if recent_sessions:
@@ -190,8 +196,7 @@ class ClaudeAdapter(PlatformAdapter):
             lines.append("### Domain Focus")
             lines.append("")
             for domain, weight in sorted(
-                wallet.value_metrics.domains.items(),
-                key=lambda x: -x[1]
+                wallet.value_metrics.domains.items(), key=lambda x: -x[1]
             )[:3]:
                 pct = weight * 100
                 lines.append(f"- {domain}: {pct:.0f}%")

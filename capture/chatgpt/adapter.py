@@ -117,7 +117,9 @@ class ChatGPTAdapter(PlatformAdapter):
         if mtime <= self._watermark.last_export_mtime:
             return []
 
-        log.info(f"Export file changed (mtime={mtime:.0f}), scanning for new conversations...")
+        log.info(
+            f"Export file changed (mtime={mtime:.0f}), scanning for new conversations..."
+        )
 
         conversations = json.loads(conv_file.read_text())
         events: List[CapturedEvent] = []
@@ -146,24 +148,28 @@ class ChatGPTAdapter(PlatformAdapter):
                 if msg_time <= last_seen_time:
                     continue
 
-                events.append(CapturedEvent(
-                    platform="chatgpt",
-                    session_id=f"chatgpt-{conv_id}",
-                    content=msg["content"],
-                    role=msg["role"],
-                    timestamp=msg_time if msg_time > 0 else time.time(),
-                    metadata={
-                        "conversation_id": conv_id,
-                        "conversation_title": title,
-                        "model": conv.get("default_model_slug", ""),
-                    },
-                ))
+                events.append(
+                    CapturedEvent(
+                        platform="chatgpt",
+                        session_id=f"chatgpt-{conv_id}",
+                        content=msg["content"],
+                        role=msg["role"],
+                        timestamp=msg_time if msg_time > 0 else time.time(),
+                        metadata={
+                            "conversation_id": conv_id,
+                            "conversation_title": title,
+                            "model": conv.get("default_model_slug", ""),
+                        },
+                    )
+                )
 
             # Update watermark for this conversation
             self._watermark.seen_conversations[conv_id] = update_time
 
         self._watermark.last_export_mtime = mtime
-        log.info(f"Export diff: {len(events)} new messages from {len(conversations)} conversations")
+        log.info(
+            f"Export diff: {len(events)} new messages from {len(conversations)} conversations"
+        )
         return events
 
     async def _poll_openai_api(self) -> List[CapturedEvent]:
@@ -175,6 +181,7 @@ class ChatGPTAdapter(PlatformAdapter):
 
 
 # ── message extraction (reused from chatgpt_importer.py) ────
+
 
 def _extract_messages(conversation: Dict) -> List[Dict]:
     """Extract messages from a ChatGPT conversation mapping."""
@@ -194,27 +201,36 @@ def _extract_messages(conversation: Dict) -> List[Dict]:
         if role == "system":
             continue
 
-        text = "\n".join(
-            p if isinstance(p, str)
-            else p.get("text", "") if isinstance(p, dict)
-            else str(p)
-            for p in parts
-        ) if parts else ""
+        text = (
+            "\n".join(
+                p
+                if isinstance(p, str)
+                else p.get("text", "")
+                if isinstance(p, dict)
+                else str(p)
+                for p in parts
+            )
+            if parts
+            else ""
+        )
 
         if not text or not text.strip():
             continue
 
-        messages.append({
-            "role": role,
-            "content": text.strip(),
-            "create_time": message.get("create_time", 0),
-        })
+        messages.append(
+            {
+                "role": role,
+                "content": text.strip(),
+                "create_time": message.get("create_time", 0),
+            }
+        )
 
     messages.sort(key=lambda m: m["create_time"])
     return messages
 
 
 # ── watermark persistence ────────────────────────────────────
+
 
 class _Watermark:
     """Tracks last-processed state for incremental polling."""
@@ -238,10 +254,15 @@ class _Watermark:
 
     def save(self) -> None:
         try:
-            self.path.write_text(json.dumps({
-                "last_export_mtime": self.last_export_mtime,
-                "seen_conversations": self.seen_conversations,
-                "updated_at": time.time(),
-            }, indent=2))
+            self.path.write_text(
+                json.dumps(
+                    {
+                        "last_export_mtime": self.last_export_mtime,
+                        "seen_conversations": self.seen_conversations,
+                        "updated_at": time.time(),
+                    },
+                    indent=2,
+                )
+            )
         except Exception as exc:
             log.error(f"Watermark save failed: {exc}")

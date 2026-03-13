@@ -25,6 +25,7 @@ from typing import Any, Optional
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from mcp_raw.logger import get_logger
@@ -98,6 +99,7 @@ def _require_auth() -> NotebookLMAPIClient:
         # Try auto-extract from Chrome
         try:
             from .cookie_extractor import auto_refresh
+
             cookie_string = auto_refresh()
             _api_client = NotebookLMAPIClient(cookies=cookie_string)
             log.info("Auto-recovered auth from Chrome cookies")
@@ -143,7 +145,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "title": {"type": "string", "description": "Notebook title (optional, defaults to 'Untitled notebook')"},
+                "title": {
+                    "type": "string",
+                    "description": "Notebook title (optional, defaults to 'Untitled notebook')",
+                },
             },
             "required": [],
         },
@@ -189,7 +194,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
-                "confirm": {"type": "boolean", "description": "Must be true to confirm deletion"},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to confirm deletion",
+                },
             },
             "required": ["notebook_id", "confirm"],
         },
@@ -204,14 +212,24 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
-                "goal": {"type": "string", "enum": ["default", "custom", "learning_guide"], "description": "Chat goal"},
-                "custom_prompt": {"type": "string", "description": "Custom system prompt (required when goal='custom', max 10000 chars)"},
-                "response_length": {"type": "string", "enum": ["default", "longer", "shorter"], "description": "Response length preference"},
+                "goal": {
+                    "type": "string",
+                    "enum": ["default", "custom", "learning_guide"],
+                    "description": "Chat goal",
+                },
+                "custom_prompt": {
+                    "type": "string",
+                    "description": "Custom system prompt (required when goal='custom', max 10000 chars)",
+                },
+                "response_length": {
+                    "type": "string",
+                    "enum": ["default", "longer", "shorter"],
+                    "description": "Response length preference",
+                },
             },
             "required": ["notebook_id"],
         },
     },
-
     # ── Sources ──────────────────────────────────────────────────────────
     {
         "name": "source_add",
@@ -223,15 +241,43 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
-                "source_type": {"type": "string", "enum": ["url", "text", "drive", "file"], "description": "Source type"},
-                "url": {"type": "string", "description": "URL for 'url' type (web page or YouTube)"},
-                "text": {"type": "string", "description": "Text content for 'text' type"},
-                "title": {"type": "string", "description": "Title for 'text' type (default: 'Pasted Text')"},
-                "document_id": {"type": "string", "description": "Google Doc/Sheets/Slides ID for 'drive' type"},
-                "drive_title": {"type": "string", "description": "Document title for 'drive' type"},
-                "mime_type": {"type": "string", "description": "MIME type for 'drive' type (default: application/vnd.google-apps.document)"},
-                "file_path": {"type": "string", "description": "Local file path for 'file' type"},
-                "wait": {"type": "boolean", "description": "Wait for source processing to complete (default: false)"},
+                "source_type": {
+                    "type": "string",
+                    "enum": ["url", "text", "drive", "file"],
+                    "description": "Source type",
+                },
+                "url": {
+                    "type": "string",
+                    "description": "URL for 'url' type (web page or YouTube)",
+                },
+                "text": {
+                    "type": "string",
+                    "description": "Text content for 'text' type",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Title for 'text' type (default: 'Pasted Text')",
+                },
+                "document_id": {
+                    "type": "string",
+                    "description": "Google Doc/Sheets/Slides ID for 'drive' type",
+                },
+                "drive_title": {
+                    "type": "string",
+                    "description": "Document title for 'drive' type",
+                },
+                "mime_type": {
+                    "type": "string",
+                    "description": "MIME type for 'drive' type (default: application/vnd.google-apps.document)",
+                },
+                "file_path": {
+                    "type": "string",
+                    "description": "Local file path for 'file' type",
+                },
+                "wait": {
+                    "type": "boolean",
+                    "description": "Wait for source processing to complete (default: false)",
+                },
             },
             "required": ["notebook_id", "source_type"],
         },
@@ -276,7 +322,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "source_id": {"type": "string", "description": "Source UUID"},
-                "confirm": {"type": "boolean", "description": "Must be true to confirm sync"},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to confirm sync",
+                },
             },
             "required": ["source_id", "confirm"],
         },
@@ -288,12 +337,14 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "source_id": {"type": "string", "description": "Source UUID"},
-                "confirm": {"type": "boolean", "description": "Must be true to confirm deletion"},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to confirm deletion",
+                },
             },
             "required": ["source_id", "confirm"],
         },
     },
-
     # ── Query / Conversation ─────────────────────────────────────────────
     {
         "name": "notebook_query",
@@ -308,15 +359,18 @@ TOOLS = [
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "query": {"type": "string", "description": "Your question"},
                 "source_ids": {
-                    "type": "array", "items": {"type": "string"},
+                    "type": "array",
+                    "items": {"type": "string"},
                     "description": "Optional list of source IDs to scope the query",
                 },
-                "conversation_id": {"type": "string", "description": "Optional conversation ID for follow-up questions"},
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Optional conversation ID for follow-up questions",
+                },
             },
             "required": ["notebook_id", "query"],
         },
     },
-
     # ── Studio ───────────────────────────────────────────────────────────
     {
         "name": "studio_create",
@@ -331,32 +385,105 @@ TOOLS = [
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "type": {
                     "type": "string",
-                    "enum": ["audio", "video", "report", "flashcards", "quiz", "infographic", "slide_deck", "data_table"],
+                    "enum": [
+                        "audio",
+                        "video",
+                        "report",
+                        "flashcards",
+                        "quiz",
+                        "infographic",
+                        "slide_deck",
+                        "data_table",
+                    ],
                     "description": "Content type to generate",
                 },
-                "source_ids": {"type": "array", "items": {"type": "string"}, "description": "Optional source IDs (default: all)"},
-                "focus_prompt": {"type": "string", "description": "Optional focus/customization prompt"},
-                "language": {"type": "string", "description": "Language code (default: en)"},
-                "audio_format": {"type": "string", "enum": ["deep_dive", "brief", "critique", "debate"], "description": "Audio format"},
-                "audio_length": {"type": "string", "enum": ["short", "default", "long"], "description": "Audio length"},
-                "video_format": {"type": "string", "enum": ["explainer", "brief"], "description": "Video format"},
+                "source_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional source IDs (default: all)",
+                },
+                "focus_prompt": {
+                    "type": "string",
+                    "description": "Optional focus/customization prompt",
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Language code (default: en)",
+                },
+                "audio_format": {
+                    "type": "string",
+                    "enum": ["deep_dive", "brief", "critique", "debate"],
+                    "description": "Audio format",
+                },
+                "audio_length": {
+                    "type": "string",
+                    "enum": ["short", "default", "long"],
+                    "description": "Audio length",
+                },
+                "video_format": {
+                    "type": "string",
+                    "enum": ["explainer", "brief"],
+                    "description": "Video format",
+                },
                 "video_style": {
                     "type": "string",
-                    "enum": ["auto_select", "custom", "classic", "whiteboard", "kawaii", "anime", "watercolor", "retro_print", "heritage", "paper_craft"],
+                    "enum": [
+                        "auto_select",
+                        "custom",
+                        "classic",
+                        "whiteboard",
+                        "kawaii",
+                        "anime",
+                        "watercolor",
+                        "retro_print",
+                        "heritage",
+                        "paper_craft",
+                    ],
                     "description": "Video visual style",
                 },
                 "report_format": {
                     "type": "string",
-                    "enum": ["Briefing Doc", "Study Guide", "Blog Post", "Create Your Own"],
+                    "enum": [
+                        "Briefing Doc",
+                        "Study Guide",
+                        "Blog Post",
+                        "Create Your Own",
+                    ],
                     "description": "Report format",
                 },
-                "difficulty": {"type": "string", "enum": ["easy", "medium", "hard"], "description": "Flashcard/quiz difficulty"},
-                "question_count": {"type": "integer", "description": "Number of quiz questions (default: 2)"},
-                "orientation": {"type": "string", "enum": ["landscape", "portrait", "square"], "description": "Infographic orientation"},
-                "detail_level": {"type": "string", "enum": ["concise", "standard", "detailed"], "description": "Infographic detail level"},
-                "slide_format": {"type": "string", "enum": ["detailed_deck", "presenter_slides"], "description": "Slide deck format"},
-                "slide_length": {"type": "string", "enum": ["short", "default"], "description": "Slide deck length"},
-                "confirm": {"type": "boolean", "description": "Must be true to start generation"},
+                "difficulty": {
+                    "type": "string",
+                    "enum": ["easy", "medium", "hard"],
+                    "description": "Flashcard/quiz difficulty",
+                },
+                "question_count": {
+                    "type": "integer",
+                    "description": "Number of quiz questions (default: 2)",
+                },
+                "orientation": {
+                    "type": "string",
+                    "enum": ["landscape", "portrait", "square"],
+                    "description": "Infographic orientation",
+                },
+                "detail_level": {
+                    "type": "string",
+                    "enum": ["concise", "standard", "detailed"],
+                    "description": "Infographic detail level",
+                },
+                "slide_format": {
+                    "type": "string",
+                    "enum": ["detailed_deck", "presenter_slides"],
+                    "description": "Slide deck format",
+                },
+                "slide_length": {
+                    "type": "string",
+                    "enum": ["short", "default"],
+                    "description": "Slide deck length",
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to start generation",
+                },
             },
             "required": ["notebook_id", "type", "confirm"],
         },
@@ -379,13 +506,18 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "artifact_id": {"type": "string", "description": "Artifact UUID"},
-                "notebook_id": {"type": "string", "description": "Notebook UUID (optional, for mind map fallback)"},
-                "confirm": {"type": "boolean", "description": "Must be true to confirm deletion"},
+                "notebook_id": {
+                    "type": "string",
+                    "description": "Notebook UUID (optional, for mind map fallback)",
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to confirm deletion",
+                },
             },
             "required": ["artifact_id", "confirm"],
         },
     },
-
     # ── Download / Export ────────────────────────────────────────────────
     {
         "name": "download_artifact",
@@ -407,13 +539,19 @@ TOOLS = [
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "artifact_id": {"type": "string", "description": "Artifact UUID"},
-                "title": {"type": "string", "description": "Export title (default: 'NotebookLM Export')"},
-                "export_type": {"type": "string", "enum": ["docs", "sheets"], "description": "Export to Google Docs or Sheets"},
+                "title": {
+                    "type": "string",
+                    "description": "Export title (default: 'NotebookLM Export')",
+                },
+                "export_type": {
+                    "type": "string",
+                    "enum": ["docs", "sheets"],
+                    "description": "Export to Google Docs or Sheets",
+                },
             },
             "required": ["notebook_id", "artifact_id"],
         },
     },
-
     # ── Research ─────────────────────────────────────────────────────────
     {
         "name": "research_start",
@@ -426,8 +564,16 @@ TOOLS = [
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "query": {"type": "string", "description": "Search query"},
-                "source": {"type": "string", "enum": ["web", "drive"], "description": "Search source (default: web)"},
-                "mode": {"type": "string", "enum": ["fast", "deep"], "description": "Research mode (default: fast)"},
+                "source": {
+                    "type": "string",
+                    "enum": ["web", "drive"],
+                    "description": "Search source (default: web)",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["fast", "deep"],
+                    "description": "Research mode (default: fast)",
+                },
             },
             "required": ["notebook_id", "query"],
         },
@@ -439,7 +585,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
-                "task_id": {"type": "string", "description": "Optional task ID from research_start"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Optional task ID from research_start",
+                },
             },
             "required": ["notebook_id"],
         },
@@ -453,14 +602,14 @@ TOOLS = [
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "task_id": {"type": "string", "description": "Research task ID"},
                 "source_indices": {
-                    "type": "array", "items": {"type": "integer"},
+                    "type": "array",
+                    "items": {"type": "integer"},
                     "description": "Indices of sources to import (from research_status results). If omitted, imports all.",
                 },
             },
             "required": ["notebook_id", "task_id"],
         },
     },
-
     # ── Sharing ──────────────────────────────────────────────────────────
     {
         "name": "notebook_share_status",
@@ -480,7 +629,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
-                "is_public": {"type": "boolean", "description": "True to enable public access, false to disable"},
+                "is_public": {
+                    "type": "boolean",
+                    "description": "True to enable public access, false to disable",
+                },
             },
             "required": ["notebook_id", "is_public"],
         },
@@ -493,14 +645,23 @@ TOOLS = [
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "email": {"type": "string", "description": "Collaborator email"},
-                "role": {"type": "string", "enum": ["editor", "viewer"], "description": "Role (default: viewer)"},
-                "notify": {"type": "boolean", "description": "Send email notification (default: true)"},
-                "message": {"type": "string", "description": "Optional message in the invite email"},
+                "role": {
+                    "type": "string",
+                    "enum": ["editor", "viewer"],
+                    "description": "Role (default: viewer)",
+                },
+                "notify": {
+                    "type": "boolean",
+                    "description": "Send email notification (default: true)",
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Optional message in the invite email",
+                },
             },
             "required": ["notebook_id", "email"],
         },
     },
-
     # ── Notes ────────────────────────────────────────────────────────────
     {
         "name": "note_create",
@@ -510,7 +671,10 @@ TOOLS = [
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "content": {"type": "string", "description": "Note content"},
-                "title": {"type": "string", "description": "Note title (default: 'New Note')"},
+                "title": {
+                    "type": "string",
+                    "description": "Note title (default: 'New Note')",
+                },
             },
             "required": ["notebook_id", "content"],
         },
@@ -548,12 +712,14 @@ TOOLS = [
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "note_id": {"type": "string", "description": "Note UUID"},
-                "confirm": {"type": "boolean", "description": "Must be true to confirm deletion"},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to confirm deletion",
+                },
             },
             "required": ["notebook_id", "note_id", "confirm"],
         },
     },
-
     # ── Auth ──────────────────────────────────────────────────────────────
     {
         "name": "save_auth_tokens",
@@ -564,7 +730,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "cookies": {"type": "string", "description": "Full cookie header string from Chrome DevTools"},
+                "cookies": {
+                    "type": "string",
+                    "description": "Full cookie header string from Chrome DevTools",
+                },
             },
             "required": ["cookies"],
         },
@@ -593,7 +762,6 @@ TOOLS = [
             "required": [],
         },
     },
-
     # ── Cognitive Intelligence ───────────────────────────────────────────
     {
         "name": "cognitive_enrich_query",
@@ -607,8 +775,15 @@ TOOLS = [
             "properties": {
                 "notebook_id": {"type": "string", "description": "Notebook UUID"},
                 "query": {"type": "string", "description": "Your question"},
-                "source_ids": {"type": "array", "items": {"type": "string"}, "description": "Optional source IDs to scope"},
-                "max_context_items": {"type": "integer", "description": "Max enrichment items (default: 5)"},
+                "source_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional source IDs to scope",
+                },
+                "max_context_items": {
+                    "type": "integer",
+                    "description": "Max enrichment items (default: 5)",
+                },
             },
             "required": ["notebook_id", "query"],
         },
@@ -624,7 +799,10 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Search query"},
-                "limit": {"type": "integer", "description": "Max results (default: 10)"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default: 10)",
+                },
             },
             "required": ["query"],
         },
@@ -638,7 +816,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "description": "Max insights (default: 10)"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max insights (default: 10)",
+                },
             },
             "required": [],
         },
@@ -653,8 +834,14 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "session_id": {"type": "string", "description": "ResearchGravity session ID"},
-                "notebook_id": {"type": "string", "description": "Optional existing notebook UUID (creates new if omitted)"},
+                "session_id": {
+                    "type": "string",
+                    "description": "ResearchGravity session ID",
+                },
+                "notebook_id": {
+                    "type": "string",
+                    "description": "Optional existing notebook UUID (creates new if omitted)",
+                },
             },
             "required": ["session_id"],
         },
@@ -686,7 +873,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "arc_id": {"type": "string", "description": "Optional arc ID to auto-curate (from suggestions)"},
+                "arc_id": {
+                    "type": "string",
+                    "description": "Optional arc ID to auto-curate (from suggestions)",
+                },
             },
             "required": [],
         },
@@ -697,6 +887,7 @@ TOOLS = [
 # ══════════════════════════════════════════════════════════════════════════
 # Tool Handlers
 # ══════════════════════════════════════════════════════════════════════════
+
 
 async def handle_tool(name: str, args: dict) -> dict:
     """Route tool calls to handlers."""
@@ -714,6 +905,7 @@ async def handle_tool(name: str, args: dict) -> dict:
 
 # ── Notebook Handlers ────────────────────────────────────────────────────
 
+
 async def _h_notebook_list(args: dict) -> dict:
     client = _require_auth()
     notebooks = client.list_notebooks()
@@ -723,7 +915,9 @@ async def _h_notebook_list(args: dict) -> dict:
     for nb in notebooks:
         shared = " [shared]" if nb.is_shared else ""
         lines.append(f"  {nb.title}{shared}")
-        lines.append(f"    ID: {nb.id} | Sources: {nb.source_count} | Modified: {nb.modified_at or 'unknown'}")
+        lines.append(
+            f"    ID: {nb.id} | Sources: {nb.source_count} | Modified: {nb.modified_at or 'unknown'}"
+        )
     return _ok("\n".join(lines))
 
 
@@ -741,9 +935,19 @@ async def _h_notebook_get(args: dict) -> dict:
     sources = client.get_notebook_sources_with_types(nid)
     lines = [f"Notebook: {nid}\nSources ({len(sources)}):\n"]
     for s in sources:
-        status = "ready" if s.get("status") == 2 else "processing" if s.get("status") == 1 else "error" if s.get("status") == 3 else "unknown"
+        status = (
+            "ready"
+            if s.get("status") == 2
+            else "processing"
+            if s.get("status") == 1
+            else "error"
+            if s.get("status") == 3
+            else "unknown"
+        )
         lines.append(f"  {s['title']} [{s['source_type_name']}] ({status})")
-        lines.append(f"    ID: {s['id']}" + (f" | URL: {s['url']}" if s.get("url") else ""))
+        lines.append(
+            f"    ID: {s['id']}" + (f" | URL: {s['url']}" if s.get("url") else "")
+        )
     return _ok("\n".join(lines))
 
 
@@ -761,7 +965,11 @@ async def _h_notebook_describe(args: dict) -> dict:
 async def _h_notebook_rename(args: dict) -> dict:
     client = _require_auth()
     ok = client.rename_notebook(args["notebook_id"], args["new_title"])
-    return _ok(f"Renamed to: {args['new_title']}") if ok else _err("Failed to rename notebook.")
+    return (
+        _ok(f"Renamed to: {args['new_title']}")
+        if ok
+        else _err("Failed to rename notebook.")
+    )
 
 
 async def _h_notebook_delete(args: dict) -> dict:
@@ -769,7 +977,11 @@ async def _h_notebook_delete(args: dict) -> dict:
         return _err("Deletion requires confirm=true. This is IRREVERSIBLE.")
     client = _require_auth()
     ok = client.delete_notebook(args["notebook_id"])
-    return _ok(f"Deleted notebook {args['notebook_id']}") if ok else _err("Failed to delete notebook.")
+    return (
+        _ok(f"Deleted notebook {args['notebook_id']}")
+        if ok
+        else _err("Failed to delete notebook.")
+    )
 
 
 async def _h_chat_configure(args: dict) -> dict:
@@ -781,11 +993,14 @@ async def _h_chat_configure(args: dict) -> dict:
         response_length=args.get("response_length", "default"),
     )
     if result.get("status") == "success":
-        return _ok(f"Chat configured: goal={result['goal']}, length={result['response_length']}")
+        return _ok(
+            f"Chat configured: goal={result['goal']}, length={result['response_length']}"
+        )
     return _err(result.get("error", "Failed to configure chat."))
 
 
 # ── Source Handlers ──────────────────────────────────────────────────────
+
 
 async def _h_source_add(args: dict) -> dict:
     client = _require_auth()
@@ -802,14 +1017,19 @@ async def _h_source_add(args: dict) -> dict:
         text = args.get("text")
         if not text:
             return _err("'text' is required for source_type='text'")
-        result = client.add_text_source(nid, text, title=args.get("title", "Pasted Text"), wait=wait)
+        result = client.add_text_source(
+            nid, text, title=args.get("title", "Pasted Text"), wait=wait
+        )
     elif stype == "drive":
         doc_id = args.get("document_id")
         if not doc_id:
             return _err("'document_id' is required for source_type='drive'")
         result = client.add_drive_source(
-            nid, doc_id, title=args.get("drive_title", "Drive Document"),
-            mime_type=args.get("mime_type", "application/vnd.google-apps.document"), wait=wait,
+            nid,
+            doc_id,
+            title=args.get("drive_title", "Drive Document"),
+            mime_type=args.get("mime_type", "application/vnd.google-apps.document"),
+            wait=wait,
         )
     elif stype == "file":
         fp = args.get("file_path")
@@ -820,7 +1040,9 @@ async def _h_source_add(args: dict) -> dict:
         return _err(f"Invalid source_type: {stype}")
 
     if result:
-        return _ok(f"Source added: {result.get('title', 'Unknown')}\n  ID: {result.get('id')}")
+        return _ok(
+            f"Source added: {result.get('title', 'Unknown')}\n  ID: {result.get('id')}"
+        )
     return _err("Failed to add source.")
 
 
@@ -845,7 +1067,9 @@ async def _h_source_get_content(args: dict) -> dict:
         lines.append(f"URL: {result['url']}")
     lines.append(f"\n{result['content'][:5000]}")
     if result["char_count"] > 5000:
-        lines.append(f"\n... (truncated, {result['char_count'] - 5000} chars remaining)")
+        lines.append(
+            f"\n... (truncated, {result['char_count'] - 5000} chars remaining)"
+        )
     return _ok("\n".join(lines))
 
 
@@ -854,11 +1078,25 @@ async def _h_source_list_drive(args: dict) -> dict:
     sources = client.get_notebook_sources_with_types(args["notebook_id"])
     lines = [f"Sources ({len(sources)}):\n"]
     for s in sources:
-        status = "ready" if s.get("status") == 2 else "processing" if s.get("status") == 1 else "error" if s.get("status") == 3 else "unknown"
+        status = (
+            "ready"
+            if s.get("status") == 2
+            else "processing"
+            if s.get("status") == 1
+            else "error"
+            if s.get("status") == 3
+            else "unknown"
+        )
         sync_info = ""
         if s.get("can_sync"):
             fresh = client.check_source_freshness(s["id"])
-            sync_info = " [STALE - needs sync]" if fresh is False else " [fresh]" if fresh else ""
+            sync_info = (
+                " [STALE - needs sync]"
+                if fresh is False
+                else " [fresh]"
+                if fresh
+                else ""
+            )
         lines.append(f"  {s['title']} [{s['source_type_name']}] ({status}){sync_info}")
         lines.append(f"    ID: {s['id']}")
     return _ok("\n".join(lines))
@@ -879,15 +1117,21 @@ async def _h_source_delete(args: dict) -> dict:
         return _err("Deletion requires confirm=true. This is IRREVERSIBLE.")
     client = _require_auth()
     ok = client.delete_source(args["source_id"])
-    return _ok(f"Deleted source {args['source_id']}") if ok else _err("Failed to delete source.")
+    return (
+        _ok(f"Deleted source {args['source_id']}")
+        if ok
+        else _err("Failed to delete source.")
+    )
 
 
 # ── Query Handler ────────────────────────────────────────────────────────
 
+
 async def _h_notebook_query(args: dict) -> dict:
     client = _require_auth()
     result = client.query(
-        args["notebook_id"], args["query"],
+        args["notebook_id"],
+        args["query"],
         source_ids=args.get("source_ids"),
         conversation_id=args.get("conversation_id"),
     )
@@ -901,14 +1145,19 @@ async def _h_notebook_query(args: dict) -> dict:
         lines.append("(follow-up)")
     # Capture as cognitive event if available
     if _cognitive and _cognitive.available:
-        await _cognitive.capture_result("notebook_query", {
-            "query": args["query"], "answer": result["answer"][:500],
-            "notebook_id": args["notebook_id"],
-        })
+        await _cognitive.capture_result(
+            "notebook_query",
+            {
+                "query": args["query"],
+                "answer": result["answer"][:500],
+                "notebook_id": args["notebook_id"],
+            },
+        )
     return _ok("\n".join(lines))
 
 
 # ── Studio Handlers ──────────────────────────────────────────────────────
+
 
 async def _h_studio_create(args: dict) -> dict:
     if not args.get("confirm"):
@@ -923,14 +1172,25 @@ async def _h_studio_create(args: dict) -> dict:
     if stype == "audio":
         fc = constants.AUDIO_FORMATS.get_code(args.get("audio_format", "deep_dive"))
         lc = constants.AUDIO_LENGTHS.get_code(args.get("audio_length", "default"))
-        result = client.create_audio_overview(nid, sids, format_code=fc, length_code=lc, language=lang, focus_prompt=focus)
+        result = client.create_audio_overview(
+            nid, sids, format_code=fc, length_code=lc, language=lang, focus_prompt=focus
+        )
     elif stype == "video":
         fc = constants.VIDEO_FORMATS.get_code(args.get("video_format", "explainer"))
         vs = constants.VIDEO_STYLES.get_code(args.get("video_style", "auto_select"))
-        result = client.create_video_overview(nid, sids, format_code=fc, visual_style_code=vs, language=lang, focus_prompt=focus)
+        result = client.create_video_overview(
+            nid,
+            sids,
+            format_code=fc,
+            visual_style_code=vs,
+            language=lang,
+            focus_prompt=focus,
+        )
     elif stype == "report":
         rf = args.get("report_format", "Briefing Doc")
-        result = client.create_report(nid, sids, report_format=rf, custom_prompt=focus, language=lang)
+        result = client.create_report(
+            nid, sids, report_format=rf, custom_prompt=focus, language=lang
+        )
     elif stype == "flashcards":
         dc = constants.FLASHCARD_DIFFICULTIES.get_code(args.get("difficulty", "medium"))
         result = client.create_flashcards(nid, sids, difficulty_code=dc)
@@ -939,20 +1199,37 @@ async def _h_studio_create(args: dict) -> dict:
         qc = args.get("question_count", 2)
         result = client.create_quiz(nid, sids, question_count=qc, difficulty=dc)
     elif stype == "infographic":
-        oc = constants.INFOGRAPHIC_ORIENTATIONS.get_code(args.get("orientation", "landscape"))
-        dl = constants.INFOGRAPHIC_DETAILS.get_code(args.get("detail_level", "standard"))
-        result = client.create_infographic(nid, sids, orientation_code=oc, detail_level_code=dl, language=lang, focus_prompt=focus)
+        oc = constants.INFOGRAPHIC_ORIENTATIONS.get_code(
+            args.get("orientation", "landscape")
+        )
+        dl = constants.INFOGRAPHIC_DETAILS.get_code(
+            args.get("detail_level", "standard")
+        )
+        result = client.create_infographic(
+            nid,
+            sids,
+            orientation_code=oc,
+            detail_level_code=dl,
+            language=lang,
+            focus_prompt=focus,
+        )
     elif stype == "slide_deck":
-        sf = constants.SLIDE_DECK_FORMATS.get_code(args.get("slide_format", "detailed_deck"))
+        sf = constants.SLIDE_DECK_FORMATS.get_code(
+            args.get("slide_format", "detailed_deck")
+        )
         sl = constants.SLIDE_DECK_LENGTHS.get_code(args.get("slide_length", "default"))
-        result = client.create_slide_deck(nid, sids, format_code=sf, length_code=sl, language=lang, focus_prompt=focus)
+        result = client.create_slide_deck(
+            nid, sids, format_code=sf, length_code=sl, language=lang, focus_prompt=focus
+        )
     elif stype == "data_table":
         result = client.create_data_table(nid, sids, description=focus, language=lang)
     else:
         return _err(f"Unknown studio type: {stype}")
 
     if result:
-        return _ok(f"Studio '{stype}' creation started.\n  Artifact ID: {result['artifact_id']}\n  Status: {result['status']}")
+        return _ok(
+            f"Studio '{stype}' creation started.\n  Artifact ID: {result['artifact_id']}\n  Status: {result['status']}"
+        )
     return _err(f"Failed to create {stype}.")
 
 
@@ -972,11 +1249,18 @@ async def _h_studio_delete(args: dict) -> dict:
     if not args.get("confirm"):
         return _err("Deletion requires confirm=true. This is IRREVERSIBLE.")
     client = _require_auth()
-    ok = client.delete_studio_artifact(args["artifact_id"], notebook_id=args.get("notebook_id"))
-    return _ok(f"Deleted artifact {args['artifact_id']}") if ok else _err("Failed to delete artifact.")
+    ok = client.delete_studio_artifact(
+        args["artifact_id"], notebook_id=args.get("notebook_id")
+    )
+    return (
+        _ok(f"Deleted artifact {args['artifact_id']}")
+        if ok
+        else _err("Failed to delete artifact.")
+    )
 
 
 # ── Download / Export Handlers ───────────────────────────────────────────
+
 
 async def _h_download_artifact(args: dict) -> dict:
     return _err(
@@ -989,7 +1273,8 @@ async def _h_download_artifact(args: dict) -> dict:
 async def _h_export_artifact(args: dict) -> dict:
     client = _require_auth()
     result = client.export_artifact(
-        args["notebook_id"], args["artifact_id"],
+        args["notebook_id"],
+        args["artifact_id"],
         title=args.get("title", "NotebookLM Export"),
         export_type=args.get("export_type", "docs"),
     )
@@ -1000,10 +1285,12 @@ async def _h_export_artifact(args: dict) -> dict:
 
 # ── Research Handlers ────────────────────────────────────────────────────
 
+
 async def _h_research_start(args: dict) -> dict:
     client = _require_auth()
     result = client.start_research(
-        args["notebook_id"], args["query"],
+        args["notebook_id"],
+        args["query"],
         source=args.get("source", "web"),
         mode=args.get("mode", "fast"),
     )
@@ -1019,7 +1306,9 @@ async def _h_research_start(args: dict) -> dict:
 
 async def _h_research_status(args: dict) -> dict:
     client = _require_auth()
-    result = client.poll_research(args["notebook_id"], target_task_id=args.get("task_id"))
+    result = client.poll_research(
+        args["notebook_id"], target_task_id=args.get("task_id")
+    )
     if not result or result.get("status") == "no_research":
         return _ok("No active research found.")
     lines = [
@@ -1032,7 +1321,10 @@ async def _h_research_status(args: dict) -> dict:
     if result.get("sources"):
         lines.append("\nDiscovered Sources:")
         for s in result["sources"]:
-            lines.append(f"  [{s['index']}] {s['title']}" + (f" - {s['url']}" if s.get("url") else ""))
+            lines.append(
+                f"  [{s['index']}] {s['title']}"
+                + (f" - {s['url']}" if s.get("url") else "")
+            )
     return _ok("\n".join(lines))
 
 
@@ -1061,6 +1353,7 @@ async def _h_research_import(args: dict) -> dict:
 
 
 # ── Sharing Handlers ─────────────────────────────────────────────────────
+
 
 async def _h_notebook_share_status(args: dict) -> dict:
     client = _require_auth()
@@ -1092,19 +1385,27 @@ async def _h_notebook_share_public(args: dict) -> dict:
 async def _h_notebook_share_invite(args: dict) -> dict:
     client = _require_auth()
     ok = client.add_collaborator(
-        args["notebook_id"], args["email"],
+        args["notebook_id"],
+        args["email"],
         role=args.get("role", "viewer"),
         notify=args.get("notify", True),
         message=args.get("message", ""),
     )
-    return _ok(f"Invited {args['email']} as {args.get('role', 'viewer')}") if ok else _err("Failed to invite collaborator.")
+    return (
+        _ok(f"Invited {args['email']} as {args.get('role', 'viewer')}")
+        if ok
+        else _err("Failed to invite collaborator.")
+    )
 
 
 # ── Note Handlers ────────────────────────────────────────────────────────
 
+
 async def _h_note_create(args: dict) -> dict:
     client = _require_auth()
-    result = client.create_note(args["notebook_id"], args["content"], title=args.get("title"))
+    result = client.create_note(
+        args["notebook_id"], args["content"], title=args.get("title")
+    )
     if result:
         return _ok(f"Note created: {result['title']}\n  ID: {result['id']}")
     return _err("Failed to create note.")
@@ -1125,7 +1426,9 @@ async def _h_note_list(args: dict) -> dict:
 async def _h_note_update(args: dict) -> dict:
     client = _require_auth()
     result = client.update_note(
-        args["note_id"], content=args.get("content"), title=args.get("title"),
+        args["note_id"],
+        content=args.get("content"),
+        title=args.get("title"),
         notebook_id=args["notebook_id"],
     )
     if result:
@@ -1138,14 +1441,18 @@ async def _h_note_delete(args: dict) -> dict:
         return _err("Deletion requires confirm=true. This is IRREVERSIBLE.")
     client = _require_auth()
     ok = client.delete_note(args["note_id"], args["notebook_id"])
-    return _ok(f"Deleted note {args['note_id']}") if ok else _err("Failed to delete note.")
+    return (
+        _ok(f"Deleted note {args['note_id']}") if ok else _err("Failed to delete note.")
+    )
 
 
 # ── Auth Handlers ────────────────────────────────────────────────────────
 
+
 def _get_cookie_cache_path() -> Path:
     """Get persistent cookie cache file path."""
     from ..config_notebooklm import NotebookLMConfig
+
     return NotebookLMConfig.AUTH_STATE_DIR / "cookies.txt"
 
 
@@ -1172,6 +1479,7 @@ def _load_cookies_from_disk() -> str:
 async def _h_save_auth_tokens(args: dict) -> dict:
     import os
     import asyncio
+
     global _api_client, _pg_pool
     cookies = args["cookies"]
     # Save to env for current session
@@ -1192,8 +1500,14 @@ async def _h_save_auth_tokens(args: dict) -> dict:
 
         # Re-initialize cognitive layer now that we have auth + DB may be ready
         _init_cognitive_if_ready()
-        cognitive_status = "cognitive=active" if (_cognitive and _cognitive.available) else "cognitive=pending"
-        return _ok(f"Authenticated. Found {len(nbs)} notebooks. Cookies persisted to disk. ({cognitive_status})")
+        cognitive_status = (
+            "cognitive=active"
+            if (_cognitive and _cognitive.available)
+            else "cognitive=pending"
+        )
+        return _ok(
+            f"Authenticated. Found {len(nbs)} notebooks. Cookies persisted to disk. ({cognitive_status})"
+        )
     except Exception as exc:
         _api_client = None
         return _err(f"Authentication failed: {exc}")
@@ -1213,6 +1527,7 @@ async def _h_auto_auth(args: dict) -> dict:
     """Auto-extract cookies from Chrome and authenticate."""
     import os
     import asyncio
+
     global _api_client, _pg_pool
 
     chrome_profile = args.get("chrome_profile", "Default")
@@ -1224,8 +1539,10 @@ async def _h_auto_auth(args: dict) -> dict:
         # Override DB path if non-default profile
         if chrome_profile != "Default":
             ce.CHROME_COOKIE_DB = (
-                Path.home() / "Library/Application Support/Google/Chrome"
-                / chrome_profile / "Cookies"
+                Path.home()
+                / "Library/Application Support/Google/Chrome"
+                / chrome_profile
+                / "Cookies"
             )
 
         cookies = ce.extract_chrome_cookies()
@@ -1244,7 +1561,11 @@ async def _h_auto_auth(args: dict) -> dict:
                     break
 
         _init_cognitive_if_ready()
-        cognitive_status = "cognitive=active" if (_cognitive and _cognitive.available) else "cognitive=pending"
+        cognitive_status = (
+            "cognitive=active"
+            if (_cognitive and _cognitive.available)
+            else "cognitive=pending"
+        )
 
         return _ok(
             f"Auto-authenticated from Chrome ({chrome_profile}). "
@@ -1262,12 +1583,16 @@ async def _h_auto_auth(args: dict) -> dict:
 
 # ── Cognitive Handlers ───────────────────────────────────────────────────
 
+
 async def _h_cognitive_enrich_query(args: dict) -> dict:
     _require_auth()
     if not _cognitive or not _cognitive.available:
-        return _err("Cognitive layer not available. PostgreSQL + coherence_engine required.")
+        return _err(
+            "Cognitive layer not available. PostgreSQL + coherence_engine required."
+        )
     result = await _cognitive.enriched_query(
-        args["notebook_id"], args["query"],
+        args["notebook_id"],
+        args["query"],
         source_ids=args.get("source_ids"),
         max_context_items=args.get("max_context_items", 5),
     )
@@ -1285,7 +1610,9 @@ async def _h_cognitive_enrich_query(args: dict) -> dict:
 async def _h_cognitive_search(args: dict) -> dict:
     if not _cognitive or not _cognitive.available:
         return _err("Cognitive layer not available.")
-    results = await _cognitive.cognitive_search(args["query"], limit=args.get("limit", 10))
+    results = await _cognitive.cognitive_search(
+        args["query"], limit=args.get("limit", 10)
+    )
     if not results:
         return _ok("No results found.")
     lines = [f"Found {len(results)} results:\n"]
@@ -1328,7 +1655,8 @@ async def _h_research_to_notebook(args: dict) -> dict:
     if not _cognitive or not _cognitive.available:
         return _err("Cognitive layer not available.")
     result = await _cognitive.import_research_session(
-        args["session_id"], notebook_id=args.get("notebook_id"),
+        args["session_id"],
+        notebook_id=args.get("notebook_id"),
     )
     if result:
         return _ok(
@@ -1345,11 +1673,13 @@ async def _h_knowledge_evolution(args: dict) -> dict:
     if not _cognitive or not _cognitive.available:
         return _err("Cognitive layer not available.")
     result = await _cognitive.track_knowledge_evolution(
-        args["notebook_id"], args["query"], args["response"],
+        args["notebook_id"],
+        args["query"],
+        args["response"],
     )
     if result.get("tracked"):
         lines = [
-            f"Knowledge tracked.",
+            "Knowledge tracked.",
             f"  State: {result.get('evolution_state', 'unknown')}",
             f"  Data points: {result.get('data_points', 0)}",
         ]
@@ -1381,7 +1711,9 @@ async def _h_cognitive_auto_curate(args: dict) -> dict:
         lines = ["Curation suggestions:\n"]
         for s in suggestions:
             lines.append(f"  {s['suggested_title']}")
-            lines.append(f"    Arc ID: {s['arc_id']} | Significance: {s['significance']:.2f} | Platforms: {s['platforms']} | Moments: {s['moments']}")
+            lines.append(
+                f"    Arc ID: {s['arc_id']} | Significance: {s['significance']:.2f} | Platforms: {s['platforms']} | Moments: {s['moments']}"
+            )
         lines.append("\nCall cognitive_auto_curate with arc_id to create a notebook.")
         return _ok("\n".join(lines))
 

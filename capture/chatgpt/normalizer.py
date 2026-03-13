@@ -16,7 +16,9 @@ from ..quality import score_event
 class ChatGPTNormalizer(BaseNormalizer):
     """Normalize ChatGPT messages into cognitive_events rows."""
 
-    def to_cognitive_event(self, captured: CapturedEvent, session_topic: str = "") -> dict:
+    def to_cognitive_event(
+        self, captured: CapturedEvent, session_topic: str = ""
+    ) -> dict:
         """Override to inject ChatGPT-specific metadata."""
         # Use conversation title as session topic if available
         topic = captured.metadata.get("conversation_title", session_topic or "")

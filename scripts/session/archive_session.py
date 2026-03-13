@@ -26,6 +26,7 @@ try:
     from evidence_extractor import process_session as extract_evidence
     from confidence_scorer import score_session
     from evidence_validator import validate_session
+
     EVIDENCE_LAYER_AVAILABLE = True
 except ImportError:
     EVIDENCE_LAYER_AVAILABLE = False
@@ -38,6 +39,7 @@ try:
         ValidationResult,
     )
     from critic.base import OracleConsensus
+
     CRITIC_SYSTEM_AVAILABLE = True
 except ImportError:
     CRITIC_SYSTEM_AVAILABLE = False
@@ -45,6 +47,7 @@ except ImportError:
 # Import Visual Intelligence Layer (PaperBanana)
 try:
     from visual import PaperBananaAdapter, get_visual_config
+
     VISUAL_LAYER_AVAILABLE = True
 except ImportError:
     VISUAL_LAYER_AVAILABLE = False
@@ -72,39 +75,41 @@ def parse_url_table(session_log_path: Path) -> list:
     content = session_log_path.read_text()
 
     # Find the URLs table
-    table_pattern = r'\| Time \| Source \| URL.*?\n\|[-\s|]+\n((?:\|.*\n)*)'
+    table_pattern = r"\| Time \| Source \| URL.*?\n\|[-\s|]+\n((?:\|.*\n)*)"
     match = re.search(table_pattern, content)
 
     if match:
-        rows = match.group(1).strip().split('\n')
+        rows = match.group(1).strip().split("\n")
         for row in rows:
-            cols = [c.strip() for c in row.split('|')[1:-1]]
+            cols = [c.strip() for c in row.split("|")[1:-1]]
             if len(cols) >= 6:
-                urls.append({
-                    "time": cols[0],
-                    "source": cols[1],
-                    "url": cols[2],
-                    "filter": cols[3] if len(cols) > 3 else "",
-                    "used": cols[4] if len(cols) > 4 else "",
-                    "relevance": cols[5] if len(cols) > 5 else "",
-                    "notes": cols[6] if len(cols) > 6 else ""
-                })
+                urls.append(
+                    {
+                        "time": cols[0],
+                        "source": cols[1],
+                        "url": cols[2],
+                        "filter": cols[3] if len(cols) > 3 else "",
+                        "used": cols[4] if len(cols) > 4 else "",
+                        "relevance": cols[5] if len(cols) > 5 else "",
+                        "notes": cols[6] if len(cols) > 6 else "",
+                    }
+                )
 
     return urls
 
 
 def generate_queries_section(session: dict) -> str:
     """Generate queries section, handling missing data gracefully."""
-    queries = session.get('queries', {})
+    queries = session.get("queries", {})
     if not queries:
         return "_No search queries recorded for this session._"
 
     sections = []
-    if 'viral' in queries:
-        viral_github = queries['viral'].get('github', 'N/A')
+    if "viral" in queries:
+        viral_github = queries["viral"].get("github", "N/A")
         sections.append(f"### Viral Filter\n```\n{viral_github}\n```")
-    if 'groundbreaker' in queries:
-        gb_github = queries['groundbreaker'].get('github', 'N/A')
+    if "groundbreaker" in queries:
+        gb_github = queries["groundbreaker"].get("github", "N/A")
         sections.append(f"### Groundbreaker Filter\n```\n{gb_github}\n```")
 
     return "\n\n".join(sections) if sections else "_No search queries recorded._"
@@ -116,15 +121,15 @@ def generate_archive_report(session: dict, urls: list) -> str:
     started = datetime.fromisoformat(session["started"])
     duration = (now - started).total_seconds() / 60
 
-    used_urls = [u for u in urls if '✓' in u.get("used", "")]
-    unused_urls = [u for u in urls if '✗' in u.get("used", "")]
+    used_urls = [u for u in urls if "✓" in u.get("used", "")]
+    unused_urls = [u for u in urls if "✗" in u.get("used", "")]
 
-    report = f"""# Session Archive: {session['topic']}
+    report = f"""# Session Archive: {session["topic"]}
 
-**Session ID:** `{session['session_id']}`
-**Workflow:** {session['workflow']}
-**Environment:** {session['environment']}
-**Started:** {session['started']}
+**Session ID:** `{session["session_id"]}`
+**Workflow:** {session["workflow"]}
+**Environment:** {session["environment"]}
+**Started:** {session["started"]}
 **Completed:** {now.isoformat()}
 **Duration:** {duration:.1f} minutes
 
@@ -180,12 +185,12 @@ Total URLs visited: {len(urls)}
 
 To revisit this research:
 ```
-/recall {session['topic']}
+/recall {session["topic"]}
 ```
 
 To continue this research:
 ```
-python3 ~/.agent-core/scripts/init_session.py "{session['topic']}" --continue {session['session_id']}
+python3 ~/.agent-core/scripts/init_session.py "{session["topic"]}" --continue {session["session_id"]}
 ```
 
 ---
@@ -205,30 +210,36 @@ def extract_learnings(session: dict, scratchpad_path: Path) -> list:
 
         # Extract from viral candidates
         for item in data.get("viral_candidates", []):
-            learnings.append({
-                "type": "tool",
-                "name": item.get("name", "Unknown"),
-                "url": item.get("url", ""),
-                "insight": f"High-adoption tool: {item.get('why', 'well-maintained')}"
-            })
+            learnings.append(
+                {
+                    "type": "tool",
+                    "name": item.get("name", "Unknown"),
+                    "url": item.get("url", ""),
+                    "insight": f"High-adoption tool: {item.get('why', 'well-maintained')}",
+                }
+            )
 
         # Extract from groundbreaker candidates
         for item in data.get("groundbreaker_candidates", []):
-            learnings.append({
-                "type": "innovation",
-                "name": item.get("name", "Unknown"),
-                "url": item.get("url", ""),
-                "insight": f"Novel approach: {item.get('novel', 'emerging')}"
-            })
+            learnings.append(
+                {
+                    "type": "innovation",
+                    "name": item.get("name", "Unknown"),
+                    "url": item.get("url", ""),
+                    "insight": f"Novel approach: {item.get('novel', 'emerging')}",
+                }
+            )
 
         # Extract from arxiv papers
         for item in data.get("arxiv_papers", []):
-            learnings.append({
-                "type": "paper",
-                "name": item.get("title", "Unknown"),
-                "url": item.get("url", ""),
-                "insight": item.get("insight", "Research finding")
-            })
+            learnings.append(
+                {
+                    "type": "paper",
+                    "name": item.get("title", "Unknown"),
+                    "url": item.get("url", ""),
+                    "insight": item.get("insight", "Research finding"),
+                }
+            )
 
     return learnings
 
@@ -243,7 +254,9 @@ def update_learnings_memory(session: dict, learnings: list):
     entry = f"\n\n## {now} - {session['topic']} (`{session['session_id']}`)\n\n"
 
     for l in learnings:
-        entry += f"- **{l['type'].title()}**: [{l['name']}]({l['url']}) — {l['insight']}\n"
+        entry += (
+            f"- **{l['type'].title()}**: [{l['name']}]({l['url']}) — {l['insight']}\n"
+        )
 
     with open(memory_file, "a") as f:
         f.write(entry)
@@ -257,8 +270,13 @@ def update_session_index(session: dict, duration: float):
     index_file.parent.mkdir(parents=True, exist_ok=True)
 
     if not index_file.exists():
-        index_file.write_text("| Date | Session ID | Topic | Workflow | Duration | Key Finding |\n")
-        index_file.write_text(index_file.read_text() + "|------|------------|-------|----------|----------|-------------|\n")
+        index_file.write_text(
+            "| Date | Session ID | Topic | Workflow | Duration | Key Finding |\n"
+        )
+        index_file.write_text(
+            index_file.read_text()
+            + "|------|------------|-------|----------|----------|-------------|\n"
+        )
 
     date = datetime.now().strftime("%Y-%m-%d")
 
@@ -280,7 +298,7 @@ def archive_session(
     extract_learnings_flag: bool = True,
     clean_local: bool = False,
     validate_evidence_flag: bool = True,
-    skip_validation: bool = False
+    skip_validation: bool = False,
 ):
     """
     Main archive function with evidence layer integration.
@@ -319,6 +337,7 @@ def archive_session(
 
     # Copy all files to global
     import shutil
+
     for file in local_dir.iterdir():
         if file.is_file():
             shutil.copy2(file, global_dir / file.name)
@@ -349,8 +368,12 @@ def archive_session(
             extract_result = extract_evidence(session["session_id"])
             if "error" not in extract_result:
                 evidence_stats["extracted"] = True
-                evidence_stats["findings_count"] = extract_result.get("findings_processed", 0)
-                print(f"   ✓ Evidence extracted: {evidence_stats['findings_count']} findings")
+                evidence_stats["findings_count"] = extract_result.get(
+                    "findings_processed", 0
+                )
+                print(
+                    f"   ✓ Evidence extracted: {evidence_stats['findings_count']} findings"
+                )
         except Exception as e:
             print(f"   ⚠ Evidence extraction failed: {e}")
 
@@ -360,7 +383,9 @@ def archive_session(
             if "error" not in score_result:
                 evidence_stats["scored"] = True
                 evidence_stats["avg_confidence"] = score_result.get("avg_confidence", 0)
-                print(f"   ✓ Confidence scored: {evidence_stats['avg_confidence']:.2f} avg")
+                print(
+                    f"   ✓ Confidence scored: {evidence_stats['avg_confidence']:.2f} avg"
+                )
         except Exception as e:
             print(f"   ⚠ Confidence scoring failed: {e}")
 
@@ -368,14 +393,16 @@ def archive_session(
         if not skip_validation:
             try:
                 validate_result = validate_session(
-                    session["session_id"],
-                    update_file=True,
-                    verbose=False
+                    session["session_id"], update_file=True, verbose=False
                 )
                 if "error" not in validate_result:
                     evidence_stats["validated"] = True
-                    evidence_stats["validation_pass_rate"] = validate_result.get("pass_rate", 0)
-                    print(f"   ✓ Validated: {validate_result.get('passed', 0)}/{validate_result.get('findings_validated', 0)} passed")
+                    evidence_stats["validation_pass_rate"] = validate_result.get(
+                        "pass_rate", 0
+                    )
+                    print(
+                        f"   ✓ Validated: {validate_result.get('passed', 0)}/{validate_result.get('findings_validated', 0)} passed"
+                    )
             except Exception as e:
                 print(f"   ⚠ Validation failed: {e}")
 
@@ -401,8 +428,7 @@ def archive_session(
 
                 # Combine results (weighted: archive 60%, evidence 40%)
                 combined_confidence = (
-                    archive_result.confidence * 0.6 +
-                    evidence_result.confidence * 0.4
+                    archive_result.confidence * 0.6 + evidence_result.confidence * 0.4
                 )
 
                 all_issues = archive_result.issues + evidence_result.issues
@@ -440,7 +466,9 @@ def archive_session(
         except Exception as e:
             print(f"   ⚠ Critic validation failed: {e}")
     elif not EVIDENCE_LAYER_AVAILABLE:
-        print("ℹ  Evidence layer not available (import evidence_extractor for full features)")
+        print(
+            "ℹ  Evidence layer not available (import evidence_extractor for full features)"
+        )
 
     # ═══════════════════════════════════════════════════════════════
     # VISUAL LAYER: Auto-generate diagrams from findings
@@ -475,7 +503,9 @@ def archive_session(
 
                 for vr in visual_results:
                     visual_stats["diagrams_generated"] += 1
-                    visual_stats["total_cost"] += vr.get("metadata", {}).get("estimated_cost_usd", 0)
+                    visual_stats["total_cost"] += vr.get("metadata", {}).get(
+                        "estimated_cost_usd", 0
+                    )
                     visual_stats["asset_ids"].append(vr.get("asset_id", ""))
 
                 if visual_results:
@@ -516,9 +546,13 @@ def archive_session(
                     "approved": critic_result.valid,
                     "confidence": critic_result.confidence,
                     "issue_count": len(critic_result.issues),
-                    "archive_confidence": critic_result.metrics.get("archive_confidence", 0),
-                    "evidence_confidence": critic_result.metrics.get("evidence_confidence", 0),
-                    "validated_at": critic_result.timestamp
+                    "archive_confidence": critic_result.metrics.get(
+                        "archive_confidence", 0
+                    ),
+                    "evidence_confidence": critic_result.metrics.get(
+                        "evidence_confidence", 0
+                    ),
+                    "validated_at": critic_result.timestamp,
                 }
 
             session_meta_path.write_text(json.dumps(session_meta, indent=2))
@@ -541,14 +575,18 @@ def archive_session(
 
     # Evidence summary
     if evidence_stats["extracted"]:
-        print(f"🔬 Evidence: {evidence_stats['findings_count']} findings, "
-              f"{evidence_stats['avg_confidence']:.2f} confidence, "
-              f"{evidence_stats['validation_pass_rate']*100:.0f}% validated")
+        print(
+            f"🔬 Evidence: {evidence_stats['findings_count']} findings, "
+            f"{evidence_stats['avg_confidence']:.2f} confidence, "
+            f"{evidence_stats['validation_pass_rate'] * 100:.0f}% validated"
+        )
 
     # Visual layer summary
     if visual_stats["diagrams_generated"] > 0:
-        print(f"🎨 Visual: {visual_stats['diagrams_generated']} diagram(s), "
-              f"${visual_stats['total_cost']:.4f} cost")
+        print(
+            f"🎨 Visual: {visual_stats['diagrams_generated']} diagram(s), "
+            f"${visual_stats['total_cost']:.4f} cost"
+        )
 
     # Critic validation summary
     if critic_result is not None:
@@ -564,16 +602,27 @@ def archive_session(
 
 def main():
     parser = argparse.ArgumentParser(description="Archive research session")
-    parser.add_argument("--no-extract", action="store_true",
-                        help="Skip extracting learnings to memory")
-    parser.add_argument("--clean-local", action="store_true",
-                        help="Clean local workspace after archiving")
-    parser.add_argument("--validate-evidence", action="store_true",
-                        help="Run evidence layer processing (default: True)")
-    parser.add_argument("--skip-validation", action="store_true",
-                        help="Skip Writer-Critic validation step")
-    parser.add_argument("--no-evidence", action="store_true",
-                        help="Skip all evidence layer processing")
+    parser.add_argument(
+        "--no-extract", action="store_true", help="Skip extracting learnings to memory"
+    )
+    parser.add_argument(
+        "--clean-local",
+        action="store_true",
+        help="Clean local workspace after archiving",
+    )
+    parser.add_argument(
+        "--validate-evidence",
+        action="store_true",
+        help="Run evidence layer processing (default: True)",
+    )
+    parser.add_argument(
+        "--skip-validation",
+        action="store_true",
+        help="Skip Writer-Critic validation step",
+    )
+    parser.add_argument(
+        "--no-evidence", action="store_true", help="Skip all evidence layer processing"
+    )
 
     args = parser.parse_args()
 
@@ -581,7 +630,7 @@ def main():
         extract_learnings_flag=not args.no_extract,
         clean_local=args.clean_local,
         validate_evidence_flag=not args.no_evidence,
-        skip_validation=args.skip_validation
+        skip_validation=args.skip_validation,
     )
 
 

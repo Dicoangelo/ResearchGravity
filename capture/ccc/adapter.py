@@ -170,7 +170,10 @@ class CCCAdapter(PlatformAdapter):
     # ── table polling ────────────────────────────────────
 
     def _poll_table(
-        self, conn: sqlite3.Connection, table_name: str, table_cfg: dict,
+        self,
+        conn: sqlite3.Connection,
+        table_name: str,
+        table_cfg: dict,
     ) -> List[CapturedEvent]:
         """Poll a single table for new rows since last watermark."""
         events: List[CapturedEvent] = []
@@ -201,19 +204,24 @@ class CCCAdapter(PlatformAdapter):
             if not content or len(content) < 10:
                 continue
 
-            events.append(CapturedEvent(
-                platform="ccc",
-                session_id=f"ccc-{table_name}",
-                content=content,
-                role="system",
-                timestamp=ts,
-                metadata={
-                    "table": table_name,
-                    "row_id": row_id,
-                    **{k: v for k, v in row_dict.items()
-                       if k not in ("metadata",) and v is not None},
-                },
-            ))
+            events.append(
+                CapturedEvent(
+                    platform="ccc",
+                    session_id=f"ccc-{table_name}",
+                    content=content,
+                    role="system",
+                    timestamp=ts,
+                    metadata={
+                        "table": table_name,
+                        "row_id": row_id,
+                        **{
+                            k: v
+                            for k, v in row_dict.items()
+                            if k not in ("metadata",) and v is not None
+                        },
+                    },
+                )
+            )
 
             if isinstance(row_id, int) and row_id > max_rowid:
                 max_rowid = row_id
@@ -239,6 +247,7 @@ class CCCAdapter(PlatformAdapter):
         elif ts_type == "datetime":
             try:
                 from datetime import datetime
+
                 if isinstance(value, str):
                     return datetime.fromisoformat(
                         value.replace("Z", "+00:00")
@@ -372,6 +381,7 @@ class CCCAdapter(PlatformAdapter):
 
 # ── watermark ────────────────────────────────────────────────
 
+
 class _Watermark:
     """Track last-polled row IDs per table."""
 
@@ -390,9 +400,14 @@ class _Watermark:
 
     def save(self) -> None:
         try:
-            self.path.write_text(json.dumps({
-                "table_watermarks": self.table_watermarks,
-                "updated_at": time.time(),
-            }, indent=2))
+            self.path.write_text(
+                json.dumps(
+                    {
+                        "table_watermarks": self.table_watermarks,
+                        "updated_at": time.time(),
+                    },
+                    indent=2,
+                )
+            )
         except Exception as exc:
             log.error(f"Watermark save failed: {exc}")

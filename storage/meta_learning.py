@@ -63,7 +63,7 @@ class MetaLearningEngine:
         self,
         intent: str,
         cognitive_state: Optional[Dict[str, Any]] = None,
-        available_research: Optional[List[str]] = None
+        available_research: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Predict session outcome based on multi-dimensional correlation.
@@ -89,9 +89,7 @@ class MetaLearningEngine:
 
         # 1. Find similar past sessions
         outcome_matches = await self.engine.search_outcomes(
-            query=intent,
-            limit=10,
-            min_score=0.5
+            query=intent, limit=10, min_score=0.5
         )
 
         # 2. Analyze cognitive patterns
@@ -100,26 +98,24 @@ class MetaLearningEngine:
         )
 
         # 3. Find relevant research
-        research_matches = await self.engine.search_findings(
-            query=intent,
-            limit=5,
-            min_score=0.5
-        ) if not available_research else []
+        research_matches = (
+            await self.engine.search_findings(query=intent, limit=5, min_score=0.5)
+            if not available_research
+            else []
+        )
 
         # 4. Predict potential errors (context-aware)
         # Search for errors relevant to the intent
         potential_errors = await self.engine.search_error_patterns(
-            query=intent,
-            limit=10,
-            min_score=0.5,
-            min_success_rate=0.7
+            query=intent, limit=10, min_score=0.5, min_success_rate=0.7
         )
 
         # Enhance with preventable errors (high success rate solutions)
         if potential_errors:
             # Filter to most relevant and preventable
             potential_errors = [
-                e for e in potential_errors
+                e
+                for e in potential_errors
                 if e.get("success_rate", 0) >= 0.7  # Only include if solution works
             ][:5]  # Top 5
 
@@ -130,7 +126,7 @@ class MetaLearningEngine:
             cognitive_score=cognitive_score,
             research_matches=research_matches,
             potential_errors=potential_errors,
-            current_state=cognitive_state
+            current_state=cognitive_state,
         )
 
         return prediction
@@ -138,7 +134,7 @@ class MetaLearningEngine:
     async def _analyze_cognitive_match(
         self,
         current_state: Optional[Dict[str, Any]],
-        outcome_matches: List[Dict[str, Any]]
+        outcome_matches: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
         Analyze how well current cognitive state matches successful sessions.
@@ -156,7 +152,7 @@ class MetaLearningEngine:
                 "alignment_score": 0.5,
                 "optimal_hour": 14,
                 "optimal_mode": "peak",
-                "energy_recommendation": "No current state provided"
+                "energy_recommendation": "No current state provided",
             }
 
         current_hour = current_state.get("hour", 12)
@@ -169,9 +165,7 @@ class MetaLearningEngine:
 
         # Search for similar cognitive states
         similar_states = await self.engine.search_cognitive_states(
-            query=context,
-            limit=20,
-            min_score=0.4
+            query=context, limit=20, min_score=0.4
         )
 
         if not similar_states:
@@ -179,7 +173,9 @@ class MetaLearningEngine:
             peak_hours = [20, 12, 2]
             optimal_hour = min(peak_hours, key=lambda h: abs(h - current_hour))
 
-            hour_distance = min(abs(current_hour - optimal_hour), 24 - abs(current_hour - optimal_hour))
+            hour_distance = min(
+                abs(current_hour - optimal_hour), 24 - abs(current_hour - optimal_hour)
+            )
             hour_alignment = 1.0 - (hour_distance / 12.0)
             mode_alignment = 1.0 if current_mode in ["peak", "deep_night"] else 0.5
 
@@ -187,7 +183,7 @@ class MetaLearningEngine:
                 "alignment_score": (hour_alignment * 0.6 + mode_alignment * 0.4),
                 "optimal_hour": optimal_hour,
                 "optimal_mode": "peak",
-                "energy_recommendation": "Using heuristics (no historical data)"
+                "energy_recommendation": "Using heuristics (no historical data)",
             }
 
         # Analyze energy levels at different hours for this mode
@@ -210,13 +206,19 @@ class MetaLearningEngine:
 
         # Calculate alignment score
         # 1. Hour alignment (40%)
-        hour_distance = min(abs(current_hour - optimal_hour), 24 - abs(current_hour - optimal_hour))
+        hour_distance = min(
+            abs(current_hour - optimal_hour), 24 - abs(current_hour - optimal_hour)
+        )
         hour_alignment = 1.0 - (hour_distance / 12.0)
 
         # 2. Mode alignment (30%)
         mode_energy_map = {
-            "deep_night": 0.9, "peak": 0.8, "evening": 0.7,
-            "morning": 0.6, "dip": 0.5, "unknown": 0.5
+            "deep_night": 0.9,
+            "peak": 0.8,
+            "evening": 0.7,
+            "morning": 0.6,
+            "dip": 0.5,
+            "unknown": 0.5,
         }
         optimal_energy = mode_energy_map.get(current_mode, 0.5)
         mode_alignment = min(optimal_energy, 1.0)
@@ -226,16 +228,20 @@ class MetaLearningEngine:
 
         # Weighted composite
         alignment_score = (
-            hour_alignment * 0.4 +
-            mode_alignment * 0.3 +
-            energy_alignment * 0.3
+            hour_alignment * 0.4 + mode_alignment * 0.3 + energy_alignment * 0.3
         )
 
         # Determine optimal mode
         mode_ranking = {
-            "deep_night": 0.9, "peak": 0.8, "flow": 0.8,
-            "evening": 0.7, "focused": 0.7, "morning": 0.6,
-            "neutral": 0.5, "dip": 0.5, "distracted": 0.3
+            "deep_night": 0.9,
+            "peak": 0.8,
+            "flow": 0.8,
+            "evening": 0.7,
+            "focused": 0.7,
+            "morning": 0.6,
+            "neutral": 0.5,
+            "dip": 0.5,
+            "distracted": 0.3,
         }
         optimal_mode = max(mode_ranking.keys(), key=lambda m: mode_ranking.get(m, 0.5))
 
@@ -247,14 +253,16 @@ class MetaLearningEngine:
         elif alignment_score > 0.4:
             recommendation = f"Suboptimal - consider waiting for hour {optimal_hour}"
         else:
-            recommendation = f"Poor timing - strongly recommend waiting for hour {optimal_hour}"
+            recommendation = (
+                f"Poor timing - strongly recommend waiting for hour {optimal_hour}"
+            )
 
         return {
             "alignment_score": alignment_score,
             "optimal_hour": optimal_hour,
             "optimal_mode": optimal_mode,
             "energy_recommendation": recommendation,
-            "similar_states_found": len(similar_states)
+            "similar_states_found": len(similar_states),
         }
 
     def _correlate(
@@ -264,7 +272,7 @@ class MetaLearningEngine:
         cognitive_score: Dict[str, Any],
         research_matches: List[Dict[str, Any]],
         potential_errors: List[Dict[str, Any]],
-        current_state: Optional[Dict[str, Any]]
+        current_state: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
         Correlate all signals to produce a composite prediction.
@@ -277,12 +285,18 @@ class MetaLearningEngine:
         """
         # 1. Outcome signal
         if outcome_matches:
-            avg_quality = sum(o.get("quality", 3) for o in outcome_matches) / len(outcome_matches)
-            avg_similarity = sum(o.get("score", 0.5) for o in outcome_matches) / len(outcome_matches)
+            avg_quality = sum(o.get("quality", 3) for o in outcome_matches) / len(
+                outcome_matches
+            )
+            avg_similarity = sum(o.get("score", 0.5) for o in outcome_matches) / len(
+                outcome_matches
+            )
 
             # Weight by similarity
             weighted_quality = avg_quality * avg_similarity
-            success_rate = len([o for o in outcome_matches if o.get("outcome") == "success"]) / len(outcome_matches)
+            success_rate = len(
+                [o for o in outcome_matches if o.get("outcome") == "success"]
+            ) / len(outcome_matches)
 
             outcome_score = (weighted_quality / 5.0) * 0.5 + success_rate * 0.5
         else:
@@ -294,7 +308,9 @@ class MetaLearningEngine:
         cognitive_weight = 0.3
 
         # 3. Research signal
-        research_score = min(len(research_matches) / 5.0, 1.0) if research_matches else 0.5
+        research_score = (
+            min(len(research_matches) / 5.0, 1.0) if research_matches else 0.5
+        )
         research_weight = 0.15
 
         # 4. Error penalty
@@ -303,10 +319,10 @@ class MetaLearningEngine:
 
         # Composite score
         composite = (
-            outcome_score * 0.5 +
-            alignment * cognitive_weight +
-            research_score * research_weight -
-            error_probability * error_weight
+            outcome_score * 0.5
+            + alignment * cognitive_weight
+            + research_score * research_weight
+            - error_probability * error_weight
         )
 
         # Convert to quality prediction (1-5)
@@ -314,10 +330,10 @@ class MetaLearningEngine:
 
         # Confidence based on data availability
         confidence = min(
-            (len(outcome_matches) / 10.0) * 0.4 +  # More matches = higher confidence
-            (1.0 if cognitive_score.get("alignment_score", 0) > 0.5 else 0.3) * 0.3 +
-            (1.0 if research_matches else 0.5) * 0.3,
-            1.0
+            (len(outcome_matches) / 10.0) * 0.4  # More matches = higher confidence
+            + (1.0 if cognitive_score.get("alignment_score", 0) > 0.5 else 0.3) * 0.3
+            + (1.0 if research_matches else 0.5) * 0.3,
+            1.0,
         )
 
         return {
@@ -332,14 +348,12 @@ class MetaLearningEngine:
                 "outcome_score": round(outcome_score, 2),
                 "cognitive_alignment": round(alignment, 2),
                 "research_availability": round(research_score, 2),
-                "error_probability": round(error_probability, 2)
-            }
+                "error_probability": round(error_probability, 2),
+            },
         }
 
     async def predict_optimal_time(
-        self,
-        intent: str,
-        current_hour: Optional[int] = None
+        self, intent: str, current_hour: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Predict the optimal time to work on a given task.
@@ -365,7 +379,7 @@ class MetaLearningEngine:
             limit=20,
             min_score=0.4,
             filter_outcome="success",
-            min_quality=4.0
+            min_quality=4.0,
         )
 
         if not outcome_matches:
@@ -376,7 +390,7 @@ class MetaLearningEngine:
                 "optimal_hour": optimal,
                 "is_optimal_now": abs(current_hour - optimal) <= 1,
                 "wait_hours": (optimal - current_hour) % 24,
-                "reasoning": "Using default peak hours (no historical data)"
+                "reasoning": "Using default peak hours (no historical data)",
             }
 
         # Analyze patterns (simplified - would use cognitive_states join in production)
@@ -391,13 +405,11 @@ class MetaLearningEngine:
             "optimal_hour": optimal,
             "is_optimal_now": is_optimal,
             "wait_hours": wait_hours,
-            "reasoning": f"Based on {len(outcome_matches)} similar successful sessions"
+            "reasoning": f"Based on {len(outcome_matches)} similar successful sessions",
         }
 
     async def predict_errors(
-        self,
-        intent: str,
-        include_preventable_only: bool = True
+        self, intent: str, include_preventable_only: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Predict potential errors for a given task.
@@ -414,29 +426,23 @@ class MetaLearningEngine:
 
         # Semantic search for relevant errors
         errors = await self.engine.search_error_patterns(
-            query=intent,
-            limit=10,
-            min_score=0.5
+            query=intent, limit=10, min_score=0.5
         )
 
         if include_preventable_only:
             # Filter to errors with effective solutions
-            errors = [
-                e for e in errors
-                if e.get("success_rate", 0) >= 0.7
-            ]
+            errors = [e for e in errors if e.get("success_rate", 0) >= 0.7]
 
         # Enrich with prevention guidance
         for error in errors:
             error["prevention_available"] = error.get("success_rate", 0) >= 0.7
-            error["severity"] = "high" if error.get("occurrences", 0) > 1000 else "medium"
+            error["severity"] = (
+                "high" if error.get("occurrences", 0) > 1000 else "medium"
+            )
 
         return errors[:5]  # Top 5
 
-    async def get_prevention_strategies(
-        self,
-        error_type: str
-    ) -> Dict[str, Any]:
+    async def get_prevention_strategies(self, error_type: str) -> Dict[str, Any]:
         """
         Get detailed prevention strategies for a specific error type.
 
@@ -457,9 +463,7 @@ class MetaLearningEngine:
         # Search for all patterns of this type
         query = f"{error_type} error prevention"
         patterns = await self.engine.search_error_patterns(
-            query=query,
-            limit=10,
-            min_score=0.3
+            query=query, limit=10, min_score=0.3
         )
 
         # Group by error type
@@ -479,14 +483,16 @@ class MetaLearningEngine:
 
                 success_rates.append(pattern.get("success_rate", 0.0))
 
-        avg_success_rate = sum(success_rates) / len(success_rates) if success_rates else 0.0
+        avg_success_rate = (
+            sum(success_rates) / len(success_rates) if success_rates else 0.0
+        )
 
         return {
             "error_type": error_type,
             "strategies": strategies[:5],
             "success_rate": avg_success_rate,
             "examples": examples,
-            "pattern_count": len(patterns)
+            "pattern_count": len(patterns),
         }
 
     async def get_prediction_accuracy(self, days: int = 30) -> Dict[str, Any]:
@@ -517,7 +523,7 @@ class MetaLearningEngine:
         self,
         intent: str,
         prediction: Dict[str, Any],
-        cognitive_state: Optional[Dict[str, Any]] = None
+        cognitive_state: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Store a prediction for later calibration tracking.
@@ -539,7 +545,7 @@ class MetaLearningEngine:
             "success_probability": prediction.get("success_probability"),
             "optimal_time": prediction.get("optimal_time"),
             "cognitive_state": cognitive_state or {},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         return await self.engine.store_prediction(prediction_record)
@@ -549,7 +555,7 @@ class MetaLearningEngine:
         prediction_id: str,
         actual_quality: float,
         actual_outcome: str,
-        session_id: str
+        session_id: str,
     ):
         """
         Update a stored prediction with actual outcome for calibration.
@@ -567,12 +573,11 @@ class MetaLearningEngine:
             prediction_id=prediction_id,
             actual_quality=actual_quality,
             actual_outcome=actual_outcome,
-            session_id=session_id
+            session_id=session_id,
         )
 
     async def temporal_join_cognitive_outcomes(
-        self,
-        window_hours: int = 1
+        self, window_hours: int = 1
     ) -> List[Dict[str, Any]]:
         """
         Join cognitive states with session outcomes based on temporal proximity.
@@ -611,8 +616,7 @@ class MetaLearningEngine:
                 context = f"hour_{hour}"
 
                 nearby_states = await self.engine.search_cognitive_states(
-                    query=context,
-                    limit=20
+                    query=context, limit=20
                 )
 
                 # Find closest state within window
@@ -622,15 +626,21 @@ class MetaLearningEngine:
                         continue
 
                     try:
-                        state_dt = datetime.fromisoformat(state_time.replace("Z", "+00:00"))
-                        time_diff = abs((outcome_dt - state_dt).total_seconds() / 60)  # minutes
+                        state_dt = datetime.fromisoformat(
+                            state_time.replace("Z", "+00:00")
+                        )
+                        time_diff = abs(
+                            (outcome_dt - state_dt).total_seconds() / 60
+                        )  # minutes
 
                         if time_diff <= (window_hours * 60):
-                            joined.append({
-                                "outcome": outcome,
-                                "cognitive_state": state,
-                                "time_diff_minutes": time_diff
-                            })
+                            joined.append(
+                                {
+                                    "outcome": outcome,
+                                    "cognitive_state": state,
+                                    "time_diff_minutes": time_diff,
+                                }
+                            )
                             break  # Take first match
                     except:
                         continue
@@ -640,9 +650,7 @@ class MetaLearningEngine:
         return joined
 
     async def multi_vector_search(
-        self,
-        query: str,
-        limit: int = 5
+        self, query: str, limit: int = 5
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Perform simultaneous search across all vector dimensions.
@@ -676,7 +684,10 @@ class MetaLearningEngine:
             "cognitive": cognitive,
             "research": research,
             "errors": errors,
-            "total_results": len(outcomes) + len(cognitive) + len(research) + len(errors)
+            "total_results": len(outcomes)
+            + len(cognitive)
+            + len(research)
+            + len(errors),
         }
 
     async def calibrate_weights(self) -> Dict[str, float]:
@@ -702,7 +713,7 @@ class MetaLearningEngine:
             "outcome_weight": 0.5,
             "cognitive_weight": 0.3,
             "research_weight": 0.15,
-            "error_weight": 0.05
+            "error_weight": 0.05,
         }
 
         # If we have enough data and accuracy is poor, suggest adjustments
@@ -713,7 +724,7 @@ class MetaLearningEngine:
                     "outcome_weight": 0.4,
                     "cognitive_weight": 0.4,
                     "research_weight": 0.15,
-                    "error_weight": 0.05
+                    "error_weight": 0.05,
                 }
                 return {**suggested_weights, "recommended_update": True}
             elif accuracy["accuracy"] > 0.85:

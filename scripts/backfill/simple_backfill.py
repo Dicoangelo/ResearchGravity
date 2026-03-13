@@ -10,7 +10,9 @@ import json
 import sqlite3
 from pathlib import Path
 from datetime import datetime
-import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
 from storage.qdrant_db import QdrantDB
 
 HOME = Path.home()
@@ -50,22 +52,25 @@ async def backfill_sqlite():
     count = 0
     for o in outcomes:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO session_outcomes
                 (id, session_id, intent, outcome, quality, model_efficiency, models_used, date, messages, tools)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                o.get("session_id"),
-                o.get("session_id"),
-                o.get("intent", o.get("title", ""))[:500],
-                o.get("outcome"),
-                o.get("quality"),
-                o.get("model_efficiency"),
-                json.dumps(o.get("models_used", {})),
-                o.get("date"),
-                o.get("messages"),
-                o.get("tools")
-            ))
+            """,
+                (
+                    o.get("session_id"),
+                    o.get("session_id"),
+                    o.get("intent", o.get("title", ""))[:500],
+                    o.get("outcome"),
+                    o.get("quality"),
+                    o.get("model_efficiency"),
+                    json.dumps(o.get("models_used", {})),
+                    o.get("date"),
+                    o.get("messages"),
+                    o.get("tools"),
+                ),
+            )
             count += 1
             if count % 50 == 0:
                 print(f"  Progress: {count}/{len(outcomes)}")
@@ -95,13 +100,13 @@ async def backfill_qdrant():
     count = 0
 
     for i in range(0, len(outcomes), batch_size):
-        batch = outcomes[i:i + batch_size]
+        batch = outcomes[i : i + batch_size]
         try:
             batch_count = await qdrant.upsert_outcomes_batch(batch)
             count += batch_count
             print(f"  Progress: {count}/{len(outcomes)}")
         except Exception as e:
-            print(f"  Error on batch {i//batch_size}: {e}")
+            print(f"  Error on batch {i // batch_size}: {e}")
 
     await qdrant.close()
 
@@ -142,8 +147,8 @@ async def process_cognitive_states():
                     "timestamp": ts,
                     "predictions": {
                         "predicted": record.get("predicted"),
-                        "success_probability": success_prob
-                    }
+                        "success_probability": success_prob,
+                    },
                 }
                 states.append(state)
 
@@ -157,8 +162,11 @@ async def process_cognitive_states():
             if ts:
                 mode = record.get("cognitive_mode", "unknown")
                 energy_map = {
-                    "morning": 0.6, "peak": 0.8, "dip": 0.5,
-                    "evening": 0.7, "deep_night": 0.9
+                    "morning": 0.6,
+                    "peak": 0.8,
+                    "dip": 0.5,
+                    "evening": 0.7,
+                    "deep_night": 0.9,
                 }
                 energy = energy_map.get(mode, 0.5)
 
@@ -172,8 +180,8 @@ async def process_cognitive_states():
                     "timestamp": ts,
                     "predictions": {
                         "recommended_model": record.get("recommended_model"),
-                        "dq_score": record.get("dq_score")
-                    }
+                        "dq_score": record.get("dq_score"),
+                    },
                 }
                 states.append(state)
 
@@ -196,8 +204,12 @@ async def process_cognitive_states():
                 flow_score = record.get("score", 0.0)
                 state_name = record.get("state", "neutral")
                 energy_map = {
-                    "deep_flow": 1.0, "flow": 0.8, "focused": 0.7,
-                    "neutral": 0.5, "distracted": 0.3, "struggling": 0.2
+                    "deep_flow": 1.0,
+                    "flow": 0.8,
+                    "focused": 0.7,
+                    "neutral": 0.5,
+                    "distracted": 0.3,
+                    "struggling": 0.2,
                 }
                 energy = energy_map.get(state_name, 0.5)
 
@@ -209,9 +221,7 @@ async def process_cognitive_states():
                     "hour": hour,
                     "day": day,
                     "timestamp": ts,
-                    "predictions": {
-                        "session_id": record.get("session_id")
-                    }
+                    "predictions": {"session_id": record.get("session_id")},
                 }
                 states.append(state)
 
@@ -228,20 +238,23 @@ async def backfill_cognitive_sqlite(states):
     count = 0
     for s in states:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO cognitive_states
                 (id, mode, energy_level, flow_score, hour, day, predictions, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                s["id"],
-                s["mode"],
-                s["energy_level"],
-                s["flow_score"],
-                s["hour"],
-                s["day"],
-                json.dumps(s.get("predictions", {})),
-                s["timestamp"]
-            ))
+            """,
+                (
+                    s["id"],
+                    s["mode"],
+                    s["energy_level"],
+                    s["flow_score"],
+                    s["hour"],
+                    s["day"],
+                    json.dumps(s.get("predictions", {})),
+                    s["timestamp"],
+                ),
+            )
             count += 1
             if count % 100 == 0:
                 print(f"  Progress: {count}/{len(states)}")
@@ -267,13 +280,13 @@ async def backfill_cognitive_qdrant(states):
     count = 0
 
     for i in range(0, len(states), batch_size):
-        batch = states[i:i + batch_size]
+        batch = states[i : i + batch_size]
         try:
             batch_count = await qdrant.upsert_cognitive_states_batch(batch)
             count += batch_count
             print(f"  Progress: {count}/{len(states)}")
         except Exception as e:
-            print(f"  Error on batch {i//batch_size}: {e}")
+            print(f"  Error on batch {i // batch_size}: {e}")
 
     await qdrant.close()
 
@@ -305,7 +318,7 @@ async def main():
         cognitive_qdrant = await backfill_cognitive_qdrant(states)
 
     print("\n" + "=" * 60)
-    print(f"✅ Total backfilled:")
+    print("✅ Total backfilled:")
     print(f"   Outcomes:  SQLite {outcomes_sqlite} | Qdrant {outcomes_qdrant}")
     print(f"   Cognitive: SQLite {cognitive_sqlite} | Qdrant {cognitive_qdrant}")
     print("=" * 60)

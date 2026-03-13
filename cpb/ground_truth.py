@@ -26,16 +26,18 @@ from enum import Enum
 
 class TruthSource(Enum):
     """Types of ground truth."""
-    EXTRACTED_CLAIM = "extracted_claim"      # From paper abstract
-    CROSS_SOURCE = "cross_source"            # Multiple sources agree
-    SELF_CONSISTENT = "self_consistent"      # Multiple runs agree
-    HUMAN_FEEDBACK = "human_feedback"        # User correction
-    EXTERNAL_FACT = "external_fact"          # Known verified fact
+
+    EXTRACTED_CLAIM = "extracted_claim"  # From paper abstract
+    CROSS_SOURCE = "cross_source"  # Multiple sources agree
+    SELF_CONSISTENT = "self_consistent"  # Multiple runs agree
+    HUMAN_FEEDBACK = "human_feedback"  # User correction
+    EXTERNAL_FACT = "external_fact"  # Known verified fact
 
 
 @dataclass
 class GroundTruthClaim:
     """A verified claim that can be used for evaluation."""
+
     claim: str
     source: TruthSource
     confidence: float  # 0-1
@@ -61,10 +63,11 @@ class GroundTruthClaim:
 @dataclass
 class ValidationResult:
     """Result of validating a response against ground truth."""
+
     # Scores
-    factual_accuracy: float = 0.0      # Claims match ground truth
-    cross_source_score: float = 0.0    # Sources agree with each other
-    self_consistency: float = 0.0      # Multiple runs agree
+    factual_accuracy: float = 0.0  # Claims match ground truth
+    cross_source_score: float = 0.0  # Sources agree with each other
+    self_consistency: float = 0.0  # Multiple runs agree
 
     # Combined
     ground_truth_score: float = 0.0
@@ -85,15 +88,15 @@ class ValidationResult:
         # Cross-source de-weighted: sources from different sessions naturally differ
         # Self-consistency de-weighted: LLMs naturally vary phrasing
         weights = {
-            'factual_accuracy': 0.70,    # Primary: claims match sources
-            'cross_source': 0.15,         # Reduced: sources naturally differ
-            'self_consistency': 0.15,     # Reduced: LLM variation
+            "factual_accuracy": 0.70,  # Primary: claims match sources
+            "cross_source": 0.15,  # Reduced: sources naturally differ
+            "self_consistency": 0.15,  # Reduced: LLM variation
         }
 
         self.ground_truth_score = (
-            self.factual_accuracy * weights['factual_accuracy'] +
-            self.cross_source_score * weights['cross_source'] +
-            self.self_consistency * weights['self_consistency']
+            self.factual_accuracy * weights["factual_accuracy"]
+            + self.cross_source_score * weights["cross_source"]
+            + self.self_consistency * weights["self_consistency"]
         )
 
 
@@ -103,22 +106,19 @@ class ClaimExtractor:
     # Patterns for factual claims
     CLAIM_PATTERNS = [
         # Quantitative claims
-        r'(\d+(?:\.\d+)?%?\s+(?:of|improvement|reduction|increase|decrease))',
-        r'(achieves?\s+\d+(?:\.\d+)?%?\s+\w+)',
-        r'(outperforms?\s+.+?\s+by\s+\d+(?:\.\d+)?%?)',
-
+        r"(\d+(?:\.\d+)?%?\s+(?:of|improvement|reduction|increase|decrease))",
+        r"(achieves?\s+\d+(?:\.\d+)?%?\s+\w+)",
+        r"(outperforms?\s+.+?\s+by\s+\d+(?:\.\d+)?%?)",
         # Comparative claims
-        r'((?:better|worse|faster|slower)\s+than\s+.+)',
-        r'(compared\s+to\s+.+?,\s+.+)',
-
+        r"((?:better|worse|faster|slower)\s+than\s+.+)",
+        r"(compared\s+to\s+.+?,\s+.+)",
         # Definitional claims
-        r'(is\s+defined\s+as\s+.+)',
-        r'(consists?\s+of\s+.+)',
-
+        r"(is\s+defined\s+as\s+.+)",
+        r"(consists?\s+of\s+.+)",
         # Causal claims
-        r'(because\s+.+?,\s+.+)',
-        r'(leads?\s+to\s+.+)',
-        r'(results?\s+in\s+.+)',
+        r"(because\s+.+?,\s+.+)",
+        r"(leads?\s+to\s+.+)",
+        r"(results?\s+in\s+.+)",
     ]
 
     def extract_claims(self, text: str) -> list[str]:
@@ -127,7 +127,7 @@ class ClaimExtractor:
 
         # Split into sentences AND bullet points (handle markdown)
         # Split on: sentence terminators, newlines with bullets, newlines with numbers
-        segments = re.split(r'[.!?]\s+|\n[-*•]\s*|\n\d+\.\s*|\n\n', text)
+        segments = re.split(r"[.!?]\s+|\n[-*•]\s*|\n\d+\.\s*|\n\n", text)
 
         for segment in segments:
             segment = segment.strip()
@@ -137,7 +137,11 @@ class ClaimExtractor:
                 continue
 
             # Skip headers (lines that are just bold or contain only formatting)
-            if segment.startswith('**') and segment.endswith('**') and len(segment) < 50:
+            if (
+                segment.startswith("**")
+                and segment.endswith("**")
+                and len(segment) < 50
+            ):
                 continue
 
             # Check for claim patterns
@@ -146,14 +150,25 @@ class ClaimExtractor:
                 claims.extend(matches)
 
             # Also extract segments with numbers (likely factual)
-            if re.search(r'\d+(?:\.\d+)?%?', segment):
-                clean = segment.strip('- *')
+            if re.search(r"\d+(?:\.\d+)?%?", segment):
+                clean = segment.strip("- *")
                 if clean and clean not in claims and len(clean) > 15:
                     claims.append(clean)
 
             # Extract segments with key factual indicators
-            if any(ind in segment.lower() for ind in ['convergence', 'framework', 'achieves', 'demonstrates', 'findings', 'research', 'system']):
-                clean = segment.strip('- *')
+            if any(
+                ind in segment.lower()
+                for ind in [
+                    "convergence",
+                    "framework",
+                    "achieves",
+                    "demonstrates",
+                    "findings",
+                    "research",
+                    "system",
+                ]
+            ):
+                clean = segment.strip("- *")
                 if clean and clean not in claims and len(clean) > 20:
                     claims.append(clean)
 
@@ -165,8 +180,8 @@ class ClaimExtractor:
         claim_to_sources = {}  # claim_hash -> [source_urls]
 
         for source in sources:
-            content = source.get('content', '') or source.get('abstract', '')
-            url = source.get('url', '')
+            content = source.get("content", "") or source.get("abstract", "")
+            url = source.get("url", "")
 
             claims = self.extract_claims(content)
 
@@ -175,26 +190,28 @@ class ClaimExtractor:
 
                 if claim_hash not in claim_to_sources:
                     claim_to_sources[claim_hash] = {
-                        'claim': claim,
-                        'urls': [],
-                        'excerpts': [],
+                        "claim": claim,
+                        "urls": [],
+                        "excerpts": [],
                     }
 
-                claim_to_sources[claim_hash]['urls'].append(url)
-                claim_to_sources[claim_hash]['excerpts'].append(content[:200])
+                claim_to_sources[claim_hash]["urls"].append(url)
+                claim_to_sources[claim_hash]["excerpts"].append(content[:200])
 
         # Convert to GroundTruthClaim objects
         for claim_hash, data in claim_to_sources.items():
             # Claims from multiple sources are more reliable
-            agreement_count = len(data['urls'])
+            agreement_count = len(data["urls"])
             confidence = min(0.9, 0.5 + (agreement_count * 0.1))
 
             gt_claim = GroundTruthClaim(
-                claim=data['claim'],
-                source=TruthSource.CROSS_SOURCE if agreement_count > 1 else TruthSource.EXTRACTED_CLAIM,
+                claim=data["claim"],
+                source=TruthSource.CROSS_SOURCE
+                if agreement_count > 1
+                else TruthSource.EXTRACTED_CLAIM,
                 confidence=confidence,
-                source_urls=data['urls'],
-                source_excerpts=data['excerpts'],
+                source_urls=data["urls"],
+                source_excerpts=data["excerpts"],
                 agreement_count=agreement_count,
             )
             all_claims.append(gt_claim)
@@ -210,14 +227,14 @@ class CrossSourceValidator:
 
     def _normalize_tokens(self, text: str) -> set[str]:
         """Normalize text to token set."""
-        normalized = re.sub(r'[^\w\s]', ' ', text.lower())
+        normalized = re.sub(r"[^\w\s]", " ", text.lower())
         tokens = set()
         for word in normalized.split():
             if len(word) > 3:
                 # Simple stemming
-                if word.endswith(('ing', 'tion', 'ment')):
+                if word.endswith(("ing", "tion", "ment")):
                     word = word[:-3] if len(word) > 5 else word
-                elif word.endswith(('ed', 'er', 'es')):
+                elif word.endswith(("ed", "er", "es")):
                     word = word[:-2] if len(word) > 4 else word
                 tokens.add(word)
         return tokens
@@ -263,7 +280,11 @@ class CrossSourceValidator:
         source_claims = []
         sources_with_content = 0
         for source in sources:
-            content = source.get('content', '') or source.get('abstract', '') or source.get('summary', '')
+            content = (
+                source.get("content", "")
+                or source.get("abstract", "")
+                or source.get("summary", "")
+            )
             if len(content) > 50:  # Has meaningful content
                 claims = self.claim_extractor.extract_claims(content)
                 source_claims.append(claims)
@@ -280,7 +301,9 @@ class CrossSourceValidator:
         for i in range(len(source_claims)):
             for j in range(i + 1, len(source_claims)):
                 if source_claims[i] and source_claims[j]:
-                    overlap = self._fuzzy_claim_overlap(source_claims[i], source_claims[j])
+                    overlap = self._fuzzy_claim_overlap(
+                        source_claims[i], source_claims[j]
+                    )
                     agreements.append(overlap)
 
         if not agreements:
@@ -297,7 +320,9 @@ class SelfConsistencyChecker:
     """
 
     def __init__(self, storage_path: Optional[Path] = None):
-        self.storage_path = storage_path or Path.home() / ".agent-core" / "precision" / "consistency"
+        self.storage_path = (
+            storage_path or Path.home() / ".agent-core" / "precision" / "consistency"
+        )
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
     def _query_hash(self, query: str) -> str:
@@ -316,33 +341,35 @@ class SelfConsistencyChecker:
                 runs = json.load(f)
 
         # Add this run
-        runs.append({
-            'timestamp': datetime.now().isoformat(),
-            'output_hash': hashlib.md5(output.encode()).hexdigest()[:16],
-            'claims': claims,
-            'output_preview': output[:500],
-        })
+        runs.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "output_hash": hashlib.md5(output.encode()).hexdigest()[:16],
+                "claims": claims,
+                "output_preview": output[:500],
+            }
+        )
 
         # Keep last 10 runs
         runs = runs[-10:]
 
-        with open(run_file, 'w') as f:
+        with open(run_file, "w") as f:
             json.dump(runs, f, indent=2)
 
     def _normalize_claim(self, claim: str) -> set[str]:
         """Normalize claim to token set for fuzzy matching."""
         # Remove punctuation and lowercase
-        normalized = re.sub(r'[^\w\s]', ' ', claim.lower())
+        normalized = re.sub(r"[^\w\s]", " ", claim.lower())
         # Split into tokens, filter short words and numbers-only
         tokens = set()
         for word in normalized.split():
             if len(word) > 2 and not word.isdigit():
                 # Simple stemming: remove common suffixes
-                if word.endswith(('ing', 'tion', 'ment', 'ness', 'ity')):
+                if word.endswith(("ing", "tion", "ment", "ness", "ity")):
                     word = word[:-3] if len(word) > 5 else word
-                elif word.endswith(('ed', 'er', 'es', 'ly')):
+                elif word.endswith(("ed", "er", "es", "ly")):
                     word = word[:-2] if len(word) > 4 else word
-                elif word.endswith('s') and len(word) > 3:
+                elif word.endswith("s") and len(word) > 3:
                     word = word[:-1]
                 tokens.add(word)
         return tokens
@@ -381,7 +408,7 @@ class SelfConsistencyChecker:
 
         consistencies = []
         for run in runs[-3:]:  # Compare with last 3 runs
-            prev_claims = run.get('claims', [])
+            prev_claims = run.get("claims", [])
 
             if not current_claims or not prev_claims:
                 continue
@@ -391,7 +418,7 @@ class SelfConsistencyChecker:
             for curr in current_claims:
                 best_match = max(
                     (self._claim_similarity(curr, prev) for prev in prev_claims),
-                    default=0.0
+                    default=0.0,
                 )
                 match_scores.append(best_match)
 
@@ -400,7 +427,7 @@ class SelfConsistencyChecker:
             for prev in prev_claims:
                 best_match = max(
                     (self._claim_similarity(prev, curr) for curr in current_claims),
-                    default=0.0
+                    default=0.0,
                 )
                 reverse_scores.append(best_match)
 
@@ -409,7 +436,7 @@ class SelfConsistencyChecker:
                 forward_avg = sum(match_scores) / len(match_scores)
                 reverse_avg = sum(reverse_scores) / len(reverse_scores)
                 # Weight towards claims being found (forward), less penalty for new claims
-                run_consistency = (forward_avg * 0.6 + reverse_avg * 0.4)
+                run_consistency = forward_avg * 0.6 + reverse_avg * 0.4
                 consistencies.append(run_consistency)
 
         if not consistencies:
@@ -426,7 +453,9 @@ class FeedbackCollector:
     """
 
     def __init__(self, storage_path: Optional[Path] = None):
-        self.storage_path = storage_path or Path.home() / ".agent-core" / "precision" / "feedback"
+        self.storage_path = (
+            storage_path or Path.home() / ".agent-core" / "precision" / "feedback"
+        )
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self.feedback_file = self.storage_path / "feedback.json"
 
@@ -437,7 +466,7 @@ class FeedbackCollector:
         return []
 
     def _save_feedback(self, feedback: list[dict]):
-        with open(self.feedback_file, 'w') as f:
+        with open(self.feedback_file, "w") as f:
             json.dump(feedback, f, indent=2)
 
     def record_feedback(
@@ -452,15 +481,17 @@ class FeedbackCollector:
         """Record human feedback on a response."""
         feedback = self._load_feedback()
 
-        feedback.append({
-            'timestamp': datetime.now().isoformat(),
-            'query': query,
-            'output_preview': output[:500],
-            'rating': rating,
-            'corrections': corrections,
-            'verified_claims': verified_claims or [],
-            'false_claims': false_claims or [],
-        })
+        feedback.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "query": query,
+                "output_preview": output[:500],
+                "rating": rating,
+                "corrections": corrections,
+                "verified_claims": verified_claims or [],
+                "false_claims": false_claims or [],
+            }
+        )
 
         # Keep last 1000 feedback entries
         feedback = feedback[-1000:]
@@ -474,8 +505,8 @@ class FeedbackCollector:
 
         for entry in feedback:
             # High-rated responses with verified claims
-            if entry.get('rating', 0) >= 4:
-                for claim in entry.get('verified_claims', []):
+            if entry.get("rating", 0) >= 4:
+                for claim in entry.get("verified_claims", []):
                     gt_claim = GroundTruthClaim(
                         claim=claim,
                         source=TruthSource.HUMAN_FEEDBACK,
@@ -485,7 +516,7 @@ class FeedbackCollector:
                     claims.append(gt_claim)
 
             # Low-rated responses with false claims (negative examples)
-            for claim in entry.get('false_claims', []):
+            for claim in entry.get("false_claims", []):
                 gt_claim = GroundTruthClaim(
                     claim=claim,
                     source=TruthSource.HUMAN_FEEDBACK,
@@ -510,16 +541,16 @@ class GroundTruthValidator:
 
     def _normalize_claim(self, claim: str) -> set[str]:
         """Normalize claim to token set for fuzzy matching."""
-        normalized = re.sub(r'[^\w\s]', ' ', claim.lower())
+        normalized = re.sub(r"[^\w\s]", " ", claim.lower())
         tokens = set()
         for word in normalized.split():
             if len(word) > 2 and not word.isdigit():
                 # Simple stemming
-                if word.endswith(('ing', 'tion', 'ment', 'ness', 'ity')):
+                if word.endswith(("ing", "tion", "ment", "ness", "ity")):
                     word = word[:-3] if len(word) > 5 else word
-                elif word.endswith(('ed', 'er', 'es', 'ly')):
+                elif word.endswith(("ed", "er", "es", "ly")):
                     word = word[:-2] if len(word) > 4 else word
-                elif word.endswith('s') and len(word) > 3:
+                elif word.endswith("s") and len(word) > 3:
                     word = word[:-1]
                 tokens.add(word)
         return tokens
@@ -584,15 +615,21 @@ class GroundTruthValidator:
         result.cross_source_score = self.cross_source.validate_agreement(sources)
 
         # 3. Self-consistency
-        result.self_consistency = self.consistency.check_consistency(query, output_claims)
+        result.self_consistency = self.consistency.check_consistency(
+            query, output_claims
+        )
 
         # Record this run for future consistency checks
         self.consistency.record_run(query, output, output_claims)
 
         # 4. Check against human feedback ground truth
         feedback_claims = self.feedback.get_ground_truth_claims()
-        feedback_verified = set(c.claim.lower() for c in feedback_claims if c.confidence > 0.5)
-        feedback_false = set(c.claim.lower() for c in feedback_claims if c.confidence < 0.5)
+        feedback_verified = set(
+            c.claim.lower() for c in feedback_claims if c.confidence > 0.5
+        )
+        feedback_false = set(
+            c.claim.lower() for c in feedback_claims if c.confidence < 0.5
+        )
 
         for claim in output_claims:
             claim_lower = claim.lower()
@@ -602,7 +639,9 @@ class GroundTruthValidator:
 
         # Penalize contradicted claims
         if result.claims_contradicted > 0:
-            result.factual_accuracy *= (1 - result.claims_contradicted / max(result.claims_checked, 1))
+            result.factual_accuracy *= 1 - result.claims_contradicted / max(
+                result.claims_checked, 1
+            )
 
         # Compute final score
         result.compute_score()
@@ -612,6 +651,7 @@ class GroundTruthValidator:
 
 # Singleton
 _validator: Optional[GroundTruthValidator] = None
+
 
 def get_validator() -> GroundTruthValidator:
     global _validator
@@ -649,6 +689,7 @@ def record_feedback(
 # GROUND TRUTH CORPUS (v2.2)
 # =============================================================================
 
+
 class GroundTruthCorpus:
     """
     Store verified claims from successful runs to build internal ground truth.
@@ -664,7 +705,9 @@ class GroundTruthCorpus:
     """
 
     def __init__(self, storage_path: Optional[Path] = None):
-        self.storage_path = storage_path or Path.home() / ".agent-core" / "precision" / "corpus"
+        self.storage_path = (
+            storage_path or Path.home() / ".agent-core" / "precision" / "corpus"
+        )
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self.corpus_file = self.storage_path / "ground_truth_corpus.json"
 
@@ -677,7 +720,7 @@ class GroundTruthCorpus:
 
     def _save_corpus(self, corpus: list[dict]):
         """Save corpus to storage."""
-        with open(self.corpus_file, 'w') as f:
+        with open(self.corpus_file, "w") as f:
             json.dump(corpus, f, indent=2)
 
     def store_verified_claims(
@@ -725,37 +768,45 @@ class GroundTruthCorpus:
         query_hash = hashlib.md5(query.lower().strip().encode()).hexdigest()[:16]
 
         entry = {
-            'id': f"gt_{query_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            'timestamp': datetime.now().isoformat(),
-            'query': query,
-            'query_hash': query_hash,
-            'claims': claims[:30],  # Limit claims per entry
-            'source_urls': [s.get('url', '') for s in sources[:10] if s.get('url')],
-            'source_arxiv_ids': [s.get('arxiv_id', '') for s in sources[:10] if s.get('arxiv_id')],
-            'dq_score': dq_score,
-            'citations_verified': citations_verified,
-            'citations_total': citations_total,
-            'confidence_tier': confidence_tier,
-            'confidence_score': confidence_score,
+            "id": f"gt_{query_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "timestamp": datetime.now().isoformat(),
+            "query": query,
+            "query_hash": query_hash,
+            "claims": claims[:30],  # Limit claims per entry
+            "source_urls": [s.get("url", "") for s in sources[:10] if s.get("url")],
+            "source_arxiv_ids": [
+                s.get("arxiv_id", "") for s in sources[:10] if s.get("arxiv_id")
+            ],
+            "dq_score": dq_score,
+            "citations_verified": citations_verified,
+            "citations_total": citations_total,
+            "confidence_tier": confidence_tier,
+            "confidence_score": confidence_score,
         }
 
         # Add to corpus, avoiding duplicates
-        existing_hashes = {e.get('query_hash') for e in corpus}
+        existing_hashes = {e.get("query_hash") for e in corpus}
         if query_hash not in existing_hashes:
             corpus.append(entry)
         else:
             # Update existing entry if new run has higher confidence
             for i, e in enumerate(corpus):
-                if e.get('query_hash') == query_hash and dq_score > e.get('dq_score', 0):
+                if e.get("query_hash") == query_hash and dq_score > e.get(
+                    "dq_score", 0
+                ):
                     corpus[i] = entry
                     break
 
         # Keep corpus manageable (last 500 entries)
-        corpus = sorted(corpus, key=lambda x: x.get('timestamp', ''), reverse=True)[:500]
+        corpus = sorted(corpus, key=lambda x: x.get("timestamp", ""), reverse=True)[
+            :500
+        ]
 
         self._save_corpus(corpus)
 
-    def get_claims_for_topic(self, topic: str, limit: int = 50) -> list[GroundTruthClaim]:
+    def get_claims_for_topic(
+        self, topic: str, limit: int = 50
+    ) -> list[GroundTruthClaim]:
         """
         Retrieve verified claims relevant to a topic.
 
@@ -772,18 +823,18 @@ class GroundTruthCorpus:
 
         for entry in corpus:
             # Check if topic matches query or claims
-            query_match = topic_lower in entry.get('query', '').lower()
-            claim_match = any(topic_lower in c.lower() for c in entry.get('claims', []))
+            query_match = topic_lower in entry.get("query", "").lower()
+            claim_match = any(topic_lower in c.lower() for c in entry.get("claims", []))
 
             if query_match or claim_match:
-                confidence = entry.get('confidence_score', 0.7)
-                for claim_text in entry.get('claims', []):
+                confidence = entry.get("confidence_score", 0.7)
+                for claim_text in entry.get("claims", []):
                     gt_claim = GroundTruthClaim(
                         claim=claim_text,
                         source=TruthSource.EXTRACTED_CLAIM,
                         confidence=confidence,
-                        source_urls=entry.get('source_urls', []),
-                        topic=entry.get('query', ''),
+                        source_urls=entry.get("source_urls", []),
+                        topic=entry.get("query", ""),
                     )
                     claims.append(gt_claim)
 
@@ -798,32 +849,33 @@ class GroundTruthCorpus:
 
         if not corpus:
             return {
-                'total_entries': 0,
-                'total_claims': 0,
-                'high_confidence': 0,
-                'medium_confidence': 0,
-                'baseline': 0,
-                'avg_dq_score': 0.0,
+                "total_entries": 0,
+                "total_claims": 0,
+                "high_confidence": 0,
+                "medium_confidence": 0,
+                "baseline": 0,
+                "avg_dq_score": 0.0,
             }
 
-        high = sum(1 for e in corpus if e.get('confidence_tier') == 'high')
-        medium = sum(1 for e in corpus if e.get('confidence_tier') == 'medium')
-        baseline = sum(1 for e in corpus if e.get('confidence_tier') == 'baseline')
-        total_claims = sum(len(e.get('claims', [])) for e in corpus)
-        avg_dq = sum(e.get('dq_score', 0) for e in corpus) / len(corpus)
+        high = sum(1 for e in corpus if e.get("confidence_tier") == "high")
+        medium = sum(1 for e in corpus if e.get("confidence_tier") == "medium")
+        baseline = sum(1 for e in corpus if e.get("confidence_tier") == "baseline")
+        total_claims = sum(len(e.get("claims", [])) for e in corpus)
+        avg_dq = sum(e.get("dq_score", 0) for e in corpus) / len(corpus)
 
         return {
-            'total_entries': len(corpus),
-            'total_claims': total_claims,
-            'high_confidence': high,
-            'medium_confidence': medium,
-            'baseline': baseline,
-            'avg_dq_score': round(avg_dq, 3),
+            "total_entries": len(corpus),
+            "total_claims": total_claims,
+            "high_confidence": high,
+            "medium_confidence": medium,
+            "baseline": baseline,
+            "avg_dq_score": round(avg_dq, 3),
         }
 
 
 # Singleton for corpus
 _corpus: Optional[GroundTruthCorpus] = None
+
 
 def get_corpus() -> GroundTruthCorpus:
     """Get ground truth corpus singleton."""

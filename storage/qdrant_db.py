@@ -39,12 +39,14 @@ try:
         SearchRequest,
         UpdateStatus,
     )
+
     QDRANT_AVAILABLE = True
 except ImportError:
     QDRANT_AVAILABLE = False
 
 try:
     import cohere
+
     COHERE_AVAILABLE = True
 except ImportError:
     COHERE_AVAILABLE = False
@@ -52,6 +54,7 @@ except ImportError:
 # Sentence-transformers fallback for offline mode
 try:
     from sentence_transformers import SentenceTransformer
+
     SBERT_AVAILABLE = True
 except ImportError:
     SBERT_AVAILABLE = False
@@ -155,12 +158,10 @@ class QdrantDB:
                 "qdrant-client not installed. Run: pip install qdrant-client"
             )
         if not COHERE_AVAILABLE:
-            raise ImportError(
-                "cohere not installed. Run: pip install cohere"
-            )
+            raise ImportError("cohere not installed. Run: pip install cohere")
 
     @property
-    def cohere_client(self) -> 'cohere.Client':
+    def cohere_client(self) -> "cohere.Client":
         """Lazy-load the Cohere client."""
         if self._cohere_client is None:
             self._check_dependencies()
@@ -176,12 +177,16 @@ class QdrantDB:
                 raise ImportError(
                     "sentence-transformers not installed. Run: pip install sentence-transformers"
                 )
-            logger.info("Loading sentence-transformers model for offline embeddings",
-                       extra={"model": SBERT_MODEL})
+            logger.info(
+                "Loading sentence-transformers model for offline embeddings",
+                extra={"model": SBERT_MODEL},
+            )
             self._sbert_model = SentenceTransformer(SBERT_MODEL)
         return self._sbert_model
 
-    def _pad_embedding(self, embedding: List[float], target_dim: int = EMBEDDING_DIM) -> List[float]:
+    def _pad_embedding(
+        self, embedding: List[float], target_dim: int = EMBEDDING_DIM
+    ) -> List[float]:
         """Pad embedding to target dimension (for sbert compatibility)."""
         if len(embedding) >= target_dim:
             return embedding[:target_dim]
@@ -189,7 +194,7 @@ class QdrantDB:
         return embedding + [0.0] * (target_dim - len(embedding))
 
     @property
-    def client(self) -> 'QdrantClient':
+    def client(self) -> "QdrantClient":
         """Get sync client."""
         if self._client is None:
             self._check_dependencies()
@@ -197,7 +202,7 @@ class QdrantDB:
         return self._client
 
     @property
-    def async_client(self) -> 'AsyncQdrantClient':
+    def async_client(self) -> "AsyncQdrantClient":
         """Get async client."""
         if self._async_client is None:
             self._check_dependencies()
@@ -221,15 +226,14 @@ class QdrantDB:
                     await self.async_client.create_collection(
                         collection_name=name,
                         vectors_config=VectorParams(
-                            size=config["vector_size"],
-                            distance=config["distance"]
-                        )
+                            size=config["vector_size"], distance=config["distance"]
+                        ),
                     )
                     logger.info("Created Qdrant collection", extra={"collection": name})
                 else:
                     # Check if dimension matches (migration needed if not)
                     info = await self.async_client.get_collection(name)
-                    if hasattr(info.config.params, 'vectors'):
+                    if hasattr(info.config.params, "vectors"):
                         current_size = info.config.params.vectors.size
                     else:
                         current_size = info.config.params.size
@@ -240,11 +244,14 @@ class QdrantDB:
                             extra={
                                 "collection": name,
                                 "current_size": current_size,
-                                "expected_size": config["vector_size"]
-                            }
+                                "expected_size": config["vector_size"],
+                            },
                         )
             except Exception as e:
-                logger.warning("Could not create collection", extra={"collection": name, "error": str(e)})
+                logger.warning(
+                    "Could not create collection",
+                    extra={"collection": name, "error": str(e)},
+                )
 
         self._initialized = True
 
@@ -264,7 +271,7 @@ class QdrantDB:
                     model=EMBEDDING_MODEL,
                     input_type="search_document",
                     embedding_types=["float"],
-                    truncate="END"
+                    truncate="END",
                 )
                 embedding = response.embeddings.float[0]
 
@@ -280,12 +287,14 @@ class QdrantDB:
                         texts=[text],
                         model=EMBEDDING_MODEL_V3,
                         input_type="search_document",
-                        truncate="END"
+                        truncate="END",
                     )
                     return response.embeddings[0]
                 except Exception as e2:
-                    logger.warning("Cohere embedding failed, switching to sbert fallback",
-                                 extra={"error": str(e2)})
+                    logger.warning(
+                        "Cohere embedding failed, switching to sbert fallback",
+                        extra={"error": str(e2)},
+                    )
                     self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
@@ -293,9 +302,13 @@ class QdrantDB:
             embedding = self.sbert_model.encode(text, convert_to_numpy=True).tolist()
             return self._pad_embedding(embedding, dimension)
 
-        raise RuntimeError("No embedding provider available (Cohere failed, sbert not installed)")
+        raise RuntimeError(
+            "No embedding provider available (Cohere failed, sbert not installed)"
+        )
 
-    def embed_batch(self, texts: List[str], dimension: int = EMBEDDING_DIM) -> List[List[float]]:
+    def embed_batch(
+        self, texts: List[str], dimension: int = EMBEDDING_DIM
+    ) -> List[List[float]]:
         """Generate embeddings for multiple texts using Cohere v4, with sbert fallback.
 
         Args:
@@ -313,13 +326,13 @@ class QdrantDB:
                 batch_size = 96
 
                 for i in range(0, len(texts), batch_size):
-                    batch = texts[i:i + batch_size]
+                    batch = texts[i : i + batch_size]
                     response = self.cohere_client.embed(
                         texts=batch,
                         model=EMBEDDING_MODEL,
                         input_type="search_document",
                         embedding_types=["float"],
-                        truncate="END"
+                        truncate="END",
                     )
                     # v4 returns embeddings.float
                     batch_embeddings = response.embeddings.float
@@ -332,21 +345,25 @@ class QdrantDB:
             except Exception as e:
                 # Try v3 fallback
                 try:
-                    logger.info("Trying embed-v3 fallback for batch", extra={"error": str(e)})
+                    logger.info(
+                        "Trying embed-v3 fallback for batch", extra={"error": str(e)}
+                    )
                     all_embeddings = []
                     for i in range(0, len(texts), 96):
-                        batch = texts[i:i + 96]
+                        batch = texts[i : i + 96]
                         response = self.cohere_client.embed(
                             texts=batch,
                             model=EMBEDDING_MODEL_V3,
                             input_type="search_document",
-                            truncate="END"
+                            truncate="END",
                         )
                         all_embeddings.extend(response.embeddings)
                     return all_embeddings
                 except Exception as e2:
-                    logger.warning("Cohere batch embedding failed, switching to sbert fallback",
-                                 extra={"error": str(e2), "batch_size": len(texts)})
+                    logger.warning(
+                        "Cohere batch embedding failed, switching to sbert fallback",
+                        extra={"error": str(e2), "batch_size": len(texts)},
+                    )
                     self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
@@ -371,7 +388,7 @@ class QdrantDB:
                     model=EMBEDDING_MODEL,
                     input_type="search_query",
                     embedding_types=["float"],
-                    truncate="END"
+                    truncate="END",
                 )
                 embedding = response.embeddings.float[0]
                 # Truncate to requested dimension (Matryoshka)
@@ -385,12 +402,14 @@ class QdrantDB:
                         texts=[query],
                         model=EMBEDDING_MODEL_V3,
                         input_type="search_query",
-                        truncate="END"
+                        truncate="END",
                     )
                     return response.embeddings[0]
                 except Exception as e2:
-                    logger.warning("Cohere query embedding failed, switching to sbert fallback",
-                                 extra={"error": str(e2)})
+                    logger.warning(
+                        "Cohere query embedding failed, switching to sbert fallback",
+                        extra={"error": str(e2)},
+                    )
                     self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
@@ -405,7 +424,7 @@ class QdrantDB:
         query: str,
         documents: List[Dict[str, Any]],
         top_n: int = 10,
-        content_key: str = "content"
+        content_key: str = "content",
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents using Cohere rerank model.
@@ -429,7 +448,7 @@ class QdrantDB:
             query=query,
             documents=texts,
             model=RERANK_MODEL,
-            top_n=min(top_n, len(documents))
+            top_n=min(top_n, len(documents)),
         )
 
         # Build reranked results
@@ -462,7 +481,7 @@ class QdrantDB:
         query: str,
         documents: List[Dict[str, Any]],
         top_n: int = 10,
-        content_key: str = "content"
+        content_key: str = "content",
     ) -> List[Dict[str, Any]]:
         """Async wrapper for rerank() - runs in thread pool to avoid blocking."""
         return await asyncio.to_thread(
@@ -482,10 +501,7 @@ class QdrantDB:
     # --- Finding Operations ---
 
     async def upsert_finding(
-        self,
-        finding_id: str,
-        content: str,
-        metadata: Dict[str, Any]
+        self, finding_id: str, content: str, metadata: Dict[str, Any]
     ):
         """Store a finding with its embedding."""
         embedding = await self.embed_async(content)
@@ -499,16 +515,13 @@ class QdrantDB:
                     payload={
                         "finding_id": finding_id,
                         "content": content[:1000],  # Truncate for storage
-                        **metadata
-                    }
+                        **metadata,
+                    },
                 )
-            ]
+            ],
         )
 
-    async def upsert_findings_batch(
-        self,
-        findings: List[Dict[str, Any]]
-    ) -> int:
+    async def upsert_findings_batch(self, findings: List[Dict[str, Any]]) -> int:
         """Store multiple findings with embeddings."""
         if not findings:
             return 0
@@ -528,15 +541,12 @@ class QdrantDB:
                     "session_id": f.get("session_id"),
                     "project": f.get("project"),
                     "confidence": f.get("confidence"),
-                }
+                },
             )
             for f, emb in zip(findings, embeddings)
         ]
 
-        await self.async_client.upsert(
-            collection_name="findings",
-            points=points
-        )
+        await self.async_client.upsert(collection_name="findings", points=points)
 
         return len(points)
 
@@ -549,7 +559,7 @@ class QdrantDB:
         filter_project: Optional[str] = None,
         filter_session: Optional[str] = None,
         rerank: bool = True,
-        rerank_top_n: Optional[int] = None
+        rerank_top_n: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Semantic search for findings with optional reranking.
@@ -592,7 +602,7 @@ class QdrantDB:
             query=embedding,
             query_filter=search_filter,
             limit=fetch_limit,
-            score_threshold=min_score
+            score_threshold=min_score,
         )
 
         findings = [
@@ -618,10 +628,7 @@ class QdrantDB:
     # --- Session Operations ---
 
     async def upsert_session(
-        self,
-        session_id: str,
-        topic: str,
-        metadata: Dict[str, Any]
+        self, session_id: str, topic: str, metadata: Dict[str, Any]
     ):
         """Store a session with its embedding."""
         embedding = await self.embed_async(topic)
@@ -632,19 +639,12 @@ class QdrantDB:
                 PointStruct(
                     id=self._generate_id(session_id, "session"),
                     vector=embedding,
-                    payload={
-                        "session_id": session_id,
-                        "topic": topic,
-                        **metadata
-                    }
+                    payload={"session_id": session_id, "topic": topic, **metadata},
                 )
-            ]
+            ],
         )
 
-    async def upsert_sessions_batch(
-        self,
-        sessions: List[Dict[str, Any]]
-    ) -> int:
+    async def upsert_sessions_batch(self, sessions: List[Dict[str, Any]]) -> int:
         """Store multiple sessions with embeddings."""
         if not sessions:
             return 0
@@ -668,15 +668,12 @@ class QdrantDB:
                     "status": s.get("status"),
                     "finding_count": s.get("finding_count", 0),
                     "url_count": s.get("url_count", 0),
-                }
+                },
             )
             for s, emb in zip(valid_sessions, embeddings)
         ]
 
-        await self.async_client.upsert(
-            collection_name="sessions",
-            points=points
-        )
+        await self.async_client.upsert(collection_name="sessions", points=points)
 
         return len(points)
 
@@ -686,7 +683,7 @@ class QdrantDB:
         limit: int = 10,
         min_score: float = 0.4,
         filter_project: Optional[str] = None,
-        rerank: bool = True
+        rerank: bool = True,
     ) -> List[Dict[str, Any]]:
         """Semantic search for sessions with optional reranking."""
         embedding = await self.embed_query_async(query)
@@ -706,7 +703,7 @@ class QdrantDB:
             query=embedding,
             query_filter=search_filter,
             limit=fetch_limit,
-            score_threshold=min_score
+            score_threshold=min_score,
         )
 
         sessions = [
@@ -723,18 +720,15 @@ class QdrantDB:
         ]
 
         if rerank and sessions:
-            sessions = await self.rerank_async(query, sessions, top_n=limit, content_key="topic")
+            sessions = await self.rerank_async(
+                query, sessions, top_n=limit, content_key="topic"
+            )
 
         return sessions[:limit]
 
     # --- Pack Operations ---
 
-    async def upsert_pack(
-        self,
-        pack_id: str,
-        content: str,
-        metadata: Dict[str, Any]
-    ):
+    async def upsert_pack(self, pack_id: str, content: str, metadata: Dict[str, Any]):
         """Store a context pack with its embedding."""
         embedding = await self.embed_async(content)
 
@@ -747,16 +741,13 @@ class QdrantDB:
                     payload={
                         "pack_id": pack_id,
                         "content_preview": content[:500],
-                        **metadata
-                    }
+                        **metadata,
+                    },
                 )
-            ]
+            ],
         )
 
-    async def upsert_packs_batch(
-        self,
-        packs: List[Dict[str, Any]]
-    ) -> int:
+    async def upsert_packs_batch(self, packs: List[Dict[str, Any]]) -> int:
         """Store multiple packs with embeddings."""
         if not packs:
             return 0
@@ -788,15 +779,12 @@ class QdrantDB:
                     "type": p.get("type"),
                     "source": p.get("source"),
                     "tokens": p.get("tokens"),
-                }
+                },
             )
             for p, emb in zip(packs, embeddings)
         ]
 
-        await self.async_client.upsert(
-            collection_name="packs",
-            points=points
-        )
+        await self.async_client.upsert(collection_name="packs", points=points)
 
         return len(points)
 
@@ -807,7 +795,7 @@ class QdrantDB:
         min_score: float = 0.4,
         filter_type: Optional[str] = None,
         filter_source: Optional[str] = None,
-        rerank: bool = True
+        rerank: bool = True,
     ) -> List[Dict[str, Any]]:
         """Semantic search for context packs with optional reranking."""
         embedding = await self.embed_query_async(query)
@@ -831,7 +819,7 @@ class QdrantDB:
             query=embedding,
             query_filter=search_filter,
             limit=fetch_limit,
-            score_threshold=min_score
+            score_threshold=min_score,
         )
 
         packs = [
@@ -848,18 +836,15 @@ class QdrantDB:
         ]
 
         if rerank and packs:
-            packs = await self.rerank_async(query, packs, top_n=limit, content_key="name")
+            packs = await self.rerank_async(
+                query, packs, top_n=limit, content_key="name"
+            )
 
         return packs[:limit]
 
     # --- Paper Operations ---
 
-    async def upsert_paper(
-        self,
-        paper_id: str,
-        content: str,
-        metadata: Dict[str, Any]
-    ):
+    async def upsert_paper(self, paper_id: str, content: str, metadata: Dict[str, Any]):
         """Store a paper with its embedding.
 
         Args:
@@ -886,15 +871,12 @@ class QdrantDB:
                         "ai_keywords": metadata.get("ai_keywords"),
                         "upvotes": metadata.get("upvotes"),
                         "github_repo": metadata.get("github_repo"),
-                    }
+                    },
                 )
-            ]
+            ],
         )
 
-    async def upsert_papers_batch(
-        self,
-        papers: List[Dict[str, Any]]
-    ) -> int:
+    async def upsert_papers_batch(self, papers: List[Dict[str, Any]]) -> int:
         """Store multiple papers with embeddings."""
         if not papers:
             return 0
@@ -923,15 +905,12 @@ class QdrantDB:
                     "ai_keywords": p.get("ai_keywords"),
                     "upvotes": p.get("upvotes"),
                     "github_repo": p.get("github_repo"),
-                }
+                },
             )
             for i, (p, emb) in enumerate(zip(papers, embeddings))
         ]
 
-        await self.async_client.upsert(
-            collection_name="papers",
-            points=points
-        )
+        await self.async_client.upsert(collection_name="papers", points=points)
 
         return len(points)
 
@@ -943,7 +922,7 @@ class QdrantDB:
         min_relevance: Optional[int] = None,
         filter_source: Optional[str] = None,
         rerank: bool = True,
-        rerank_top_n: Optional[int] = None
+        rerank_top_n: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search for papers with optional reranking.
 
@@ -961,8 +940,7 @@ class QdrantDB:
         if min_relevance is not None:
             conditions.append(
                 models.FieldCondition(
-                    key="relevance",
-                    range=models.Range(gte=min_relevance)
+                    key="relevance", range=models.Range(gte=min_relevance)
                 )
             )
         if filter_source:
@@ -978,7 +956,7 @@ class QdrantDB:
             query=embedding,
             query_filter=search_filter,
             limit=fetch_limit,
-            score_threshold=min_score
+            score_threshold=min_score,
         )
 
         papers = [
@@ -1007,10 +985,7 @@ class QdrantDB:
     # --- Session Outcome Operations ---
 
     async def upsert_outcome(
-        self,
-        outcome_id: str,
-        intent: str,
-        metadata: Dict[str, Any]
+        self, outcome_id: str, intent: str, metadata: Dict[str, Any]
     ):
         """Store a session outcome with its embedding."""
         # Embed the intent (async to avoid blocking event loop)
@@ -1033,15 +1008,12 @@ class QdrantDB:
                         "date": metadata.get("date"),
                         "messages": metadata.get("messages"),
                         "tools": metadata.get("tools"),
-                    }
+                    },
                 )
-            ]
+            ],
         )
 
-    async def upsert_outcomes_batch(
-        self,
-        outcomes: List[Dict[str, Any]]
-    ) -> int:
+    async def upsert_outcomes_batch(self, outcomes: List[Dict[str, Any]]) -> int:
         """Store multiple session outcomes with embeddings."""
         if not outcomes:
             return 0
@@ -1065,14 +1037,13 @@ class QdrantDB:
                     "date": o.get("date"),
                     "messages": o.get("messages"),
                     "tools": o.get("tools"),
-                }
+                },
             )
             for i, (o, emb) in enumerate(zip(outcomes, embeddings))
         ]
 
         await self.async_client.upsert(
-            collection_name="session_outcomes",
-            points=points
+            collection_name="session_outcomes", points=points
         )
 
         return len(points)
@@ -1084,7 +1055,7 @@ class QdrantDB:
         min_score: float = 0.5,
         filter_outcome: Optional[str] = None,
         min_quality: Optional[float] = None,
-        rerank: bool = True
+        rerank: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         Semantic search for session outcomes with optional reranking.
@@ -1120,7 +1091,7 @@ class QdrantDB:
             query=embedding,
             query_filter=search_filter,
             limit=fetch_limit,
-            score_threshold=min_score
+            score_threshold=min_score,
         )
 
         outcomes = [
@@ -1143,17 +1114,16 @@ class QdrantDB:
 
         # Rerank if enabled (async to avoid blocking)
         if rerank and outcomes:
-            outcomes = await self.rerank_async(query, outcomes, top_n=limit, content_key="intent")
+            outcomes = await self.rerank_async(
+                query, outcomes, top_n=limit, content_key="intent"
+            )
 
         return outcomes[:limit]
 
     # --- Cognitive State Operations ---
 
     async def upsert_cognitive_state(
-        self,
-        state_id: str,
-        context: str,
-        metadata: Dict[str, Any]
+        self, state_id: str, context: str, metadata: Dict[str, Any]
     ):
         """Store a cognitive state with its embedding."""
         embedding = await self.embed_async(context)
@@ -1173,15 +1143,12 @@ class QdrantDB:
                         "day": metadata.get("day"),
                         "timestamp": metadata.get("timestamp"),
                         "predictions": metadata.get("predictions"),
-                    }
+                    },
                 )
-            ]
+            ],
         )
 
-    async def upsert_cognitive_states_batch(
-        self,
-        states: List[Dict[str, Any]]
-    ) -> int:
+    async def upsert_cognitive_states_batch(self, states: List[Dict[str, Any]]) -> int:
         """Store multiple cognitive states with embeddings."""
         if not states:
             return 0
@@ -1206,23 +1173,19 @@ class QdrantDB:
                     "day": s.get("day"),
                     "timestamp": s.get("timestamp"),
                     "predictions": s.get("predictions"),
-                }
+                },
             )
             for i, (s, emb) in enumerate(zip(states, embeddings))
         ]
 
         await self.async_client.upsert(
-            collection_name="cognitive_states",
-            points=points
+            collection_name="cognitive_states", points=points
         )
 
         return len(points)
 
     async def search_cognitive_states(
-        self,
-        query: str,
-        limit: int = 10,
-        min_score: float = 0.5
+        self, query: str, limit: int = 10, min_score: float = 0.5
     ) -> List[Dict[str, Any]]:
         """Semantic search for cognitive states."""
         embedding = await self.embed_query_async(query)
@@ -1231,7 +1194,7 @@ class QdrantDB:
             collection_name="cognitive_states",
             query=embedding,
             limit=limit,
-            score_threshold=min_score
+            score_threshold=min_score,
         )
 
         return [
@@ -1252,10 +1215,7 @@ class QdrantDB:
     # --- Error Pattern Operations ---
 
     async def upsert_error_pattern(
-        self,
-        error_id: str,
-        context: str,
-        metadata: Dict[str, Any]
+        self, error_id: str, context: str, metadata: Dict[str, Any]
     ):
         """Store an error pattern with its embedding."""
         embedding = await self.embed_async(context)
@@ -1272,15 +1232,12 @@ class QdrantDB:
                         "context": context[:1000],
                         "solution": metadata.get("solution"),
                         "success_rate": metadata.get("success_rate"),
-                    }
+                    },
                 )
-            ]
+            ],
         )
 
-    async def upsert_error_patterns_batch(
-        self,
-        errors: List[Dict[str, Any]]
-    ) -> int:
+    async def upsert_error_patterns_batch(self, errors: List[Dict[str, Any]]) -> int:
         """Store multiple error patterns with embeddings."""
         if not errors:
             return 0
@@ -1302,15 +1259,12 @@ class QdrantDB:
                     "context": e.get("context", "")[:1000],
                     "solution": e.get("solution"),
                     "success_rate": e.get("success_rate", 0.0),
-                }
+                },
             )
             for i, (e, emb) in enumerate(zip(errors, embeddings))
         ]
 
-        await self.async_client.upsert(
-            collection_name="error_patterns",
-            points=points
-        )
+        await self.async_client.upsert(collection_name="error_patterns", points=points)
 
         return len(points)
 
@@ -1319,7 +1273,7 @@ class QdrantDB:
         query: str,
         limit: int = 10,
         min_score: float = 0.5,
-        min_success_rate: Optional[float] = None
+        min_success_rate: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search for error patterns."""
         embedding = await self.embed_query_async(query)
@@ -1327,7 +1281,9 @@ class QdrantDB:
         conditions = []
         if min_success_rate:
             conditions.append(
-                FieldCondition(key="success_rate", range=models.Range(gte=min_success_rate))
+                FieldCondition(
+                    key="success_rate", range=models.Range(gte=min_success_rate)
+                )
             )
 
         search_filter = Filter(must=conditions) if conditions else None
@@ -1337,7 +1293,7 @@ class QdrantDB:
             query=embedding,
             query_filter=search_filter,
             limit=limit,
-            score_threshold=min_score
+            score_threshold=min_score,
         )
 
         return [
@@ -1360,7 +1316,7 @@ class QdrantDB:
         collections: Optional[List[str]] = None,
         limit: int = 10,
         min_score: float = 0.4,
-        rerank: bool = True
+        rerank: bool = True,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Search across multiple collections with optional reranking."""
         if collections is None:
@@ -1379,18 +1335,21 @@ class QdrantDB:
                 collection_name=collection,
                 query=embedding,
                 limit=fetch_limit,
-                score_threshold=min_score
+                score_threshold=min_score,
             )
 
-            items = [
-                {**r.payload, "score": r.score}
-                for r in search_results.points
-            ]
+            items = [{**r.payload, "score": r.score} for r in search_results.points]
 
             # Rerank each collection (async to avoid blocking)
             if rerank and items:
-                content_key = {"findings": "content", "sessions": "topic", "papers": "content"}.get(collection, "name")
-                items = await self.rerank_async(query, items, top_n=limit, content_key=content_key)
+                content_key = {
+                    "findings": "content",
+                    "sessions": "topic",
+                    "papers": "content",
+                }.get(collection, "name")
+                items = await self.rerank_async(
+                    query, items, top_n=limit, content_key=content_key
+                )
 
             results[collection] = items[:limit]
 

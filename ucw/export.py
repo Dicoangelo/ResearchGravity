@@ -61,12 +61,18 @@ def load_agent_core_data() -> Dict[str, Any]:
                 data["sessions"][session_id] = session_data
 
                 # Load additional files if present
-                for extra_file in ["urls_captured.json", "findings_captured.json", "lineage.json"]:
+                for extra_file in [
+                    "urls_captured.json",
+                    "findings_captured.json",
+                    "lineage.json",
+                ]:
                     extra_path = session_dir / extra_file
                     if extra_path.exists():
                         try:
                             extra_data = json.loads(extra_path.read_text())
-                            data["sessions"][session_id][extra_file.replace(".json", "")] = extra_data
+                            data["sessions"][session_id][
+                                extra_file.replace(".json", "")
+                            ] = extra_data
                         except:
                             pass
 
@@ -79,7 +85,7 @@ def load_agent_core_data() -> Dict[str, Any]:
 def extract_concepts_from_sessions(sessions: Dict[str, Any]) -> Dict[str, Concept]:
     """Extract concepts from session findings."""
     concepts = {}
-    arxiv_pattern = re.compile(r'(\d{4}\.\d{4,5})')
+    arxiv_pattern = re.compile(r"(\d{4}\.\d{4,5})")
 
     for session_id, session_data in sessions.items():
         # Extract from findings_captured
@@ -133,7 +139,7 @@ def extract_papers_from_data(
 ) -> Dict[str, Dict]:
     """Extract paper index from projects and sessions."""
     papers = {}
-    arxiv_pattern = re.compile(r'(\d{4}\.\d{4,5})')
+    arxiv_pattern = re.compile(r"(\d{4}\.\d{4,5})")
 
     # From paper_index in projects
     for arxiv_id, paper_data in projects_data.items():
@@ -193,28 +199,32 @@ def convert_session(session_id: str, session_data: Dict[str, Any]) -> Session:
     if isinstance(urls_data, list):
         for url_data in urls_data:
             if isinstance(url_data, dict):
-                urls.append(URL(
-                    url=url_data.get("url", ""),
-                    tier=url_data.get("tier", 3),
-                    category=url_data.get("category", "other"),
-                    source=url_data.get("source", "Web"),
-                    context=url_data.get("context", "")[:200],
-                    captured_at=session_date,
-                    relevance=url_data.get("relevance"),
-                    signal=url_data.get("signal"),
-                ))
+                urls.append(
+                    URL(
+                        url=url_data.get("url", ""),
+                        tier=url_data.get("tier", 3),
+                        category=url_data.get("category", "other"),
+                        source=url_data.get("source", "Web"),
+                        context=url_data.get("context", "")[:200],
+                        captured_at=session_date,
+                        relevance=url_data.get("relevance"),
+                        signal=url_data.get("signal"),
+                    )
+                )
             elif isinstance(url_data, str):
-                urls.append(URL(
-                    url=url_data,
-                    tier=3,
-                    category="other",
-                    source="Web",
-                    context="",
-                    captured_at=session_date,
-                ))
+                urls.append(
+                    URL(
+                        url=url_data,
+                        tier=3,
+                        category="other",
+                        source="Web",
+                        context="",
+                        captured_at=session_date,
+                    )
+                )
 
     # Extract paper IDs from URLs
-    arxiv_pattern = re.compile(r'(\d{4}\.\d{4,5})')
+    arxiv_pattern = re.compile(r"(\d{4}\.\d{4,5})")
     papers = []
     for url in urls:
         if "arxiv.org" in url.url:
@@ -365,11 +375,11 @@ def export_wallet_summary(wallet: Optional[CognitiveWallet] = None) -> str:
         "",
     ]
 
-    if stats['domains']:
+    if stats["domains"]:
         lines.append("## Domains")
         lines.append("")
-        for domain, weight in sorted(stats['domains'].items(), key=lambda x: -x[1]):
-            lines.append(f"- {domain}: {weight*100:.0f}%")
+        for domain, weight in sorted(stats["domains"].items(), key=lambda x: -x[1]):
+            lines.append(f"- {domain}: {weight * 100:.0f}%")
         lines.append("")
 
     return "\n".join(lines)

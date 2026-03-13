@@ -35,6 +35,7 @@ logger = get_logger(__name__)
 # Try to import sqlite-vec
 try:
     import sqlite_vec
+
     SQLITE_VEC_AVAILABLE = True
 except ImportError:
     SQLITE_VEC_AVAILABLE = False
@@ -43,6 +44,7 @@ except ImportError:
 # Try to import Cohere for embeddings
 try:
     import cohere
+
     COHERE_AVAILABLE = True
 except ImportError:
     COHERE_AVAILABLE = False
@@ -50,6 +52,7 @@ except ImportError:
 # Sentence-transformers fallback for offline mode
 try:
     from sentence_transformers import SentenceTransformer
+
     SBERT_AVAILABLE = True
 except ImportError:
     SBERT_AVAILABLE = False
@@ -86,6 +89,7 @@ def get_cohere_client() -> Optional["cohere.Client"]:
 
     # Try environment variable
     import os
+
     api_key = os.environ.get("COHERE_API_KEY")
     if api_key:
         return cohere.Client(api_key)
@@ -110,12 +114,16 @@ class SqliteVecDB:
         if self._sbert_model is None:
             if not SBERT_AVAILABLE:
                 return None
-            logger.info("Loading sentence-transformers model for offline embeddings",
-                       extra={"model": SBERT_MODEL})
+            logger.info(
+                "Loading sentence-transformers model for offline embeddings",
+                extra={"model": SBERT_MODEL},
+            )
             self._sbert_model = SentenceTransformer(SBERT_MODEL)
         return self._sbert_model
 
-    def _pad_embedding(self, embedding: List[float], target_dim: int = EMBEDDING_DIM) -> List[float]:
+    def _pad_embedding(
+        self, embedding: List[float], target_dim: int = EMBEDDING_DIM
+    ) -> List[float]:
         """Pad embedding to target dimension (for sbert compatibility with Cohere's 1024 dims)."""
         if len(embedding) >= target_dim:
             return embedding[:target_dim]
@@ -142,7 +150,7 @@ class SqliteVecDB:
 
     def _get_schema(self) -> str:
         """Get the database schema."""
-        return f"""
+        return """
 -- Mapping tables for vector-entity relationships
 CREATE TABLE IF NOT EXISTS finding_vectors (
     finding_id TEXT PRIMARY KEY,
@@ -216,9 +224,14 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             """)
             await db.commit()
         except Exception as e:
-            logger.warning("Could not create vec table", extra={"table": f"vec_{name}", "error": str(e)})
+            logger.warning(
+                "Could not create vec table",
+                extra={"table": f"vec_{name}", "error": str(e)},
+            )
 
-    async def embed(self, text: str, dimension: int = EMBEDDING_DIM) -> Optional[List[float]]:
+    async def embed(
+        self, text: str, dimension: int = EMBEDDING_DIM
+    ) -> Optional[List[float]]:
         """Generate embedding for text using Cohere v4, with sbert fallback for offline mode.
 
         Args:
@@ -236,13 +249,14 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         # Try Cohere v4 first (if not in fallback mode)
         if not self._use_sbert_fallback and self._cohere:
             try:
+
                 def _embed():
                     return self._cohere.embed(
                         texts=[text],
                         model=EMBEDDING_MODEL,
                         input_type="search_document",
                         embedding_types=["float"],
-                        truncate="END"
+                        truncate="END",
                     )
 
                 response = await asyncio.to_thread(_embed)
@@ -262,27 +276,32 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                 # Try v3 fallback
                 try:
                     logger.info("Trying embed-v3 fallback", extra={"error": str(e)})
+
                     def _embed_v3():
                         return self._cohere.embed(
                             texts=[text],
                             model=EMBEDDING_MODEL_V3,
                             input_type="search_document",
-                            truncate="END"
+                            truncate="END",
                         )
+
                     response = await asyncio.to_thread(_embed_v3)
                     embedding = response.embeddings[0]
                     if len(self._embed_cache) < 1000:
                         self._embed_cache[cache_key] = embedding
                     return embedding
                 except Exception as e2:
-                    logger.warning("Cohere embedding failed, switching to sbert fallback",
-                                 extra={"error": str(e2)})
+                    logger.warning(
+                        "Cohere embedding failed, switching to sbert fallback",
+                        extra={"error": str(e2)},
+                    )
                     self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
         sbert = self._get_sbert_model()
         if sbert:
             try:
+
                 def _sbert_embed():
                     emb = sbert.encode(text, convert_to_numpy=True).tolist()
                     return self._pad_embedding(emb, dimension)
@@ -299,7 +318,9 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
 
         return None
 
-    async def embed_query(self, text: str, dimension: int = EMBEDDING_DIM) -> Optional[List[float]]:
+    async def embed_query(
+        self, text: str, dimension: int = EMBEDDING_DIM
+    ) -> Optional[List[float]]:
         """Generate embedding for a search query using Cohere v4, with sbert fallback.
 
         Args:
@@ -309,13 +330,14 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         # Try Cohere v4 first (if not in fallback mode)
         if not self._use_sbert_fallback and self._cohere:
             try:
+
                 def _embed_query():
                     return self._cohere.embed(
                         texts=[text],
                         model=EMBEDDING_MODEL,
                         input_type="search_query",
                         embedding_types=["float"],
-                        truncate="END"
+                        truncate="END",
                     )
 
                 response = await asyncio.to_thread(_embed_query)
@@ -328,24 +350,29 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             except Exception as e:
                 # Try v3 fallback
                 try:
+
                     def _embed_query_v3():
                         return self._cohere.embed(
                             texts=[text],
                             model=EMBEDDING_MODEL_V3,
                             input_type="search_query",
-                            truncate="END"
+                            truncate="END",
                         )
+
                     response = await asyncio.to_thread(_embed_query_v3)
                     return response.embeddings[0]
                 except Exception as e2:
-                    logger.warning("Cohere query embedding failed, switching to sbert fallback",
-                                 extra={"error": str(e2)})
+                    logger.warning(
+                        "Cohere query embedding failed, switching to sbert fallback",
+                        extra={"error": str(e2)},
+                    )
                     self._use_sbert_fallback = True
 
         # Fallback to sentence-transformers (offline mode)
         sbert = self._get_sbert_model()
         if sbert:
             try:
+
                 def _sbert_embed():
                     emb = sbert.encode(text, convert_to_numpy=True).tolist()
                     return self._pad_embedding(emb, dimension)
@@ -377,10 +404,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
     # --- Finding Operations ---
 
     async def upsert_finding(
-        self,
-        finding_id: str,
-        content: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, finding_id: str, content: str, metadata: Optional[Dict[str, Any]] = None
     ) -> bool:
         """Upsert a finding with its vector."""
         embedding = await self.embed(content)
@@ -390,16 +414,19 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             await self._create_vec_table(db, "findings")
 
             # Store metadata
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT OR REPLACE INTO vector_metadata
                 (entity_type, entity_id, content, metadata)
                 VALUES ('finding', ?, ?, ?)
-            """, (finding_id, content[:2000], json.dumps(metadata or {})))
+            """,
+                (finding_id, content[:2000], json.dumps(metadata or {})),
+            )
 
             # Get rowid
             cursor = await db.execute(
                 "SELECT rowid FROM vector_metadata WHERE entity_type = 'finding' AND entity_id = ?",
-                (finding_id,)
+                (finding_id,),
             )
             row = await cursor.fetchone()
             rowid = row[0] if row else None
@@ -409,19 +436,26 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                 try:
                     # Convert to binary format for sqlite-vec
                     import struct
-                    vec_blob = struct.pack(f'{len(embedding)}f', *embedding)
 
-                    await db.execute("""
+                    vec_blob = struct.pack(f"{len(embedding)}f", *embedding)
+
+                    await db.execute(
+                        """
                         INSERT OR REPLACE INTO vec_findings (rowid, embedding)
                         VALUES (?, ?)
-                    """, (rowid, vec_blob))
+                    """,
+                        (rowid, vec_blob),
+                    )
 
                     # Update mapping
-                    await db.execute("""
+                    await db.execute(
+                        """
                         INSERT OR REPLACE INTO finding_vectors
                         (finding_id, vec_rowid, embedded_at)
                         VALUES (?, ?, ?)
-                    """, (finding_id, rowid, datetime.now().isoformat()))
+                    """,
+                        (finding_id, rowid, datetime.now().isoformat()),
+                    )
 
                 except Exception as e:
                     logger.warning("Vector insert failed", extra={"error": str(e)})
@@ -436,7 +470,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             success = await self.upsert_finding(
                 f.get("id", str(uuid.uuid4())),
                 f.get("content", ""),
-                {k: v for k, v in f.items() if k not in ["id", "content"]}
+                {k: v for k, v in f.items() if k not in ["id", "content"]},
             )
             if success:
                 count += 1
@@ -448,7 +482,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         limit: int = 10,
         min_score: float = 0.5,
         filter_type: Optional[str] = None,
-        filter_project: Optional[str] = None
+        filter_project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search findings using vector similarity."""
         query_embedding = await self.embed_query(query)
@@ -459,10 +493,12 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             if query_embedding and SQLITE_VEC_AVAILABLE:
                 try:
                     import struct
-                    vec_blob = struct.pack(f'{len(query_embedding)}f', *query_embedding)
+
+                    vec_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
 
                     # Vector similarity search
-                    cursor = await db.execute("""
+                    cursor = await db.execute(
+                        """
                         SELECT
                             vm.entity_id,
                             vm.content,
@@ -473,7 +509,9 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         WHERE vm.entity_type = 'finding'
                         ORDER BY distance
                         LIMIT ?
-                    """, (vec_blob, limit * 2))  # Get more for filtering
+                    """,
+                        (vec_blob, limit * 2),
+                    )  # Get more for filtering
 
                     rows = await cursor.fetchall()
 
@@ -490,13 +528,15 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         if filter_project and metadata.get("project") != filter_project:
                             continue
 
-                        results.append({
-                            "id": row[0],
-                            "content": row[1],
-                            "score": score,
-                            "relevance_score": score,
-                            **metadata
-                        })
+                        results.append(
+                            {
+                                "id": row[0],
+                                "content": row[1],
+                                "score": score,
+                                "relevance_score": score,
+                                **metadata,
+                            }
+                        )
 
                         if len(results) >= limit:
                             break
@@ -506,33 +546,35 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
 
             # Fallback to FTS if no vector results
             if not results:
-                cursor = await db.execute("""
+                cursor = await db.execute(
+                    """
                     SELECT entity_id, content, metadata
                     FROM vector_metadata
                     WHERE entity_type = 'finding'
                     AND content LIKE ?
                     LIMIT ?
-                """, (f"%{query}%", limit))
+                """,
+                    (f"%{query}%", limit),
+                )
 
                 rows = await cursor.fetchall()
                 for row in rows:
                     metadata = json.loads(row[2]) if row[2] else {}
-                    results.append({
-                        "id": row[0],
-                        "content": row[1],
-                        "score": 0.5,  # Default score for text match
-                        **metadata
-                    })
+                    results.append(
+                        {
+                            "id": row[0],
+                            "content": row[1],
+                            "score": 0.5,  # Default score for text match
+                            **metadata,
+                        }
+                    )
 
             return results
 
     # --- Session Operations ---
 
     async def upsert_session(
-        self,
-        session_id: str,
-        topic: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, session_id: str, topic: str, metadata: Optional[Dict[str, Any]] = None
     ) -> bool:
         """Upsert a session with its vector."""
         embedding = await self.embed(topic)
@@ -540,15 +582,18 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         async with self.connection() as db:
             await self._create_vec_table(db, "sessions")
 
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT OR REPLACE INTO vector_metadata
                 (entity_type, entity_id, content, metadata)
                 VALUES ('session', ?, ?, ?)
-            """, (session_id, topic, json.dumps(metadata or {})))
+            """,
+                (session_id, topic, json.dumps(metadata or {})),
+            )
 
             cursor = await db.execute(
                 "SELECT rowid FROM vector_metadata WHERE entity_type = 'session' AND entity_id = ?",
-                (session_id,)
+                (session_id,),
             )
             row = await cursor.fetchone()
             rowid = row[0] if row else None
@@ -556,21 +601,30 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             if embedding and SQLITE_VEC_AVAILABLE and rowid:
                 try:
                     import struct
-                    vec_blob = struct.pack(f'{len(embedding)}f', *embedding)
 
-                    await db.execute("""
+                    vec_blob = struct.pack(f"{len(embedding)}f", *embedding)
+
+                    await db.execute(
+                        """
                         INSERT OR REPLACE INTO vec_sessions (rowid, embedding)
                         VALUES (?, ?)
-                    """, (rowid, vec_blob))
+                    """,
+                        (rowid, vec_blob),
+                    )
 
-                    await db.execute("""
+                    await db.execute(
+                        """
                         INSERT OR REPLACE INTO session_vectors
                         (session_id, vec_rowid, embedded_at)
                         VALUES (?, ?, ?)
-                    """, (session_id, rowid, datetime.now().isoformat()))
+                    """,
+                        (session_id, rowid, datetime.now().isoformat()),
+                    )
 
                 except Exception as e:
-                    logger.warning("Session vector insert failed", extra={"error": str(e)})
+                    logger.warning(
+                        "Session vector insert failed", extra={"error": str(e)}
+                    )
 
             await db.commit()
             return True
@@ -580,7 +634,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         query: str,
         limit: int = 10,
         min_score: float = 0.4,
-        filter_project: Optional[str] = None
+        filter_project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search sessions using vector similarity."""
         query_embedding = await self.embed_query(query)
@@ -591,9 +645,11 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             if query_embedding and SQLITE_VEC_AVAILABLE:
                 try:
                     import struct
-                    vec_blob = struct.pack(f'{len(query_embedding)}f', *query_embedding)
 
-                    cursor = await db.execute("""
+                    vec_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
+
+                    cursor = await db.execute(
+                        """
                         SELECT
                             vm.entity_id,
                             vm.content,
@@ -604,7 +660,9 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         WHERE vm.entity_type = 'session'
                         ORDER BY distance
                         LIMIT ?
-                    """, (vec_blob, limit))
+                    """,
+                        (vec_blob, limit),
+                    )
 
                     rows = await cursor.fetchall()
 
@@ -617,12 +675,9 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         if filter_project and metadata.get("project") != filter_project:
                             continue
 
-                        results.append({
-                            "id": row[0],
-                            "topic": row[1],
-                            "score": score,
-                            **metadata
-                        })
+                        results.append(
+                            {"id": row[0], "topic": row[1], "score": score, **metadata}
+                        )
 
                 except Exception as e:
                     logger.warning("Session search failed", extra={"error": str(e)})
@@ -632,10 +687,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
     # --- Pack Operations ---
 
     async def upsert_pack(
-        self,
-        pack_id: str,
-        content: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, pack_id: str, content: str, metadata: Optional[Dict[str, Any]] = None
     ) -> bool:
         """Upsert a context pack with its vector."""
         embedding = await self.embed(content)
@@ -643,15 +695,18 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         async with self.connection() as db:
             await self._create_vec_table(db, "packs")
 
-            await db.execute("""
+            await db.execute(
+                """
                 INSERT OR REPLACE INTO vector_metadata
                 (entity_type, entity_id, content, metadata)
                 VALUES ('pack', ?, ?, ?)
-            """, (pack_id, content[:2000], json.dumps(metadata or {})))
+            """,
+                (pack_id, content[:2000], json.dumps(metadata or {})),
+            )
 
             cursor = await db.execute(
                 "SELECT rowid FROM vector_metadata WHERE entity_type = 'pack' AND entity_id = ?",
-                (pack_id,)
+                (pack_id,),
             )
             row = await cursor.fetchone()
             rowid = row[0] if row else None
@@ -659,18 +714,25 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             if embedding and SQLITE_VEC_AVAILABLE and rowid:
                 try:
                     import struct
-                    vec_blob = struct.pack(f'{len(embedding)}f', *embedding)
 
-                    await db.execute("""
+                    vec_blob = struct.pack(f"{len(embedding)}f", *embedding)
+
+                    await db.execute(
+                        """
                         INSERT OR REPLACE INTO vec_packs (rowid, embedding)
                         VALUES (?, ?)
-                    """, (rowid, vec_blob))
+                    """,
+                        (rowid, vec_blob),
+                    )
 
-                    await db.execute("""
+                    await db.execute(
+                        """
                         INSERT OR REPLACE INTO pack_vectors
                         (pack_id, vec_rowid, embedded_at)
                         VALUES (?, ?, ?)
-                    """, (pack_id, rowid, datetime.now().isoformat()))
+                    """,
+                        (pack_id, rowid, datetime.now().isoformat()),
+                    )
 
                 except Exception as e:
                     logger.warning("Pack vector insert failed", extra={"error": str(e)})
@@ -684,7 +746,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         limit: int = 10,
         min_score: float = 0.4,
         filter_type: Optional[str] = None,
-        filter_source: Optional[str] = None
+        filter_source: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search packs using vector similarity."""
         query_embedding = await self.embed_query(query)
@@ -695,9 +757,11 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             if query_embedding and SQLITE_VEC_AVAILABLE:
                 try:
                     import struct
-                    vec_blob = struct.pack(f'{len(query_embedding)}f', *query_embedding)
 
-                    cursor = await db.execute("""
+                    vec_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
+
+                    cursor = await db.execute(
+                        """
                         SELECT
                             vm.entity_id,
                             vm.content,
@@ -708,7 +772,9 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         WHERE vm.entity_type = 'pack'
                         ORDER BY distance
                         LIMIT ?
-                    """, (vec_blob, limit))
+                    """,
+                        (vec_blob, limit),
+                    )
 
                     rows = await cursor.fetchall()
 
@@ -723,12 +789,14 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         if filter_source and metadata.get("source") != filter_source:
                             continue
 
-                        results.append({
-                            "id": row[0],
-                            "content": row[1],
-                            "score": score,
-                            **metadata
-                        })
+                        results.append(
+                            {
+                                "id": row[0],
+                                "content": row[1],
+                                "score": score,
+                                **metadata,
+                            }
+                        )
 
                 except Exception as e:
                     logger.warning("Pack search failed", extra={"error": str(e)})
@@ -743,7 +811,7 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         entity_type: str = "finding",
         limit: int = 10,
         bm25_weight: float = 0.3,
-        vector_weight: float = 0.7
+        vector_weight: float = 0.7,
     ) -> List[Dict[str, Any]]:
         """
         Hybrid search combining BM25 (text) and vector similarity.
@@ -754,13 +822,16 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             results = {}
 
             # BM25 / text search
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 SELECT entity_id, content, metadata,
                        1.0 as text_score  -- Simple presence score
                 FROM vector_metadata
                 WHERE entity_type = ?
                 AND content LIKE ?
-            """, (entity_type, f"%{query}%"))
+            """,
+                (entity_type, f"%{query}%"),
+            )
 
             for row in await cursor.fetchall():
                 entity_id = row[0]
@@ -777,10 +848,12 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
             if query_embedding and SQLITE_VEC_AVAILABLE:
                 try:
                     import struct
-                    vec_blob = struct.pack(f'{len(query_embedding)}f', *query_embedding)
+
+                    vec_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
 
                     table_name = f"vec_{entity_type}s"
-                    cursor = await db.execute(f"""
+                    cursor = await db.execute(
+                        f"""
                         SELECT
                             vm.entity_id,
                             vm.content,
@@ -791,7 +864,9 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                         WHERE vm.entity_type = ?
                         ORDER BY score DESC
                         LIMIT ?
-                    """, (vec_blob, entity_type, limit * 2))
+                    """,
+                        (vec_blob, entity_type, limit * 2),
+                    )
 
                     for row in await cursor.fetchall():
                         entity_id = row[0]
@@ -807,23 +882,27 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                             }
 
                 except Exception as e:
-                    logger.warning("Hybrid vector search failed", extra={"error": str(e)})
+                    logger.warning(
+                        "Hybrid vector search failed", extra={"error": str(e)}
+                    )
 
             # Calculate combined scores
             final_results = []
             for entity_id, data in results.items():
                 combined_score = (
-                    bm25_weight * data["text_score"] +
-                    vector_weight * data["vector_score"]
+                    bm25_weight * data["text_score"]
+                    + vector_weight * data["vector_score"]
                 )
-                final_results.append({
-                    "id": entity_id,
-                    "content": data["content"],
-                    "score": combined_score,
-                    "text_score": data["text_score"],
-                    "vector_score": data["vector_score"],
-                    **data["metadata"]
-                })
+                final_results.append(
+                    {
+                        "id": entity_id,
+                        "content": data["content"],
+                        "score": combined_score,
+                        "text_score": data["text_score"],
+                        "vector_score": data["vector_score"],
+                        **data["metadata"],
+                    }
+                )
 
             # Sort by combined score
             final_results.sort(key=lambda x: x["score"], reverse=True)

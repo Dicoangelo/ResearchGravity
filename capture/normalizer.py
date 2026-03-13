@@ -27,38 +27,61 @@ _DOMAIN_KEYWORDS = {
 }
 
 _INTENT_SIGNALS = {
-    "search":   ["search", "find", "look", "where"],
-    "create":   ["create", "build", "write", "make", "generate"],
-    "analyze":  ["analyze", "review", "check", "explain", "why"],
+    "search": ["search", "find", "look", "where"],
+    "create": ["create", "build", "write", "make", "generate"],
+    "analyze": ["analyze", "review", "check", "explain", "why"],
     "retrieve": ["get", "read", "list", "show", "fetch"],
-    "execute":  ["call", "run", "execute", "invoke"],
-    "discuss":  ["think", "consider", "debate", "opinion", "should"],
-    "learn":    ["learn", "understand", "teach", "how does"],
+    "execute": ["call", "run", "execute", "invoke"],
+    "discuss": ["think", "consider", "debate", "opinion", "should"],
+    "learn": ["learn", "understand", "teach", "how does"],
 }
 
 _CONCEPT_TARGETS = [
-    "mcp", "ucw", "database", "schema", "coherence", "protocol",
-    "cognitive", "semantic", "embedding", "sovereign", "platform",
-    "research", "session", "capture", "agent", "orchestrat",
-    "career", "product", "architecture", "infrastructure",
+    "mcp",
+    "ucw",
+    "database",
+    "schema",
+    "coherence",
+    "protocol",
+    "cognitive",
+    "semantic",
+    "embedding",
+    "sovereign",
+    "platform",
+    "research",
+    "session",
+    "capture",
+    "agent",
+    "orchestrat",
+    "career",
+    "product",
+    "architecture",
+    "infrastructure",
 ]
 
 
 class BaseNormalizer:
     """Convert CapturedEvent to cognitive_events row dict with UCW layers."""
 
-    def to_cognitive_event(self, captured: CapturedEvent, session_topic: str = "") -> dict:
+    def to_cognitive_event(
+        self, captured: CapturedEvent, session_topic: str = ""
+    ) -> dict:
         """
         Produce a dict matching the cognitive_events schema.
         Ready for INSERT into PostgreSQL.
         """
         data, light, instinct = self.extract_ucw_layers(
-            captured.content, captured.role, captured.platform, session_topic,
+            captured.content,
+            captured.role,
+            captured.platform,
+            session_topic,
         )
 
         coherence_sig = self.make_coherence_sig(
-            light["intent"], light["topic"],
-            captured.timestamp_ns, captured.content,
+            light["intent"],
+            light["topic"],
+            captured.timestamp_ns,
+            captured.content,
         )
 
         direction = "in" if captured.role in ("user", "human") else "out"
@@ -101,7 +124,11 @@ class BaseNormalizer:
         return data, light, instinct
 
     def make_coherence_sig(
-        self, intent: str, topic: str, timestamp_ns: int, content: str,
+        self,
+        intent: str,
+        topic: str,
+        timestamp_ns: int,
+        content: str,
     ) -> str:
         """SHA-256 coherence signature for cross-platform matching (5-min buckets)."""
         bucket = timestamp_ns // (5 * 60 * 1_000_000_000)
@@ -135,7 +162,9 @@ class BaseNormalizer:
 
         if session_topic and topic == "general":
             # Use session title as fallback topic hint
-            topic_hint = _classify(session_topic.lower(), _DOMAIN_KEYWORDS, default="general")
+            topic_hint = _classify(
+                session_topic.lower(), _DOMAIN_KEYWORDS, default="general"
+            )
             if topic_hint != "general":
                 topic = topic_hint
 
@@ -171,8 +200,10 @@ class BaseNormalizer:
             "coherence_potential": round(cp, 3),
             "emergence_indicators": indicators,
             "gut_signal": (
-                "breakthrough_potential" if len(indicators) >= 2
-                else "interesting" if indicators
+                "breakthrough_potential"
+                if len(indicators) >= 2
+                else "interesting"
+                if indicators
                 else "routine"
             ),
         }
@@ -186,6 +217,7 @@ class BaseNormalizer:
 
 
 # ── shared helpers (match ucw_bridge.py) ────────────────────
+
 
 def _classify(text: str, mapping: Dict[str, List[str]], *, default: str) -> str:
     best, best_score = default, 0

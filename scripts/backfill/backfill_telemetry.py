@@ -23,8 +23,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any
 import argparse
+import sys
 
-import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
 from storage.engine import get_engine
 
 
@@ -65,10 +66,7 @@ async def backfill_outcomes(dry_run: bool = False) -> int:
     all_outcomes = read_jsonl(OUTCOMES_FILE)
 
     # Filter out outcomes without intent or title
-    outcomes = [
-        o for o in all_outcomes
-        if o.get("intent") or o.get("title")
-    ]
+    outcomes = [o for o in all_outcomes if o.get("intent") or o.get("title")]
 
     print(f"📊 Found {len(all_outcomes)} session outcomes ({len(outcomes)} valid)")
 
@@ -76,10 +74,12 @@ async def backfill_outcomes(dry_run: bool = False) -> int:
         return 0
 
     # Preview
-    print(f"\nSample outcome:")
+    print("\nSample outcome:")
     print(f"  Session: {outcomes[0].get('session_id', 'N/A')[:60]}...")
     print(f"  Intent: {outcomes[0].get('intent', 'N/A')[:60]}...")
-    print(f"  Outcome: {outcomes[0].get('outcome')} | Quality: {outcomes[0].get('quality')}")
+    print(
+        f"  Outcome: {outcomes[0].get('outcome')} | Quality: {outcomes[0].get('quality')}"
+    )
 
     if dry_run:
         return len(outcomes)
@@ -91,7 +91,7 @@ async def backfill_outcomes(dry_run: bool = False) -> int:
 
     print(f"Processing in batches of {batch_size}...")
     for i in range(0, len(outcomes), batch_size):
-        batch = outcomes[i:i + batch_size]
+        batch = outcomes[i : i + batch_size]
         batch_count = await engine.store_outcomes_batch(batch)
         count += batch_count
         print(f"  Processed {count}/{len(outcomes)}...")
@@ -144,13 +144,15 @@ async def backfill_cognitive_states(dry_run: bool = False) -> int:
                         "actual": record.get("actual"),
                         "success_probability": success_prob,
                         "partial_probability": record.get("partial_probability"),
-                        "abandon_probability": record.get("abandon_probability")
-                    }
+                        "abandon_probability": record.get("abandon_probability"),
+                    },
                 }
                 states.append(state)
 
     # 2. Load routing decisions
-    routing_file = HOME / ".claude" / "kernel" / "cognitive-os" / "routing-decisions.jsonl"
+    routing_file = (
+        HOME / ".claude" / "kernel" / "cognitive-os" / "routing-decisions.jsonl"
+    )
     if routing_file.exists():
         routing_records = read_jsonl(routing_file)
         print(f"📊 Found {len(routing_records)} routing decisions")
@@ -165,7 +167,7 @@ async def backfill_cognitive_states(dry_run: bool = False) -> int:
                     "peak": 0.8,
                     "dip": 0.5,
                     "evening": 0.7,
-                    "deep_night": 0.9
+                    "deep_night": 0.9,
                 }
                 energy = energy_map.get(mode, 0.5)
 
@@ -180,8 +182,8 @@ async def backfill_cognitive_states(dry_run: bool = False) -> int:
                     "predictions": {
                         "recommended_model": record.get("recommended_model"),
                         "dq_score": record.get("dq_score"),
-                        "task_complexity": record.get("task_complexity")
-                    }
+                        "task_complexity": record.get("task_complexity"),
+                    },
                 }
                 states.append(state)
 
@@ -212,7 +214,7 @@ async def backfill_cognitive_states(dry_run: bool = False) -> int:
                     "focused": 0.7,
                     "neutral": 0.5,
                     "distracted": 0.3,
-                    "struggling": 0.2
+                    "struggling": 0.2,
                 }
                 energy = energy_map.get(state_name, 0.5)
 
@@ -227,8 +229,8 @@ async def backfill_cognitive_states(dry_run: bool = False) -> int:
                     "predictions": {
                         "session_id": record.get("session_id"),
                         "messages": record.get("messages"),
-                        "tools": record.get("tools")
-                    }
+                        "tools": record.get("tools"),
+                    },
                 }
                 states.append(state)
 
@@ -238,8 +240,10 @@ async def backfill_cognitive_states(dry_run: bool = False) -> int:
         return 0
 
     # Preview
-    print(f"\nSample state:")
-    print(f"  Mode: {states[0].get('mode')} | Energy: {states[0].get('energy_level'):.2f}")
+    print("\nSample state:")
+    print(
+        f"  Mode: {states[0].get('mode')} | Energy: {states[0].get('energy_level'):.2f}"
+    )
     print(f"  Hour: {states[0].get('hour')} | Flow: {states[0].get('flow_score'):.2f}")
     print(f"  Timestamp: {states[0].get('timestamp')}")
 
@@ -253,7 +257,7 @@ async def backfill_cognitive_states(dry_run: bool = False) -> int:
 
     print(f"Processing in batches of {batch_size}...")
     for i in range(0, len(states), batch_size):
-        batch = states[i:i + batch_size]
+        batch = states[i : i + batch_size]
         batch_count = await engine.store_cognitive_states_batch(batch)
         count += batch_count
         print(f"  Processed {count}/{len(states)}...")
@@ -295,7 +299,7 @@ async def backfill_error_patterns(dry_run: bool = False) -> int:
             "context": record.get("details", "")[:500],
             "solution": action.replace("_", " ").title(),
             "success_rate": 1.0 if record.get("success") else 0.0,
-            "occurrences": 1
+            "occurrences": 1,
         }
         errors.append(error)
         seen_actions.add(action)
@@ -306,7 +310,7 @@ async def backfill_error_patterns(dry_run: bool = False) -> int:
         return 0
 
     # Preview
-    print(f"\nSample error:")
+    print("\nSample error:")
     print(f"  Type: {errors[0].get('error_type')}")
     print(f"  Solution: {errors[0].get('solution')[:60]}...")
     print(f"  Success rate: {errors[0].get('success_rate'):.0%}")
@@ -324,11 +328,21 @@ async def backfill_error_patterns(dry_run: bool = False) -> int:
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Backfill telemetry data for meta-learning")
-    parser.add_argument("--outcomes", action="store_true", help="Only backfill session outcomes")
-    parser.add_argument("--cognitive", action="store_true", help="Only backfill cognitive states")
-    parser.add_argument("--errors", action="store_true", help="Only backfill error patterns")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without storing")
+    parser = argparse.ArgumentParser(
+        description="Backfill telemetry data for meta-learning"
+    )
+    parser.add_argument(
+        "--outcomes", action="store_true", help="Only backfill session outcomes"
+    )
+    parser.add_argument(
+        "--cognitive", action="store_true", help="Only backfill cognitive states"
+    )
+    parser.add_argument(
+        "--errors", action="store_true", help="Only backfill error patterns"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without storing"
+    )
     args = parser.parse_args()
 
     # If no specific flag, do all
@@ -355,8 +369,12 @@ async def main():
     else:
         print(f"✅ Backfill complete: {total} records stored")
         print("\nNext steps:")
-        print("  1. Test search: python3 -c \"import asyncio; from storage.engine import get_engine; asyncio.run((lambda: asyncio.run(get_engine()))().search_outcomes('implement feature'))\"")
-        print("  2. Run predictions: python3 predict_session.py 'implement authentication'")
+        print(
+            "  1. Test search: python3 -c \"import asyncio; from storage.engine import get_engine; asyncio.run((lambda: asyncio.run(get_engine()))().search_outcomes('implement feature'))\""
+        )
+        print(
+            "  2. Run predictions: python3 predict_session.py 'implement authentication'"
+        )
     print("=" * 60)
 
 

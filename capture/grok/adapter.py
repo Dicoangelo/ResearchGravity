@@ -54,6 +54,7 @@ class GrokAdapter(PlatformAdapter):
         # Validate API key with a lightweight check
         try:
             import aiohttp
+
             self._http_session = aiohttp.ClientSession(
                 headers={
                     "Authorization": f"Bearer {self._api_key}",
@@ -64,7 +65,9 @@ class GrokAdapter(PlatformAdapter):
             log.info("Grok adapter initialized with API key")
             return True
         except ImportError:
-            log.warning("aiohttp not installed — Grok adapter requires it (pip install aiohttp)")
+            log.warning(
+                "aiohttp not installed — Grok adapter requires it (pip install aiohttp)"
+            )
             self._error = "aiohttp not installed"
             return False
 
@@ -139,7 +142,9 @@ class GrokAdapter(PlatformAdapter):
                 return events
 
             data = json.loads(export_path.read_text())
-            conversations = data if isinstance(data, list) else data.get("conversations", [])
+            conversations = (
+                data if isinstance(data, list) else data.get("conversations", [])
+            )
 
             for conv in conversations:
                 conv_id = conv.get("id", conv.get("conversation_id", ""))
@@ -163,21 +168,26 @@ class GrokAdapter(PlatformAdapter):
                     if isinstance(ts, str):
                         try:
                             from datetime import datetime
-                            ts = datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+
+                            ts = datetime.fromisoformat(
+                                ts.replace("Z", "+00:00")
+                            ).timestamp()
                         except Exception:
                             ts = time.time()
 
-                    events.append(CapturedEvent(
-                        platform="grok",
-                        session_id=f"grok-{conv_id}",
-                        content=content.strip(),
-                        role="user" if role == "user" else "assistant",
-                        timestamp=ts,
-                        metadata={
-                            "conversation_id": conv_id,
-                            "model": conv.get("model", "grok"),
-                        },
-                    ))
+                    events.append(
+                        CapturedEvent(
+                            platform="grok",
+                            session_id=f"grok-{conv_id}",
+                            content=content.strip(),
+                            role="user" if role == "user" else "assistant",
+                            timestamp=ts,
+                            metadata={
+                                "conversation_id": conv_id,
+                                "model": conv.get("model", "grok"),
+                            },
+                        )
+                    )
 
                 self._watermark.seen_conversations.add(conv_id)
 
@@ -197,6 +207,7 @@ class GrokAdapter(PlatformAdapter):
 
 # ── watermark ────────────────────────────────────────────────
 
+
 class _Watermark:
     """Track Grok polling state."""
 
@@ -211,16 +222,23 @@ class _Watermark:
                 data = json.loads(self.path.read_text())
                 self.last_poll_time = data.get("last_poll_time", 0)
                 self.seen_conversations = set(data.get("seen_conversations", []))
-                log.info(f"Watermark loaded: {len(self.seen_conversations)} conversations tracked")
+                log.info(
+                    f"Watermark loaded: {len(self.seen_conversations)} conversations tracked"
+                )
             except Exception as exc:
                 log.warning(f"Watermark load failed: {exc}")
 
     def save(self) -> None:
         try:
-            self.path.write_text(json.dumps({
-                "last_poll_time": self.last_poll_time,
-                "seen_conversations": list(self.seen_conversations),
-                "updated_at": time.time(),
-            }, indent=2))
+            self.path.write_text(
+                json.dumps(
+                    {
+                        "last_poll_time": self.last_poll_time,
+                        "seen_conversations": list(self.seen_conversations),
+                        "updated_at": time.time(),
+                    },
+                    indent=2,
+                )
+            )
         except Exception as exc:
             log.error(f"Watermark save failed: {exc}")

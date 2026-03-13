@@ -69,9 +69,7 @@ async def coherence_overview():
             GROUP BY platform ORDER BY total DESC
         """)
 
-        moments_total = await conn.fetchval(
-            "SELECT COUNT(*) FROM coherence_moments"
-        )
+        moments_total = await conn.fetchval("SELECT COUNT(*) FROM coherence_moments")
         moments_24h = await conn.fetchval(
             "SELECT COUNT(*) FROM coherence_moments "
             "WHERE created_at > NOW() - INTERVAL '24 hours'"
@@ -94,9 +92,7 @@ async def coherence_overview():
             FROM coherence_moments
         """)
 
-        embedded_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM embedding_cache"
-        )
+        embedded_count = await conn.fetchval("SELECT COUNT(*) FROM embedding_cache")
 
     return {
         "platforms": [
@@ -181,7 +177,9 @@ async def coherence_moments(
                 "signals": _extract_signals(r),
                 "insight_summary": r.get("insight_summary"),
                 "insight_category": r.get("insight_category"),
-                "insight_novelty": float(r["insight_novelty"]) if r.get("insight_novelty") else None,
+                "insight_novelty": float(r["insight_novelty"])
+                if r.get("insight_novelty")
+                else None,
                 "created_at": _dt_to_iso(r["created_at"]),
             }
             for r in rows
@@ -360,6 +358,7 @@ async def moment_signals(moment_id: str):
 
     if not row:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Moment not found")
 
     return {
@@ -396,11 +395,13 @@ async def moment_insight(moment_id: str):
 
     if not row:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Moment not found")
 
     # If insight doesn't exist yet, extract on-demand
     if not row["insight_summary"]:
         from coherence_engine.insight_extractor import extract_insight_for_moment
+
         result = await extract_insight_for_moment(pool, moment_id)
         if result:
             return {
@@ -418,7 +419,9 @@ async def moment_insight(moment_id: str):
         "moment_id": row["moment_id"],
         "insight_summary": row["insight_summary"],
         "insight_category": row["insight_category"],
-        "insight_novelty": float(row["insight_novelty"]) if row["insight_novelty"] else None,
+        "insight_novelty": float(row["insight_novelty"])
+        if row["insight_novelty"]
+        else None,
         "coherence_type": row["coherence_type"],
         "confidence": float(row["confidence"]),
         "platforms": row["platforms"],
@@ -462,7 +465,9 @@ async def list_insights(
                 "confidence": float(r["confidence"]),
                 "insight_summary": r["insight_summary"],
                 "insight_category": r["insight_category"],
-                "insight_novelty": float(r["insight_novelty"]) if r["insight_novelty"] else None,
+                "insight_novelty": float(r["insight_novelty"])
+                if r["insight_novelty"]
+                else None,
                 "created_at": _dt_to_iso(r["created_at"]),
             }
             for r in rows
@@ -479,6 +484,7 @@ from pydantic import BaseModel
 
 class ExtensionEvent(BaseModel):
     """Event captured by the UCW Chrome extension."""
+
     platform: str
     content: str
     direction: str = "in"  # "in" (assistant) or "out" (user)
@@ -518,23 +524,27 @@ def _build_extension_event(event: ExtensionEvent):
         0.3 + (content_len / 5000) * 0.3 + (0.2 if has_concepts else 0), 0.9
     )
 
-    data_layer = json.dumps(
-        {"content": content_trimmed, "source_url": event.url}
+    data_layer = json.dumps({"content": content_trimmed, "source_url": event.url})
+    light_layer = json.dumps(
+        {
+            "topic": event.topic or "",
+            "intent": event.intent or "",
+            "concepts": event.concepts or [],
+            "summary": content_trimmed[:200],
+        }
     )
-    light_layer = json.dumps({
-        "topic": event.topic or "",
-        "intent": event.intent or "",
-        "concepts": event.concepts or [],
-        "summary": content_trimmed[:200],
-    })
-    instinct_layer = json.dumps({
-        "coherence_potential": round(coherence_potential, 2),
-        "gut_signal": "extension_capture",
-    })
+    instinct_layer = json.dumps(
+        {
+            "coherence_potential": round(coherence_potential, 2),
+            "gut_signal": "extension_capture",
+        }
+    )
 
     # Quality score + cognitive mode classification
     quality_score, cognitive_mode = score_event(
-        content_trimmed, event.direction, event.platform,
+        content_trimmed,
+        event.direction,
+        event.platform,
     )
 
     return {
@@ -580,7 +590,9 @@ async def _store_extension_event(conn, fields: dict) -> dict:
            ON CONFLICT (session_id) DO UPDATE SET
                event_count = cognitive_sessions.event_count + 1,
                last_event_ns = $3""",
-        fields["session_id"], fields["platform"], fields["now_ns"],
+        fields["session_id"],
+        fields["platform"],
+        fields["now_ns"],
     )
 
     # Insert event with ON CONFLICT for dedup
@@ -593,11 +605,17 @@ async def _store_extension_event(conn, fields: dict) -> dict:
            VALUES ($1, $2, $3, $4, $5, 'extension',
                    $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11)
            ON CONFLICT (event_id) DO NOTHING""",
-        fields["event_id"], fields["session_id"], fields["now_ns"],
-        fields["platform"], fields["direction"],
-        fields["data_layer"], fields["light_layer"],
-        fields["instinct_layer"], fields["coherence_sig"],
-        fields["quality_score"], fields["cognitive_mode"],
+        fields["event_id"],
+        fields["session_id"],
+        fields["now_ns"],
+        fields["platform"],
+        fields["direction"],
+        fields["data_layer"],
+        fields["light_layer"],
+        fields["instinct_layer"],
+        fields["coherence_sig"],
+        fields["quality_score"],
+        fields["cognitive_mode"],
     )
 
     inserted = result != "INSERT 0 0"
@@ -617,6 +635,7 @@ async def _trigger_embedding(pool, fields: dict):
     """Fire-and-forget embedding for a captured extension event."""
     try:
         from coherence_engine.embeddings import embed_event_row
+
         event_row = {
             "event_id": fields["event_id"],
             "data_layer": json.loads(fields["data_layer"]),
@@ -790,7 +809,8 @@ async def concept_evolution(
                    HAVING COUNT(*) >= $1
                    ORDER BY version_count DESC
                    LIMIT $2""",
-                min_versions, limit,
+                min_versions,
+                limit,
             )
             return {
                 "evolving_concepts": [
@@ -836,7 +856,9 @@ async def list_breakthroughs(
                 "evidence_moment_ids": r["evidence_moment_ids"],
                 "platforms": r["platforms"],
                 "concepts": r["concepts"],
-                "novelty_score": float(r["novelty_score"]) if r["novelty_score"] else None,
+                "novelty_score": float(r["novelty_score"])
+                if r["novelty_score"]
+                else None,
                 "impact_score": float(r["impact_score"]) if r["impact_score"] else None,
             }
             for r in rows

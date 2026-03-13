@@ -42,6 +42,7 @@ MAX_DELAY = 16.0
 # Data types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ConversationTurn:
     query: str
@@ -85,6 +86,7 @@ class ShareStatus:
 # Errors
 # ---------------------------------------------------------------------------
 
+
 class NotebookLMError(Exception):
     pass
 
@@ -100,6 +102,7 @@ class ArtifactError(NotebookLMError):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _parse_timestamp(ts_array: list | None) -> str | None:
     if not ts_array or not isinstance(ts_array, list) or len(ts_array) < 1:
@@ -132,6 +135,7 @@ def _extract_cookies_from_string(cookie_str: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Main client
 # ---------------------------------------------------------------------------
+
 
 class NotebookLMAPIClient:
     """Full HTTP/RPC client for NotebookLM internal API.
@@ -219,7 +223,9 @@ class NotebookLMAPIClient:
         # Normalize cookies
         if isinstance(cookies, str):
             if cookies:
-                self.cookies: dict[str, str] | list[dict] = _extract_cookies_from_string(cookies)
+                self.cookies: dict[str, str] | list[dict] = (
+                    _extract_cookies_from_string(cookies)
+                )
             else:
                 self.cookies = {}
         else:
@@ -268,7 +274,11 @@ class NotebookLMAPIClient:
 
     def _get_cookie_header(self) -> str:
         if isinstance(self.cookies, list):
-            pairs = {c["name"]: c["value"] for c in self.cookies if "name" in c and "value" in c}
+            pairs = {
+                c["name"]: c["value"]
+                for c in self.cookies
+                if "name" in c and "value" in c
+            }
             return "; ".join(f"{k}={v}" for k, v in pairs.items())
         return "; ".join(f"{k}={v}" for k, v in self.cookies.items())
 
@@ -306,7 +316,9 @@ class NotebookLMAPIClient:
         params = {
             "rpcids": rpc_id,
             "source-path": source_path,
-            "bl": os.environ.get("NOTEBOOKLM_BL", "boq_labs-tailwind-frontend_20260108.06_p0"),
+            "bl": os.environ.get(
+                "NOTEBOOKLM_BL", "boq_labs-tailwind-frontend_20260108.06_p0"
+            ),
             "hl": "en",
             "rt": "c",
         }
@@ -354,7 +366,9 @@ class NotebookLMAPIClient:
                                 and isinstance(item[5], list)
                                 and 16 in item[5]
                             ):
-                                raise AuthenticationError("RPC Error 16: Authentication expired")
+                                raise AuthenticationError(
+                                    "RPC Error 16: Authentication expired"
+                                )
                             result_str = item[2]
                             if isinstance(result_str, str):
                                 try:
@@ -390,12 +404,14 @@ class NotebookLMAPIClient:
         except httpx.HTTPStatusError as e:
             # Retry transient server errors
             if _is_retryable(e) and _server_retry < MAX_RETRIES:
-                delay = min(BASE_DELAY * (2 ** _server_retry), MAX_DELAY)
+                delay = min(BASE_DELAY * (2**_server_retry), MAX_DELAY)
                 logger.warning(
                     f"Server error {e.response.status_code}, retry {_server_retry + 1}/{MAX_RETRIES} in {delay:.1f}s"
                 )
                 time.sleep(delay)
-                return self._call_rpc(rpc_id, params, path, timeout, _retry, _server_retry + 1)
+                return self._call_rpc(
+                    rpc_id, params, path, timeout, _retry, _server_retry + 1
+                )
 
             if e.response.status_code not in (401, 403):
                 raise
@@ -425,7 +441,10 @@ class NotebookLMAPIClient:
         """Fetch NotebookLM homepage to extract CSRF token (SNlM0e) and session ID (FdrFJe)."""
         cookies = self._get_httpx_cookies()
         with httpx.Client(
-            cookies=cookies, headers=self._PAGE_FETCH_HEADERS, follow_redirects=True, timeout=15.0
+            cookies=cookies,
+            headers=self._PAGE_FETCH_HEADERS,
+            follow_redirects=True,
+            timeout=15.0,
         ) as client:
             response = client.get(f"{self.BASE_URL}/")
 
@@ -433,7 +452,9 @@ class NotebookLMAPIClient:
                 raise ValueError("Authentication expired — redirected to Google login.")
 
             if response.status_code != 200:
-                raise ValueError(f"Failed to fetch NotebookLM page: HTTP {response.status_code}")
+                raise ValueError(
+                    f"Failed to fetch NotebookLM page: HTTP {response.status_code}"
+                )
 
             html = response.text
             csrf_match = re.search(r'"SNlM0e":"([^"]+)"', html)
@@ -499,48 +520,79 @@ class NotebookLMAPIClient:
                 sources = []
                 for src in sources_data:
                     if isinstance(src, list) and len(src) >= 2:
-                        sid = src[0][0] if isinstance(src[0], list) and src[0] else src[0]
-                        sources.append({"id": sid, "title": src[1] if len(src) > 1 else "Untitled"})
+                        sid = (
+                            src[0][0] if isinstance(src[0], list) and src[0] else src[0]
+                        )
+                        sources.append(
+                            {"id": sid, "title": src[1] if len(src) > 1 else "Untitled"}
+                        )
 
-                notebooks.append(Notebook(
-                    id=notebook_id, title=title, source_count=len(sources),
-                    sources=sources, is_owned=is_owned, is_shared=is_shared,
-                    created_at=created_at, modified_at=modified_at,
-                ))
+                notebooks.append(
+                    Notebook(
+                        id=notebook_id,
+                        title=title,
+                        source_count=len(sources),
+                        sources=sources,
+                        is_owned=is_owned,
+                        is_shared=is_shared,
+                        created_at=created_at,
+                        modified_at=modified_at,
+                    )
+                )
         return notebooks
 
     def get_notebook(self, notebook_id: str) -> dict | None:
         return self._call_rpc(
-            self.RPC_GET_NOTEBOOK, [notebook_id, None, [2], None, 0],
+            self.RPC_GET_NOTEBOOK,
+            [notebook_id, None, [2], None, 0],
             f"/notebook/{notebook_id}",
         )
 
     def get_notebook_summary(self, notebook_id: str) -> dict[str, Any]:
-        result = self._call_rpc(self.RPC_GET_SUMMARY, [notebook_id, [2]], f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_GET_SUMMARY, [notebook_id, [2]], f"/notebook/{notebook_id}"
+        )
         summary = ""
         topics = []
         if result and isinstance(result, list):
             if len(result) > 0 and isinstance(result[0], list) and len(result[0]) > 0:
                 summary = result[0][0]
             if len(result) > 1 and result[1]:
-                td = result[1][0] if isinstance(result[1], list) and len(result[1]) > 0 else []
+                td = (
+                    result[1][0]
+                    if isinstance(result[1], list) and len(result[1]) > 0
+                    else []
+                )
                 for t in td:
                     if isinstance(t, list) and len(t) >= 2:
                         topics.append({"question": t[0], "prompt": t[1]})
         return {"summary": summary, "suggested_topics": topics}
 
     def create_notebook(self, title: str = "") -> Notebook | None:
-        params = [title, None, None, [2], [1, None, None, None, None, None, None, None, None, None, [1]]]
+        params = [
+            title,
+            None,
+            None,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
         result = self._call_rpc(self.RPC_CREATE_NOTEBOOK, params)
         if result and isinstance(result, list) and len(result) >= 3:
             nid = result[2]
             if nid:
-                return Notebook(id=nid, title=title or "Untitled notebook", source_count=0, sources=[])
+                return Notebook(
+                    id=nid,
+                    title=title or "Untitled notebook",
+                    source_count=0,
+                    sources=[],
+                )
         return None
 
     def rename_notebook(self, notebook_id: str, new_title: str) -> bool:
         params = [notebook_id, [[None, None, None, [None, new_title]]]]
-        result = self._call_rpc(self.RPC_RENAME_NOTEBOOK, params, f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_RENAME_NOTEBOOK, params, f"/notebook/{notebook_id}"
+        )
         return result is not None
 
     def configure_chat(
@@ -555,17 +607,33 @@ class NotebookLMAPIClient:
             if not custom_prompt:
                 raise ValueError("custom_prompt required when goal='custom'")
             if len(custom_prompt) > 10000:
-                raise ValueError(f"custom_prompt exceeds 10000 chars ({len(custom_prompt)})")
+                raise ValueError(
+                    f"custom_prompt exceeds 10000 chars ({len(custom_prompt)})"
+                )
         length_code = constants.CHAT_RESPONSE_LENGTHS.get_code(response_length)
-        goal_setting = [goal_code, custom_prompt] if goal == "custom" and custom_prompt else [goal_code]
+        goal_setting = (
+            [goal_code, custom_prompt]
+            if goal == "custom" and custom_prompt
+            else [goal_code]
+        )
         chat_settings = [goal_setting, [length_code]]
-        params = [notebook_id, [[None, None, None, None, None, None, None, chat_settings]]]
-        result = self._call_rpc(self.RPC_RENAME_NOTEBOOK, params, f"/notebook/{notebook_id}")
+        params = [
+            notebook_id,
+            [[None, None, None, None, None, None, None, chat_settings]],
+        ]
+        result = self._call_rpc(
+            self.RPC_RENAME_NOTEBOOK, params, f"/notebook/{notebook_id}"
+        )
         if result:
             settings = result[7] if len(result) > 7 else None
-            return {"status": "success", "notebook_id": notebook_id, "goal": goal,
-                    "custom_prompt": custom_prompt if goal == "custom" else None,
-                    "response_length": response_length, "raw_settings": settings}
+            return {
+                "status": "success",
+                "notebook_id": notebook_id,
+                "goal": goal,
+                "custom_prompt": custom_prompt if goal == "custom" else None,
+                "response_length": response_length,
+                "raw_settings": settings,
+            }
         return {"status": "error", "error": "Failed to configure chat settings"}
 
     def delete_notebook(self, notebook_id: str) -> bool:
@@ -586,7 +654,9 @@ class NotebookLMAPIClient:
         sources = []
         if result and isinstance(result, list) and len(result) >= 1:
             nb_data = result[0] if isinstance(result[0], list) else result
-            src_data = nb_data[1] if len(nb_data) > 1 and isinstance(nb_data[1], list) else []
+            src_data = (
+                nb_data[1] if len(nb_data) > 1 and isinstance(nb_data[1], list) else []
+            )
             for src in src_data:
                 if not isinstance(src, list) or len(src) < 3:
                     continue
@@ -594,76 +664,176 @@ class NotebookLMAPIClient:
                 title = src[1] if len(src) > 1 else "Untitled"
                 meta = src[2] if len(src) > 2 and isinstance(src[2], list) else []
                 stype = meta[4] if len(meta) > 4 else None
-                drive_id = meta[0][0] if len(meta) > 0 and isinstance(meta[0], list) and meta[0] else None
+                drive_id = (
+                    meta[0][0]
+                    if len(meta) > 0 and isinstance(meta[0], list) and meta[0]
+                    else None
+                )
                 can_sync = drive_id is not None and stype in (
-                    constants.SOURCE_TYPE_GOOGLE_DOCS, constants.SOURCE_TYPE_GOOGLE_OTHER)
+                    constants.SOURCE_TYPE_GOOGLE_DOCS,
+                    constants.SOURCE_TYPE_GOOGLE_OTHER,
+                )
                 url = None
                 if len(meta) > 7 and isinstance(meta[7], list) and len(meta[7]) > 0:
                     url = meta[7][0]
                 status = self.SOURCE_STATUS_READY
                 if len(src) > 3 and isinstance(src[3], list) and len(src[3]) > 1:
                     status = src[3][1] if isinstance(src[3][1], int) else status
-                sources.append({
-                    "id": sid, "title": title, "source_type": stype,
-                    "source_type_name": constants.SOURCE_TYPES.get_name(stype),
-                    "url": url, "drive_doc_id": drive_id, "can_sync": can_sync, "status": status,
-                })
+                sources.append(
+                    {
+                        "id": sid,
+                        "title": title,
+                        "source_type": stype,
+                        "source_type_name": constants.SOURCE_TYPES.get_name(stype),
+                        "url": url,
+                        "drive_doc_id": drive_id,
+                        "can_sync": can_sync,
+                        "status": status,
+                    }
+                )
         return sources
 
-    def add_url_source(self, notebook_id: str, url: str, wait: bool = False, wait_timeout: float = 120.0) -> dict | None:
+    def add_url_source(
+        self,
+        notebook_id: str,
+        url: str,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> dict | None:
         is_yt = "youtube.com" in url.lower() or "youtu.be" in url.lower()
         if is_yt:
             sd = [None, None, None, None, None, None, None, [url], None, None, 1]
         else:
             sd = [None, None, [url], None, None, None, None, None, None, None, 1]
-        params = [[sd], notebook_id, [2], [1, None, None, None, None, None, None, None, None, None, [1]]]
-        result = self._call_rpc(self.RPC_ADD_SOURCE, params, f"/notebook/{notebook_id}", timeout=SOURCE_ADD_TIMEOUT)
+        params = [
+            [sd],
+            notebook_id,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
+        result = self._call_rpc(
+            self.RPC_ADD_SOURCE,
+            params,
+            f"/notebook/{notebook_id}",
+            timeout=SOURCE_ADD_TIMEOUT,
+        )
         sr = self._parse_source_add_result(result)
         if sr and wait:
             return self.wait_for_source_ready(notebook_id, sr["id"], wait_timeout)
         return sr
 
-    def add_text_source(self, notebook_id: str, text: str, title: str = "Pasted Text",
-                        wait: bool = False, wait_timeout: float = 120.0) -> dict | None:
+    def add_text_source(
+        self,
+        notebook_id: str,
+        text: str,
+        title: str = "Pasted Text",
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> dict | None:
         sd = [None, [title, text], None, 2, None, None, None, None, None, None, 1]
-        params = [[sd], notebook_id, [2], [1, None, None, None, None, None, None, None, None, None, [1]]]
-        result = self._call_rpc(self.RPC_ADD_SOURCE, params, f"/notebook/{notebook_id}", timeout=SOURCE_ADD_TIMEOUT)
+        params = [
+            [sd],
+            notebook_id,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
+        result = self._call_rpc(
+            self.RPC_ADD_SOURCE,
+            params,
+            f"/notebook/{notebook_id}",
+            timeout=SOURCE_ADD_TIMEOUT,
+        )
         sr = self._parse_source_add_result(result)
         if sr and wait:
             return self.wait_for_source_ready(notebook_id, sr["id"], wait_timeout)
         return sr
 
-    def add_drive_source(self, notebook_id: str, document_id: str, title: str,
-                         mime_type: str = "application/vnd.google-apps.document",
-                         wait: bool = False, wait_timeout: float = 120.0) -> dict | None:
-        sd = [[document_id, mime_type, 1, title], None, None, None, None, None, None, None, None, None, 1]
-        params = [[sd], notebook_id, [2], [1, None, None, None, None, None, None, None, None, None, [1]]]
-        result = self._call_rpc(self.RPC_ADD_SOURCE, params, f"/notebook/{notebook_id}", timeout=SOURCE_ADD_TIMEOUT)
+    def add_drive_source(
+        self,
+        notebook_id: str,
+        document_id: str,
+        title: str,
+        mime_type: str = "application/vnd.google-apps.document",
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> dict | None:
+        sd = [
+            [document_id, mime_type, 1, title],
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            1,
+        ]
+        params = [
+            [sd],
+            notebook_id,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
+        result = self._call_rpc(
+            self.RPC_ADD_SOURCE,
+            params,
+            f"/notebook/{notebook_id}",
+            timeout=SOURCE_ADD_TIMEOUT,
+        )
         sr = self._parse_source_add_result(result)
         if sr and wait:
             return self.wait_for_source_ready(notebook_id, sr["id"], wait_timeout)
         return sr
 
-    def add_file(self, notebook_id: str, file_path: str | Path, wait: bool = False,
-                 wait_timeout: float = 120.0) -> dict:
+    def add_file(
+        self,
+        notebook_id: str,
+        file_path: str | Path,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> dict:
         fp = Path(file_path)
         if not fp.exists() or not fp.is_file():
             raise ValueError(f"File not found or not a regular file: {fp}")
         if fp.stat().st_size == 0:
             raise ValueError(f"File is empty: {fp}")
-        supported = {'.pdf', '.txt', '.md', '.docx', '.csv', '.mp3', '.mp4', '.jpg', '.jpeg', '.png'}
+        supported = {
+            ".pdf",
+            ".txt",
+            ".md",
+            ".docx",
+            ".csv",
+            ".mp3",
+            ".mp4",
+            ".jpg",
+            ".jpeg",
+            ".png",
+        }
         if fp.suffix.lower() not in supported:
-            raise ValueError(f"Unsupported file type: {fp.suffix}. Supported: {', '.join(sorted(supported))}")
+            raise ValueError(
+                f"Unsupported file type: {fp.suffix}. Supported: {', '.join(sorted(supported))}"
+            )
 
         # Step 1: Register
-        params = [[[fp.name]], notebook_id, [2], [1, None, None, None, None, None, None, None, None, None, [1]]]
-        result = self._call_rpc(self.RPC_ADD_SOURCE_FILE, params, f"/notebook/{notebook_id}", timeout=60.0)
+        params = [
+            [[fp.name]],
+            notebook_id,
+            [2],
+            [1, None, None, None, None, None, None, None, None, None, [1]],
+        ]
+        result = self._call_rpc(
+            self.RPC_ADD_SOURCE_FILE, params, f"/notebook/{notebook_id}", timeout=60.0
+        )
         source_id = self._extract_nested_id(result)
         if not source_id:
             raise RuntimeError("Failed to register file source")
 
         # Step 2: Start resumable upload
-        upload_url = self._start_resumable_upload(notebook_id, fp.name, fp.stat().st_size, source_id)
+        upload_url = self._start_resumable_upload(
+            notebook_id, fp.name, fp.stat().st_size, source_id
+        )
 
         # Step 3: Upload content
         self._upload_file_streaming(upload_url, fp)
@@ -699,7 +869,12 @@ class NotebookLMAPIClient:
         result = self._call_rpc(self.RPC_GET_SOURCE_GUIDE, [[[[source_id]]]], "/")
         summary, keywords = "", []
         if result and isinstance(result, list):
-            if len(result) > 0 and isinstance(result[0], list) and len(result[0]) > 0 and isinstance(result[0][0], list):
+            if (
+                len(result) > 0
+                and isinstance(result[0], list)
+                and len(result[0]) > 0
+                and isinstance(result[0][0], list)
+            ):
                 inner = result[0][0]
                 if len(inner) > 1 and isinstance(inner[1], list) and len(inner[1]) > 0:
                     summary = inner[1][0]
@@ -722,16 +897,32 @@ class NotebookLMAPIClient:
                         source_type = constants.SOURCE_TYPES.get_name(meta[4])
                     if len(meta) > 7 and isinstance(meta[7], list) and len(meta[7]) > 0:
                         url = meta[7][0]
-            if len(result) > 3 and isinstance(result[3], list) and len(result[3]) > 0 and isinstance(result[3][0], list):
+            if (
+                len(result) > 3
+                and isinstance(result[3], list)
+                and len(result[3]) > 0
+                and isinstance(result[3][0], list)
+            ):
                 parts = []
                 for block in result[3][0]:
                     if isinstance(block, list):
                         parts.extend(self._extract_all_text(block))
                 content = "\n\n".join(parts)
-        return {"content": content, "title": title, "source_type": source_type, "url": url, "char_count": len(content)}
+        return {
+            "content": content,
+            "title": title,
+            "source_type": source_type,
+            "url": url,
+            "char_count": len(content),
+        }
 
-    def wait_for_source_ready(self, notebook_id: str, source_id: str,
-                              timeout: float = 120.0, poll_interval: float = 3.0) -> dict:
+    def wait_for_source_ready(
+        self,
+        notebook_id: str,
+        source_id: str,
+        timeout: float = 120.0,
+        poll_interval: float = 3.0,
+    ) -> dict:
         start = time.time()
         while time.time() - start < timeout:
             sources = self.get_notebook_sources_with_types(notebook_id)
@@ -749,8 +940,14 @@ class NotebookLMAPIClient:
     # Conversation / Query
     # =====================================================================
 
-    def query(self, notebook_id: str, query_text: str, source_ids: list[str] | None = None,
-              conversation_id: str | None = None, timeout: float = QUERY_TIMEOUT) -> dict | None:
+    def query(
+        self,
+        notebook_id: str,
+        query_text: str,
+        source_ids: list[str] | None = None,
+        conversation_id: str | None = None,
+        timeout: float = QUERY_TIMEOUT,
+    ) -> dict | None:
         client = self._get_client()
         if source_ids is None:
             nb_data = self.get_notebook(notebook_id)
@@ -774,12 +971,18 @@ class NotebookLMAPIClient:
 
         self._reqid_counter += 100000
         url_params = {
-            "bl": os.environ.get("NOTEBOOKLM_BL", "boq_labs-tailwind-frontend_20260108.06_p0"),
-            "hl": "en", "_reqid": str(self._reqid_counter), "rt": "c",
+            "bl": os.environ.get(
+                "NOTEBOOKLM_BL", "boq_labs-tailwind-frontend_20260108.06_p0"
+            ),
+            "hl": "en",
+            "_reqid": str(self._reqid_counter),
+            "rt": "c",
         }
         if self._session_id:
             url_params["f.sid"] = self._session_id
-        url = f"{self.BASE_URL}{self.QUERY_ENDPOINT}?{urllib.parse.urlencode(url_params)}"
+        url = (
+            f"{self.BASE_URL}{self.QUERY_ENDPOINT}?{urllib.parse.urlencode(url_params)}"
+        )
 
         response = client.post(url, content=body, timeout=timeout)
         response.raise_for_status()
@@ -788,8 +991,10 @@ class NotebookLMAPIClient:
             self._cache_turn(conversation_id, query_text, answer)
         turns = self._conversation_cache.get(conversation_id, [])
         return {
-            "answer": answer, "conversation_id": conversation_id,
-            "turn_number": len(turns), "is_follow_up": not is_new,
+            "answer": answer,
+            "conversation_id": conversation_id,
+            "turn_number": len(turns),
+            "is_follow_up": not is_new,
         }
 
     def clear_conversation(self, conversation_id: str) -> bool:
@@ -804,157 +1009,302 @@ class NotebookLMAPIClient:
 
     def _get_all_source_ids(self, notebook_id: str) -> list[str]:
         try:
-            return [s["id"] for s in self.get_notebook_sources_with_types(notebook_id) if s.get("id")]
+            return [
+                s["id"]
+                for s in self.get_notebook_sources_with_types(notebook_id)
+                if s.get("id")
+            ]
         except Exception:
             return []
 
-    def create_audio_overview(self, notebook_id: str, source_ids: list[str] | None = None,
-                              format_code: int = 1, length_code: int = 2,
-                              language: str = "en", focus_prompt: str = "") -> dict | None:
+    def create_audio_overview(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        format_code: int = 1,
+        length_code: int = 2,
+        language: str = "en",
+        focus_prompt: str = "",
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
         ss = [[sid] for sid in source_ids]
-        opts = [None, [focus_prompt, length_code, None, ss, language, None, format_code]]
-        params = [[2], notebook_id, [None, None, constants.STUDIO_TYPE_AUDIO, sn, None, None, opts]]
+        opts = [
+            None,
+            [focus_prompt, length_code, None, ss, language, None, format_code],
+        ]
+        params = [
+            [2],
+            notebook_id,
+            [None, None, constants.STUDIO_TYPE_AUDIO, sn, None, None, opts],
+        ]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "audio",
+            notebook_id,
+            "audio",
         )
 
-    def create_video_overview(self, notebook_id: str, source_ids: list[str] | None = None,
-                              format_code: int = 1, visual_style_code: int = 1,
-                              language: str = "en", focus_prompt: str = "") -> dict | None:
+    def create_video_overview(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        format_code: int = 1,
+        visual_style_code: int = 1,
+        language: str = "en",
+        focus_prompt: str = "",
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
         ss = [[sid] for sid in source_ids]
-        opts = [None, None, [ss, language, focus_prompt, None, format_code, visual_style_code]]
-        params = [[2], notebook_id, [None, None, constants.STUDIO_TYPE_VIDEO, sn, None, None, None, None, opts]]
+        opts = [
+            None,
+            None,
+            [ss, language, focus_prompt, None, format_code, visual_style_code],
+        ]
+        params = [
+            [2],
+            notebook_id,
+            [None, None, constants.STUDIO_TYPE_VIDEO, sn, None, None, None, None, opts],
+        ]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "video",
+            notebook_id,
+            "video",
         )
 
-    def create_report(self, notebook_id: str, source_ids: list[str] | None = None,
-                      report_format: str = "Briefing Doc", custom_prompt: str = "",
-                      language: str = "en") -> dict | None:
+    def create_report(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        report_format: str = "Briefing Doc",
+        custom_prompt: str = "",
+        language: str = "en",
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         configs = {
-            "Briefing Doc": ("Briefing Doc", "Key insights and important quotes",
-                             "Create a comprehensive briefing document with Executive Summary, themes, quotes, and insights."),
-            "Study Guide": ("Study Guide", "Short-answer quiz, essay questions, glossary",
-                            "Create a study guide with key concepts, practice questions, essay prompts, and glossary."),
-            "Blog Post": ("Blog Post", "Insightful takeaways in readable article format",
-                          "Write an engaging blog post with introduction, sections, and takeaways."),
-            "Create Your Own": ("Custom Report", "Custom format",
-                                custom_prompt or "Create a report based on the provided sources."),
+            "Briefing Doc": (
+                "Briefing Doc",
+                "Key insights and important quotes",
+                "Create a comprehensive briefing document with Executive Summary, themes, quotes, and insights.",
+            ),
+            "Study Guide": (
+                "Study Guide",
+                "Short-answer quiz, essay questions, glossary",
+                "Create a study guide with key concepts, practice questions, essay prompts, and glossary.",
+            ),
+            "Blog Post": (
+                "Blog Post",
+                "Insightful takeaways in readable article format",
+                "Write an engaging blog post with introduction, sections, and takeaways.",
+            ),
+            "Create Your Own": (
+                "Custom Report",
+                "Custom format",
+                custom_prompt or "Create a report based on the provided sources.",
+            ),
         }
         if report_format not in configs:
-            raise ValueError(f"Invalid report_format: {report_format}. Options: {list(configs.keys())}")
+            raise ValueError(
+                f"Invalid report_format: {report_format}. Options: {list(configs.keys())}"
+            )
         t, d, p = configs[report_format]
         sn = [[[sid]] for sid in source_ids]
         ss = [[sid] for sid in source_ids]
         opts = [None, [t, d, None, ss, language, p, None, True]]
-        params = [[2], notebook_id, [None, None, constants.STUDIO_TYPE_REPORT, sn, None, None, None, opts]]
+        params = [
+            [2],
+            notebook_id,
+            [None, None, constants.STUDIO_TYPE_REPORT, sn, None, None, None, opts],
+        ]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "report",
+            notebook_id,
+            "report",
         )
 
-    def create_flashcards(self, notebook_id: str, source_ids: list[str] | None = None,
-                          difficulty_code: int = 2) -> dict | None:
+    def create_flashcards(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        difficulty_code: int = 2,
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
-        opts = [None, [1, None, None, None, None, None, [difficulty_code, constants.FLASHCARD_COUNT_DEFAULT]]]
-        params = [[2], notebook_id, [None, None, constants.STUDIO_TYPE_FLASHCARDS, sn, None, None, None, None, None, opts]]
+        opts = [
+            None,
+            [
+                1,
+                None,
+                None,
+                None,
+                None,
+                None,
+                [difficulty_code, constants.FLASHCARD_COUNT_DEFAULT],
+            ],
+        ]
+        params = [
+            [2],
+            notebook_id,
+            [
+                None,
+                None,
+                constants.STUDIO_TYPE_FLASHCARDS,
+                sn,
+                None,
+                None,
+                None,
+                None,
+                None,
+                opts,
+            ],
+        ]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "flashcards",
+            notebook_id,
+            "flashcards",
         )
 
-    def create_quiz(self, notebook_id: str, source_ids: list[str] | None = None,
-                    question_count: int = 2, difficulty: int = 2) -> dict | None:
+    def create_quiz(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        question_count: int = 2,
+        difficulty: int = 2,
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
-        opts = [None, [2, None, None, None, None, None, None, [question_count, difficulty]]]
-        params = [[2], notebook_id, [None, None, constants.STUDIO_TYPE_FLASHCARDS, sn, None, None, None, None, None, opts]]
+        opts = [
+            None,
+            [2, None, None, None, None, None, None, [question_count, difficulty]],
+        ]
+        params = [
+            [2],
+            notebook_id,
+            [
+                None,
+                None,
+                constants.STUDIO_TYPE_FLASHCARDS,
+                sn,
+                None,
+                None,
+                None,
+                None,
+                None,
+                opts,
+            ],
+        ]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "quiz",
+            notebook_id,
+            "quiz",
         )
 
-    def create_infographic(self, notebook_id: str, source_ids: list[str] | None = None,
-                           orientation_code: int = 1, detail_level_code: int = 2,
-                           language: str = "en", focus_prompt: str = "") -> dict | None:
+    def create_infographic(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        orientation_code: int = 1,
+        detail_level_code: int = 2,
+        language: str = "en",
+        focus_prompt: str = "",
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
-        opts = [[focus_prompt or None, language, None, orientation_code, detail_level_code]]
-        content = [None, None, constants.STUDIO_TYPE_INFOGRAPHIC, sn] + [None] * 10 + [opts]
+        opts = [
+            [focus_prompt or None, language, None, orientation_code, detail_level_code]
+        ]
+        content = (
+            [None, None, constants.STUDIO_TYPE_INFOGRAPHIC, sn] + [None] * 10 + [opts]
+        )
         params = [[2], notebook_id, content]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "infographic",
+            notebook_id,
+            "infographic",
         )
 
-    def create_slide_deck(self, notebook_id: str, source_ids: list[str] | None = None,
-                          format_code: int = 1, length_code: int = 3,
-                          language: str = "en", focus_prompt: str = "") -> dict | None:
+    def create_slide_deck(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        format_code: int = 1,
+        length_code: int = 3,
+        language: str = "en",
+        focus_prompt: str = "",
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
         opts = [[focus_prompt or None, language, format_code, length_code]]
-        content = [None, None, constants.STUDIO_TYPE_SLIDE_DECK, sn] + [None] * 12 + [opts]
+        content = (
+            [None, None, constants.STUDIO_TYPE_SLIDE_DECK, sn] + [None] * 12 + [opts]
+        )
         params = [[2], notebook_id, content]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "slide_deck",
+            notebook_id,
+            "slide_deck",
         )
 
-    def create_data_table(self, notebook_id: str, source_ids: list[str] | None = None,
-                          description: str = "", language: str = "en") -> dict | None:
+    def create_data_table(
+        self,
+        notebook_id: str,
+        source_ids: list[str] | None = None,
+        description: str = "",
+        language: str = "en",
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
         opts = [None, [description, language]]
-        content = [None, None, constants.STUDIO_TYPE_DATA_TABLE, sn] + [None] * 14 + [opts]
+        content = (
+            [None, None, constants.STUDIO_TYPE_DATA_TABLE, sn] + [None] * 14 + [opts]
+        )
         params = [[2], notebook_id, content]
         return self._parse_studio_create(
             self._call_rpc(self.RPC_CREATE_STUDIO, params, f"/notebook/{notebook_id}"),
-            notebook_id, "data_table",
+            notebook_id,
+            "data_table",
         )
 
     def poll_studio_status(self, notebook_id: str) -> list[dict]:
         params = [[2], notebook_id, 'NOT artifact.status = "ARTIFACT_STATUS_SUGGESTED"']
-        result = self._call_rpc(self.RPC_POLL_STUDIO, params, f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_POLL_STUDIO, params, f"/notebook/{notebook_id}"
+        )
         artifacts = []
         if not result or not isinstance(result, list) or len(result) == 0:
             return artifacts
         alist = result[0] if isinstance(result[0], list) else result
         type_map = {
-            constants.STUDIO_TYPE_AUDIO: "audio", constants.STUDIO_TYPE_REPORT: "report",
-            constants.STUDIO_TYPE_VIDEO: "video", constants.STUDIO_TYPE_FLASHCARDS: "flashcards",
-            constants.STUDIO_TYPE_INFOGRAPHIC: "infographic", constants.STUDIO_TYPE_SLIDE_DECK: "slide_deck",
+            constants.STUDIO_TYPE_AUDIO: "audio",
+            constants.STUDIO_TYPE_REPORT: "report",
+            constants.STUDIO_TYPE_VIDEO: "video",
+            constants.STUDIO_TYPE_FLASHCARDS: "flashcards",
+            constants.STUDIO_TYPE_INFOGRAPHIC: "infographic",
+            constants.STUDIO_TYPE_SLIDE_DECK: "slide_deck",
             constants.STUDIO_TYPE_DATA_TABLE: "data_table",
         }
         for ad in alist:
@@ -967,15 +1317,24 @@ class NotebookLMAPIClient:
             is_quiz = False
             if tc == constants.STUDIO_TYPE_FLASHCARDS and len(ad) > 9:
                 fo = ad[9]
-                if isinstance(fo, list) and len(fo) > 1 and isinstance(fo[1], list) and len(fo[1]) > 0:
+                if (
+                    isinstance(fo, list)
+                    and len(fo) > 1
+                    and isinstance(fo[1], list)
+                    and len(fo[1]) > 0
+                ):
                     if fo[1][0] == 2:
                         is_quiz = True
             atype = "quiz" if is_quiz else type_map.get(tc, "unknown")
             status = "in_progress" if sc == 1 else "completed" if sc == 3 else "unknown"
-            artifacts.append({"artifact_id": aid, "title": title, "type": atype, "status": status})
+            artifacts.append(
+                {"artifact_id": aid, "title": title, "type": atype, "status": status}
+            )
         return artifacts
 
-    def delete_studio_artifact(self, artifact_id: str, notebook_id: str | None = None) -> bool:
+    def delete_studio_artifact(
+        self, artifact_id: str, notebook_id: str | None = None
+    ) -> bool:
         try:
             result = self._call_rpc(self.RPC_DELETE_STUDIO, [[2], artifact_id])
             if result is not None:
@@ -990,13 +1349,24 @@ class NotebookLMAPIClient:
     # Mind maps
     # =====================================================================
 
-    def generate_mind_map(self, notebook_id: str, source_ids: list[str] | None = None) -> dict | None:
+    def generate_mind_map(
+        self, notebook_id: str, source_ids: list[str] | None = None
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
             raise ValueError(f"No sources in notebook {notebook_id}")
         sn = [[[sid]] for sid in source_ids]
-        params = [sn, None, None, None, None, ["interactive_mindmap", [["[CONTEXT]", ""]], ""], None, [2, None, [1]]]
+        params = [
+            sn,
+            None,
+            None,
+            None,
+            None,
+            ["interactive_mindmap", [["[CONTEXT]", ""]], ""],
+            None,
+            [2, None, [1]],
+        ]
         result = self._call_rpc(self.RPC_GENERATE_MIND_MAP, params)
         if result and isinstance(result, list) and len(result) > 0:
             inner = result[0] if isinstance(result[0], list) else result
@@ -1004,11 +1374,20 @@ class NotebookLMAPIClient:
             gen_id = None
             if len(inner) > 2 and isinstance(inner[2], list) and len(inner[2]) > 0:
                 gen_id = inner[2][0]
-            return {"mind_map_json": mm_json, "generation_id": gen_id, "source_ids": source_ids}
+            return {
+                "mind_map_json": mm_json,
+                "generation_id": gen_id,
+                "source_ids": source_ids,
+            }
         return None
 
-    def save_mind_map(self, notebook_id: str, mind_map_json: str, source_ids: list[str] | None = None,
-                      title: str = "Mind Map") -> dict | None:
+    def save_mind_map(
+        self,
+        notebook_id: str,
+        mind_map_json: str,
+        source_ids: list[str] | None = None,
+        title: str = "Mind Map",
+    ) -> dict | None:
         if source_ids is None:
             source_ids = self._get_all_source_ids(notebook_id)
         if not source_ids:
@@ -1016,25 +1395,36 @@ class NotebookLMAPIClient:
         ss = [[sid] for sid in source_ids]
         meta = [2, None, None, 5, ss]
         params = [notebook_id, mind_map_json, meta, None, title]
-        result = self._call_rpc(self.RPC_SAVE_MIND_MAP, params, f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_SAVE_MIND_MAP, params, f"/notebook/{notebook_id}"
+        )
         if result and isinstance(result, list) and len(result) > 0:
             inner = result[0] if isinstance(result[0], list) else result
-            return {"mind_map_id": inner[0] if len(inner) > 0 else None, "notebook_id": notebook_id, "title": title}
+            return {
+                "mind_map_id": inner[0] if len(inner) > 0 else None,
+                "notebook_id": notebook_id,
+                "title": title,
+            }
         return None
 
     def list_mind_maps(self, notebook_id: str) -> list[dict]:
-        result = self._call_rpc(self.RPC_LIST_MIND_MAPS, [notebook_id], f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_LIST_MIND_MAPS, [notebook_id], f"/notebook/{notebook_id}"
+        )
         maps = []
         if result and isinstance(result, list) and len(result) > 0:
-            for entry in (result[0] if isinstance(result[0], list) else []):
+            for entry in result[0] if isinstance(result[0], list) else []:
                 if not isinstance(entry, list) or len(entry) < 2 or entry[1] is None:
                     continue
                 details = entry[1]
                 if isinstance(details, list) and len(details) >= 5:
-                    maps.append({
-                        "mind_map_id": entry[0], "title": details[4] if len(details) > 4 else "Mind Map",
-                        "mind_map_json": details[1] if len(details) > 1 else None,
-                    })
+                    maps.append(
+                        {
+                            "mind_map_id": entry[0],
+                            "title": details[4] if len(details) > 4 else "Mind Map",
+                            "mind_map_json": details[1] if len(details) > 1 else None,
+                        }
+                    )
         return maps
 
     def delete_mind_map(self, notebook_id: str, mind_map_id: str) -> bool:
@@ -1046,8 +1436,9 @@ class NotebookLMAPIClient:
     # Research
     # =====================================================================
 
-    def start_research(self, notebook_id: str, query: str, source: str = "web",
-                       mode: str = "fast") -> dict | None:
+    def start_research(
+        self, notebook_id: str, query: str, source: str = "web", mode: str = "fast"
+    ) -> dict | None:
         sl, ml = source.lower(), mode.lower()
         if sl not in ("web", "drive"):
             raise ValueError(f"Invalid source '{source}'. Use 'web' or 'drive'.")
@@ -1055,7 +1446,11 @@ class NotebookLMAPIClient:
             raise ValueError(f"Invalid mode '{mode}'. Use 'fast' or 'deep'.")
         if ml == "deep" and sl == "drive":
             raise ValueError("Deep Research only supports Web sources.")
-        st = constants.RESEARCH_SOURCE_WEB if sl == "web" else constants.RESEARCH_SOURCE_DRIVE
+        st = (
+            constants.RESEARCH_SOURCE_WEB
+            if sl == "web"
+            else constants.RESEARCH_SOURCE_DRIVE
+        )
         if ml == "fast":
             params = [[query, st], None, 1, notebook_id]
             rpc = self.RPC_START_FAST_RESEARCH
@@ -1064,15 +1459,31 @@ class NotebookLMAPIClient:
             rpc = self.RPC_START_DEEP_RESEARCH
         result = self._call_rpc(rpc, params, f"/notebook/{notebook_id}")
         if result and isinstance(result, list) and len(result) > 0:
-            return {"task_id": result[0], "report_id": result[1] if len(result) > 1 else None,
-                    "notebook_id": notebook_id, "query": query, "source": sl, "mode": ml}
+            return {
+                "task_id": result[0],
+                "report_id": result[1] if len(result) > 1 else None,
+                "notebook_id": notebook_id,
+                "query": query,
+                "source": sl,
+                "mode": ml,
+            }
         return None
 
-    def poll_research(self, notebook_id: str, target_task_id: str | None = None) -> dict | None:
-        result = self._call_rpc(self.RPC_POLL_RESEARCH, [None, None, notebook_id], f"/notebook/{notebook_id}")
+    def poll_research(
+        self, notebook_id: str, target_task_id: str | None = None
+    ) -> dict | None:
+        result = self._call_rpc(
+            self.RPC_POLL_RESEARCH,
+            [None, None, notebook_id],
+            f"/notebook/{notebook_id}",
+        )
         if not result or not isinstance(result, list) or len(result) == 0:
             return {"status": "no_research", "message": "No active research found"}
-        if isinstance(result[0], list) and len(result[0]) > 0 and isinstance(result[0][0], list):
+        if (
+            isinstance(result[0], list)
+            and len(result[0]) > 0
+            and isinstance(result[0][0], list)
+        ):
             result = result[0]
         for td in result:
             if not isinstance(td, list) or len(td) < 2 or not isinstance(td[0], str):
@@ -1090,42 +1501,107 @@ class NotebookLMAPIClient:
             summary = sas[1] if len(sas) >= 2 and isinstance(sas[1], str) else ""
             sources = self._parse_research_sources(sources_data)
             return {
-                "task_id": tid, "status": "completed" if sc in (2, 6) else "in_progress",
+                "task_id": tid,
+                "status": "completed" if sc in (2, 6) else "in_progress",
                 "query": qi[0] if qi and len(qi) > 0 else "",
-                "source_type": "web" if (qi and len(qi) > 1 and qi[1] == 1) else "drive",
-                "sources": sources, "source_count": len(sources), "summary": summary,
+                "source_type": "web"
+                if (qi and len(qi) > 1 and qi[1] == 1)
+                else "drive",
+                "sources": sources,
+                "source_count": len(sources),
+                "summary": summary,
             }
         return {"status": "no_research", "message": "No active research found"}
 
-    def import_research_sources(self, notebook_id: str, task_id: str, sources: list[dict]) -> list[dict]:
+    def import_research_sources(
+        self, notebook_id: str, task_id: str, sources: list[dict]
+    ) -> list[dict]:
         if not sources:
             return []
         sa = []
         for src in sources:
-            url, title, rt = src.get("url", ""), src.get("title", "Untitled"), src.get("result_type", 1)
+            url, title, rt = (
+                src.get("url", ""),
+                src.get("title", "Untitled"),
+                src.get("result_type", 1),
+            )
             if rt == 5 or not url:
                 continue
             if rt == 1:
-                sa.append([None, None, [url, title], None, None, None, None, None, None, None, 2])
+                sa.append(
+                    [
+                        None,
+                        None,
+                        [url, title],
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        2,
+                    ]
+                )
             else:
                 doc_id = url.split("id=")[-1].split("&")[0] if "id=" in url else None
                 if doc_id:
-                    mt = {2: "application/vnd.google-apps.document", 3: "application/vnd.google-apps.presentation",
-                          8: "application/vnd.google-apps.spreadsheet"}.get(rt, "application/vnd.google-apps.document")
-                    sa.append([[doc_id, mt, 1, title], None, None, None, None, None, None, None, None, None, 2])
+                    mt = {
+                        2: "application/vnd.google-apps.document",
+                        3: "application/vnd.google-apps.presentation",
+                        8: "application/vnd.google-apps.spreadsheet",
+                    }.get(rt, "application/vnd.google-apps.document")
+                    sa.append(
+                        [
+                            [doc_id, mt, 1, title],
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            2,
+                        ]
+                    )
                 else:
-                    sa.append([None, None, [url, title], None, None, None, None, None, None, None, 2])
+                    sa.append(
+                        [
+                            None,
+                            None,
+                            [url, title],
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            2,
+                        ]
+                    )
         params = [None, [1], task_id, notebook_id, sa]
-        result = self._call_rpc(self.RPC_IMPORT_RESEARCH, params, f"/notebook/{notebook_id}", timeout=120.0)
+        result = self._call_rpc(
+            self.RPC_IMPORT_RESEARCH, params, f"/notebook/{notebook_id}", timeout=120.0
+        )
         imported = []
         if result and isinstance(result, list):
-            if len(result) > 0 and isinstance(result[0], list) and len(result[0]) > 0 and isinstance(result[0][0], list):
+            if (
+                len(result) > 0
+                and isinstance(result[0], list)
+                and len(result[0]) > 0
+                and isinstance(result[0][0], list)
+            ):
                 result = result[0]
             for sd in result:
                 if isinstance(sd, list) and len(sd) >= 2:
                     sid = sd[0][0] if sd[0] and isinstance(sd[0], list) else None
                     if sid:
-                        imported.append({"id": sid, "title": sd[1] if len(sd) > 1 else "Untitled"})
+                        imported.append(
+                            {"id": sid, "title": sd[1] if len(sd) > 1 else "Untitled"}
+                        )
         return imported
 
     # =====================================================================
@@ -1141,37 +1617,83 @@ class NotebookLMAPIClient:
                 if isinstance(item, list):
                     for entry in item:
                         if isinstance(entry, list) and len(entry) >= 2:
-                            email = entry[0] if entry[0] and isinstance(entry[0], str) and "@" in entry[0] else None
+                            email = (
+                                entry[0]
+                                if entry[0]
+                                and isinstance(entry[0], str)
+                                and "@" in entry[0]
+                                else None
+                            )
                             if email:
-                                rc = entry[1] if len(entry) > 1 and isinstance(entry[1], int) else 3
+                                rc = (
+                                    entry[1]
+                                    if len(entry) > 1 and isinstance(entry[1], int)
+                                    else 3
+                                )
                                 dn = None
-                                if len(entry) > 3 and isinstance(entry[3], list) and len(entry[3]) > 0:
+                                if (
+                                    len(entry) > 3
+                                    and isinstance(entry[3], list)
+                                    and len(entry[3]) > 0
+                                ):
                                     dn = str(entry[3][0])
                                 ip = len(entry) > 4 and entry[4] is True
-                                collabs.append(Collaborator(
-                                    email=email, role=constants.SHARE_ROLES.get_name(rc),
-                                    is_pending=ip, display_name=dn))
+                                collabs.append(
+                                    Collaborator(
+                                        email=email,
+                                        role=constants.SHARE_ROLES.get_name(rc),
+                                        is_pending=ip,
+                                        display_name=dn,
+                                    )
+                                )
             for item in result:
                 if isinstance(item, list) and len(item) >= 1 and item[0] == 1:
                     is_public = True
                     break
-        link = f"https://notebooklm.google.com/notebook/{notebook_id}" if is_public else None
-        return ShareStatus(is_public=is_public, access_level="public" if is_public else "restricted",
-                           collaborators=collabs, public_link=link)
+        link = (
+            f"https://notebooklm.google.com/notebook/{notebook_id}"
+            if is_public
+            else None
+        )
+        return ShareStatus(
+            is_public=is_public,
+            access_level="public" if is_public else "restricted",
+            collaborators=collabs,
+            public_link=link,
+        )
 
     def set_public_access(self, notebook_id: str, is_public: bool = True) -> str | None:
-        ac = constants.SHARE_ACCESS_PUBLIC if is_public else constants.SHARE_ACCESS_RESTRICTED
+        ac = (
+            constants.SHARE_ACCESS_PUBLIC
+            if is_public
+            else constants.SHARE_ACCESS_RESTRICTED
+        )
         params = [[[notebook_id, None, [ac], [0, ""]]], 1, None, [2]]
         self._call_rpc(self.RPC_SHARE_NOTEBOOK, params)
-        return f"https://notebooklm.google.com/notebook/{notebook_id}" if is_public else None
+        return (
+            f"https://notebooklm.google.com/notebook/{notebook_id}"
+            if is_public
+            else None
+        )
 
-    def add_collaborator(self, notebook_id: str, email: str, role: str = "viewer",
-                         notify: bool = True, message: str = "") -> bool:
+    def add_collaborator(
+        self,
+        notebook_id: str,
+        email: str,
+        role: str = "viewer",
+        notify: bool = True,
+        message: str = "",
+    ) -> bool:
         rc = constants.SHARE_ROLES.get_code(role)
         if rc == constants.SHARE_ROLE_OWNER:
             raise ValueError("Cannot add collaborator as owner")
         nf = 0 if notify else 1
-        params = [[[notebook_id, [[email, None, rc]], None, [nf, message]]], 1, None, [2]]
+        params = [
+            [[notebook_id, [[email, None, rc]], None, [nf, message]]],
+            1,
+            None,
+            [2],
+        ]
         result = self._call_rpc(self.RPC_SHARE_NOTEBOOK, params)
         return result is not None
 
@@ -1179,22 +1701,30 @@ class NotebookLMAPIClient:
     # Notes
     # =====================================================================
 
-    def create_note(self, notebook_id: str, content: str, title: str | None = None) -> dict | None:
+    def create_note(
+        self, notebook_id: str, content: str, title: str | None = None
+    ) -> dict | None:
         if title is None:
             title = "New Note"
         params = [notebook_id, "", [1], None, title]
-        result = self._call_rpc(self.RPC_CREATE_NOTE, params, f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_CREATE_NOTE, params, f"/notebook/{notebook_id}"
+        )
         if result and isinstance(result, list) and len(result) > 0:
             nd = result[0] if isinstance(result[0], list) else result
             nid = nd[0] if isinstance(nd, list) and len(nd) > 0 else nd
             if nid and content:
-                self.update_note(nid, content=content, title=title, notebook_id=notebook_id)
+                self.update_note(
+                    nid, content=content, title=title, notebook_id=notebook_id
+                )
                 return {"id": nid, "title": title, "content": content}
             return {"id": nid, "title": title, "content": ""}
         return None
 
     def list_notes(self, notebook_id: str) -> list[dict]:
-        result = self._call_rpc(self.RPC_GET_NOTES, [notebook_id], f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_GET_NOTES, [notebook_id], f"/notebook/{notebook_id}"
+        )
         notes = []
         if result and isinstance(result, list) and len(result) > 0:
             items = result[0] if isinstance(result[0], list) else []
@@ -1211,15 +1741,29 @@ class NotebookLMAPIClient:
                     if content:
                         try:
                             parsed = json.loads(content)
-                            if isinstance(parsed, dict) and ("children" in parsed or "nodes" in parsed):
+                            if isinstance(parsed, dict) and (
+                                "children" in parsed or "nodes" in parsed
+                            ):
                                 continue
                         except (json.JSONDecodeError, TypeError):
                             pass
-                    notes.append({"id": item[0], "title": title, "content": content, "preview": content[:100] if content else ""})
+                    notes.append(
+                        {
+                            "id": item[0],
+                            "title": title,
+                            "content": content,
+                            "preview": content[:100] if content else "",
+                        }
+                    )
         return notes
 
-    def update_note(self, note_id: str, content: str | None = None, title: str | None = None,
-                    notebook_id: str | None = None) -> dict | None:
+    def update_note(
+        self,
+        note_id: str,
+        content: str | None = None,
+        title: str | None = None,
+        notebook_id: str | None = None,
+    ) -> dict | None:
         if not notebook_id:
             raise ValueError("notebook_id is required")
         if content is None and title is None:
@@ -1238,29 +1782,49 @@ class NotebookLMAPIClient:
         return {"id": note_id, "title": nt, "content": nc}
 
     def delete_note(self, note_id: str, notebook_id: str) -> bool:
-        self._call_rpc(self.RPC_DELETE_NOTE, [notebook_id, None, [note_id]], f"/notebook/{notebook_id}")
+        self._call_rpc(
+            self.RPC_DELETE_NOTE,
+            [notebook_id, None, [note_id]],
+            f"/notebook/{notebook_id}",
+        )
         return True
 
     # =====================================================================
     # Export
     # =====================================================================
 
-    def export_artifact(self, notebook_id: str, artifact_id: str, title: str = "NotebookLM Export",
-                        export_type: str = "docs", content: str | None = None) -> dict[str, Any]:
+    def export_artifact(
+        self,
+        notebook_id: str,
+        artifact_id: str,
+        title: str = "NotebookLM Export",
+        export_type: str = "docs",
+        content: str | None = None,
+    ) -> dict[str, Any]:
         etc = constants.EXPORT_TYPES.get_code(export_type)
         params = [None, artifact_id, content, title, etc]
-        result = self._call_rpc(self.RPC_EXPORT_ARTIFACT, params, f"/notebook/{notebook_id}")
+        result = self._call_rpc(
+            self.RPC_EXPORT_ARTIFACT, params, f"/notebook/{notebook_id}"
+        )
         doc_url = None
         if result and isinstance(result, list):
             if len(result) > 0 and isinstance(result[0], list):
-                if len(result[0]) > 0 and isinstance(result[0][0], list) and result[0][0]:
+                if (
+                    len(result[0]) > 0
+                    and isinstance(result[0][0], list)
+                    and result[0][0]
+                ):
                     doc_url = result[0][0][0]
                 elif len(result[0]) > 0 and isinstance(result[0][0], str):
                     doc_url = result[0][0]
             elif len(result) > 0 and isinstance(result[0], str):
                 doc_url = result[0]
         if doc_url:
-            return {"status": "success", "url": doc_url, "message": f"Exported to: {doc_url}"}
+            return {
+                "status": "success",
+                "url": doc_url,
+                "message": f"Exported to: {doc_url}",
+            }
         return {"status": "failed", "url": None, "message": "Export failed"}
 
     # =====================================================================
@@ -1304,7 +1868,11 @@ class NotebookLMAPIClient:
                     for src in ni[1]:
                         if isinstance(src, list) and len(src) > 0:
                             sw = src[0]
-                            if isinstance(sw, list) and len(sw) > 0 and isinstance(sw[0], str):
+                            if (
+                                isinstance(sw, list)
+                                and len(sw) > 0
+                                and isinstance(sw[0], str)
+                            ):
                                 ids.append(sw[0])
         except (IndexError, TypeError):
             pass
@@ -1324,7 +1892,9 @@ class NotebookLMAPIClient:
         if cid not in self._conversation_cache:
             self._conversation_cache[cid] = []
         n = len(self._conversation_cache[cid]) + 1
-        self._conversation_cache[cid].append(ConversationTurn(query=query, answer=answer, turn_number=n))
+        self._conversation_cache[cid].append(
+            ConversationTurn(query=query, answer=answer, turn_number=n)
+        )
 
     def _parse_query_response(self, text: str) -> str:
         if text.startswith(")]}'"):
@@ -1390,14 +1960,22 @@ class NotebookLMAPIClient:
                     return fe, False
         return None, False
 
-    def _parse_studio_create(self, result: Any, notebook_id: str, atype: str) -> dict | None:
+    def _parse_studio_create(
+        self, result: Any, notebook_id: str, atype: str
+    ) -> dict | None:
         if result and isinstance(result, list) and len(result) > 0:
             ad = result[0]
             aid = ad[0] if isinstance(ad, list) and len(ad) > 0 else None
             sc = ad[4] if isinstance(ad, list) and len(ad) > 4 else None
             return {
-                "artifact_id": aid, "notebook_id": notebook_id, "type": atype,
-                "status": "in_progress" if sc == 1 else "completed" if sc == 3 else "unknown",
+                "artifact_id": aid,
+                "notebook_id": notebook_id,
+                "type": atype,
+                "status": "in_progress"
+                if sc == 1
+                else "completed"
+                if sc == 3
+                else "unknown",
             }
         return None
 
@@ -1408,28 +1986,50 @@ class NotebookLMAPIClient:
                 continue
             if src[0] is None and len(src) > 1 and isinstance(src[1], str):
                 rt = src[3] if len(src) > 3 and isinstance(src[3], int) else 5
-                sources.append({"index": idx, "url": "", "title": src[1], "description": "",
-                                "result_type": rt, "result_type_name": constants.RESULT_TYPES.get_name(rt)})
+                sources.append(
+                    {
+                        "index": idx,
+                        "url": "",
+                        "title": src[1],
+                        "description": "",
+                        "result_type": rt,
+                        "result_type_name": constants.RESULT_TYPES.get_name(rt),
+                    }
+                )
             elif isinstance(src[0], str) or len(src) >= 3:
                 url = src[0] if isinstance(src[0], str) else ""
                 title = src[1] if len(src) > 1 and isinstance(src[1], str) else ""
                 desc = src[2] if len(src) > 2 and isinstance(src[2], str) else ""
                 rt = src[3] if len(src) > 3 and isinstance(src[3], int) else 1
-                sources.append({"index": idx, "url": url, "title": title, "description": desc,
-                                "result_type": rt, "result_type_name": constants.RESULT_TYPES.get_name(rt)})
+                sources.append(
+                    {
+                        "index": idx,
+                        "url": url,
+                        "title": title,
+                        "description": desc,
+                        "result_type": rt,
+                        "result_type_name": constants.RESULT_TYPES.get_name(rt),
+                    }
+                )
         return sources
 
-    def _start_resumable_upload(self, notebook_id: str, filename: str, file_size: int, source_id: str) -> str:
+    def _start_resumable_upload(
+        self, notebook_id: str, filename: str, file_size: int, source_id: str
+    ) -> str:
         url = f"{self.UPLOAD_URL}?authuser=0"
         headers = {
             "Accept": "*/*",
             "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-            "Origin": self.BASE_URL, "Referer": f"{self.BASE_URL}/",
-            "x-goog-authuser": "0", "x-goog-upload-command": "start",
+            "Origin": self.BASE_URL,
+            "Referer": f"{self.BASE_URL}/",
+            "x-goog-authuser": "0",
+            "x-goog-upload-command": "start",
             "x-goog-upload-header-content-length": str(file_size),
             "x-goog-upload-protocol": "resumable",
         }
-        body = json.dumps({"PROJECT_ID": notebook_id, "SOURCE_NAME": filename, "SOURCE_ID": source_id})
+        body = json.dumps(
+            {"PROJECT_ID": notebook_id, "SOURCE_NAME": filename, "SOURCE_ID": source_id}
+        )
         with httpx.Client(timeout=60.0, cookies=self._get_httpx_cookies()) as client:
             response = client.post(url, headers=headers, content=body)
             response.raise_for_status()
@@ -1442,14 +2042,18 @@ class NotebookLMAPIClient:
         headers = {
             "Accept": "*/*",
             "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-            "Origin": self.BASE_URL, "Referer": f"{self.BASE_URL}/",
-            "x-goog-authuser": "0", "x-goog-upload-command": "upload, finalize",
+            "Origin": self.BASE_URL,
+            "Referer": f"{self.BASE_URL}/",
+            "x-goog-authuser": "0",
+            "x-goog-upload-command": "upload, finalize",
             "x-goog-upload-offset": "0",
         }
+
         def stream():
             with open(file_path, "rb") as f:
                 while chunk := f.read(65536):
                     yield chunk
+
         with httpx.Client(timeout=300.0, cookies=self._get_httpx_cookies()) as client:
             response = client.post(upload_url, headers=headers, content=stream())
             response.raise_for_status()

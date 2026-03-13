@@ -150,9 +150,7 @@ class RealtimeListener:
 
         try:
             # Wait for first notification (or timeout for fallback poll)
-            notification = await asyncio.wait_for(
-                self._queue.get(), timeout=timeout
-            )
+            notification = await asyncio.wait_for(self._queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
             # Fallback poll: no notifications received within the window
             log.debug(
@@ -170,9 +168,7 @@ class RealtimeListener:
             if remaining <= 0:
                 break
             try:
-                more = await asyncio.wait_for(
-                    self._queue.get(), timeout=remaining
-                )
+                more = await asyncio.wait_for(self._queue.get(), timeout=remaining)
                 batch.append(more)
             except asyncio.TimeoutError:
                 break
@@ -222,15 +218,12 @@ class RealtimeListener:
     async def _handle_disconnect(self):
         """Reconnect after a connection loss with exponential backoff."""
         log.warning(
-            f"LISTEN connection lost. "
-            f"Reconnecting in {self._reconnect_delay}s..."
+            f"LISTEN connection lost. Reconnecting in {self._reconnect_delay}s..."
         )
         await asyncio.sleep(self._reconnect_delay)
 
         # Exponential backoff (capped)
-        self._reconnect_delay = min(
-            self._reconnect_delay * 2, MAX_RECONNECT_DELAY_S
-        )
+        self._reconnect_delay = min(self._reconnect_delay * 2, MAX_RECONNECT_DELAY_S)
 
         try:
             await self._connect()
@@ -244,9 +237,7 @@ class RealtimeListener:
         self._running = False
         if self._conn and not self._conn.is_closed():
             try:
-                await self._conn.remove_listener(
-                    NOTIFY_CHANNEL, self._on_notification
-                )
+                await self._conn.remove_listener(NOTIFY_CHANNEL, self._on_notification)
             except Exception:
                 pass
             try:

@@ -36,14 +36,16 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 @dataclass
 class InsightResult:
     """Extracted insight from a coherence moment."""
+
     moment_id: str
-    summary: str          # What was actually discovered
-    category: str         # crystallization, synthesis, convergence, etc.
-    novelty: float        # 0-1: how novel is this insight
-    raw_response: str     # Full LLM response for debugging
+    summary: str  # What was actually discovered
+    category: str  # crystallization, synthesis, convergence, etc.
+    novelty: float  # 0-1: how novel is this insight
+    raw_response: str  # Full LLM response for debugging
 
 
 # ── Conversation Reconstruction ──────────────────────────────────────────────
+
 
 async def get_conversation_context(
     pool: asyncpg.Pool,
@@ -104,7 +106,9 @@ async def get_conversation_context(
                  WHERE session_id = $1 AND timestamp_ns > $2
                  ORDER BY timestamp_ns ASC LIMIT $3)
                 ORDER BY timestamp_ns ASC""",
-            session_id, ts, window,
+            session_id,
+            ts,
+            window,
         )
 
         return [dict(r) for r in context]
@@ -253,6 +257,7 @@ async def _call_anthropic(prompt: str) -> str:
 async def _call_ollama(prompt: str) -> str:
     """Call local Ollama for insight synthesis."""
     import asyncio
+
     try:
         import httpx
     except ImportError:
@@ -273,6 +278,7 @@ async def _call_ollama(prompt: str) -> str:
 
 
 # ── Main Entry Points ────────────────────────────────────────────────────────
+
 
 async def extract_insight_for_moment(
     pool: asyncpg.Pool,
@@ -371,7 +377,7 @@ async def backfill_insights(
 
     results = []
     for i, row in enumerate(moments):
-        log.info(f"Backfilling insight {i+1}/{len(moments)}: {row['moment_id']}")
+        log.info(f"Backfilling insight {i + 1}/{len(moments)}: {row['moment_id']}")
         result = await extract_insight_for_moment(pool, row["moment_id"])
         if result:
             results.append(result)

@@ -29,11 +29,12 @@ log = logging.getLogger("coherence.fsrs")
 @dataclass
 class InsightCard:
     """A schedulable insight derived from a coherence moment."""
+
     insight_id: str
     moment_id: str
-    retrievability: float = 1.0   # Probability of recall (0-1)
-    stability: float = 1.0        # Days until R drops to 0.9
-    difficulty: float = 0.5       # Inherent complexity (0-1)
+    retrievability: float = 1.0  # Probability of recall (0-1)
+    stability: float = 1.0  # Days until R drops to 0.9
+    difficulty: float = 0.5  # Inherent complexity (0-1)
     last_review: Optional[datetime] = None
     next_review: Optional[datetime] = None
     review_count: int = 0
@@ -43,15 +44,15 @@ class InsightCard:
 # FSRS parameters (simplified from the 17-parameter model)
 # These are calibrated for cognitive insight review, not flashcards.
 INITIAL_STABILITY = {
-    1: 0.5,   # forgot → re-show quickly
-    2: 1.0,   # hard → 1 day
-    3: 3.0,   # good → 3 days
-    4: 7.0,   # easy → 1 week
+    1: 0.5,  # forgot → re-show quickly
+    2: 1.0,  # hard → 1 day
+    3: 3.0,  # good → 3 days
+    4: 7.0,  # easy → 1 week
 }
-STABILITY_GROWTH = 1.5       # How much stability grows per successful review
-DIFFICULTY_DECAY = 0.1       # How much difficulty affects stability growth
-MIN_STABILITY = 0.25         # Minimum 6 hours between reviews
-MAX_STABILITY = 365.0        # Maximum 1 year between reviews
+STABILITY_GROWTH = 1.5  # How much stability grows per successful review
+DIFFICULTY_DECAY = 0.1  # How much difficulty affects stability growth
+MIN_STABILITY = 0.25  # Minimum 6 hours between reviews
+MAX_STABILITY = 365.0  # Maximum 1 year between reviews
 RETRIEVABILITY_TARGET = 0.9  # Re-show when R drops below this
 
 
@@ -167,6 +168,7 @@ class InsightScheduler:
             return
 
         import hashlib
+
         insight_id = f"ins-{hashlib.sha256(moment_id.encode()).hexdigest()[:12]}"
         difficulty = max(0.1, 1.0 - confidence)
 
@@ -180,7 +182,10 @@ class InsightScheduler:
                        (insight_id, moment_id, difficulty, next_review)
                        VALUES ($1, $2, $3, $4)
                        ON CONFLICT (insight_id) DO NOTHING""",
-                    insight_id, moment_id, difficulty, next_review,
+                    insight_id,
+                    moment_id,
+                    difficulty,
+                    next_review,
                 )
         except Exception as e:
             if "uq_ins_moment_id" in str(e) or "unique" in str(e).lower():
@@ -229,7 +234,10 @@ class InsightScheduler:
             review_count = row["review_count"]
 
             new_stability, new_difficulty, interval_days = schedule_next_review(
-                stability, difficulty, rating, review_count,
+                stability,
+                difficulty,
+                rating,
+                review_count,
             )
 
             now = datetime.now(timezone.utc)
@@ -238,6 +246,7 @@ class InsightScheduler:
 
             # Append to rating history
             import json
+
             history = json.loads(row["rating_history"] or "[]")
             history.append({"rating": rating, "timestamp": now.isoformat()})
 
@@ -251,8 +260,13 @@ class InsightScheduler:
                        review_count = review_count + 1,
                        rating_history = $7::jsonb
                    WHERE insight_id = $1""",
-                insight_id, new_stability, new_difficulty,
-                new_retrievability, now, next_review, json.dumps(history),
+                insight_id,
+                new_stability,
+                new_difficulty,
+                new_retrievability,
+                now,
+                next_review,
+                json.dumps(history),
             )
 
             log.info(

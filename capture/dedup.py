@@ -117,7 +117,9 @@ class DeduplicationEngine:
 
         return False
 
-    def mark_seen(self, event_id: str, content_hash: str, session_id: str, platform: str = "") -> None:
+    def mark_seen(
+        self, event_id: str, content_hash: str, session_id: str, platform: str = ""
+    ) -> None:
         """Mark an event as seen (call after successful store)."""
         self._seen_event_ids.add(event_id)
         self._seen_hashes.add(content_hash)

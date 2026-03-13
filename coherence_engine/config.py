@@ -35,10 +35,10 @@ EMBED_BATCH_SIZE = 256
 # Previous thresholds were too loose: 0.70 MIN_ALERT let ~90% of matches through.
 # New thresholds target <100 genuine moments/day instead of 12,000+ noise.
 SIGNATURE_CONFIDENCE = 0.95
-SEMANTIC_THRESHOLD = 0.80           # Cross-platform high (was 0.65)
-SEMANTIC_MEDIUM_THRESHOLD = 0.72    # Cross-platform medium (was 0.55)
+SEMANTIC_THRESHOLD = 0.80  # Cross-platform high (was 0.65)
+SEMANTIC_MEDIUM_THRESHOLD = 0.72  # Cross-platform medium (was 0.55)
 SEMANTIC_CONFIDENCE_FACTOR = 0.9
-SYNCHRONICITY_THRESHOLD = 0.78      # Multi-signal (was 0.60)
+SYNCHRONICITY_THRESHOLD = 0.78  # Multi-signal (was 0.60)
 TIME_WINDOW_MINUTES = 30
 TIME_WINDOW_NS = TIME_WINDOW_MINUTES * 60 * 1_000_000_000
 
@@ -51,9 +51,9 @@ MULTI_SCALE_ENABLED = True
 # Recalibrated 2026-02-08: much tighter thresholds to prevent noise.
 # Only micro/short/session are active — wider windows produce mostly noise.
 TIME_WINDOWS = [
-    {"name": "micro",   "seconds": 120,    "min_confidence": 0.85},
-    {"name": "short",   "seconds": 600,    "min_confidence": 0.83},
-    {"name": "session", "seconds": 3600,   "min_confidence": 0.82},
+    {"name": "micro", "seconds": 120, "min_confidence": 0.85},
+    {"name": "short", "seconds": 600, "min_confidence": 0.83},
+    {"name": "session", "seconds": 3600, "min_confidence": 0.82},
 ]
 
 # ── Synchronicity signal weights ──────────────────────────
@@ -70,9 +70,14 @@ SYNC_WEIGHTS = {
 # sovereign) were removed — they inflated every score. Only keep terms
 # that genuinely signal emergence/breakthrough.
 META_COGNITIVE_TERMS = {
-    "emergence", "consciousness", "synchronicity",
-    "breakthrough", "convergence", "epiphany",
-    "insight", "revelation",
+    "emergence",
+    "consciousness",
+    "synchronicity",
+    "breakthrough",
+    "convergence",
+    "epiphany",
+    "insight",
+    "revelation",
 }
 
 # ── Content noise filters ───────────────────────────────

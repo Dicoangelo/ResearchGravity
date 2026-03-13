@@ -39,12 +39,14 @@ from .models import SubTask, VerificationResult, VerificationMethod
 # Lazy imports with fallbacks
 try:
     from mcp_raw.embeddings import embed_single, cosine_similarity
+
     HAS_EMBEDDINGS = True
 except ImportError:
     HAS_EMBEDDINGS = False
 
 try:
     from cpb.ground_truth import validate_against_ground_truth
+
     HAS_GROUND_TRUTH = True
 except ImportError:
     HAS_GROUND_TRUTH = False
@@ -56,6 +58,7 @@ def _run_async(coro):
         asyncio.get_running_loop()
         # Already in async context — run in a new thread to avoid RuntimeError
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             return pool.submit(asyncio.run, coro).result(timeout=10)
     except RuntimeError:
@@ -108,7 +111,7 @@ def verify_completion(
             passed=False,
             quality_score=0.0,
             feedback=f"Unknown verification method: {method}",
-            evidence={"error": "unsupported_method"}
+            evidence={"error": "unsupported_method"},
         )
 
     # Record duration
@@ -142,7 +145,7 @@ def _verify_automated_test(
             passed=False,
             quality_score=0.0,
             feedback="No validation function provided for automated test",
-            evidence={"error": "missing_validation_fn"}
+            evidence={"error": "missing_validation_fn"},
         )
 
     try:
@@ -158,9 +161,11 @@ def _verify_automated_test(
             quality_score=confidence,
             feedback="Automated test passed" if passed else "Automated test failed",
             evidence={
-                "validation_fn": validation_fn.__name__ if hasattr(validation_fn, '__name__') else "anonymous",
-                "test_passed": passed
-            }
+                "validation_fn": validation_fn.__name__
+                if hasattr(validation_fn, "__name__")
+                else "anonymous",
+                "test_passed": passed,
+            },
         )
     except Exception as e:
         return VerificationResult(
@@ -170,7 +175,7 @@ def _verify_automated_test(
             passed=False,
             quality_score=0.0,
             feedback=f"Validation function raised exception: {str(e)}",
-            evidence={"error": str(e), "error_type": type(e).__name__}
+            evidence={"error": str(e), "error_type": type(e).__name__},
         )
 
 
@@ -201,7 +206,7 @@ def _verify_semantic_similarity(
             passed=False,
             quality_score=0.0,
             feedback="No expected output provided for semantic comparison",
-            evidence={"error": "missing_expected_output"}
+            evidence={"error": "missing_expected_output"},
         )
 
     if not HAS_EMBEDDINGS:
@@ -226,8 +231,8 @@ def _verify_semantic_similarity(
             evidence={
                 "similarity": round(similarity, 3),
                 "threshold": 0.75,
-                "method": "word_overlap_heuristic"
-            }
+                "method": "word_overlap_heuristic",
+            },
         )
 
     try:
@@ -250,8 +255,8 @@ def _verify_semantic_similarity(
             evidence={
                 "similarity": round(similarity, 3),
                 "threshold": 0.75,
-                "method": "nomic_embeddings_768d"
-            }
+                "method": "nomic_embeddings_768d",
+            },
         )
     except Exception as e:
         return VerificationResult(
@@ -261,7 +266,7 @@ def _verify_semantic_similarity(
             passed=False,
             quality_score=0.0,
             feedback=f"Embedding computation failed: {str(e)}",
-            evidence={"error": str(e), "error_type": type(e).__name__}
+            evidence={"error": str(e), "error_type": type(e).__name__},
         )
 
 
@@ -291,8 +296,8 @@ def _verify_human_review(
         feedback="Flagged for human review (subjective task)",
         evidence={
             "requires_human_review": True,
-            "result_preview": result[:200] if result else ""
-        }
+            "result_preview": result[:200] if result else "",
+        },
     )
 
 
@@ -320,7 +325,7 @@ def _verify_ground_truth(
             passed=False,
             quality_score=0.0,
             feedback="CPB ground truth system unavailable",
-            evidence={"error": "missing_cpb_ground_truth"}
+            evidence={"error": "missing_cpb_ground_truth"},
         )
 
     try:
@@ -332,11 +337,7 @@ def _verify_ground_truth(
 
         # Run ground truth validation
         validation_result = _run_async(
-            validate_against_ground_truth(
-                query=query,
-                output=result,
-                sources=sources
-            )
+            validate_against_ground_truth(query=query, output=result, sources=sources)
         )
 
         # Extract ground truth score
@@ -358,8 +359,8 @@ def _verify_ground_truth(
                 "factual_accuracy": round(validation_result.factual_accuracy, 3),
                 "claims_verified": validation_result.claims_verified,
                 "claims_contradicted": validation_result.claims_contradicted,
-                "threshold": 0.75
-            }
+                "threshold": 0.75,
+            },
         )
     except Exception as e:
         return VerificationResult(
@@ -369,7 +370,7 @@ def _verify_ground_truth(
             passed=False,
             quality_score=0.0,
             feedback=f"Ground truth validation failed: {str(e)}",
-            evidence={"error": str(e), "error_type": type(e).__name__}
+            evidence={"error": str(e), "error_type": type(e).__name__},
         )
 
 
@@ -377,10 +378,9 @@ def _verify_ground_truth(
 # Integration Points
 # ============================================================================
 
+
 def feed_to_trust_ledger(
-    verification: VerificationResult,
-    agent_id: str,
-    trust_ledger: Optional[Any] = None
+    verification: VerificationResult, agent_id: str, trust_ledger: Optional[Any] = None
 ):
     """
     Feed verification result to trust ledger (US-004).
@@ -403,9 +403,12 @@ def feed_to_trust_ledger(
     _run_async(_feed_to_trust_ledger_async(verification, agent_id, trust_ledger))
 
 
-async def _feed_to_trust_ledger_async(verification: VerificationResult, agent_id: str, ledger_class):
+async def _feed_to_trust_ledger_async(
+    verification: VerificationResult, agent_id: str, ledger_class
+):
     """Async helper for feeding to trust ledger."""
     from .trust_ledger import TrustLedger
+
     async with TrustLedger() as ledger:
         # Infer task type from verification method
         task_type = f"verification_{verification.method.value}"
@@ -415,14 +418,12 @@ async def _feed_to_trust_ledger_async(verification: VerificationResult, agent_id
             task_type=task_type,
             success=verification.passed,
             quality_score=verification.quality_score,
-            duration=verification.evidence.get("duration_seconds", 0.0)
+            duration=verification.evidence.get("duration_seconds", 0.0),
         )
 
 
 def feed_to_memory_bleed(
-    verification: VerificationResult,
-    subtask: SubTask,
-    result: str
+    verification: VerificationResult, subtask: SubTask, result: str
 ):
     """
     Feed verification outcome to memory bleed (US-008).

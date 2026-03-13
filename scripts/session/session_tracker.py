@@ -42,7 +42,7 @@ def get_tracker_state() -> Dict[str, Any]:
         "active_session": None,
         "sessions": {},
         "lineage": [],  # [{research_session, impl_project, impl_session, linked_at}]
-        "pending_captures": []
+        "pending_captures": [],
     }
 
 
@@ -86,23 +86,25 @@ def extract_urls_from_transcript(transcript_lines: List[str]) -> List[Dict[str, 
         matches = url_pattern.findall(line)
         for url in matches:
             # Clean URL
-            url = url.rstrip('.,;:)')
+            url = url.rstrip(".,;:)")
 
             # Get context (surrounding lines)
             start = max(0, i - 2)
             end = min(len(transcript_lines), i + 3)
-            context = ' '.join(transcript_lines[start:end])[:500]
+            context = " ".join(transcript_lines[start:end])[:500]
 
             # Detect source type
             source_type = detect_source_type(url)
 
-            urls.append({
-                "url": url,
-                "source_type": source_type,
-                "context": context,
-                "line_number": i,
-                "timestamp": datetime.now().isoformat()
-            })
+            urls.append(
+                {
+                    "url": url,
+                    "source_type": source_type,
+                    "context": context,
+                    "line_number": i,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     # Deduplicate
     seen = set()
@@ -172,21 +174,23 @@ def extract_key_findings(transcript_lines: List[str]) -> List[Dict[str, str]]:
         r"DQ (score|metric|framework)",
     ]
 
-    combined_pattern = re.compile('|'.join(finding_patterns), re.IGNORECASE)
+    combined_pattern = re.compile("|".join(finding_patterns), re.IGNORECASE)
 
     for i, line in enumerate(transcript_lines):
         if combined_pattern.search(line):
             # Get surrounding context
             start = max(0, i - 1)
             end = min(len(transcript_lines), i + 5)
-            finding_text = ' '.join(transcript_lines[start:end])[:1000]
+            finding_text = " ".join(transcript_lines[start:end])[:1000]
 
-            findings.append({
-                "text": finding_text,
-                "line_number": i,
-                "pattern_matched": combined_pattern.search(line).group(0),
-                "timestamp": datetime.now().isoformat()
-            })
+            findings.append(
+                {
+                    "text": finding_text,
+                    "line_number": i,
+                    "pattern_matched": combined_pattern.search(line).group(0),
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
     return findings
 
@@ -197,7 +201,7 @@ def parse_claude_session(session_file: Path) -> Dict[str, Any]:
     tool_calls = []
 
     try:
-        with open(session_file, 'r') as f:
+        with open(session_file, "r") as f:
             for line in f:
                 try:
                     entry = json.loads(line.strip())
@@ -215,7 +219,7 @@ def parse_claude_session(session_file: Path) -> Dict[str, Any]:
         "message_count": len(messages),
         "tool_call_count": len(tool_calls),
         "messages": messages,
-        "tool_calls": tool_calls
+        "tool_calls": tool_calls,
     }
 
 
@@ -223,7 +227,7 @@ def generate_session_id(topic: str) -> str:
     """Generate unique session ID."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     topic_hash = hashlib.md5(topic.encode()).hexdigest()[:6]
-    safe_topic = re.sub(r'[^a-z0-9]+', '-', topic.lower())[:20]
+    safe_topic = re.sub(r"[^a-z0-9]+", "-", topic.lower())[:20]
     return f"{safe_topic}-{timestamp}-{topic_hash}"
 
 
@@ -245,7 +249,7 @@ def register_session(topic: str, impl_project: Optional[str] = None) -> Dict[str
         "urls_captured": [],
         "findings_captured": [],
         "checkpoints": [],
-        "full_transcript_archived": False
+        "full_transcript_archived": False,
     }
 
     # Create session directory
@@ -261,19 +265,23 @@ def register_session(topic: str, impl_project: Optional[str] = None) -> Dict[str
 
     # If impl project specified, create pending lineage
     if impl_project:
-        state["lineage"].append({
-            "research_session": session_id,
-            "impl_project": impl_project,
-            "impl_session": None,  # Will be filled when detected
-            "linked_at": datetime.now().isoformat(),
-            "status": "pending"
-        })
+        state["lineage"].append(
+            {
+                "research_session": session_id,
+                "impl_project": impl_project,
+                "impl_session": None,  # Will be filled when detected
+                "linked_at": datetime.now().isoformat(),
+                "status": "pending",
+            }
+        )
 
     save_tracker_state(state)
 
     print(f"Session registered: {session_id}")
     print(f"  Topic: {topic}")
-    print(f"  Claude session: {claude_session.name if claude_session else 'Not detected'}")
+    print(
+        f"  Claude session: {claude_session.name if claude_session else 'Not detected'}"
+    )
     if impl_project:
         print(f"  Implementation target: {impl_project}")
 
@@ -313,11 +321,11 @@ def capture_session(session_id: Optional[str] = None) -> Dict[str, Any]:
     for msg in parsed.get("messages", []):
         content = msg.get("content", "")
         if isinstance(content, str):
-            transcript_lines.extend(content.split('\n'))
+            transcript_lines.extend(content.split("\n"))
         elif isinstance(content, list):
             for item in content:
                 if isinstance(item, dict) and "text" in item:
-                    transcript_lines.extend(item["text"].split('\n'))
+                    transcript_lines.extend(item["text"].split("\n"))
 
     # Extract URLs
     urls = extract_urls_from_transcript(transcript_lines)
@@ -329,7 +337,7 @@ def capture_session(session_id: Optional[str] = None) -> Dict[str, Any]:
 
     # Save full transcript
     transcript_file = session_dir / "full_transcript.txt"
-    transcript_file.write_text('\n'.join(transcript_lines))
+    transcript_file.write_text("\n".join(transcript_lines))
     session["full_transcript_archived"] = True
 
     # Save URLs
@@ -345,7 +353,7 @@ def capture_session(session_id: Optional[str] = None) -> Dict[str, Any]:
         "timestamp": datetime.now().isoformat(),
         "urls_count": len(urls),
         "findings_count": len(findings),
-        "transcript_lines": len(transcript_lines)
+        "transcript_lines": len(transcript_lines),
     }
     session["checkpoints"].append(checkpoint)
 
@@ -357,14 +365,18 @@ def capture_session(session_id: Optional[str] = None) -> Dict[str, Any]:
 
     print(f"Captured session: {session_id}")
     print(f"  URLs extracted: {len(urls)} (total: {len(session['urls_captured'])})")
-    print(f"  Findings extracted: {len(findings)} (total: {len(session['findings_captured'])})")
+    print(
+        f"  Findings extracted: {len(findings)} (total: {len(session['findings_captured'])})"
+    )
     print(f"  Transcript lines: {len(transcript_lines)}")
     print(f"  Saved to: {session_dir}")
 
     return session
 
 
-def link_sessions(research_session: str, impl_project: str, impl_session: Optional[str] = None):
+def link_sessions(
+    research_session: str, impl_project: str, impl_session: Optional[str] = None
+):
     """Create lineage link between research session and implementation project."""
     state = get_tracker_state()
 
@@ -379,7 +391,7 @@ def link_sessions(research_session: str, impl_project: str, impl_session: Option
         "impl_project": impl_project,
         "impl_session": impl_session,
         "linked_at": datetime.now().isoformat(),
-        "status": "linked"
+        "status": "linked",
     }
 
     # Check for existing pending link
@@ -432,9 +444,7 @@ def show_status():
     # Recent sessions
     print(f"RECENT SESSIONS ({len(state['sessions'])} total)")
     sessions = sorted(
-        state["sessions"].items(),
-        key=lambda x: x[1].get("started", ""),
-        reverse=True
+        state["sessions"].items(), key=lambda x: x[1].get("started", ""), reverse=True
     )[:5]
 
     for sid, sess in sessions:
@@ -467,7 +477,9 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Register
-    reg_parser = subparsers.add_parser("register", help="Register a new research session")
+    reg_parser = subparsers.add_parser(
+        "register", help="Register a new research session"
+    )
     reg_parser.add_argument("topic", help="Research topic")
     reg_parser.add_argument("--impl-project", help="Target implementation project")
 
@@ -491,7 +503,11 @@ def main():
     elif args.command == "capture":
         capture_session(args.session_id)
     elif args.command == "link":
-        link_sessions(args.research_session, args.impl_project, getattr(args, 'impl_session', None))
+        link_sessions(
+            args.research_session,
+            args.impl_project,
+            getattr(args, "impl_session", None),
+        )
     elif args.command == "status":
         show_status()
     else:

@@ -27,7 +27,7 @@ import hashlib
 
 RUNS_BASE_DIR = Path.home() / ".agent-core" / "precision" / "runs"
 BREAKTHROUGH_DIR = RUNS_BASE_DIR / "breakthrough"  # DQ >= 0.80
-DEVELOPING_DIR = RUNS_BASE_DIR / "developing"      # DQ < 0.80
+DEVELOPING_DIR = RUNS_BASE_DIR / "developing"  # DQ < 0.80
 
 DQ_BREAKTHROUGH_THRESHOLD = 0.80
 
@@ -35,6 +35,7 @@ DQ_BREAKTHROUGH_THRESHOLD = 0.80
 # =============================================================================
 # RUN LOGGER
 # =============================================================================
+
 
 class RunLogger:
     """
@@ -66,7 +67,7 @@ class RunLogger:
             Dict with log metadata (path, tier, run_id)
         """
         # Determine tier
-        dq_score = getattr(result, 'dq_score', 0.0)
+        dq_score = getattr(result, "dq_score", 0.0)
         is_breakthrough = dq_score >= DQ_BREAKTHROUGH_THRESHOLD
         tier = "breakthrough" if is_breakthrough else "developing"
         target_dir = self.breakthrough_dir if is_breakthrough else self.developing_dir
@@ -83,86 +84,78 @@ class RunLogger:
             "tier": tier,
             "dq_score": dq_score,
             "threshold": DQ_BREAKTHROUGH_THRESHOLD,
-
             # Query info
             "original_query": query,
-            "enhanced_query": getattr(result, 'enhanced_query', query),
-            "query_was_enhanced": getattr(result, 'query_was_enhanced', False),
-            "enhancement_reasoning": getattr(result, 'enhancement_reasoning', ''),
-            "query_dimensions": getattr(result, 'query_dimensions', []),
-            "follow_up_queries": getattr(result, 'follow_up_queries', []),
-
+            "enhanced_query": getattr(result, "enhanced_query", query),
+            "query_was_enhanced": getattr(result, "query_was_enhanced", False),
+            "enhancement_reasoning": getattr(result, "enhancement_reasoning", ""),
+            "query_dimensions": getattr(result, "query_dimensions", []),
+            "follow_up_queries": getattr(result, "follow_up_queries", []),
             # Output
-            "output": getattr(result, 'output', ''),
-            "verified": getattr(result, 'verified', False),
-            "needs_review": getattr(result, 'needs_review', False),
-
+            "output": getattr(result, "output", ""),
+            "verified": getattr(result, "verified", False),
+            "needs_review": getattr(result, "needs_review", False),
             # Scores
             "scores": {
-                "validity": getattr(result, 'validity', 0.0),
-                "specificity": getattr(result, 'specificity', 0.0),
-                "correctness": getattr(result, 'correctness', 0.0),
-                "ground_truth": getattr(result, 'ground_truth_score', 0.0),
-                "factual_accuracy": getattr(result, 'factual_accuracy', 0.0),
-                "cross_source": getattr(result, 'cross_source_score', 0.0),
-                "self_consistency": getattr(result, 'self_consistency', 0.0),
+                "validity": getattr(result, "validity", 0.0),
+                "specificity": getattr(result, "specificity", 0.0),
+                "correctness": getattr(result, "correctness", 0.0),
+                "ground_truth": getattr(result, "ground_truth_score", 0.0),
+                "factual_accuracy": getattr(result, "factual_accuracy", 0.0),
+                "cross_source": getattr(result, "cross_source_score", 0.0),
+                "self_consistency": getattr(result, "self_consistency", 0.0),
             },
-
             # Evidence
-            "sources": getattr(result, 'sources', []),
-            "citations_found": getattr(result, 'citations_found', 0),
-            "citations_verified": getattr(result, 'citations_verified', 0),
-
+            "sources": getattr(result, "sources", []),
+            "citations_found": getattr(result, "citations_found", 0),
+            "citations_verified": getattr(result, "citations_verified", 0),
             # Claims
-            "claims_checked": getattr(result, 'claims_checked', 0),
-            "claims_verified": getattr(result, 'claims_verified', 0),
-            "claims_contradicted": getattr(result, 'claims_contradicted', 0),
-            "verified_claims": getattr(result, 'verified_claims', []),
-            "contradicted_claims": getattr(result, 'contradicted_claims', []),
-
+            "claims_checked": getattr(result, "claims_checked", 0),
+            "claims_verified": getattr(result, "claims_verified", 0),
+            "claims_contradicted": getattr(result, "claims_contradicted", 0),
+            "verified_claims": getattr(result, "verified_claims", []),
+            "contradicted_claims": getattr(result, "contradicted_claims", []),
             # Execution
             "execution": {
-                "time_ms": getattr(result, 'execution_time_ms', 0),
-                "search_time_ms": getattr(result, 'search_time_ms', 0),
-                "retry_count": getattr(result, 'retry_count', 0),
-                "agent_count": getattr(result, 'agent_count', 7),
-                "path": getattr(result, 'path', 'cascade').value if hasattr(getattr(result, 'path', None), 'value') else 'cascade',
-                "rg_connection_mode": getattr(result, 'rg_connection_mode', 'unknown'),
-                "phase_timings": getattr(result, 'phase_timings', {}),
+                "time_ms": getattr(result, "execution_time_ms", 0),
+                "search_time_ms": getattr(result, "search_time_ms", 0),
+                "retry_count": getattr(result, "retry_count", 0),
+                "agent_count": getattr(result, "agent_count", 7),
+                "path": getattr(result, "path", "cascade").value
+                if hasattr(getattr(result, "path", None), "value")
+                else "cascade",
+                "rg_connection_mode": getattr(result, "rg_connection_mode", "unknown"),
+                "phase_timings": getattr(result, "phase_timings", {}),
             },
-
             # Deep Research (v2.5)
             "deep_research": {
-                "used": getattr(result, 'deep_research_used', False),
-                "provider": getattr(result, 'deep_research_provider', ''),
-                "time_ms": getattr(result, 'deep_research_time_ms', 0),
-                "citations": getattr(result, 'deep_research_citations', 0),
-                "cost_usd": getattr(result, 'deep_research_cost_usd', 0.0),
-                "tokens": getattr(result, 'deep_research_tokens', 0),
+                "used": getattr(result, "deep_research_used", False),
+                "provider": getattr(result, "deep_research_provider", ""),
+                "time_ms": getattr(result, "deep_research_time_ms", 0),
+                "citations": getattr(result, "deep_research_citations", 0),
+                "cost_usd": getattr(result, "deep_research_cost_usd", 0.0),
+                "tokens": getattr(result, "deep_research_tokens", 0),
             },
-
             # Cost Tracking (v2.5)
-            "total_cost_usd": getattr(result, 'total_cost_usd', 0.0),
-
+            "total_cost_usd": getattr(result, "total_cost_usd", 0.0),
             # Search stats
             "search": {
-                "tier1_count": getattr(result, 'tier1_count', 0),
-                "tier2_count": getattr(result, 'tier2_count', 0),
-                "tier3_count": getattr(result, 'tier3_count', 0),
-                "total_sources": getattr(result, 'total_sources_found', 0),
+                "tier1_count": getattr(result, "tier1_count", 0),
+                "tier2_count": getattr(result, "tier2_count", 0),
+                "tier3_count": getattr(result, "tier3_count", 0),
+                "total_sources": getattr(result, "total_sources_found", 0),
             },
-
             # Refinement history
-            "refinement_targets": getattr(result, 'refinement_targets', []),
-            "feedback_history": getattr(result, 'feedback_history', []),
-            "warnings": getattr(result, 'warnings', []),
+            "refinement_targets": getattr(result, "refinement_targets", []),
+            "feedback_history": getattr(result, "feedback_history", []),
+            "warnings": getattr(result, "warnings", []),
         }
 
         # Save to file
         filename = f"{run_id}.json"
         filepath = target_dir / filename
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(run_doc, f, indent=2, default=str)
 
         return {
@@ -201,14 +194,16 @@ class RunLogger:
                     try:
                         with open(filepath) as f:
                             run = json.load(f)
-                            runs.append({
-                                "run_id": run.get("run_id"),
-                                "timestamp": run.get("timestamp"),
-                                "tier": run.get("tier"),
-                                "dq_score": run.get("dq_score"),
-                                "query": run.get("original_query", "")[:60] + "...",
-                                "verified": run.get("verified", False),
-                            })
+                            runs.append(
+                                {
+                                    "run_id": run.get("run_id"),
+                                    "timestamp": run.get("timestamp"),
+                                    "tier": run.get("tier"),
+                                    "dq_score": run.get("dq_score"),
+                                    "query": run.get("original_query", "")[:60] + "...",
+                                    "verified": run.get("verified", False),
+                                }
+                            )
                     except Exception:
                         pass
 
@@ -218,14 +213,23 @@ class RunLogger:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about logged runs."""
-        breakthrough_count = len(list(self.breakthrough_dir.glob("*.json"))) if self.breakthrough_dir.exists() else 0
-        developing_count = len(list(self.developing_dir.glob("*.json"))) if self.developing_dir.exists() else 0
+        breakthrough_count = (
+            len(list(self.breakthrough_dir.glob("*.json")))
+            if self.breakthrough_dir.exists()
+            else 0
+        )
+        developing_count = (
+            len(list(self.developing_dir.glob("*.json")))
+            if self.developing_dir.exists()
+            else 0
+        )
 
         return {
             "total_runs": breakthrough_count + developing_count,
             "breakthrough_runs": breakthrough_count,
             "developing_runs": developing_count,
-            "breakthrough_rate": breakthrough_count / max(1, breakthrough_count + developing_count),
+            "breakthrough_rate": breakthrough_count
+            / max(1, breakthrough_count + developing_count),
             "breakthrough_dir": str(self.breakthrough_dir),
             "developing_dir": str(self.developing_dir),
         }
@@ -275,14 +279,16 @@ if __name__ == "__main__":
     stats = get_run_stats()
     print("Run Logger Stats:")
     print(f"  Total runs: {stats['total_runs']}")
-    print(f"  Breakthrough: {stats['breakthrough_runs']} ({stats['breakthrough_rate']:.1%})")
+    print(
+        f"  Breakthrough: {stats['breakthrough_runs']} ({stats['breakthrough_rate']:.1%})"
+    )
     print(f"  Developing: {stats['developing_runs']}")
-    print(f"\nDirectories:")
+    print("\nDirectories:")
     print(f"  Breakthrough: {stats['breakthrough_dir']}")
     print(f"  Developing: {stats['developing_dir']}")
 
     # List recent runs
     print("\nRecent runs:")
     for run in list_runs(limit=5):
-        icon = "✅" if run['tier'] == 'breakthrough' else "🔄"
+        icon = "✅" if run["tier"] == "breakthrough" else "🔄"
         print(f"  {icon} [{run['dq_score']:.2f}] {run['query']}")

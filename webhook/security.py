@@ -36,9 +36,7 @@ def _verify_github(headers: Mapping, body: bytes) -> bool:
     signature = headers.get("x-hub-signature-256", "")
     if not signature.startswith("sha256="):
         return False
-    expected = "sha256=" + hmac.new(
-        secret.encode(), body, hashlib.sha256
-    ).hexdigest()
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(signature, expected)
 
 
@@ -56,12 +54,11 @@ def _verify_slack(headers: Mapping, body: bytes) -> bool:
     except ValueError:
         return False
     sig_basestring = f"v0:{timestamp}:{body.decode('utf-8')}"
-    expected = "v0=" + hmac.new(
-        secret.encode(), sig_basestring.encode(), hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(
-        headers.get("x-slack-signature", ""), expected
+    expected = (
+        "v0="
+        + hmac.new(secret.encode(), sig_basestring.encode(), hashlib.sha256).hexdigest()
     )
+    return hmac.compare_digest(headers.get("x-slack-signature", ""), expected)
 
 
 def _verify_stripe(headers: Mapping, body: bytes) -> bool:
@@ -70,11 +67,7 @@ def _verify_stripe(headers: Mapping, body: bytes) -> bool:
     if not secret:
         return False
     sig_header = headers.get("stripe-signature", "")
-    elements = dict(
-        pair.split("=", 1)
-        for pair in sig_header.split(",")
-        if "=" in pair
-    )
+    elements = dict(pair.split("=", 1) for pair in sig_header.split(",") if "=" in pair)
     timestamp = elements.get("t", "")
     v1_sig = elements.get("v1", "")
     if not timestamp or not v1_sig:
@@ -101,9 +94,7 @@ def _verify_generic(headers: Mapping, body: bytes) -> bool:
     signature = headers.get("x-webhook-signature", "")
     if not signature.startswith("sha256="):
         return False
-    expected = "sha256=" + hmac.new(
-        secret.encode(), body, hashlib.sha256
-    ).hexdigest()
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(signature, expected)
 
 
@@ -112,6 +103,4 @@ def _verify_relay(headers: Mapping, body: bytes) -> bool:
     secret = cfg.RELAY_SHARED_SECRET
     if not secret:
         return False
-    return hmac.compare_digest(
-        headers.get("x-relay-secret", ""), secret
-    )
+    return hmac.compare_digest(headers.get("x-relay-secret", ""), secret)

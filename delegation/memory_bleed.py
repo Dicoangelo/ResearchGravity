@@ -47,6 +47,7 @@ from typing import Dict, List, Optional, Any
 # Import SBERT embeddings from mcp_raw (same pipeline as coherence engine)
 try:
     from mcp_raw.embeddings import embed_single, cosine_similarity
+
     HAS_EMBEDDINGS = True
 except ImportError:
     HAS_EMBEDDINGS = False
@@ -60,6 +61,7 @@ DEFAULT_SUPERMEMORY_PATH = os.path.expanduser("~/.claude/memory/supermemory.db")
 @dataclass
 class MemoryContext:
     """Relevant context item from supermemory."""
+
     content: str
     source: str
     quality: float
@@ -72,6 +74,7 @@ class MemoryContext:
 @dataclass
 class ErrorPattern:
     """Error pattern from past failures."""
+
     category: str
     pattern: str
     count: int
@@ -177,15 +180,17 @@ def get_relevant_context(task: str, limit: int = 5) -> List[MemoryContext]:
                 except Exception:
                     pass
 
-            results.append(MemoryContext(
-                content=content,
-                source=row["source"],
-                quality=row["quality"] or 0.0,
-                date=row["date"],
-                project=row["project"],
-                similarity=similarity,
-                metadata=metadata,
-            ))
+            results.append(
+                MemoryContext(
+                    content=content,
+                    source=row["source"],
+                    quality=row["quality"] or 0.0,
+                    date=row["date"],
+                    project=row["project"],
+                    similarity=similarity,
+                    metadata=metadata,
+                )
+            )
 
         # Sort by similarity (descending) and return top N
         results.sort(key=lambda x: x.similarity, reverse=True)
@@ -226,23 +231,28 @@ def get_error_patterns(task_type: str) -> List[ErrorPattern]:
     try:
         # Search by category and pattern (case-insensitive LIKE)
         search_term = f"%{task_type.lower()}%"
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT category, pattern, count, solution, last_seen
             FROM error_patterns
             WHERE LOWER(category) LIKE ? OR LOWER(pattern) LIKE ?
             ORDER BY count DESC
             LIMIT 10
-        """, (search_term, search_term)).fetchall()
+        """,
+            (search_term, search_term),
+        ).fetchall()
 
         results = []
         for row in rows:
-            results.append(ErrorPattern(
-                category=row["category"],
-                pattern=row["pattern"],
-                count=row["count"],
-                solution=row["solution"],
-                last_seen=row["last_seen"],
-            ))
+            results.append(
+                ErrorPattern(
+                    category=row["category"],
+                    pattern=row["pattern"],
+                    count=row["count"],
+                    solution=row["solution"],
+                    last_seen=row["last_seen"],
+                )
+            )
 
         return results
 
@@ -284,25 +294,34 @@ def get_domain_expertise(domain: str) -> float:
         search_term = f"%{domain.lower()}%"
 
         # Count memory items
-        memory_count = conn.execute("""
+        memory_count = conn.execute(
+            """
             SELECT COUNT(*) as cnt
             FROM memory_items
             WHERE LOWER(content) LIKE ? AND quality >= 0.5
-        """, (search_term,)).fetchone()["cnt"]
+        """,
+            (search_term,),
+        ).fetchone()["cnt"]
 
         # Count learnings
-        learning_count = conn.execute("""
+        learning_count = conn.execute(
+            """
             SELECT COUNT(*) as cnt
             FROM learnings
             WHERE LOWER(content) LIKE ? AND quality >= 0.5
-        """, (search_term,)).fetchone()["cnt"]
+        """,
+            (search_term,),
+        ).fetchone()["cnt"]
 
         # Count error patterns (indicates experience with failures)
-        error_count = conn.execute("""
+        error_count = conn.execute(
+            """
             SELECT COUNT(*) as cnt
             FROM error_patterns
             WHERE LOWER(category) LIKE ? OR LOWER(pattern) LIKE ?
-        """, (search_term, search_term)).fetchone()["cnt"]
+        """,
+            (search_term, search_term),
+        ).fetchone()["cnt"]
 
         # Score formula (logarithmic scale to handle high counts gracefully)
         total = memory_count + learning_count * 2 + error_count * 3
@@ -311,6 +330,7 @@ def get_domain_expertise(domain: str) -> float:
 
         # Logarithmic scaling: 1 item = 0.1, 10 items = 0.5, 100 items = 1.0
         import math
+
         score = min(1.0, math.log10(total + 1) / 2.0)
         return max(0.0, score)
 
@@ -371,12 +391,15 @@ def write_delegation_outcome(
         next_review = (datetime.now() + timedelta(days=1)).date().isoformat()
         last_review = datetime.now().date().isoformat()
 
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO reviews (
                 id, content, category, ease_factor, interval_days,
                 repetitions, next_review, last_review, source_id
             ) VALUES (?, ?, ?, 2.5, 1, 0, ?, ?, ?)
-        """, (review_id, content, category, next_review, last_review, project or ""))
+        """,
+            (review_id, content, category, next_review, last_review, project or ""),
+        )
 
         conn.commit()
         log.info(f"Wrote delegation outcome to supermemory: {review_id}")
@@ -462,7 +485,7 @@ class MemoryBleedEngine:
         self,
         task_description: str,
         max_items: int = 5,
-        similarity_threshold: float = 0.7
+        similarity_threshold: float = 0.7,
     ) -> List[Dict[str, Any]]:
         """Retrieve relevant context (legacy method)."""
         contexts = get_relevant_context(task_description, limit=max_items)
@@ -474,5 +497,6 @@ class MemoryBleedEngine:
                 "quality": c.quality,
                 "similarity": c.similarity,
             }
-            for c in contexts if c.similarity >= similarity_threshold
+            for c in contexts
+            if c.similarity >= similarity_threshold
         ]

@@ -37,6 +37,7 @@ COHERENCE_TYPES = {
 @dataclass
 class CoherenceMoment:
     """A detected moment of cross-platform coherence."""
+
     moment_id: str
     detected_ns: int
     event_ids: List[str]
@@ -108,29 +109,32 @@ class CoherenceScorer:
             if pair in seen_pairs:
                 continue
 
-            sync = self._synchronicity_detector.detect(
-                event_row, sr, sr.similarity
-            )
+            sync = self._synchronicity_detector.detect(event_row, sr, sr.similarity)
             if sync.is_synchronicity:
                 seen_pairs.add(pair)
                 event_ids = [event_row["event_id"], sr.event_id]
-                moments.append(CoherenceMoment(
-                    moment_id=self._deterministic_moment_id(event_ids, "synchronicity"),
-                    detected_ns=time.time_ns(),
-                    event_ids=event_ids,
-                    platforms=[event_row.get("platform", ""), sr.platform],
-                    coherence_type="synchronicity",
-                    confidence=sync.confidence,
-                    description=(
-                        f"Synchronicity: {event_row.get('platform', '')} <-> {sr.platform} "
-                        f"| {sr.preview[:60]}"
-                    ),
-                    time_window_s=abs(
-                        event_row.get("timestamp_ns", 0) - sr.timestamp_ns
-                    ) / 1e9,
-                    signals=sync.signals,
-                    window_scale=window_scale,
-                ))
+                moments.append(
+                    CoherenceMoment(
+                        moment_id=self._deterministic_moment_id(
+                            event_ids, "synchronicity"
+                        ),
+                        detected_ns=time.time_ns(),
+                        event_ids=event_ids,
+                        platforms=[event_row.get("platform", ""), sr.platform],
+                        coherence_type="synchronicity",
+                        confidence=sync.confidence,
+                        description=(
+                            f"Synchronicity: {event_row.get('platform', '')} <-> {sr.platform} "
+                            f"| {sr.preview[:60]}"
+                        ),
+                        time_window_s=abs(
+                            event_row.get("timestamp_ns", 0) - sr.timestamp_ns
+                        )
+                        / 1e9,
+                        signals=sync.signals,
+                        window_scale=window_scale,
+                    )
+                )
 
         # Sort by confidence descending
         moments.sort(key=lambda m: m.confidence, reverse=True)
@@ -143,12 +147,16 @@ class CoherenceScorer:
         return f"cm-{hashlib.sha256(pair_key.encode()).hexdigest()[:16]}"
 
     @staticmethod
-    def _moment_signature(event_ids: List[str], coherence_type: str, confidence: float) -> str:
+    def _moment_signature(
+        event_ids: List[str], coherence_type: str, confidence: float
+    ) -> str:
         """Generate a signature for deduplication."""
         pair_key = "|".join(sorted(event_ids)) + "|" + coherence_type
         return hashlib.sha256(f"{pair_key}|{confidence:.4f}".encode()).hexdigest()
 
-    def _to_moment(self, det: DetectionResult, window_scale: str = "short") -> CoherenceMoment:
+    def _to_moment(
+        self, det: DetectionResult, window_scale: str = "short"
+    ) -> CoherenceMoment:
         """Convert a DetectionResult to a CoherenceMoment."""
         event_ids = [det.event_a_id, det.event_b_id]
         return CoherenceMoment(

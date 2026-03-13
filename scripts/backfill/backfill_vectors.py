@@ -11,7 +11,8 @@ import asyncio
 import sys
 import time
 from pathlib import Path
-import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # noqa: E402
 from storage.engine import StorageEngine
 
 # Batch configuration
@@ -38,11 +39,14 @@ async def backfill_findings(engine: StorageEngine, dry_run: bool = False):
         batch_num = 1
 
         while offset < total:
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 SELECT id, content, type, session_id, project, confidence
                 FROM findings
                 LIMIT ? OFFSET ?
-            """, (BATCH_SIZE, offset))
+            """,
+                (BATCH_SIZE, offset),
+            )
 
             rows = await cursor.fetchall()
             if not rows:
@@ -60,14 +64,16 @@ async def backfill_findings(engine: StorageEngine, dry_run: bool = False):
                 for r in rows
             ]
 
-            print(f"\nBatch {batch_num}: Processing findings {offset+1}-{offset+len(findings)} of {total}")
+            print(
+                f"\nBatch {batch_num}: Processing findings {offset + 1}-{offset + len(findings)} of {total}"
+            )
 
             try:
                 count = await engine.qdrant.upsert_findings_batch(findings)
                 print(f"  ✓ Uploaded {count} vectors to Qdrant")
             except Exception as e:
                 if "429" in str(e) or "rate limit" in str(e).lower():
-                    print(f"  ⚠️  Rate limit hit. Waiting 120 seconds...")
+                    print("  ⚠️  Rate limit hit. Waiting 120 seconds...")
                     time.sleep(120)
                     # Retry this batch
                     try:
@@ -87,7 +93,7 @@ async def backfill_findings(engine: StorageEngine, dry_run: bool = False):
                 print(f"  Waiting {DELAY_BETWEEN_BATCHES}s before next batch...")
                 time.sleep(DELAY_BETWEEN_BATCHES)
 
-    print(f"\n✓ Finished backfilling findings")
+    print("\n✓ Finished backfilling findings")
 
 
 async def backfill_sessions(engine: StorageEngine, dry_run: bool = False):
@@ -107,7 +113,7 @@ async def backfill_sessions(engine: StorageEngine, dry_run: bool = False):
         print(f"✓ Uploaded {count} session vectors to Qdrant")
     except Exception as e:
         if "429" in str(e) or "rate limit" in str(e).lower():
-            print(f"⚠️  Rate limit hit. Waiting 120 seconds...")
+            print("⚠️  Rate limit hit. Waiting 120 seconds...")
             time.sleep(120)
             try:
                 count = await engine.qdrant.upsert_sessions_batch(sessions)
@@ -120,10 +126,17 @@ async def backfill_sessions(engine: StorageEngine, dry_run: bool = False):
 
 async def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Backfill vectors to Qdrant")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without uploading")
-    parser.add_argument("--findings-only", action="store_true", help="Only backfill findings")
-    parser.add_argument("--sessions-only", action="store_true", help="Only backfill sessions")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without uploading"
+    )
+    parser.add_argument(
+        "--findings-only", action="store_true", help="Only backfill findings"
+    )
+    parser.add_argument(
+        "--sessions-only", action="store_true", help="Only backfill sessions"
+    )
     args = parser.parse_args()
 
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -131,7 +144,9 @@ async def main():
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print(f"\nBatch size: {BATCH_SIZE} embeddings")
     print(f"Delay between batches: {DELAY_BETWEEN_BATCHES}s")
-    print(f"Estimated rate: ~{int(60/DELAY_BETWEEN_BATCHES * BATCH_SIZE)} embeddings/minute")
+    print(
+        f"Estimated rate: ~{int(60 / DELAY_BETWEEN_BATCHES * BATCH_SIZE)} embeddings/minute"
+    )
 
     engine = StorageEngine()
     await engine.initialize()
@@ -148,11 +163,11 @@ async def main():
             print("\n━━━ Final Statistics ━━━━━━━━━━━━━━━━━━━━━━━━━")
             stats = await engine.qdrant.get_stats()
             print(f"Embedding Model: {stats['embedding_model']}")
-            print(f"Collections:")
-            for name in ['findings', 'sessions']:
+            print("Collections:")
+            for name in ["findings", "sessions"]:
                 if name in stats:
                     info = stats[name]
-                    if 'error' not in info:
+                    if "error" not in info:
                         print(f"  {name}: {info.get('points_count', 0)} vectors")
 
     finally:

@@ -45,7 +45,10 @@ class AlertSystem:
         self._log_moment(moment)
 
         # Desktop notification for high confidence
-        if moment.confidence >= cfg.HIGH_CONFIDENCE_THRESHOLD and cfg.DESKTOP_NOTIFICATIONS:
+        if (
+            moment.confidence >= cfg.HIGH_CONFIDENCE_THRESHOLD
+            and cfg.DESKTOP_NOTIFICATIONS
+        ):
             self._desktop_notify(moment)
 
         # Webhook if configured
@@ -54,7 +57,9 @@ class AlertSystem:
 
     def _log_moment(self, moment: CoherenceMoment):
         """Append to coherence log file."""
-        ts = datetime.fromtimestamp(moment.detected_ns / 1e9).strftime("%Y-%m-%d %H:%M:%S")
+        ts = datetime.fromtimestamp(moment.detected_ns / 1e9).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         platforms = " <-> ".join(moment.platforms)
         entry = (
             f"[{ts}] {moment.coherence_type.upper()} "
@@ -84,7 +89,8 @@ class AlertSystem:
         try:
             subprocess.run(
                 [
-                    "osascript", "-e",
+                    "osascript",
+                    "-e",
                     f'display notification "{body}" with title "{title}"',
                 ],
                 capture_output=True,
@@ -146,9 +152,11 @@ class AlertSystem:
         if cfg.DESKTOP_NOTIFICATIONS:
             try:
                 import subprocess
+
                 subprocess.run(
                     [
-                        "osascript", "-e",
+                        "osascript",
+                        "-e",
                         f'display notification "{body}" with title "{title}"',
                     ],
                     capture_output=True,

@@ -20,8 +20,8 @@ from mcp_raw.tools.validation import clamp_int, clamp_float
 log = get_logger("tools.coherence")
 
 # Shared DB — injected by server via set_db()
-_db = None       # CognitiveDatabase (PostgreSQL)
-_pool = None     # asyncpg.Pool (extracted from _db for direct queries)
+_db = None  # CognitiveDatabase (PostgreSQL)
+_pool = None  # asyncpg.Pool (extracted from _db for direct queries)
 
 
 def set_db(db):
@@ -134,6 +134,7 @@ TOOLS: List[Dict[str, Any]] = [
 
 # ── Dispatcher ───────────────────────────────────────────────────────────────
 
+
 async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     handlers = {
         "coherence_status": _coherence_status,
@@ -159,11 +160,16 @@ async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── coherence_status ─────────────────────────────────────────────────────────
 
+
 async def _coherence_status(args: Dict) -> Dict:
     """Quick engine status."""
     if not _pool:
         return tool_result_content(
-            [text_content("Coherence engine not available — PostgreSQL not connected.")],
+            [
+                text_content(
+                    "Coherence engine not available — PostgreSQL not connected."
+                )
+            ],
             is_error=True,
         )
 
@@ -184,11 +190,15 @@ async def _coherence_status(args: Dict) -> Dict:
         """)
 
         # Confidence distribution
-        high = await conn.fetchval("SELECT COUNT(*) FROM coherence_moments WHERE confidence >= 0.75")
-        med = await conn.fetchval("SELECT COUNT(*) FROM coherence_moments WHERE confidence >= 0.70 AND confidence < 0.75")
+        high = await conn.fetchval(
+            "SELECT COUNT(*) FROM coherence_moments WHERE confidence >= 0.75"
+        )
+        med = await conn.fetchval(
+            "SELECT COUNT(*) FROM coherence_moments WHERE confidence >= 0.70 AND confidence < 0.75"
+        )
 
     out = "# UCW Coherence Engine Status\n\n"
-    out += f"| Metric | Value |\n|--------|-------|\n"
+    out += "| Metric | Value |\n|--------|-------|\n"
     out += f"| Events | {total_events:,} |\n"
     out += f"| Embedded | {embedded:,} |\n"
     out += f"| Coherence Moments | {moments} |\n"
@@ -209,6 +219,7 @@ async def _coherence_status(args: Dict) -> Dict:
 
 # ── coherence_moments ────────────────────────────────────────────────────────
 
+
 async def _coherence_moments(args: Dict) -> Dict:
     """List detected moments with full event content."""
     if not _pool:
@@ -221,14 +232,18 @@ async def _coherence_moments(args: Dict) -> Dict:
     limit = clamp_int(args.get("limit"), 20, 1, 100)
 
     async with _pool.acquire() as conn:
-        rows = await conn.fetch("""
+        rows = await conn.fetch(
+            """
             SELECT moment_id, confidence, coherence_type, platforms, description,
                    event_ids, metadata, time_window_s
             FROM coherence_moments
             WHERE confidence >= $1
             ORDER BY confidence DESC
             LIMIT $2
-        """, min_conf, limit * 3)  # over-fetch for topic filtering
+        """,
+            min_conf,
+            limit * 3,
+        )  # over-fetch for topic filtering
 
     # Deduplicate by event pair
     seen_pairs = set()
@@ -260,17 +275,19 @@ async def _coherence_moments(args: Dict) -> Dict:
                 ll = _parse_json(e["light_layer"])
                 il = _parse_json(e["instinct_layer"])
 
-                events_data.append({
-                    "platform": e["platform"],
-                    "mode": e["cognitive_mode"] or "-",
-                    "quality": e["quality_score"],
-                    "topic": ll.get("topic", "-"),
-                    "intent": ll.get("intent", "-"),
-                    "summary": ll.get("summary", "-"),
-                    "concepts": ll.get("concepts", []),
-                    "gut": il.get("gut_signal", "-"),
-                    "emergence": il.get("emergence_indicators", []),
-                })
+                events_data.append(
+                    {
+                        "platform": e["platform"],
+                        "mode": e["cognitive_mode"] or "-",
+                        "quality": e["quality_score"],
+                        "topic": ll.get("topic", "-"),
+                        "intent": ll.get("intent", "-"),
+                        "summary": ll.get("summary", "-"),
+                        "concepts": ll.get("concepts", []),
+                        "gut": il.get("gut_signal", "-"),
+                        "emergence": il.get("emergence_indicators", []),
+                    }
+                )
 
         # Topic filter
         if topic_filter:
@@ -281,11 +298,15 @@ async def _coherence_moments(args: Dict) -> Dict:
         results.append({"moment": r, "events": events_data})
 
     if not results:
-        return tool_result_content([text_content(
-            f"No coherence moments found above {min_conf:.0%} confidence"
-            + (f" for topic '{topic_filter}'" if topic_filter else "")
-            + "."
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    f"No coherence moments found above {min_conf:.0%} confidence"
+                    + (f" for topic '{topic_filter}'" if topic_filter else "")
+                    + "."
+                )
+            ]
+        )
 
     out = f"# Coherence Moments ({len(results)} shown)\n\n"
 
@@ -312,6 +333,7 @@ async def _coherence_moments(args: Dict) -> Dict:
 
 # ── coherence_search ─────────────────────────────────────────────────────────
 
+
 async def _coherence_search(args: Dict) -> Dict:
     """Semantic similarity search using embeddings."""
     if not _pool:
@@ -328,6 +350,7 @@ async def _coherence_search(args: Dict) -> Dict:
     # Embed the query
     try:
         from mcp_raw.embeddings import embed_single
+
         query_emb = embed_single(query)
     except Exception as exc:
         return tool_result_content(
@@ -341,7 +364,8 @@ async def _coherence_search(args: Dict) -> Dict:
     try:
         async with _pool.acquire() as conn:
             if platform_filter:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT ec.source_event_id, ec.content_preview,
                            (ec.embedding <=> $1::vector) AS distance,
                            ce.platform, ce.cognitive_mode, ce.quality_score,
@@ -352,10 +376,16 @@ async def _coherence_search(args: Dict) -> Dict:
                       AND (ec.embedding <=> $1::vector) < $3
                     ORDER BY distance
                     LIMIT $4
-                """, vec_str, platform_filter, dist_threshold, limit)
+                """,
+                    vec_str,
+                    platform_filter,
+                    dist_threshold,
+                    limit,
+                )
             elif cross_only:
                 # Exclude claude-desktop (current platform)
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT ec.source_event_id, ec.content_preview,
                            (ec.embedding <=> $1::vector) AS distance,
                            ce.platform, ce.cognitive_mode, ce.quality_score,
@@ -366,9 +396,14 @@ async def _coherence_search(args: Dict) -> Dict:
                       AND (ec.embedding <=> $1::vector) < $2
                     ORDER BY distance
                     LIMIT $3
-                """, vec_str, dist_threshold, limit)
+                """,
+                    vec_str,
+                    dist_threshold,
+                    limit,
+                )
             else:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT ec.source_event_id, ec.content_preview,
                            (ec.embedding <=> $1::vector) AS distance,
                            ce.platform, ce.cognitive_mode, ce.quality_score,
@@ -378,16 +413,20 @@ async def _coherence_search(args: Dict) -> Dict:
                     WHERE (ec.embedding <=> $1::vector) < $2
                     ORDER BY distance
                     LIMIT $3
-                """, vec_str, dist_threshold, limit)
+                """,
+                    vec_str,
+                    dist_threshold,
+                    limit,
+                )
     except Exception as exc:
         return tool_result_content(
             [text_content(f"Search failed: {exc}")], is_error=True
         )
 
     if not rows:
-        return tool_result_content([text_content(
-            f"No results above {min_sim:.0%} similarity for: '{query}'"
-        )])
+        return tool_result_content(
+            [text_content(f"No results above {min_sim:.0%} similarity for: '{query}'")]
+        )
 
     # Group by platform for header
     plat_counts = Counter(r["platform"] for r in rows)
@@ -419,6 +458,7 @@ async def _coherence_search(args: Dict) -> Dict:
 
 # ── coherence_scan ───────────────────────────────────────────────────────────
 
+
 async def _coherence_scan(args: Dict) -> Dict:
     """Run a fresh oneshot coherence detection scan."""
     if not _pool:
@@ -441,9 +481,7 @@ async def _coherence_scan(args: Dict) -> Dict:
         processed = await daemon.oneshot()
 
     except Exception as exc:
-        return tool_result_content(
-            [text_content(f"Scan failed: {exc}")], is_error=True
-        )
+        return tool_result_content([text_content(f"Scan failed: {exc}")], is_error=True)
 
     # Get moment count after scan
     async with _pool.acquire() as conn:
@@ -453,14 +491,17 @@ async def _coherence_scan(args: Dict) -> Dict:
         # Get the new moments (cap at 2000)
         new_rows = []
         if new_moments > 0:
-            new_rows = await conn.fetch("""
+            new_rows = await conn.fetch(
+                """
                 SELECT moment_id, confidence, coherence_type, platforms, description
                 FROM coherence_moments
                 ORDER BY created_at DESC
                 LIMIT $1
-            """, min(new_moments, 2000))
+            """,
+                min(new_moments, 2000),
+            )
 
-    out = f"# Coherence Scan Complete\n\n"
+    out = "# Coherence Scan Complete\n\n"
     out += f"**Events processed:** {processed}\n"
     out += f"**New moments detected:** {new_moments}\n"
     out += f"**Total moments:** {after_count}\n\n"
@@ -471,12 +512,15 @@ async def _coherence_scan(args: Dict) -> Dict:
             out += f"- **{r['confidence']:.0%}** {r['coherence_type']} — {r['platforms']} — {(r['description'] or '')[:150]}\n"
 
     if new_moments == 0:
-        out += "*No new coherence moments detected. All recent events have been scored.*\n"
+        out += (
+            "*No new coherence moments detected. All recent events have been scored.*\n"
+        )
 
     return tool_result_content([text_content(out)])
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _parse_json(value) -> dict:
     """Safely parse a JSON value that might be a string or already a dict."""

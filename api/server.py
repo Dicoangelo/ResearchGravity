@@ -33,6 +33,7 @@ STORAGE_AVAILABLE = False
 try:
     from storage import StorageEngine, get_engine
     from storage.ucw_ingestion import UCWIngestionPipeline, ingest_ucw_trade
+
     STORAGE_AVAILABLE = True
 except ImportError:
     pass
@@ -41,6 +42,7 @@ try:
     from fastapi import FastAPI, HTTPException, Query
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
+
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
@@ -68,6 +70,7 @@ if FASTAPI_AVAILABLE:
             create_access_token,
         )
         from fastapi import Request, Depends
+
         SECURITY_AVAILABLE = True
         AUTH_AVAILABLE = True
 
@@ -94,11 +97,21 @@ if FASTAPI_AVAILABLE:
         # Define dummy fallbacks
         Request = None
         Depends = None
-        def rate_limit_default(func): return func
-        def rate_limit_search(func): return func
-        def rate_limit_write(func): return func
-        async def get_current_user(): return {"type": "anonymous"}
-        async def optional_auth(): return None
+
+        def rate_limit_default(func):
+            return func
+
+        def rate_limit_search(func):
+            return func
+
+        def rate_limit_write(func):
+            return func
+
+        async def get_current_user():
+            return {"type": "anonymous"}
+
+        async def optional_auth():
+            return None
 
     # Add request logging middleware
     if SECURITY_AVAILABLE:
@@ -108,15 +121,28 @@ if FASTAPI_AVAILABLE:
     if SECURITY_AVAILABLE and limiter:
         from slowapi import _rate_limit_exceeded_handler
         from slowapi.errors import RateLimitExceeded
+
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # CORS for local development
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:8080"],
+        allow_origins=[
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:8080",
+        ],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods instead of "*"
+        allow_methods=[
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "OPTIONS",
+        ],  # Explicit methods instead of "*"
         allow_headers=["*"],
         expose_headers=["X-Request-ID"],  # Expose request ID header
         max_age=3600,
@@ -125,6 +151,7 @@ if FASTAPI_AVAILABLE:
     # Include intelligence routes (V2)
     try:
         from api.routes.intelligence import router as intelligence_router
+
         app.include_router(intelligence_router)
     except ImportError:
         print("Warning: Intelligence routes not available")
@@ -132,6 +159,7 @@ if FASTAPI_AVAILABLE:
     # Include coherence dashboard routes
     try:
         from api.routes.coherence import router as coherence_router
+
         app.include_router(coherence_router)
     except ImportError:
         print("Warning: Coherence routes not available")
@@ -147,6 +175,7 @@ MEMORY_DIR = Path.home() / ".claude" / "memory"
 # ============================================================
 
 if FASTAPI_AVAILABLE:
+
     class SessionSummary(BaseModel):
         id: str
         topic: Optional[str] = None
@@ -232,7 +261,7 @@ if FASTAPI_AVAILABLE:
 # Storage Engine (Phase 3a)
 # ============================================================
 
-_storage_engine: Optional['StorageEngine'] = None
+_storage_engine: Optional["StorageEngine"] = None
 
 
 async def get_storage():
@@ -244,6 +273,7 @@ async def get_storage():
 
 
 if FASTAPI_AVAILABLE:
+
     @app.on_event("startup")
     async def startup_event():
         """Initialize storage engine on startup."""
@@ -252,7 +282,9 @@ if FASTAPI_AVAILABLE:
                 global _storage_engine
                 _storage_engine = await get_engine()
                 health = await _storage_engine.health_check()
-                print(f"Storage engine initialized: SQLite=✓ Qdrant={'✓' if health.get('qdrant') else '✗'}")
+                print(
+                    f"Storage engine initialized: SQLite=✓ Qdrant={'✓' if health.get('qdrant') else '✗'}"
+                )
             except Exception as e:
                 print(f"Storage engine initialization warning: {e}")
                 print("Falling back to file-based storage")
@@ -267,6 +299,7 @@ if FASTAPI_AVAILABLE:
 # ============================================================
 # Helper Functions
 # ============================================================
+
 
 def load_json_file(path: Path) -> dict | list:
     """Safely load JSON file."""
@@ -327,7 +360,7 @@ def get_evidenced_findings(session_id: str) -> list:
                 "content": f.get("text", ""),
                 "type": f.get("type", "finding"),
                 "evidence": {"sources": [], "confidence": 0.0},
-                "needs_review": True
+                "needs_review": True,
             }
             for i, f in enumerate(findings)
         ]
@@ -340,6 +373,7 @@ def get_evidenced_findings(session_id: str) -> list:
 # ============================================================
 
 if FASTAPI_AVAILABLE:
+
     @app.get("/")
     async def root():
         """API root - health check."""
@@ -348,7 +382,7 @@ if FASTAPI_AVAILABLE:
             "version": "2.1.0",
             "status": "healthy",
             "auth_enabled": AUTH_AVAILABLE,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     # ============================================================
@@ -357,16 +391,19 @@ if FASTAPI_AVAILABLE:
 
     class TokenRequest(BaseModel):
         """Request for JWT token generation."""
+
         client_id: str
         scope: str = "read"  # read, write, admin
 
     class TokenResponse(BaseModel):
         """JWT token response."""
+
         access_token: str
         token_type: str = "bearer"
         expires_in: int = 86400  # 24 hours
 
     if AUTH_AVAILABLE:
+
         @app.post("/api/auth/token", response_model=TokenResponse)
         async def generate_token(request: TokenRequest):
             """
@@ -383,15 +420,13 @@ if FASTAPI_AVAILABLE:
             token_data = {
                 "sub": request.client_id,
                 "scope": request.scope,
-                "type": "access_token"
+                "type": "access_token",
             }
 
             token = create_access_token(token_data)
 
             return TokenResponse(
-                access_token=token,
-                token_type="bearer",
-                expires_in=86400
+                access_token=token, token_type="bearer", expires_in=86400
             )
 
         @app.get("/api/auth/me")
@@ -401,16 +436,13 @@ if FASTAPI_AVAILABLE:
 
             Requires valid JWT token or API key.
             """
-            return {
-                "authenticated": True,
-                "user": user
-            }
+            return {"authenticated": True, "user": user}
 
     @app.get("/api/sessions", response_model=list[SessionSummary])
     async def list_sessions(
         limit: int = Query(20, ge=1, le=100),
         project: Optional[str] = None,
-        status: Optional[str] = None
+        status: Optional[str] = None,
     ):
         """List all sessions with metadata."""
         if not SESSIONS_DIR.exists():
@@ -466,7 +498,7 @@ if FASTAPI_AVAILABLE:
         type: Optional[str] = None,
         project: Optional[str] = None,
         needs_review: Optional[bool] = None,
-        limit: int = Query(50, ge=1, le=200)
+        limit: int = Query(50, ge=1, le=200),
     ):
         """Search findings across all sessions."""
         all_findings = []
@@ -493,15 +525,17 @@ if FASTAPI_AVAILABLE:
                 if needs_review is not None and f.get("needs_review") != needs_review:
                     continue
 
-                all_findings.append(FindingResponse(
-                    id=f.get("id", "unknown"),
-                    session_id=f.get("session_id", session_dir.name),
-                    content=f.get("content", ""),
-                    type=f.get("type", "finding"),
-                    confidence=f.get("evidence", {}).get("confidence", 0.0),
-                    sources=f.get("evidence", {}).get("sources", []),
-                    needs_review=f.get("needs_review", False)
-                ))
+                all_findings.append(
+                    FindingResponse(
+                        id=f.get("id", "unknown"),
+                        session_id=f.get("session_id", session_dir.name),
+                        content=f.get("content", ""),
+                        type=f.get("type", "finding"),
+                        confidence=f.get("evidence", {}).get("confidence", 0.0),
+                        sources=f.get("evidence", {}).get("sources", []),
+                        needs_review=f.get("needs_review", False),
+                    )
+                )
 
                 if len(all_findings) >= limit:
                     return all_findings
@@ -535,7 +569,7 @@ if FASTAPI_AVAILABLE:
             "tags": finding.tags,
             "source": finding.source_url,
             "project": finding.project,
-            "timestamp": now.isoformat() + "Z"
+            "timestamp": now.isoformat() + "Z",
         }
 
         if category not in knowledge:
@@ -544,11 +578,7 @@ if FASTAPI_AVAILABLE:
 
         knowledge_file.write_text(json.dumps(knowledge, indent=2))
 
-        return {
-            "status": "created",
-            "id": entry["id"],
-            "category": category
-        }
+        return {"status": "created", "id": entry["id"], "category": category}
 
     @app.post("/api/search/semantic", response_model=list[SearchResult])
     @rate_limit_search
@@ -558,13 +588,14 @@ if FASTAPI_AVAILABLE:
         try:
             sys.path.insert(0, str(Path.home() / ".claude" / "kernel"))
             from memory_api import VectorMemory
+
             mem = VectorMemory()
 
             results = mem.query(
                 search.query,
                 category=search.category,
                 limit=search.limit,
-                min_similarity=search.min_confidence
+                min_similarity=search.min_confidence,
             )
 
             return [
@@ -573,7 +604,7 @@ if FASTAPI_AVAILABLE:
                     category=r.get("category", "unknown"),
                     similarity=r.get("similarity", 0.0),
                     session_id=r.get("session_id"),
-                    tags=r.get("tags", [])
+                    tags=r.get("tags", []),
                 )
                 for r in results
             ]
@@ -585,20 +616,28 @@ if FASTAPI_AVAILABLE:
             results = []
             query_lower = search.query.lower()
 
-            categories = [search.category] if search.category != "all" else ["facts", "decisions", "patterns"]
+            categories = (
+                [search.category]
+                if search.category != "all"
+                else ["facts", "decisions", "patterns"]
+            )
 
             for cat in categories:
                 items = knowledge.get(cat, [])
                 for item in items:
                     content = item.get("content", "").lower()
                     # Simple keyword matching
-                    if query_lower in content or any(kw in content for kw in query_lower.split()):
-                        results.append(SearchResult(
-                            content=item.get("content", ""),
-                            category=cat,
-                            similarity=0.5,  # Fixed score for keyword match
-                            tags=item.get("tags", [])
-                        ))
+                    if query_lower in content or any(
+                        kw in content for kw in query_lower.split()
+                    ):
+                        results.append(
+                            SearchResult(
+                                content=item.get("content", ""),
+                                category=cat,
+                                similarity=0.5,  # Fixed score for keyword match
+                                tags=item.get("tags", []),
+                            )
+                        )
 
                         if len(results) >= search.limit:
                             return results
@@ -616,13 +655,15 @@ if FASTAPI_AVAILABLE:
         for pack_file in packs_dir.glob("*.json"):
             try:
                 data = json.loads(pack_file.read_text())
-                packs.append({
-                    "id": pack_file.stem,
-                    "type": data.get("type", "unknown"),
-                    "tokens": data.get("tokens", 0),
-                    "sessions": len(data.get("sessions", [])),
-                    "created_at": data.get("created_at")
-                })
+                packs.append(
+                    {
+                        "id": pack_file.stem,
+                        "type": data.get("type", "unknown"),
+                        "tokens": data.get("tokens", 0),
+                        "sessions": len(data.get("sessions", [])),
+                        "created_at": data.get("created_at"),
+                    }
+                )
             except:
                 continue
 
@@ -645,22 +686,30 @@ if FASTAPI_AVAILABLE:
                 # Filter by project
                 if selection.project:
                     pack_projects = data.get("projects", [])
-                    if selection.project not in pack_projects and data.get("project") != selection.project:
+                    if (
+                        selection.project not in pack_projects
+                        and data.get("project") != selection.project
+                    ):
                         continue
 
                 # Filter by pattern
                 if selection.pattern:
                     pack_patterns = data.get("patterns", [])
-                    if selection.pattern not in pack_patterns and data.get("pattern") != selection.pattern:
+                    if (
+                        selection.pattern not in pack_patterns
+                        and data.get("pattern") != selection.pattern
+                    ):
                         continue
 
                 tokens = data.get("tokens", 0)
-                selected.append({
-                    "id": pack_file.stem,
-                    "type": data.get("type"),
-                    "tokens": tokens,
-                    "content": data.get("content", "")[:500] + "..."  # Preview
-                })
+                selected.append(
+                    {
+                        "id": pack_file.stem,
+                        "type": data.get("type"),
+                        "tokens": tokens,
+                        "content": data.get("content", "")[:500] + "...",  # Preview
+                    }
+                )
                 total_tokens += tokens
 
                 if len(selected) >= selection.limit:
@@ -668,11 +717,7 @@ if FASTAPI_AVAILABLE:
             except:
                 continue
 
-        return {
-            "packs": selected,
-            "total_tokens": total_tokens,
-            "count": len(selected)
-        }
+        return {"packs": selected, "total_tokens": total_tokens, "count": len(selected)}
 
     # ============================================================
     # Storage-Backed Endpoints (Phase 3a)
@@ -685,7 +730,9 @@ if FASTAPI_AVAILABLE:
         query: str = Query(..., min_length=1),
         limit: int = Query(10, ge=1, le=50),
         min_score: float = Query(0.4, ge=0.0, le=1.0),
-        collections: Optional[str] = Query(None, description="Comma-separated: findings,sessions,packs")
+        collections: Optional[str] = Query(
+            None, description="Comma-separated: findings,sessions,packs"
+        ),
     ):
         """
         Semantic search using vector embeddings (Qdrant).
@@ -697,32 +744,26 @@ if FASTAPI_AVAILABLE:
         if not storage:
             raise HTTPException(
                 status_code=503,
-                detail="Storage engine not available. Run migration first."
+                detail="Storage engine not available. Run migration first.",
             )
 
         coll_list = collections.split(",") if collections else None
 
         try:
             results = await storage.semantic_search(
-                query=query,
-                limit=limit,
-                min_score=min_score,
-                collections=coll_list
+                query=query, limit=limit, min_score=min_score, collections=coll_list
             )
             return {
                 "query": query,
                 "results": results,
-                "engine": "qdrant" if storage._qdrant_enabled else "fts"
+                "engine": "qdrant" if storage._qdrant_enabled else "fts",
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.post("/api/v2/findings/batch")
     @rate_limit_write
-    async def store_findings_batch(
-        http_request: Request,
-        request: BulkFindingsRequest
-    ):
+    async def store_findings_batch(http_request: Request, request: BulkFindingsRequest):
         """
         Store multiple findings in a single transaction.
 
@@ -730,21 +771,13 @@ if FASTAPI_AVAILABLE:
         """
         storage = await get_storage()
         if not storage:
-            raise HTTPException(
-                status_code=503,
-                detail="Storage engine not available"
-            )
+            raise HTTPException(status_code=503, detail="Storage engine not available")
 
         try:
             count = await storage.store_findings_batch(
-                request.findings,
-                source=request.source
+                request.findings, source=request.source
             )
-            return {
-                "status": "success",
-                "stored": count,
-                "source": request.source
-            }
+            return {"status": "success", "stored": count, "source": request.source}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -760,16 +793,13 @@ if FASTAPI_AVAILABLE:
         - Deduplication
         """
         if not STORAGE_AVAILABLE:
-            raise HTTPException(
-                status_code=503,
-                detail="Storage engine not available"
-            )
+            raise HTTPException(status_code=503, detail="Storage engine not available")
 
         try:
             result = await ingest_ucw_trade(
                 wallet_id=request.wallet_id,
                 packs=request.packs,
-                validate=request.run_validation
+                validate=request.run_validation,
             )
             return result.to_dict()
         except Exception as e:
@@ -785,21 +815,19 @@ if FASTAPI_AVAILABLE:
         storage = await get_storage()
         if not storage:
             # Return file-based stats as fallback
-            sessions_count = len(list(SESSIONS_DIR.iterdir())) if SESSIONS_DIR.exists() else 0
+            sessions_count = (
+                len(list(SESSIONS_DIR.iterdir())) if SESSIONS_DIR.exists() else 0
+            )
             return {
                 "engine": "file-based",
                 "sessions": sessions_count,
-                "storage_available": False
+                "storage_available": False,
             }
 
         try:
             stats = await storage.get_stats()
             health = await storage.health_check()
-            return {
-                "engine": "storage-triad",
-                "health": health,
-                **stats
-            }
+            return {"engine": "storage-triad", "health": health, **stats}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -812,7 +840,7 @@ if FASTAPI_AVAILABLE:
                 "status": "degraded",
                 "sqlite": False,
                 "qdrant": False,
-                "message": "Storage engine not initialized"
+                "message": "Storage engine not initialized",
             }
 
         health = await storage.health_check()
@@ -821,7 +849,9 @@ if FASTAPI_AVAILABLE:
         return {
             "status": status,
             **health,
-            "message": "Qdrant disabled" if not health.get("qdrant") else "All systems operational"
+            "message": "Qdrant disabled"
+            if not health.get("qdrant")
+            else "All systems operational",
         }
 
     @app.post("/api/v2/sessions")
@@ -841,7 +871,7 @@ if FASTAPI_AVAILABLE:
     async def list_sessions_v2(
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
-        project: Optional[str] = None
+        project: Optional[str] = None,
     ):
         """List sessions from storage engine."""
         storage = await get_storage()
@@ -851,9 +881,7 @@ if FASTAPI_AVAILABLE:
 
         try:
             sessions = await storage.list_sessions(
-                limit=limit,
-                offset=offset,
-                project=project
+                limit=limit, offset=offset, project=project
             )
             return sessions
         except Exception as e:
@@ -866,7 +894,13 @@ if FASTAPI_AVAILABLE:
     # Import graph module if available
     GRAPH_AVAILABLE = False
     try:
-        from graph import ConceptGraph, get_related_sessions, get_research_lineage, get_concept_network
+        from graph import (
+            ConceptGraph,
+            get_related_sessions,
+            get_research_lineage,
+            get_concept_network,
+        )
+
         GRAPH_AVAILABLE = True
     except ImportError:
         pass
@@ -949,8 +983,7 @@ if FASTAPI_AVAILABLE:
 
     @app.get("/api/v2/graph/timeline")
     async def research_timeline(
-        project: Optional[str] = None,
-        limit: int = Query(50, ge=1, le=200)
+        project: Optional[str] = None, limit: int = Query(50, ge=1, le=200)
     ):
         """Get chronological research timeline with lineage links."""
         if not GRAPH_AVAILABLE:
@@ -979,7 +1012,9 @@ if FASTAPI_AVAILABLE:
 
     @app.post("/api/v2/predict/session")
     @rate_limit_search  # Expensive computation, treat like search
-    async def predict_session_outcome(http_request: Request, request: PredictionRequest):
+    async def predict_session_outcome(
+        http_request: Request, request: PredictionRequest
+    ):
         """
         Predict session outcome based on multi-dimensional correlation.
 
@@ -1015,7 +1050,7 @@ if FASTAPI_AVAILABLE:
             prediction = await engine.predict_session_outcome(
                 intent=request.intent,
                 cognitive_state=request.cognitive_state,
-                available_research=request.available_research
+                available_research=request.available_research,
             )
 
             # Optionally store for tracking
@@ -1024,7 +1059,7 @@ if FASTAPI_AVAILABLE:
                 prediction_id = await engine.store_prediction_for_tracking(
                     intent=request.intent,
                     prediction=prediction,
-                    cognitive_state=request.cognitive_state
+                    cognitive_state=request.cognitive_state,
                 )
                 prediction["prediction_id"] = prediction_id
 
@@ -1033,6 +1068,7 @@ if FASTAPI_AVAILABLE:
 
         except Exception as e:
             import traceback
+
             print(f"ERROR in predict_session_outcome: {str(e)}")
             print(traceback.format_exc())
             raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
@@ -1065,14 +1101,16 @@ if FASTAPI_AVAILABLE:
 
             errors = await engine.predict_errors(
                 intent=request.intent,
-                include_preventable_only=request.include_preventable_only
+                include_preventable_only=request.include_preventable_only,
             )
 
             await engine.close()
             return {"errors": errors, "count": len(errors)}
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error prediction failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Error prediction failed: {str(e)}"
+            )
 
     @app.post("/api/v2/predict/optimal-time")
     async def predict_optimal_time(request: OptimalTimeRequest):
@@ -1101,15 +1139,16 @@ if FASTAPI_AVAILABLE:
             await engine.initialize()
 
             result = await engine.predict_optimal_time(
-                intent=request.intent,
-                current_hour=request.current_hour
+                intent=request.intent, current_hour=request.current_hour
             )
 
             await engine.close()
             return result
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Optimal time prediction failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Optimal time prediction failed: {str(e)}"
+            )
 
     @app.get("/api/v2/predict/accuracy")
     async def get_prediction_accuracy(days: int = Query(30, ge=1, le=365)):
@@ -1145,7 +1184,9 @@ if FASTAPI_AVAILABLE:
             return accuracy
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Accuracy calculation failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Accuracy calculation failed: {str(e)}"
+            )
 
     @app.post("/api/v2/predict/update-outcome")
     async def update_prediction_outcome(request: PredictionOutcomeUpdate):
@@ -1172,19 +1213,21 @@ if FASTAPI_AVAILABLE:
                 prediction_id=request.prediction_id,
                 actual_quality=request.actual_quality,
                 actual_outcome=request.actual_outcome,
-                session_id=request.session_id
+                session_id=request.session_id,
             )
 
             await engine.close()
             return {"status": "updated", "prediction_id": request.prediction_id}
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Outcome update failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Outcome update failed: {str(e)}"
+            )
 
     @app.get("/api/v2/predict/multi-search")
     async def multi_vector_search(
         query: str = Query(..., description="Search query"),
-        limit: int = Query(5, ge=1, le=20)
+        limit: int = Query(5, ge=1, le=20),
     ):
         """
         Perform multi-dimensional vector search across all dimensions.
@@ -1217,7 +1260,9 @@ if FASTAPI_AVAILABLE:
             return results
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Multi-search failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Multi-search failed: {str(e)}"
+            )
 
     @app.get("/api/v2/predict/calibrate-weights")
     async def calibrate_weights():
@@ -1290,10 +1335,10 @@ if FASTAPI_AVAILABLE:
         context = f"""## SESSION REINVIGORATION: {session_id}
 
 ### Session Info
-- Topic: {metadata.get('topic', 'Unknown')}
-- Project: {metadata.get('project', 'None')}
-- URLs: {metadata.get('url_count', 0)}
-- Findings: {metadata.get('finding_count', 0)}
+- Topic: {metadata.get("topic", "Unknown")}
+- Project: {metadata.get("project", "None")}
+- URLs: {metadata.get("url_count", 0)}
+- Findings: {metadata.get("finding_count", 0)}
 
 ### Key Findings ({len(findings)} total)
 """
@@ -1323,7 +1368,7 @@ if FASTAPI_AVAILABLE:
             "findings_count": len(findings),
             "urls_count": len(urls) if isinstance(urls, list) else 0,
             "context_block": context,
-            "lineage": lineage
+            "lineage": lineage,
         }
 
     # ============================================================
@@ -1334,7 +1379,7 @@ if FASTAPI_AVAILABLE:
     async def get_related_concepts(
         query: str = Query(..., description="Concept to find related items for"),
         depth: int = Query(2, ge=1, le=3, description="Relationship depth"),
-        limit: int = Query(20, ge=1, le=50, description="Max results")
+        limit: int = Query(20, ge=1, le=50, description="Max results"),
     ):
         """
         Find concepts related to a query term.
@@ -1370,17 +1415,21 @@ if FASTAPI_AVAILABLE:
             if query_lower in topic or any(w in topic for w in query_lower.split()):
                 if session_id not in seen_concepts:
                     seen_concepts.add(session_id)
-                    concepts.append({
-                        "id": session_id,
-                        "label": session_data.get("topic", session_id[:30]),
-                        "type": "session",
-                        "relevance": 0.8
-                    })
-                    edges.append({
-                        "source": query,
-                        "target": session_id,
-                        "relation": "researched_in"
-                    })
+                    concepts.append(
+                        {
+                            "id": session_id,
+                            "label": session_data.get("topic", session_id[:30]),
+                            "type": "session",
+                            "relevance": 0.8,
+                        }
+                    )
+                    edges.append(
+                        {
+                            "source": query,
+                            "target": session_id,
+                            "relation": "researched_in",
+                        }
+                    )
 
             # Check findings
             findings = get_evidenced_findings(session_id)
@@ -1392,26 +1441,34 @@ if FASTAPI_AVAILABLE:
                     finding_id = f.get("id", f"finding-{len(concepts)}")
                     if finding_id not in seen_concepts:
                         seen_concepts.add(finding_id)
-                        concepts.append({
-                            "id": finding_id,
-                            "label": f.get("content", "")[:50] + "...",
-                            "type": finding_type,
-                            "session_id": session_id,
-                            "relevance": f.get("evidence", {}).get("confidence", 0.5)
-                        })
-                        edges.append({
-                            "source": query,
-                            "target": finding_id,
-                            "relation": "found_as"
-                        })
+                        concepts.append(
+                            {
+                                "id": finding_id,
+                                "label": f.get("content", "")[:50] + "...",
+                                "type": finding_type,
+                                "session_id": session_id,
+                                "relevance": f.get("evidence", {}).get(
+                                    "confidence", 0.5
+                                ),
+                            }
+                        )
+                        edges.append(
+                            {
+                                "source": query,
+                                "target": finding_id,
+                                "relation": "found_as",
+                            }
+                        )
 
                         # Connect finding to session
                         if session_id in seen_concepts:
-                            edges.append({
-                                "source": session_id,
-                                "target": finding_id,
-                                "relation": "contains"
-                            })
+                            edges.append(
+                                {
+                                    "source": session_id,
+                                    "target": finding_id,
+                                    "relation": "contains",
+                                }
+                            )
 
             # Check URLs for paper references
             urls = load_json_file(session_dir / "urls_captured.json")
@@ -1421,24 +1478,29 @@ if FASTAPI_AVAILABLE:
                     if "arxiv.org" in url:
                         # Extract arXiv ID
                         import re
-                        match = re.search(r'(\d{4}\.\d{4,5})', url)
+
+                        match = re.search(r"(\d{4}\.\d{4,5})", url)
                         if match:
                             arxiv_id = match.group(1)
                             paper_id = f"paper-{arxiv_id}"
                             if paper_id not in seen_concepts:
                                 seen_concepts.add(paper_id)
-                                concepts.append({
-                                    "id": paper_id,
-                                    "label": f"arXiv:{arxiv_id}",
-                                    "type": "paper",
-                                    "url": url,
-                                    "relevance": 0.7
-                                })
-                                edges.append({
-                                    "source": session_id,
-                                    "target": paper_id,
-                                    "relation": "cites"
-                                })
+                                concepts.append(
+                                    {
+                                        "id": paper_id,
+                                        "label": f"arXiv:{arxiv_id}",
+                                        "type": "paper",
+                                        "url": url,
+                                        "relevance": 0.7,
+                                    }
+                                )
+                                edges.append(
+                                    {
+                                        "source": session_id,
+                                        "target": paper_id,
+                                        "relation": "cites",
+                                    }
+                                )
 
             if len(concepts) >= limit:
                 break
@@ -1447,14 +1509,14 @@ if FASTAPI_AVAILABLE:
             "query": query,
             "concepts": concepts[:limit],
             "edges": edges,
-            "depth": depth
+            "depth": depth,
         }
 
     @app.get("/api/graph/lineage/{session_id}")
     async def get_session_lineage(
         session_id: str,
         include_findings: bool = Query(True, description="Include findings as nodes"),
-        include_papers: bool = Query(True, description="Include cited papers")
+        include_papers: bool = Query(True, description="Include cited papers"),
     ):
         """
         Get the research lineage graph for a session.
@@ -1471,29 +1533,31 @@ if FASTAPI_AVAILABLE:
 
         # Root node: the session
         session_data = load_json_file(session_dir / "session.json")
-        nodes.append({
-            "id": session_id,
-            "label": session_data.get("topic", session_id[:30]),
-            "type": "session",
-            "isRoot": True
-        })
+        nodes.append(
+            {
+                "id": session_id,
+                "label": session_data.get("topic", session_id[:30]),
+                "type": "session",
+                "isRoot": True,
+            }
+        )
 
         # Add findings
         if include_findings:
             findings = get_evidenced_findings(session_id)
             for f in findings:
                 finding_id = f.get("id", f"finding-{len(nodes)}")
-                nodes.append({
-                    "id": finding_id,
-                    "label": f.get("content", "")[:50] + "...",
-                    "type": f.get("type", "finding"),
-                    "confidence": f.get("evidence", {}).get("confidence", 0.0)
-                })
-                edges.append({
-                    "source": session_id,
-                    "target": finding_id,
-                    "relation": "produced"
-                })
+                nodes.append(
+                    {
+                        "id": finding_id,
+                        "label": f.get("content", "")[:50] + "...",
+                        "type": f.get("type", "finding"),
+                        "confidence": f.get("evidence", {}).get("confidence", 0.0),
+                    }
+                )
+                edges.append(
+                    {"source": session_id, "target": finding_id, "relation": "produced"}
+                )
 
                 # Add sources as edges
                 sources = f.get("evidence", {}).get("sources", [])
@@ -1502,72 +1566,76 @@ if FASTAPI_AVAILABLE:
                         paper_id = f"paper-{s['arxiv_id']}"
                         # Check if paper node exists
                         if not any(n["id"] == paper_id for n in nodes):
-                            nodes.append({
-                                "id": paper_id,
-                                "label": f"arXiv:{s['arxiv_id']}",
-                                "type": "paper",
-                                "url": s.get("url")
-                            })
-                        edges.append({
-                            "source": finding_id,
-                            "target": paper_id,
-                            "relation": "cites"
-                        })
+                            nodes.append(
+                                {
+                                    "id": paper_id,
+                                    "label": f"arXiv:{s['arxiv_id']}",
+                                    "type": "paper",
+                                    "url": s.get("url"),
+                                }
+                            )
+                        edges.append(
+                            {
+                                "source": finding_id,
+                                "target": paper_id,
+                                "relation": "cites",
+                            }
+                        )
 
         # Add papers from URLs
         if include_papers:
             urls = load_json_file(session_dir / "urls_captured.json")
             if isinstance(urls, list):
                 import re
+
                 for u in urls:
                     url = u.get("url", "")
                     if "arxiv.org" in url:
-                        match = re.search(r'(\d{4}\.\d{4,5})', url)
+                        match = re.search(r"(\d{4}\.\d{4,5})", url)
                         if match:
                             paper_id = f"paper-{match.group(1)}"
                             if not any(n["id"] == paper_id for n in nodes):
-                                nodes.append({
-                                    "id": paper_id,
-                                    "label": f"arXiv:{match.group(1)}",
-                                    "type": "paper",
-                                    "url": url,
-                                    "tier": u.get("tier", 3)
-                                })
-                                edges.append({
-                                    "source": session_id,
-                                    "target": paper_id,
-                                    "relation": "references"
-                                })
+                                nodes.append(
+                                    {
+                                        "id": paper_id,
+                                        "label": f"arXiv:{match.group(1)}",
+                                        "type": "paper",
+                                        "url": url,
+                                        "tier": u.get("tier", 3),
+                                    }
+                                )
+                                edges.append(
+                                    {
+                                        "source": session_id,
+                                        "target": paper_id,
+                                        "relation": "references",
+                                    }
+                                )
 
         # Load existing lineage if available
         lineage = load_json_file(session_dir / "lineage.json")
         if lineage:
             # Add lineage connections
             for parent in lineage.get("parents", []):
-                edges.append({
-                    "source": parent,
-                    "target": session_id,
-                    "relation": "builds_on"
-                })
+                edges.append(
+                    {"source": parent, "target": session_id, "relation": "builds_on"}
+                )
             for child in lineage.get("children", []):
-                edges.append({
-                    "source": session_id,
-                    "target": child,
-                    "relation": "enables"
-                })
+                edges.append(
+                    {"source": session_id, "target": child, "relation": "enables"}
+                )
 
         return {
             "session_id": session_id,
             "nodes": nodes,
             "edges": edges,
             "node_count": len(nodes),
-            "edge_count": len(edges)
+            "edge_count": len(edges),
         }
 
     @app.get("/api/graph/sessions")
     async def get_sessions_graph(
-        limit: int = Query(30, ge=1, le=100),
-        project: Optional[str] = None
+        limit: int = Query(30, ge=1, le=100), project: Optional[str] = None
     ):
         """
         Get a graph of all sessions with connections.
@@ -1599,22 +1667,25 @@ if FASTAPI_AVAILABLE:
             topic = session_data.get("topic", session_id[:30])
 
             # Add session node
-            nodes.append({
-                "id": session_id,
-                "label": topic[:40],
-                "type": "session",
-                "project": session_data.get("implementation_project"),
-                "status": session_data.get("status", "archived")
-            })
+            nodes.append(
+                {
+                    "id": session_id,
+                    "label": topic[:40],
+                    "type": "session",
+                    "project": session_data.get("implementation_project"),
+                    "status": session_data.get("status", "archived"),
+                }
+            )
 
             # Track paper citations
             urls = load_json_file(session_dir / "urls_captured.json")
             if isinstance(urls, list):
                 import re
+
                 for u in urls:
                     url = u.get("url", "")
                     if "arxiv.org" in url:
-                        match = re.search(r'(\d{4}\.\d{4,5})', url)
+                        match = re.search(r"(\d{4}\.\d{4,5})", url)
                         if match:
                             paper_id = match.group(1)
                             if paper_id not in paper_sessions:
@@ -1625,35 +1696,40 @@ if FASTAPI_AVAILABLE:
             lineage = load_json_file(session_dir / "lineage.json")
             if lineage:
                 for parent in lineage.get("parents", []):
-                    edges.append({
-                        "source": parent,
-                        "target": session_id,
-                        "relation": "builds_on"
-                    })
+                    edges.append(
+                        {
+                            "source": parent,
+                            "target": session_id,
+                            "relation": "builds_on",
+                        }
+                    )
 
         # Second pass: create edges for shared papers
         for paper_id, sessions in paper_sessions.items():
             if len(sessions) > 1:
                 # Create edges between sessions that share this paper
                 for i, s1 in enumerate(sessions):
-                    for s2 in sessions[i+1:]:
-                        edges.append({
-                            "source": s1,
-                            "target": s2,
-                            "relation": "shares_reference",
-                            "paper": paper_id
-                        })
+                    for s2 in sessions[i + 1 :]:
+                        edges.append(
+                            {
+                                "source": s1,
+                                "target": s2,
+                                "relation": "shares_reference",
+                                "paper": paper_id,
+                            }
+                        )
 
         return {
             "nodes": nodes,
             "edges": edges,
-            "shared_papers": len([p for p, s in paper_sessions.items() if len(s) > 1])
+            "shared_papers": len([p for p, s in paper_sessions.items() if len(s) > 1]),
         }
 
 
 # ============================================================
 # Main
 # ============================================================
+
 
 def main():
     import argparse
@@ -1670,14 +1746,10 @@ def main():
         sys.exit(1)
 
     import uvicorn
+
     print(f"Starting Agent Core API on http://{args.host}:{args.port}")
     print("Docs: http://{args.host}:{args.port}/docs")
-    uvicorn.run(
-        "api.server:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload
-    )
+    uvicorn.run("api.server:app", host=args.host, port=args.port, reload=args.reload)
 
 
 if __name__ == "__main__":

@@ -35,9 +35,11 @@ log = logging.getLogger("coherence.temporal")
 
 # -- Temporal Window Definition ------------------------------------
 
+
 @dataclass(frozen=True)
 class TemporalWindow:
     """A single time-scale window for coherence detection."""
+
     name: str
     seconds: int
     min_confidence: float
@@ -45,16 +47,17 @@ class TemporalWindow:
 
 # Ordered from tightest to widest -- dedup keeps first hit
 WINDOWS: List[TemporalWindow] = [
-    TemporalWindow(name="micro",   seconds=120,    min_confidence=0.80),
-    TemporalWindow(name="short",   seconds=600,    min_confidence=0.72),
-    TemporalWindow(name="session", seconds=3600,   min_confidence=0.68),
-    TemporalWindow(name="block",   seconds=14400,  min_confidence=0.65),
-    TemporalWindow(name="daily",   seconds=86400,  min_confidence=0.60),
-    TemporalWindow(name="weekly",  seconds=604800, min_confidence=0.55),
+    TemporalWindow(name="micro", seconds=120, min_confidence=0.80),
+    TemporalWindow(name="short", seconds=600, min_confidence=0.72),
+    TemporalWindow(name="session", seconds=3600, min_confidence=0.68),
+    TemporalWindow(name="block", seconds=14400, min_confidence=0.65),
+    TemporalWindow(name="daily", seconds=86400, min_confidence=0.60),
+    TemporalWindow(name="weekly", seconds=604800, min_confidence=0.55),
 ]
 
 
 # -- Multi-Scale Detector ------------------------------------------
+
 
 class MultiScaleDetector:
     """
@@ -89,14 +92,21 @@ class MultiScaleDetector:
 
         for window in WINDOWS:
             similar = await self._find_similar_in_window(
-                event, embedding, window, event_ts_ns, platform,
+                event,
+                embedding,
+                window,
+                event_ts_ns,
+                platform,
             )
 
             if not similar:
                 continue
 
             moments = await self._scorer.score(
-                event, embedding, similar, window_scale=window.name,
+                event,
+                embedding,
+                similar,
+                window_scale=window.name,
             )
 
             for moment in moments:
@@ -171,8 +181,7 @@ class MultiScaleDetector:
                 )
         except Exception as e:
             log.warning(
-                "Time-windowed similarity search failed for "
-                "window '%s': %s",
+                "Time-windowed similarity search failed for window '%s': %s",
                 window.name,
                 e,
             )
@@ -187,16 +196,18 @@ class MultiScaleDetector:
             if isinstance(instinct, str):
                 instinct = _json.loads(instinct)
 
-            results.append(SimilarityResult(
-                event_id=row["source_event_id"],
-                platform=row["platform"],
-                session_id=row["session_id"],
-                similarity=round(1.0 - row["distance"], 4),
-                preview=row["content_preview"],
-                coherence_sig=row["coherence_sig"],
-                light_layer=light,
-                instinct_layer=instinct,
-                timestamp_ns=row["timestamp_ns"],
-            ))
+            results.append(
+                SimilarityResult(
+                    event_id=row["source_event_id"],
+                    platform=row["platform"],
+                    session_id=row["session_id"],
+                    similarity=round(1.0 - row["distance"], 4),
+                    preview=row["content_preview"],
+                    coherence_sig=row["coherence_sig"],
+                    light_layer=light,
+                    instinct_layer=instinct,
+                    timestamp_ns=row["timestamp_ns"],
+                )
+            )
 
         return results

@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any
 
 class VerificationMethod(str, Enum):
     """Subtask verification methods"""
+
     AUTOMATED_TEST = "automated_test"
     SEMANTIC_SIMILARITY = "semantic_similarity"
     HUMAN_REVIEW = "human_review"
@@ -38,6 +39,7 @@ class TaskProfile:
     - contextuality: Dependence on external context (0=context-free, 1=highly contextual)
     - subjectivity: Degree of subjective judgment needed (0=objective, 1=highly subjective)
     """
+
     complexity: float = 0.5
     criticality: float = 0.5
     uncertainty: float = 0.5
@@ -53,9 +55,17 @@ class TaskProfile:
     def __post_init__(self):
         """Validate all dimensions are in [0.0, 1.0]"""
         for field_name in [
-            'complexity', 'criticality', 'uncertainty', 'duration', 'cost',
-            'resource_requirements', 'constraints', 'verifiability',
-            'reversibility', 'contextuality', 'subjectivity'
+            "complexity",
+            "criticality",
+            "uncertainty",
+            "duration",
+            "cost",
+            "resource_requirements",
+            "constraints",
+            "verifiability",
+            "reversibility",
+            "contextuality",
+            "subjectivity",
         ]:
             value = getattr(self, field_name)
             if not 0.0 <= value <= 1.0:
@@ -78,6 +88,7 @@ class SubTask:
     - dependencies: List of subtask IDs that must complete first
     - profile: TaskProfile for this subtask
     """
+
     id: str
     description: str
     verification_method: VerificationMethod
@@ -92,9 +103,13 @@ class SubTask:
     def __post_init__(self):
         """Validate cost and duration are in [0.0, 1.0]"""
         if not 0.0 <= self.estimated_cost <= 1.0:
-            raise ValueError(f"estimated_cost must be in [0.0, 1.0], got {self.estimated_cost}")
+            raise ValueError(
+                f"estimated_cost must be in [0.0, 1.0], got {self.estimated_cost}"
+            )
         if not 0.0 <= self.estimated_duration <= 1.0:
-            raise ValueError(f"estimated_duration must be in [0.0, 1.0], got {self.estimated_duration}")
+            raise ValueError(
+                f"estimated_duration must be in [0.0, 1.0], got {self.estimated_duration}"
+            )
 
 
 @dataclass
@@ -110,6 +125,7 @@ class Assignment:
     - timestamp: Unix timestamp of assignment
     - assignment_reasoning: Why this agent was chosen
     """
+
     subtask_id: str
     agent_id: str
     trust_score: float
@@ -121,9 +137,13 @@ class Assignment:
     def __post_init__(self):
         """Validate trust_score and capability_match are in [0.0, 1.0]"""
         if not 0.0 <= self.trust_score <= 1.0:
-            raise ValueError(f"trust_score must be in [0.0, 1.0], got {self.trust_score}")
+            raise ValueError(
+                f"trust_score must be in [0.0, 1.0], got {self.trust_score}"
+            )
         if not 0.0 <= self.capability_match <= 1.0:
-            raise ValueError(f"capability_match must be in [0.0, 1.0], got {self.capability_match}")
+            raise ValueError(
+                f"capability_match must be in [0.0, 1.0], got {self.capability_match}"
+            )
 
 
 @dataclass
@@ -140,6 +160,7 @@ class TrustEntry:
     - trust_delta: Change in trust score (-1.0 to +1.0)
     - updated_trust_score: New trust score after this entry
     """
+
     agent_id: str
     task_id: str
     timestamp: float
@@ -153,11 +174,17 @@ class TrustEntry:
     def __post_init__(self):
         """Validate scores are in valid ranges"""
         if not 0.0 <= self.quality_score <= 1.0:
-            raise ValueError(f"quality_score must be in [0.0, 1.0], got {self.quality_score}")
+            raise ValueError(
+                f"quality_score must be in [0.0, 1.0], got {self.quality_score}"
+            )
         if not -1.0 <= self.trust_delta <= 1.0:
-            raise ValueError(f"trust_delta must be in [-1.0, 1.0], got {self.trust_delta}")
+            raise ValueError(
+                f"trust_delta must be in [-1.0, 1.0], got {self.trust_delta}"
+            )
         if not 0.0 <= self.updated_trust_score <= 1.0:
-            raise ValueError(f"updated_trust_score must be in [0.0, 1.0], got {self.updated_trust_score}")
+            raise ValueError(
+                f"updated_trust_score must be in [0.0, 1.0], got {self.updated_trust_score}"
+            )
 
 
 @dataclass
@@ -177,6 +204,7 @@ class DelegationEvent:
     - status: Current status of the task
     - details: Additional event details
     """
+
     event_id: str
     delegation_id: str
     timestamp: float
@@ -201,6 +229,7 @@ class VerificationResult:
     - feedback: Human-readable feedback
     - evidence: Supporting evidence for verification decision
     """
+
     subtask_id: str
     timestamp: float
     method: VerificationMethod
@@ -212,4 +241,6 @@ class VerificationResult:
     def __post_init__(self):
         """Validate quality_score is in [0.0, 1.0]"""
         if not 0.0 <= self.quality_score <= 1.0:
-            raise ValueError(f"quality_score must be in [0.0, 1.0], got {self.quality_score}")
+            raise ValueError(
+                f"quality_score must be in [0.0, 1.0], got {self.quality_score}"
+            )

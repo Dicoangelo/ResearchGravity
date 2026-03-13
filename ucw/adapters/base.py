@@ -65,34 +65,34 @@ class PlatformAdapter(ABC):
         if topic:
             topic_lower = topic.lower()
             relevant_concepts = [
-                c for c in relevant_concepts
-                if topic_lower in c.content.lower()
+                c for c in relevant_concepts if topic_lower in c.content.lower()
             ]
 
         # Filter sessions by project if provided
         relevant_sessions = list(wallet.sessions.values())
         if project:
             relevant_sessions = [
-                s for s in relevant_sessions
+                s
+                for s in relevant_sessions
                 if s.project and project.lower() in s.project.lower()
             ]
 
         # Limit to most recent/relevant
         relevant_concepts = relevant_concepts[:max_concepts]
         relevant_sessions = sorted(
-            relevant_sessions,
-            key=lambda s: s.date,
-            reverse=True
+            relevant_sessions, key=lambda s: s.date, reverse=True
         )[:10]
 
         # Build filtered wallet view
         from ..schema import CognitiveWallet
+
         filtered = CognitiveWallet(
             version=wallet.version,
             concepts={c.id: c for c in relevant_concepts},
             sessions={s.id: s for s in relevant_sessions},
             papers={
-                k: v for k, v in wallet.papers.items()
+                k: v
+                for k, v in wallet.papers.items()
                 if any(k in s.papers for s in relevant_sessions)
             }[:max_papers],
             value_metrics=wallet.value_metrics,

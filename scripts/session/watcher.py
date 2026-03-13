@@ -33,7 +33,12 @@ from dataclasses import dataclass, field
 # Try to import watchdog for file system events
 try:
     from watchdog.observers import Observer
-    from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileModifiedEvent
+    from watchdog.events import (
+        FileSystemEventHandler,
+        FileCreatedEvent,
+        FileModifiedEvent,
+    )
+
     WATCHDOG_AVAILABLE = True
 except ImportError:
     WATCHDOG_AVAILABLE = False
@@ -53,11 +58,14 @@ WATCHER_LOG_FILE = AGENT_CORE_DIR / "watcher.log"
 @dataclass
 class WatcherState:
     """Persistent watcher state."""
+
     started_at: Optional[str] = None
     last_activity: Optional[str] = None
     sessions_created: int = 0
     files_watched: Set[str] = field(default_factory=set)
-    linked_sessions: Dict[str, str] = field(default_factory=dict)  # claude_file -> rg_session
+    linked_sessions: Dict[str, str] = field(
+        default_factory=dict
+    )  # claude_file -> rg_session
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -103,7 +111,7 @@ def log(message: str):
     print(log_line)
 
     try:
-        with open(WATCHER_LOG_FILE, 'a') as f:
+        with open(WATCHER_LOG_FILE, "a") as f:
             f.write(log_line + "\n")
     except Exception:
         pass
@@ -114,7 +122,7 @@ def extract_text_from_jsonl(file_path: Path, max_lines: int = 50) -> str:
     text_parts = []
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             for i, line in enumerate(f):
                 if i >= max_lines:
                     break
@@ -127,7 +135,7 @@ def extract_text_from_jsonl(file_path: Path, max_lines: int = 50) -> str:
     except Exception:
         pass
 
-    return '\n'.join(text_parts)
+    return "\n".join(text_parts)
 
 
 def extract_text_from_entry(entry: Dict) -> list[str]:
@@ -178,7 +186,7 @@ def generate_session_id(claude_file: Path, topic: str) -> str:
     """Generate unique session ID linked to Claude file."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     file_hash = hashlib.md5(str(claude_file).encode()).hexdigest()[:6]
-    safe_topic = re.sub(r'[^a-z0-9]+', '-', topic.lower())[:25]
+    safe_topic = re.sub(r"[^a-z0-9]+", "-", topic.lower())[:25]
     return f"watch-{safe_topic}-{timestamp}-{file_hash}"
 
 
@@ -232,12 +240,12 @@ class ClaudeSessionHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         """Handle new file creation."""
-        if not event.is_directory and event.src_path.endswith('.jsonl'):
+        if not event.is_directory and event.src_path.endswith(".jsonl"):
             self._handle_file(Path(event.src_path))
 
     def on_modified(self, event):
         """Handle file modification."""
-        if not event.is_directory and event.src_path.endswith('.jsonl'):
+        if not event.is_directory and event.src_path.endswith(".jsonl"):
             self._handle_file(Path(event.src_path))
 
     def _handle_file(self, file_path: Path):
@@ -263,6 +271,7 @@ class ClaudeSessionHandler(FileSystemEventHandler):
         try:
             # Wait a moment for file to be written
             import time
+
             time.sleep(1)
 
             # Check file size (skip tiny files)
@@ -324,6 +333,7 @@ def start_watcher(foreground: bool = True):
     try:
         while True:
             import time
+
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
@@ -357,10 +367,10 @@ def start_daemon():
 
     # Child process
     os.setsid()
-    os.chdir('/')
+    os.chdir("/")
 
     # Redirect stdout/stderr to log file
-    sys.stdout = open(WATCHER_LOG_FILE, 'a')
+    sys.stdout = open(WATCHER_LOG_FILE, "a")
     sys.stderr = sys.stdout
 
     start_watcher(foreground=False)
@@ -423,9 +433,7 @@ def show_status():
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="ResearchGravity File Watcher"
-    )
+    parser = argparse.ArgumentParser(description="ResearchGravity File Watcher")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     subparsers.add_parser("start", help="Start watching in foreground")

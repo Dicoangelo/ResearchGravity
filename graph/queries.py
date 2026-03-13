@@ -20,8 +20,7 @@ def _get_graph() -> ConceptGraph:
 
 
 async def get_related_sessions(
-    session_id: str,
-    limit: int = 10
+    session_id: str, limit: int = 10
 ) -> List[Dict[str, Any]]:
     """Find sessions related to a given session."""
     graph = _get_graph()
@@ -29,8 +28,7 @@ async def get_related_sessions(
 
 
 async def get_related_findings(
-    session_id: str,
-    limit: int = 20
+    session_id: str, limit: int = 20
 ) -> List[Dict[str, Any]]:
     """Get findings related to a session's findings."""
     graph = _get_graph()
@@ -42,20 +40,19 @@ async def get_related_findings(
     findings = []
     for node in subgraph.nodes:
         if node.type.value == "finding":
-            findings.append({
-                "id": node.id.replace("finding:", ""),
-                "label": node.label,
-                "type": node.metadata.get("type"),
-                "confidence": node.metadata.get("confidence"),
-            })
+            findings.append(
+                {
+                    "id": node.id.replace("finding:", ""),
+                    "label": node.label,
+                    "type": node.metadata.get("type"),
+                    "confidence": node.metadata.get("confidence"),
+                }
+            )
 
     return findings[:limit]
 
 
-async def get_concept_network(
-    center_id: str,
-    depth: int = 2
-) -> Dict[str, Any]:
+async def get_concept_network(center_id: str, depth: int = 2) -> Dict[str, Any]:
     """
     Get a concept network centered on a node.
 
@@ -76,9 +73,7 @@ async def get_concept_network(
 
 
 async def get_research_lineage(
-    session_id: str,
-    include_urls: bool = True,
-    max_depth: int = 3
+    session_id: str, include_urls: bool = True, max_depth: int = 3
 ) -> Dict[str, Any]:
     """
     Get the complete research lineage for a session.
@@ -98,12 +93,14 @@ async def get_research_lineage(
 
     ancestor_sessions = [
         {"id": n.id.replace("session:", ""), "topic": n.label}
-        for n in ancestors if n.type.value == "session"
+        for n in ancestors
+        if n.type.value == "session"
     ]
 
     descendant_sessions = [
         {"id": n.id.replace("session:", ""), "topic": n.label}
-        for n in descendants if n.type.value == "session"
+        for n in descendants
+        if n.type.value == "session"
     ]
 
     # Get session subgraph for findings/urls
@@ -111,14 +108,20 @@ async def get_research_lineage(
 
     findings = [
         {"id": n.id.replace("finding:", ""), "content": n.label, **n.metadata}
-        for n in subgraph.nodes if n.type.value == "finding"
+        for n in subgraph.nodes
+        if n.type.value == "finding"
     ]
 
     urls = []
     if include_urls:
         urls = [
-            {"id": n.id.replace("url:", ""), "url": n.metadata.get("full_url", n.label), **n.metadata}
-            for n in subgraph.nodes if n.type.value == "url"
+            {
+                "id": n.id.replace("url:", ""),
+                "url": n.metadata.get("full_url", n.label),
+                **n.metadata,
+            }
+            for n in subgraph.nodes
+            if n.type.value == "url"
         ]
 
     return {
@@ -132,14 +135,11 @@ async def get_research_lineage(
             "descendant_count": len(descendant_sessions),
             "finding_count": len(findings),
             "url_count": len(urls),
-        }
+        },
     }
 
 
-async def search_concepts(
-    query: str,
-    limit: int = 10
-) -> List[Dict[str, Any]]:
+async def search_concepts(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Search for concepts (sessions, findings) by text.
 
@@ -159,53 +159,68 @@ async def search_concepts(
 
         # Try FTS search first
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT s.id, s.topic, s.project, 'session' as type
                 FROM sessions_fts fts
                 JOIN sessions s ON s.id = fts.rowid
                 WHERE sessions_fts MATCH ?
                 LIMIT ?
-            """, (query, limit))
+            """,
+                (query, limit),
+            )
             for row in cursor.fetchall():
-                results.append({
-                    "id": row['id'],
-                    "label": row['topic'],
-                    "type": "session",
-                    "project": row['project'],
-                })
+                results.append(
+                    {
+                        "id": row["id"],
+                        "label": row["topic"],
+                        "type": "session",
+                        "project": row["project"],
+                    }
+                )
         except sqlite3.OperationalError:
             # FTS not available, use LIKE
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id, topic, project, 'session' as type
                 FROM sessions
                 WHERE topic LIKE ?
                 LIMIT ?
-            """, (f"%{query}%", limit))
+            """,
+                (f"%{query}%", limit),
+            )
             for row in cursor.fetchall():
-                results.append({
-                    "id": row['id'],
-                    "label": row['topic'],
-                    "type": "session",
-                    "project": row['project'],
-                })
+                results.append(
+                    {
+                        "id": row["id"],
+                        "label": row["topic"],
+                        "type": "session",
+                        "project": row["project"],
+                    }
+                )
 
         # Search findings
         remaining = limit - len(results)
         if remaining > 0:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id, content, type as finding_type, session_id
                 FROM findings
                 WHERE content LIKE ?
                 LIMIT ?
-            """, (f"%{query}%", remaining))
+            """,
+                (f"%{query}%", remaining),
+            )
             for row in cursor.fetchall():
-                results.append({
-                    "id": row['id'],
-                    "label": (row['content'] or '')[:50],
-                    "type": "finding",
-                    "finding_type": row['finding_type'],
-                    "session_id": row['session_id'],
-                })
+                results.append(
+                    {
+                        "id": row["id"],
+                        "label": (row["content"] or "")[:50],
+                        "type": "finding",
+                        "finding_type": row["finding_type"],
+                        "session_id": row["session_id"],
+                    }
+                )
 
         return results
 

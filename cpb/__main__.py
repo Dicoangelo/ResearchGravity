@@ -16,23 +16,26 @@ import sys
 def main():
     """Main entry point with precision mode and feedback support."""
     # Check for precision subcommand
-    if len(sys.argv) > 1 and sys.argv[1] == 'precision':
+    if len(sys.argv) > 1 and sys.argv[1] == "precision":
         # Remove 'precision' from args and delegate to precision CLI
         sys.argv = [sys.argv[0]] + sys.argv[2:]
         from .precision_cli import main as precision_main
+
         return precision_main()
 
     # Check for feedback subcommand (v2)
-    if len(sys.argv) > 1 and sys.argv[1] == 'feedback':
+    if len(sys.argv) > 1 and sys.argv[1] == "feedback":
         # Remove 'feedback' from args and delegate to feedback CLI
         sys.argv = [sys.argv[0]] + sys.argv[2:]
         from .feedback_cli import main as feedback_main
+
         return feedback_main()
 
     # Default to standard CLI
     from .cli import main as cli_main
+
     return cli_main()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main() or 0)

@@ -61,14 +61,16 @@ class CoherenceEngine:
             platforms = set(e.get("platform", "unknown") for e in bucket_events)
             if len(platforms) > 1:
                 confidence = min(1.0, len(platforms) * 0.3 + len(bucket_events) * 0.05)
-                alignments.append({
-                    "type": "temporal",
-                    "bucket_ns": bucket_key * window,
-                    "platforms": sorted(platforms),
-                    "event_count": len(bucket_events),
-                    "confidence": round(confidence, 3),
-                    "events": [e.get("event_id", "") for e in bucket_events],
-                })
+                alignments.append(
+                    {
+                        "type": "temporal",
+                        "bucket_ns": bucket_key * window,
+                        "platforms": sorted(platforms),
+                        "event_count": len(bucket_events),
+                        "confidence": round(confidence, 3),
+                        "events": [e.get("event_id", "") for e in bucket_events],
+                    }
+                )
 
         alignments.sort(key=lambda a: a["confidence"], reverse=True)
         return alignments
@@ -105,7 +107,11 @@ class CoherenceEngine:
                 score += 0.5 * (len(overlap) / len(union)) if union else 0
 
             # Topic match (non-general)
-            if source_topic and source_topic == cand_topic and source_topic != "general":
+            if (
+                source_topic
+                and source_topic == cand_topic
+                and source_topic != "general"
+            ):
                 score += 0.3
 
             # Intent match
@@ -113,15 +119,17 @@ class CoherenceEngine:
                 score += 0.2
 
             if score >= threshold:
-                matches.append({
-                    "event_id": candidate.get("event_id", ""),
-                    "similarity": round(score, 3),
-                    "shared_concepts": sorted(
-                        source_concepts & cand_concepts
-                    ) if source_concepts and cand_concepts else [],
-                    "topic_match": source_topic == cand_topic,
-                    "platform": candidate.get("platform", "unknown"),
-                })
+                matches.append(
+                    {
+                        "event_id": candidate.get("event_id", ""),
+                        "similarity": round(score, 3),
+                        "shared_concepts": sorted(source_concepts & cand_concepts)
+                        if source_concepts and cand_concepts
+                        else [],
+                        "topic_match": source_topic == cand_topic,
+                        "platform": candidate.get("platform", "unknown"),
+                    }
+                )
 
         matches.sort(key=lambda m: m["similarity"], reverse=True)
         return matches
@@ -149,8 +157,7 @@ class CoherenceEngine:
             # Step 2: Check for meta-cognitive and high-coherence signals
             cluster_event_ids = set(cluster["events"])
             cluster_events = [
-                e for e in events
-                if e.get("event_id", "") in cluster_event_ids
+                e for e in events if e.get("event_id", "") in cluster_event_ids
             ]
 
             has_meta = False
@@ -163,7 +170,10 @@ class CoherenceEngine:
                     has_meta = True
 
                 coherence_potential = e.get("instinct_coherence", 0)
-                if isinstance(coherence_potential, (int, float)) and coherence_potential > 0.7:
+                if (
+                    isinstance(coherence_potential, (int, float))
+                    and coherence_potential > 0.7
+                ):
                     has_high_coherence = True
 
             if has_meta or has_high_coherence:
@@ -173,16 +183,18 @@ class CoherenceEngine:
                 if has_high_coherence:
                     confidence = min(1.0, confidence + 0.2)
 
-                signals.append({
-                    "type": "synchronicity",
-                    "platforms": cluster["platforms"],
-                    "event_count": cluster["event_count"],
-                    "confidence": round(confidence, 3),
-                    "has_meta_cognitive": has_meta,
-                    "has_high_coherence": has_high_coherence,
-                    "events": cluster["events"],
-                    "timestamp_ns": cluster["bucket_ns"],
-                })
+                signals.append(
+                    {
+                        "type": "synchronicity",
+                        "platforms": cluster["platforms"],
+                        "event_count": cluster["event_count"],
+                        "confidence": round(confidence, 3),
+                        "has_meta_cognitive": has_meta,
+                        "has_high_coherence": has_high_coherence,
+                        "events": cluster["events"],
+                        "timestamp_ns": cluster["bucket_ns"],
+                    }
+                )
 
         signals.sort(key=lambda s: s["confidence"], reverse=True)
         return signals
@@ -213,7 +225,9 @@ class CoherenceEngine:
             "event_count": len(events),
             "concepts": sorted(all_concepts),
             "timestamp_ns": min(timestamps) if timestamps else time.time_ns(),
-            "span_ns": (max(timestamps) - min(timestamps)) if len(timestamps) > 1 else 0,
+            "span_ns": (max(timestamps) - min(timestamps))
+            if len(timestamps) > 1
+            else 0,
             "created_ns": time.time_ns(),
         }
 
@@ -230,6 +244,7 @@ class CoherenceEngine:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 def _parse_concepts(event: Dict) -> set:
     """Parse concepts from an event (handles both list and JSON string)."""

@@ -122,13 +122,15 @@ class Migrator:
                 # Parse metadata
                 if metadata_file.exists():
                     meta = json.loads(metadata_file.read_text())
-                    session_data.update({
-                        "topic": meta.get("topic") or meta.get("summary", "")[:100],
-                        "project": meta.get("project"),
-                        "started_at": meta.get("started_at"),
-                        "archived_at": meta.get("archived_at"),
-                        "transcript_tokens": meta.get("transcript_tokens"),
-                    })
+                    session_data.update(
+                        {
+                            "topic": meta.get("topic") or meta.get("summary", "")[:100],
+                            "project": meta.get("project"),
+                            "started_at": meta.get("started_at"),
+                            "archived_at": meta.get("archived_at"),
+                            "transcript_tokens": meta.get("transcript_tokens"),
+                        }
+                    )
 
                 # Get counts
                 if findings_file.exists():
@@ -195,7 +197,9 @@ class Migrator:
                     for finding in session.get("findings", []):
                         finding["session_id"] = session.get("session_id")
                         # Avoid duplicates
-                        if not any(f.get("id") == finding.get("id") for f in all_findings):
+                        if not any(
+                            f.get("id") == finding.get("id") for f in all_findings
+                        ):
                             all_findings.append(finding)
             except Exception as e:
                 self.log(f"  Warning: Could not read unified index: {e}")
@@ -215,7 +219,9 @@ class Migrator:
                         continue  # Skip invalid findings
 
                 valid_findings = [f for f in all_findings if f.get("content")]
-                count = await self.engine.store_findings_batch(valid_findings, source="migration")
+                count = await self.engine.store_findings_batch(
+                    valid_findings, source="migration"
+                )
                 self.stats["findings"]["migrated"] = count
                 self.log(f"  ✓ Migrated {count} findings")
 
@@ -278,7 +284,9 @@ class Migrator:
             if source.exists():
                 try:
                     data = json.loads(source.read_text())
-                    paper_list = data if isinstance(data, list) else data.get("papers", [])
+                    paper_list = (
+                        data if isinstance(data, list) else data.get("papers", [])
+                    )
                     for p in paper_list:
                         paper_id = p.get("arxiv_id") or p.get("id") or p.get("doi")
                         if paper_id and paper_id not in papers:
@@ -305,22 +313,25 @@ class Migrator:
             try:
                 async with self.engine.sqlite.connection() as db:
                     for paper_id, paper in papers.items():
-                        await db.execute("""
+                        await db.execute(
+                            """
                             INSERT INTO papers (id, title, authors, abstract, url, relevance, applied, metadata)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             ON CONFLICT(id) DO UPDATE SET
                                 title = excluded.title,
                                 url = excluded.url
-                        """, (
-                            paper_id,
-                            paper.get("title"),
-                            json.dumps(paper.get("authors", [])),
-                            paper.get("abstract"),
-                            paper.get("url"),
-                            paper.get("relevance", 0),
-                            1 if paper.get("applied") else 0,
-                            json.dumps(paper)
-                        ))
+                        """,
+                            (
+                                paper_id,
+                                paper.get("title"),
+                                json.dumps(paper.get("authors", [])),
+                                paper.get("abstract"),
+                                paper.get("url"),
+                                paper.get("relevance", 0),
+                                1 if paper.get("applied") else 0,
+                                json.dumps(paper),
+                            ),
+                        )
                     await db.commit()
 
                 self.stats["papers"]["migrated"] = len(papers)
@@ -396,7 +407,7 @@ class Migrator:
                         source_id=session["id"],
                         target_type="finding",
                         target_id=finding["id"],
-                        relation="produced"
+                        relation="produced",
                     )
 
             self.log(f"  ✓ Built lineage for {len(sessions)} sessions")
@@ -420,7 +431,9 @@ class Migrator:
             total_errors += counts["errors"]
 
             status = "✓" if counts["errors"] == 0 else "⚠"
-            self.log(f"  {status} {entity.capitalize()}: {counts['migrated']}/{counts['found']} migrated")
+            self.log(
+                f"  {status} {entity.capitalize()}: {counts['migrated']}/{counts['found']} migrated"
+            )
             if counts["errors"]:
                 self.log(f"      ({counts['errors']} errors)")
 
@@ -436,7 +449,9 @@ class Migrator:
             self.log(f"\n  Database: {DB_PATH}")
 
 
-async def migrate_from_json(dry_run: bool = False, verbose: bool = True) -> Dict[str, Any]:
+async def migrate_from_json(
+    dry_run: bool = False, verbose: bool = True
+) -> Dict[str, Any]:
     """Main migration function."""
     migrator = Migrator(dry_run=dry_run, verbose=verbose)
     await migrator.migrate_all()
@@ -445,24 +460,14 @@ async def migrate_from_json(dry_run: bool = False, verbose: bool = True) -> Dict
 
 def main():
     """CLI entry point."""
-    parser = argparse.ArgumentParser(
-        description="Migrate JSON data to SQLite + Qdrant"
+    parser = argparse.ArgumentParser(description="Migrate JSON data to SQLite + Qdrant")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview migration without writing data"
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview migration without writing data"
+        "--sessions-only", action="store_true", help="Only migrate sessions"
     )
-    parser.add_argument(
-        "--sessions-only",
-        action="store_true",
-        help="Only migrate sessions"
-    )
-    parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Suppress output"
-    )
+    parser.add_argument("--quiet", action="store_true", help="Suppress output")
 
     args = parser.parse_args()
 

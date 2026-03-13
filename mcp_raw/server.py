@@ -45,11 +45,17 @@ from .embeddings import EmbeddingPipeline
 log = get_logger("server")
 
 # Protocol methods that should NEVER trigger embedding (fast-path)
-_PROTOCOL_METHODS = frozenset({
-    "initialize", "initialized", "notifications/initialized",
-    "tools/list", "resources/list", "ping",
-    "notifications/cancelled",
-})
+_PROTOCOL_METHODS = frozenset(
+    {
+        "initialize",
+        "initialized",
+        "notifications/initialized",
+        "tools/list",
+        "resources/list",
+        "ping",
+        "notifications/cancelled",
+    }
+)
 
 
 class UCWBridgeAdapter:
@@ -145,9 +151,7 @@ class RawMCPServer:
             self._inject_db()
 
             self._db_ready = True
-            log.info(
-                f"Database ready — session={self._db.session_id}"
-            )
+            log.info(f"Database ready — session={self._db.session_id}")
 
             # Pre-warm SBERT model in background (non-blocking)
             asyncio.get_event_loop().run_in_executor(None, self._prewarm_sbert)
@@ -178,6 +182,7 @@ class RawMCPServer:
         """Pre-load SBERT model in a thread so it's ready for first real embed."""
         try:
             from .embeddings import _get_model
+
             _get_model()
             log.info("SBERT model pre-warmed")
         except Exception as exc:
@@ -202,7 +207,9 @@ class RawMCPServer:
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
-                loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
+                loop.add_signal_handler(
+                    sig, lambda: asyncio.create_task(self.shutdown())
+                )
             except NotImplementedError:
                 pass  # Windows
 
@@ -312,14 +319,20 @@ class RawMCPServer:
     def _inject_db(self):
         """Inject shared DB instance into tool modules that need it."""
         try:
-            from mcp_raw.tools import ucw_tools, coherence_tools, intelligence_tools, delegation_tools
-            if hasattr(ucw_tools, 'set_db'):
+            from mcp_raw.tools import (
+                ucw_tools,
+                coherence_tools,
+                intelligence_tools,
+                delegation_tools,
+            )
+
+            if hasattr(ucw_tools, "set_db"):
                 ucw_tools.set_db(self._db)
-            if hasattr(coherence_tools, 'set_db'):
+            if hasattr(coherence_tools, "set_db"):
                 coherence_tools.set_db(self._db)
-            if hasattr(intelligence_tools, 'set_db'):
+            if hasattr(intelligence_tools, "set_db"):
                 intelligence_tools.set_db(self._db)
-            if hasattr(delegation_tools, 'set_db'):
+            if hasattr(delegation_tools, "set_db"):
                 delegation_tools.set_db(self._db)
             log.info("DB injected into tool modules")
         except ImportError:

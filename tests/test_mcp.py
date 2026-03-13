@@ -17,8 +17,7 @@ except ImportError:
 
 
 @pytest.mark.skipif(
-    ClientSession is None or stdio_client is None,
-    reason="MCP SDK not installed"
+    ClientSession is None or stdio_client is None, reason="MCP SDK not installed"
 )
 async def test_mcp_server():
     """Test ResearchGravity MCP server"""
@@ -34,10 +33,7 @@ async def test_mcp_server():
     print(f"📡 Connecting to server: {server_path}")
 
     try:
-        async with stdio_client(
-            command="python3",
-            args=[server_path]
-        ) as (read, write):
+        async with stdio_client(command="python3", args=[server_path]) as (read, write):
             async with ClientSession(read, write) as session:
                 print("✅ Connected to MCP server")
                 print()
@@ -68,20 +64,14 @@ async def test_mcp_server():
                 # Test 3: Get session stats
                 print("📊 Test 3: Get Session Stats")
                 print("-" * 60)
-                result = await session.call_tool(
-                    "get_session_stats",
-                    arguments={}
-                )
+                result = await session.call_tool("get_session_stats", arguments={})
                 print(result.content[0].text)
                 print()
 
                 # Test 4: Get active session
                 print("📍 Test 4: Get Active Session")
                 print("-" * 60)
-                result = await session.call_tool(
-                    "get_session_context",
-                    arguments={}
-                )
+                result = await session.call_tool("get_session_context", arguments={})
                 print(result.content[0].text[:300] + "...")
                 print()
 
@@ -89,11 +79,7 @@ async def test_mcp_server():
                 print("🔍 Test 5: Search Learnings")
                 print("-" * 60)
                 result = await session.call_tool(
-                    "search_learnings",
-                    arguments={
-                        "query": "multi-agent",
-                        "limit": 3
-                    }
+                    "search_learnings", arguments={"query": "multi-agent", "limit": 3}
                 )
                 print(result.content[0].text[:300] + "...")
                 print()
@@ -101,10 +87,7 @@ async def test_mcp_server():
                 # Test 6: List projects
                 print("📁 Test 6: List Projects")
                 print("-" * 60)
-                result = await session.call_tool(
-                    "list_projects",
-                    arguments={}
-                )
+                result = await session.call_tool("list_projects", arguments={})
                 print(result.content[0].text)
                 print()
 
@@ -123,6 +106,7 @@ async def test_mcp_server():
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

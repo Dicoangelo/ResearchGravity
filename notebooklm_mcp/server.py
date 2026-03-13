@@ -16,6 +16,7 @@ from typing import Optional
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from mcp_raw.config import Config
@@ -42,11 +43,17 @@ from .api.cognitive import CognitiveLayer
 log = get_logger("notebooklm_server")
 
 # Protocol methods that should NEVER trigger embedding (fast-path)
-_PROTOCOL_METHODS = frozenset({
-    "initialize", "initialized", "notifications/initialized",
-    "tools/list", "resources/list", "ping",
-    "notifications/cancelled",
-})
+_PROTOCOL_METHODS = frozenset(
+    {
+        "initialize",
+        "initialized",
+        "notifications/initialized",
+        "tools/list",
+        "resources/list",
+        "ping",
+        "notifications/cancelled",
+    }
+)
 
 
 class UCWBridgeAdapter:
@@ -135,6 +142,7 @@ class NotebookLMMCPServer:
         if not cookies:
             try:
                 from .tools.notebooklm_tools import _load_cookies_from_disk
+
                 cookies = _load_cookies_from_disk()
                 if cookies:
                     source = "cached cookies on disk"
@@ -149,7 +157,9 @@ class NotebookLMMCPServer:
                 log.warning(f"Failed to init API client: {exc}")
                 self._api_client = None
         else:
-            log.info("No NOTEBOOKLM_COOKIES set — use save_auth_tokens tool to authenticate")
+            log.info(
+                "No NOTEBOOKLM_COOKIES set — use save_auth_tokens tool to authenticate"
+            )
 
     def _init_cognitive_layer(self):
         """Initialize the Cognitive Intelligence Layer."""
@@ -160,7 +170,9 @@ class NotebookLMMCPServer:
                     pg_pool=self._pg_db._pool,
                     embedding_pipeline=self._embedding_pipeline,
                 )
-                mode = "full" if self._api_client else "search-only (no NotebookLM auth)"
+                mode = (
+                    "full" if self._api_client else "search-only (no NotebookLM auth)"
+                )
                 log.info(f"Cognitive Intelligence Layer active — {mode}")
             except Exception as exc:
                 log.warning(f"Cognitive layer init failed: {exc}")
@@ -174,6 +186,7 @@ class NotebookLMMCPServer:
         """Inject API client, cognitive layer, and DB pool into tool module."""
         try:
             from .tools import notebooklm_tools
+
             if self._api_client:
                 notebooklm_tools.set_api_client(self._api_client)
             if self._cognitive:
@@ -214,7 +227,7 @@ class NotebookLMMCPServer:
                 log.info("Real-time embedding pipeline active")
 
             self._db_ready = True
-            log.info(f"Database ready — platform=notebooklm")
+            log.info("Database ready — platform=notebooklm")
 
             # Now that DB is ready, initialize cognitive layer
             self._init_cognitive_layer()
@@ -256,7 +269,9 @@ class NotebookLMMCPServer:
 
     async def run(self):
         """Main server loop."""
-        log.info(f"NotebookLM MCP Server starting — version={NotebookLMConfig.SERVER_VERSION}")
+        log.info(
+            f"NotebookLM MCP Server starting — version={NotebookLMConfig.SERVER_VERSION}"
+        )
 
         # Initialize transport FIRST — must be ready for MCP handshake
         await self._transport.start()
@@ -274,7 +289,9 @@ class NotebookLMMCPServer:
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             try:
-                loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
+                loop.add_signal_handler(
+                    sig, lambda: asyncio.create_task(self.shutdown())
+                )
             except NotImplementedError:
                 pass  # Windows
 

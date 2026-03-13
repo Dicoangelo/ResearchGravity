@@ -84,7 +84,9 @@ RE_ERROR = re.compile(
 
 KNOWN_PROJECTS = {
     "os-app": {"aliases": ["os app", "osapp", "metaventions ai platform"]},
-    "careercoach": {"aliases": ["career coach", "careercoachAntigravity", "career governance"]},
+    "careercoach": {
+        "aliases": ["career coach", "careercoachAntigravity", "career governance"]
+    },
     "ucw": {"aliases": ["universal cognitive wallet", "cognitive wallet"]},
     "researchgravity": {"aliases": ["research gravity", "researchgravity"]},
     "meta-vengine": {"aliases": ["meta vengine", "metavengine", "routing engine"]},
@@ -109,24 +111,72 @@ for canonical, info in KNOWN_PROJECTS.items():
 
 KNOWN_TECHNOLOGIES = {
     # Languages & runtimes
-    "python", "typescript", "javascript", "rust", "go", "deno", "node.js",
+    "python",
+    "typescript",
+    "javascript",
+    "rust",
+    "go",
+    "deno",
+    "node.js",
     # Frameworks
-    "react", "next.js", "nextjs", "vite", "express", "fastapi", "flask",
-    "svelte", "sveltekit", "nuxt", "astro", "remix",
+    "react",
+    "next.js",
+    "nextjs",
+    "vite",
+    "express",
+    "fastapi",
+    "flask",
+    "svelte",
+    "sveltekit",
+    "nuxt",
+    "astro",
+    "remix",
     # Databases & storage
-    "postgresql", "postgres", "sqlite", "qdrant", "pgvector", "supabase",
-    "redis", "mongodb",
+    "postgresql",
+    "postgres",
+    "sqlite",
+    "qdrant",
+    "pgvector",
+    "supabase",
+    "redis",
+    "mongodb",
     # AI/ML
-    "openai", "anthropic", "claude", "gpt-4", "gpt-4o", "chatgpt",
-    "transformers", "pytorch", "tensorflow", "sbert",
-    "cohere", "embeddings", "langchain", "llamaindex",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt-4",
+    "gpt-4o",
+    "chatgpt",
+    "transformers",
+    "pytorch",
+    "tensorflow",
+    "sbert",
+    "cohere",
+    "embeddings",
+    "langchain",
+    "llamaindex",
     # Infrastructure
-    "docker", "kubernetes", "vercel", "aws", "gcp", "azure",
-    "github actions", "ci/cd",
+    "docker",
+    "kubernetes",
+    "vercel",
+    "aws",
+    "gcp",
+    "azure",
+    "github actions",
+    "ci/cd",
     # Protocols & standards
-    "mcp", "json-rpc", "graphql", "rest", "websocket", "grpc",
+    "mcp",
+    "json-rpc",
+    "graphql",
+    "rest",
+    "websocket",
+    "grpc",
     # Libraries
-    "asyncpg", "asyncio", "zustand", "tailwind", "vitest",
+    "asyncpg",
+    "asyncio",
+    "zustand",
+    "tailwind",
+    "vitest",
 }
 
 # Build case-insensitive lookup
@@ -135,51 +185,252 @@ _TECH_LOWER: Dict[str, str] = {t.lower(): t for t in KNOWN_TECHNOLOGIES}
 # ── Known Platforms ──────────────────────────────────────────
 
 KNOWN_PLATFORMS = {
-    "claude-code", "claude-cli", "claude-desktop", "chatgpt", "grok", "ccc",
+    "claude-code",
+    "claude-cli",
+    "claude-desktop",
+    "chatgpt",
+    "grok",
+    "ccc",
 }
 
 # Words to exclude from concept extraction (too generic)
 STOP_CONCEPTS = {
-    "the", "a", "an", "is", "are", "was", "were", "be", "been",
-    "have", "has", "had", "do", "does", "did", "will", "would",
-    "could", "should", "may", "might", "can", "shall", "must",
-    "and", "or", "but", "not", "no", "yes", "if", "then", "else",
-    "this", "that", "it", "they", "we", "you", "he", "she",
-    "for", "from", "with", "at", "by", "to", "in", "on", "of",
-    "up", "out", "off", "over", "under", "about", "into", "through",
-    "just", "also", "very", "too", "really", "quite", "much",
-    "here", "there", "where", "when", "how", "what", "which", "who",
-    "all", "each", "every", "both", "few", "more", "most", "other",
-    "some", "such", "only", "same", "than", "so", "like", "new",
-    "one", "two", "three", "four", "five", "now", "then", "still",
-    "use", "used", "using", "get", "got", "make", "made", "see",
-    "need", "want", "think", "know", "say", "said", "way", "well",
-    "back", "set", "take", "try", "let", "keep", "put", "run",
-    "going", "being", "having", "done", "got", "getting",
-    "file", "code", "data", "system", "time", "user", "work",
-    "type", "text", "value", "key", "name", "id", "list",
-    "first", "last", "next", "good", "right", "look", "help",
-    "part", "change", "point", "thing", "place", "case", "line",
-    "turn", "start", "end", "move", "show", "side", "call", "come",
-    "world", "give", "group", "own", "day", "long", "great",
-    "even", "after", "before", "high", "low", "old", "big", "small",
-    "between", "never", "always", "left", "since", "around",
-    "another", "those", "why", "these", "many", "number", "people",
-    "hand", "many", "different", "away", "again", "still", "already",
-    "while", "something", "nothing", "everything",
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "can",
+    "shall",
+    "must",
+    "and",
+    "or",
+    "but",
+    "not",
+    "no",
+    "yes",
+    "if",
+    "then",
+    "else",
+    "this",
+    "that",
+    "it",
+    "they",
+    "we",
+    "you",
+    "he",
+    "she",
+    "for",
+    "from",
+    "with",
+    "at",
+    "by",
+    "to",
+    "in",
+    "on",
+    "of",
+    "up",
+    "out",
+    "off",
+    "over",
+    "under",
+    "about",
+    "into",
+    "through",
+    "just",
+    "also",
+    "very",
+    "too",
+    "really",
+    "quite",
+    "much",
+    "here",
+    "there",
+    "where",
+    "when",
+    "how",
+    "what",
+    "which",
+    "who",
+    "all",
+    "each",
+    "every",
+    "both",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "only",
+    "same",
+    "than",
+    "so",
+    "like",
+    "new",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "now",
+    "then",
+    "still",
+    "use",
+    "used",
+    "using",
+    "get",
+    "got",
+    "make",
+    "made",
+    "see",
+    "need",
+    "want",
+    "think",
+    "know",
+    "say",
+    "said",
+    "way",
+    "well",
+    "back",
+    "set",
+    "take",
+    "try",
+    "let",
+    "keep",
+    "put",
+    "run",
+    "going",
+    "being",
+    "having",
+    "done",
+    "got",
+    "getting",
+    "file",
+    "code",
+    "data",
+    "system",
+    "time",
+    "user",
+    "work",
+    "type",
+    "text",
+    "value",
+    "key",
+    "name",
+    "id",
+    "list",
+    "first",
+    "last",
+    "next",
+    "good",
+    "right",
+    "look",
+    "help",
+    "part",
+    "change",
+    "point",
+    "thing",
+    "place",
+    "case",
+    "line",
+    "turn",
+    "start",
+    "end",
+    "move",
+    "show",
+    "side",
+    "call",
+    "come",
+    "world",
+    "give",
+    "group",
+    "own",
+    "day",
+    "long",
+    "great",
+    "even",
+    "after",
+    "before",
+    "high",
+    "low",
+    "old",
+    "big",
+    "small",
+    "between",
+    "never",
+    "always",
+    "left",
+    "since",
+    "around",
+    "another",
+    "those",
+    "why",
+    "these",
+    "many",
+    "number",
+    "people",
+    "hand",
+    "many",
+    "different",
+    "away",
+    "again",
+    "still",
+    "already",
+    "while",
+    "something",
+    "nothing",
+    "everything",
     # Common in our domain but too vague alone
-    "function", "class", "method", "module", "config", "test",
-    "error", "update", "create", "delete", "read", "write",
-    "event", "session", "table", "query", "result", "response",
-    "request", "process", "log", "message", "content",
+    "function",
+    "class",
+    "method",
+    "module",
+    "config",
+    "test",
+    "error",
+    "update",
+    "create",
+    "delete",
+    "read",
+    "write",
+    "event",
+    "session",
+    "table",
+    "query",
+    "result",
+    "response",
+    "request",
+    "process",
+    "log",
+    "message",
+    "content",
 }
 
 
 # ── Dataclasses ──────────────────────────────────────────────
 
+
 @dataclass
 class ExtractedEntity:
     """An entity extracted from a cognitive event."""
+
     entity_type: str
     name: str
     aliases: List[str] = field(default_factory=list)
@@ -190,10 +441,13 @@ class ExtractedEntity:
     def entity_id(self) -> str:
         """Deterministic ID from type + normalized name."""
         norm = self.name.lower().strip()
-        return f"ent-{self.entity_type}-{hashlib.sha256(norm.encode()).hexdigest()[:12]}"
+        return (
+            f"ent-{self.entity_type}-{hashlib.sha256(norm.encode()).hexdigest()[:12]}"
+        )
 
 
 # ── Entity Extractor ─────────────────────────────────────────
+
 
 class EntityExtractor:
     """
@@ -269,12 +523,14 @@ class EntityExtractor:
         # arXiv papers
         for match in RE_ARXIV.finditer(content):
             paper_id = match.group(1)
-            entities.append(ExtractedEntity(
-                entity_type="paper",
-                name=paper_id,
-                confidence=0.95,
-                source="regex_arxiv",
-            ))
+            entities.append(
+                ExtractedEntity(
+                    entity_type="paper",
+                    name=paper_id,
+                    confidence=0.95,
+                    source="regex_arxiv",
+                )
+            )
 
         # GitHub repos (two capture groups from alternation: group(1) or group(2))
         for match in RE_GITHUB_REPO.finditer(content):
@@ -287,24 +543,28 @@ class EntityExtractor:
             # Skip common false positives
             if owner.lower() in {"e.g", "i.e", "etc", "vs", "http", "https"}:
                 continue
-            entities.append(ExtractedEntity(
-                entity_type="tool",
-                name=repo,
-                confidence=0.9,
-                source="regex_github",
-            ))
+            entities.append(
+                ExtractedEntity(
+                    entity_type="tool",
+                    name=repo,
+                    confidence=0.9,
+                    source="regex_github",
+                )
+            )
 
         # Known projects
         content_lower = content.lower()
         for alias_lower, canonical in _PROJECT_ALIASES.items():
             if alias_lower in content_lower:
-                entities.append(ExtractedEntity(
-                    entity_type="project",
-                    name=canonical,
-                    aliases=KNOWN_PROJECTS[canonical].get("aliases", []),
-                    confidence=0.85,
-                    source="known_project",
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="project",
+                        name=canonical,
+                        aliases=KNOWN_PROJECTS[canonical].get("aliases", []),
+                        confidence=0.85,
+                        source="known_project",
+                    )
+                )
 
         # Known technologies
         for tech_lower, tech_canonical in _TECH_LOWER.items():
@@ -312,26 +572,32 @@ class EntityExtractor:
             # non-alphanumeric characters (or start/end of string)
             if tech_lower in content_lower:
                 # Verify it's a word boundary match, not a substring
-                pattern = r"(?<![a-zA-Z0-9_-])" + re.escape(tech_lower) + r"(?![a-zA-Z0-9_-])"
+                pattern = (
+                    r"(?<![a-zA-Z0-9_-])" + re.escape(tech_lower) + r"(?![a-zA-Z0-9_-])"
+                )
                 if re.search(pattern, content_lower):
-                    entities.append(ExtractedEntity(
-                        entity_type="technology",
-                        name=tech_canonical,
-                        confidence=0.8,
-                        source="known_tech",
-                    ))
+                    entities.append(
+                        ExtractedEntity(
+                            entity_type="technology",
+                            name=tech_canonical,
+                            confidence=0.8,
+                            source="known_tech",
+                        )
+                    )
 
         # Errors
         for match in RE_ERROR.finditer(content):
             error_text = match.group(1).strip()
             # Normalize: just the error type for the entity name
             error_type = error_text.split(":")[0].strip()
-            entities.append(ExtractedEntity(
-                entity_type="error",
-                name=error_type,
-                confidence=0.9,
-                source="regex_error",
-            ))
+            entities.append(
+                ExtractedEntity(
+                    entity_type="error",
+                    name=error_type,
+                    confidence=0.9,
+                    source="regex_error",
+                )
+            )
 
         return entities
 
@@ -353,29 +619,34 @@ class EntityExtractor:
                 if concept_clean in STOP_CONCEPTS:
                     continue
 
-                entities.append(ExtractedEntity(
-                    entity_type="concept",
-                    name=concept_clean,
-                    confidence=0.7,
-                    source="light_layer_concept",
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="concept",
+                        name=concept_clean,
+                        confidence=0.7,
+                        source="light_layer_concept",
+                    )
+                )
 
         # Topic as concept
         topic = light_layer.get("topic", "")
         if isinstance(topic, str) and len(topic) >= 3:
             topic_clean = topic.strip().lower()
             if topic_clean not in STOP_CONCEPTS:
-                entities.append(ExtractedEntity(
-                    entity_type="concept",
-                    name=topic_clean,
-                    confidence=0.75,
-                    source="light_layer_topic",
-                ))
+                entities.append(
+                    ExtractedEntity(
+                        entity_type="concept",
+                        name=topic_clean,
+                        confidence=0.75,
+                        source="light_layer_topic",
+                    )
+                )
 
         return entities
 
 
 # ── Graph Manager ────────────────────────────────────────────
+
 
 class GraphManager:
     """
@@ -454,10 +725,12 @@ class GraphManager:
                         ent.aliases or [],
                         timestamp_ns,
                         platform,
-                        json.dumps({
-                            "confidence": ent.confidence,
-                            "source": ent.source,
-                        }),
+                        json.dumps(
+                            {
+                                "confidence": ent.confidence,
+                                "source": ent.source,
+                            }
+                        ),
                     )
                     entity_ids.append(eid)
                 except Exception as e:
@@ -509,7 +782,11 @@ class GraphManager:
                                            )
                                        )
                                    )[1:50]""",  # Keep max 50 evidence events
-                            edge_id, src, tgt, timestamp_ns, event_id,
+                            edge_id,
+                            src,
+                            tgt,
+                            timestamp_ns,
+                            event_id,
                         )
                         created += 1
                     except Exception as e:
@@ -558,7 +835,9 @@ class GraphManager:
                          AND (name % $1 OR name ILIKE '%' || $1 || '%')
                        ORDER BY sim DESC
                        LIMIT $3""",
-                    query, entity_type, limit,
+                    query,
+                    entity_type,
+                    limit,
                 )
             else:
                 rows = await conn.fetch(
@@ -567,7 +846,8 @@ class GraphManager:
                        WHERE name % $1 OR name ILIKE '%' || $1 || '%'
                        ORDER BY sim DESC
                        LIMIT $2""",
-                    query, limit,
+                    query,
+                    limit,
                 )
             return [dict(r) for r in rows]
 
@@ -600,7 +880,10 @@ class GraphManager:
                          AND e.weight >= $3
                        ORDER BY e.weight DESC
                        LIMIT $4""",
-                    entity_id, relation_type, min_weight, limit,
+                    entity_id,
+                    relation_type,
+                    min_weight,
+                    limit,
                 )
             else:
                 rows = await conn.fetch(
@@ -617,7 +900,9 @@ class GraphManager:
                          AND e.weight >= $2
                        ORDER BY e.weight DESC
                        LIMIT $3""",
-                    entity_id, min_weight, limit,
+                    entity_id,
+                    min_weight,
+                    limit,
                 )
             return [dict(r) for r in rows]
 
@@ -627,9 +912,7 @@ class GraphManager:
             entity_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM cognitive_entities"
             )
-            edge_count = await conn.fetchval(
-                "SELECT COUNT(*) FROM cognitive_edges"
-            )
+            edge_count = await conn.fetchval("SELECT COUNT(*) FROM cognitive_edges")
             type_counts = await conn.fetch(
                 """SELECT entity_type, COUNT(*) as cnt
                    FROM cognitive_entities
@@ -654,11 +937,14 @@ class GraphManager:
             "edge_count": edge_count,
             "entities_by_type": {r["entity_type"]: r["cnt"] for r in type_counts},
             "top_entities": [dict(r) for r in top_entities],
-            "edges_by_relation": {r["relation_type"]: r["cnt"] for r in relation_counts},
+            "edges_by_relation": {
+                r["relation_type"]: r["cnt"] for r in relation_counts
+            },
         }
 
 
 # ── Spreading Activation ─────────────────────────────────────
+
 
 async def spreading_activation(
     pool: asyncpg.Pool,
@@ -718,7 +1004,8 @@ async def spreading_activation(
                        FROM cognitive_edges
                        WHERE (source_entity = $1 OR target_entity = $1)
                          AND weight >= $2""",
-                    entity_id, min_edge_weight,
+                    entity_id,
+                    min_edge_weight,
                 )
 
                 for row in rows:
@@ -734,7 +1021,10 @@ async def spreading_activation(
                         continue
 
                     # Keep highest activation if visited from multiple paths
-                    if neighbor not in activations or child_activation > activations[neighbor]:
+                    if (
+                        neighbor not in activations
+                        or child_activation > activations[neighbor]
+                    ):
                         activations[neighbor] = child_activation
 
                     if neighbor not in visited:
@@ -800,12 +1090,17 @@ class SemanticExtractor:
     """
 
     VALID_RELATIONS = {
-        "led_to", "builds_on", "contradicts", "inspired_by",
-        "evolved_into", "co_occurs",
+        "led_to",
+        "builds_on",
+        "contradicts",
+        "inspired_by",
+        "evolved_into",
+        "co_occurs",
     }
 
     def __init__(self, provider: str = None):
         import os
+
         self._provider = provider or os.environ.get("UCW_LLM_PROVIDER", "anthropic")
         self._model = os.environ.get("UCW_INSIGHT_MODEL", "claude-sonnet-4-6")
         self._ollama_model = os.environ.get("UCW_OLLAMA_MODEL", "llama3.2")
@@ -890,12 +1185,14 @@ class SemanticExtractor:
             src = str(rel.get("source", "")).strip().lower()
             tgt = str(rel.get("target", "")).strip().lower()
             if src and tgt and src != tgt:
-                relationships.append({
-                    "source": src,
-                    "target": tgt,
-                    "type": rtype,
-                    "evidence": str(rel.get("evidence", ""))[:200],
-                })
+                relationships.append(
+                    {
+                        "source": src,
+                        "target": tgt,
+                        "type": rtype,
+                        "evidence": str(rel.get("evidence", ""))[:200],
+                    }
+                )
 
         return entities, relationships
 
@@ -934,7 +1231,11 @@ class SemanticExtractor:
             async with httpx.AsyncClient(timeout=120) as client:
                 resp = await client.post(
                     f"{self._ollama_url}/api/generate",
-                    json={"model": self._ollama_model, "prompt": prompt, "stream": False},
+                    json={
+                        "model": self._ollama_model,
+                        "prompt": prompt,
+                        "stream": False,
+                    },
                 )
                 resp.raise_for_status()
                 return resp.json().get("response", "")
@@ -996,8 +1297,12 @@ async def semantic_extract_and_ingest(
                            weight = cognitive_edges.weight + 0.2,
                            evidence_count = cognitive_edges.evidence_count + 1,
                            last_seen_ns = GREATEST(cognitive_edges.last_seen_ns, EXCLUDED.last_seen_ns)""",
-                    edge_id, src_sorted, tgt_sorted, rel["type"],
-                    ts_ns, event_id,
+                    edge_id,
+                    src_sorted,
+                    tgt_sorted,
+                    rel["type"],
+                    ts_ns,
+                    event_id,
                 )
                 typed_edges += 1
         except Exception as e:
@@ -1028,7 +1333,8 @@ async def semantic_extract_batch(
                  AND length(data_layer->>'content') > 50
                ORDER BY timestamp_ns DESC
                LIMIT $1 OFFSET $2""",
-            limit, offset,
+            limit,
+            offset,
         )
 
     if not rows:
@@ -1041,14 +1347,14 @@ async def semantic_extract_batch(
             if isinstance(event.get(fld), str):
                 event[fld] = json.loads(event[fld])
 
-        n_ent, n_edge = await semantic_extract_and_ingest(
-            pool, event, extractor, graph
-        )
+        n_ent, n_edge = await semantic_extract_and_ingest(pool, event, extractor, graph)
         total_ent += n_ent
         total_edge += n_edge
 
         if (i + 1) % 10 == 0:
-            log.info(f"Semantic extraction: {i+1}/{len(rows)} events, {total_ent} entities, {total_edge} edges")
+            log.info(
+                f"Semantic extraction: {i + 1}/{len(rows)} events, {total_ent} entities, {total_edge} edges"
+            )
 
     return {
         "events_processed": len(rows),
@@ -1058,6 +1364,7 @@ async def semantic_extract_batch(
 
 
 # ── Batch Processing ─────────────────────────────────────────
+
 
 async def extract_and_ingest_batch(
     pool: asyncpg.Pool,
@@ -1093,7 +1400,8 @@ async def extract_and_ingest_batch(
                WHERE light_layer IS NOT NULL
                ORDER BY timestamp_ns ASC
                LIMIT $1 OFFSET $2""",
-            limit, offset,
+            limit,
+            offset,
         )
 
     if not rows:

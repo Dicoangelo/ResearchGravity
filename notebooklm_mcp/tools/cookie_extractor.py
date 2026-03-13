@@ -33,20 +33,37 @@ REQUIRED_COOKIES = {"SID", "HSID", "SSID", "SAPISID", "__Secure-1PSID"}
 # All cookies to extract
 COOKIE_NAMES = {
     # Core Google auth (long-lived)
-    "SID", "HSID", "SSID", "APISID", "SAPISID",
-    "__Secure-1PSID", "__Secure-3PSID",
-    "__Secure-1PAPISID", "__Secure-3PAPISID",
+    "SID",
+    "HSID",
+    "SSID",
+    "APISID",
+    "SAPISID",
+    "__Secure-1PSID",
+    "__Secure-3PSID",
+    "__Secure-1PAPISID",
+    "__Secure-3PAPISID",
     # Session cookies (rotate)
-    "SIDCC", "__Secure-1PSIDCC", "__Secure-3PSIDCC",
-    "__Secure-1PSIDTS", "__Secure-3PSIDTS",
+    "SIDCC",
+    "__Secure-1PSIDCC",
+    "__Secure-3PSIDCC",
+    "__Secure-1PSIDTS",
+    "__Secure-3PSIDTS",
     # NotebookLM-specific
-    "OSID", "__Secure-OSID",
+    "OSID",
+    "__Secure-OSID",
     # Misc
-    "NID", "AEC", "__Secure-BUCKET", "SEARCH_SAMESITE",
-    "_gcl_au", "_ga", "ADS_VISITOR_ID",
+    "NID",
+    "AEC",
+    "__Secure-BUCKET",
+    "SEARCH_SAMESITE",
+    "_gcl_au",
+    "_ga",
+    "ADS_VISITOR_ID",
 }
 
-CHROME_COOKIE_DB = Path.home() / "Library/Application Support/Google/Chrome/Default/Cookies"
+CHROME_COOKIE_DB = (
+    Path.home() / "Library/Application Support/Google/Chrome/Default/Cookies"
+)
 CHROME_SAFE_STORAGE_SERVICE = "Chrome Safe Storage"
 CHROME_SAFE_STORAGE_ACCOUNT = "Chrome"
 
@@ -58,9 +75,15 @@ def _get_chrome_encryption_key() -> bytes:
     """
     try:
         key = subprocess.check_output(
-            ["security", "find-generic-password", "-w",
-             "-s", CHROME_SAFE_STORAGE_SERVICE,
-             "-a", CHROME_SAFE_STORAGE_ACCOUNT],
+            [
+                "security",
+                "find-generic-password",
+                "-w",
+                "-s",
+                CHROME_SAFE_STORAGE_SERVICE,
+                "-a",
+                CHROME_SAFE_STORAGE_ACCOUNT,
+            ],
             stderr=subprocess.PIPE,
             timeout=30,
         ).strip()
@@ -96,6 +119,7 @@ def _decrypt_cookie_value(encrypted_value: bytes, derived_key: bytes) -> str:
     # v10 = Chrome macOS encryption (AES-128-CBC)
     if encrypted_value[:3] == b"v10":
         from Crypto.Cipher import AES
+
         iv = b" " * 16
         cipher = AES.new(derived_key, AES.MODE_CBC, iv)
         decrypted = cipher.decrypt(encrypted_value[3:])
@@ -129,6 +153,7 @@ def extract_chrome_cookies() -> dict[str, str]:
     # Derive AES key (Chrome uses PBKDF2-SHA1 with 'saltysalt' and 1003 iterations)
     # Use hashlib (stdlib) instead of pycryptodome for reliability
     import hashlib
+
     if isinstance(raw_key, str):
         raw_key = raw_key.encode("utf-8")
     derived_key = hashlib.pbkdf2_hmac("sha1", raw_key, b"saltysalt", 1003, dklen=16)
@@ -178,6 +203,7 @@ def cookies_to_header(cookies: dict[str, str]) -> str:
 def save_cookies(cookie_string: str) -> Path:
     """Save cookie string to NotebookLM auth cache."""
     from ..config_notebooklm import NotebookLMConfig
+
     cache_path = NotebookLMConfig.AUTH_STATE_DIR / "cookies.txt"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(cookie_string)
@@ -209,9 +235,19 @@ def auto_refresh() -> str:
 def main():
     """CLI entry point."""
     import argparse
-    parser = argparse.ArgumentParser(description="Extract NotebookLM cookies from Chrome")
-    parser.add_argument("--test", action="store_true", help="Test auth after extraction")
-    parser.add_argument("--print", action="store_true", dest="print_only", help="Print cookie string only")
+
+    parser = argparse.ArgumentParser(
+        description="Extract NotebookLM cookies from Chrome"
+    )
+    parser.add_argument(
+        "--test", action="store_true", help="Test auth after extraction"
+    )
+    parser.add_argument(
+        "--print",
+        action="store_true",
+        dest="print_only",
+        help="Print cookie string only",
+    )
     args = parser.parse_args()
 
     try:
@@ -244,6 +280,7 @@ def main():
     if args.test:
         print("\nTesting auth...")
         from ..api.client import NotebookLMAPIClient
+
         try:
             client = NotebookLMAPIClient(cookies=cookie_string)
             notebooks = client.list_notebooks()

@@ -27,10 +27,17 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 # ── Cursor adapter ──────────────────────────────────────────
 if sys.platform == "darwin":
     _cursor_default = str(
-        Path.home() / "Library" / "Application Support" / "Cursor" / "User" / "workspaceStorage"
+        Path.home()
+        / "Library"
+        / "Application Support"
+        / "Cursor"
+        / "User"
+        / "workspaceStorage"
     )
 else:
-    _cursor_default = str(Path.home() / ".config" / "Cursor" / "User" / "workspaceStorage")
+    _cursor_default = str(
+        Path.home() / ".config" / "Cursor" / "User" / "workspaceStorage"
+    )
 
 CURSOR_DATA_DIR = os.environ.get("UCW_CURSOR_DATA_DIR", _cursor_default)
 CURSOR_POLL_INTERVAL_S = int(os.environ.get("UCW_CURSOR_POLL_INTERVAL", "60"))

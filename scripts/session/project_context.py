@@ -76,7 +76,7 @@ def get_project_context(project_id: str) -> Dict[str, Any]:
         "memory": None,
         "sessions": [],
         "key_papers": project.get("key_papers", []),
-        "lineage": project.get("lineage", {})
+        "lineage": project.get("lineage", {}),
     }
 
     # Load research files content
@@ -88,11 +88,15 @@ def get_project_context(project_id: str) -> Dict[str, Any]:
             file_path = folder_path / filename
             if file_path.exists():
                 content = file_path.read_text()
-                context["research_files"].append({
-                    "name": filename,
-                    "path": str(file_path),
-                    "content": content[:5000] + "..." if len(content) > 5000 else content
-                })
+                context["research_files"].append(
+                    {
+                        "name": filename,
+                        "path": str(file_path),
+                        "content": content[:5000] + "..."
+                        if len(content) > 5000
+                        else content,
+                    }
+                )
 
     # Load memory
     memory_path = project.get("memory")
@@ -101,7 +105,7 @@ def get_project_context(project_id: str) -> Dict[str, Any]:
         if memory_file.exists():
             context["memory"] = {
                 "path": str(memory_file),
-                "content": memory_file.read_text()
+                "content": memory_file.read_text(),
             }
 
     # Load session summaries
@@ -110,13 +114,15 @@ def get_project_context(project_id: str) -> Dict[str, Any]:
         session_file = session_dir / "session.json"
         if session_file.exists():
             session_data = json.loads(session_file.read_text())
-            context["sessions"].append({
-                "id": session_id,
-                "topic": session_data.get("topic"),
-                "started": session_data.get("started"),
-                "urls_count": len(session_data.get("urls_captured", [])),
-                "findings_count": len(session_data.get("findings_captured", []))
-            })
+            context["sessions"].append(
+                {
+                    "id": session_id,
+                    "topic": session_data.get("topic"),
+                    "started": session_data.get("started"),
+                    "urls_count": len(session_data.get("urls_captured", [])),
+                    "findings_count": len(session_data.get("findings_captured", [])),
+                }
+            )
 
     return context
 
@@ -146,7 +152,7 @@ def format_context_for_display(context: Dict[str, Any]) -> str:
         lines.append(f"\n{rf['name']}:")
         lines.append(f"  Path: {rf['path']}")
         # Show first 500 chars
-        preview = rf['content'][:500].replace('\n', '\n  ')
+        preview = rf["content"][:500].replace("\n", "\n  ")
         lines.append(f"  Preview:\n  {preview}...")
 
     # Memory
@@ -156,7 +162,7 @@ def format_context_for_display(context: Dict[str, Any]) -> str:
         lines.append("PROJECT MEMORY")
         lines.append("-" * 70)
         lines.append(f"Path: {context['memory']['path']}")
-        lines.append(context['memory']['content'][:1000])
+        lines.append(context["memory"]["content"][:1000])
 
     # Sessions
     if context["sessions"]:
@@ -167,7 +173,9 @@ def format_context_for_display(context: Dict[str, Any]) -> str:
         for sess in context["sessions"]:
             lines.append(f"  {sess['id'][:40]}")
             lines.append(f"    Topic: {sess['topic']}")
-            lines.append(f"    URLs: {sess['urls_count']} | Findings: {sess['findings_count']}")
+            lines.append(
+                f"    URLs: {sess['urls_count']} | Findings: {sess['findings_count']}"
+            )
 
     # Key papers
     if context["key_papers"]:
@@ -185,14 +193,18 @@ def format_context_for_display(context: Dict[str, Any]) -> str:
         lines.append("LINEAGE")
         lines.append("-" * 70)
         if context["lineage"].get("research_sessions"):
-            lines.append(f"  Research Sessions: {', '.join(context['lineage']['research_sessions'])}")
+            lines.append(
+                f"  Research Sessions: {', '.join(context['lineage']['research_sessions'])}"
+            )
         if context["lineage"].get("features_implemented"):
-            lines.append(f"  Features Implemented: {', '.join(context['lineage']['features_implemented'])}")
+            lines.append(
+                f"  Features Implemented: {', '.join(context['lineage']['features_implemented'])}"
+            )
 
     lines.append("")
     lines.append("=" * 70)
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def list_projects() -> str:
@@ -216,7 +228,7 @@ def list_projects() -> str:
     lines.append("-" * 60)
     lines.append(f"Total projects: {len(data.get('projects', {}))}")
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def show_index() -> str:
@@ -255,9 +267,11 @@ def generate_claude_context(project_id: str) -> str:
     if context["lineage"]:
         lines.append("### Research Lineage")
         if context["lineage"].get("features_implemented"):
-            lines.append(f"Features implemented from research: {', '.join(context['lineage']['features_implemented'])}")
+            lines.append(
+                f"Features implemented from research: {', '.join(context['lineage']['features_implemented'])}"
+            )
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def main():
@@ -266,8 +280,12 @@ def main():
     )
     parser.add_argument("--project", "-p", help="Project ID to load")
     parser.add_argument("--list", "-l", action="store_true", help="List all projects")
-    parser.add_argument("--index", "-i", action="store_true", help="Show research index")
-    parser.add_argument("--claude", "-c", action="store_true", help="Output Claude-ready context")
+    parser.add_argument(
+        "--index", "-i", action="store_true", help="Show research index"
+    )
+    parser.add_argument(
+        "--claude", "-c", action="store_true", help="Output Claude-ready context"
+    )
 
     args = parser.parse_args()
 

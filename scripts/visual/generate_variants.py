@@ -1,9 +1,12 @@
 """Generate 3 style variants of the ResearchGravity architecture diagram."""
+
 import asyncio
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from visual.refined_pipeline import RefinedPipeline
 from visual.config import VisualConfig, get_visual_config
@@ -223,10 +226,10 @@ async def main():
     output_dir = "/Users/dicoangelo/Desktop"
 
     for i, variant in enumerate(VARIANTS):
-        print(f"\n{'='*60}")
-        print(f"  Generating Variant {i+1}/3: {variant['name'].upper()}")
+        print(f"\n{'=' * 60}")
+        print(f"  Generating Variant {i + 1}/3: {variant['name'].upper()}")
         print(f"  Output: {variant['filename']}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         result = await pipeline.generate(
             source_context=SOURCE_CONTEXT,
@@ -254,21 +257,23 @@ async def main():
         for ir in result.get("iteration_results", []):
             scores = ir.get("visual_quality_score", {})
             if scores:
-                print(f"  ✓ Scores: F={scores.get('faithfulness','-')}/5 "
-                      f"R={scores.get('readability','-')}/5 "
-                      f"A={scores.get('aesthetics','-')}/5")
+                print(
+                    f"  ✓ Scores: F={scores.get('faithfulness', '-')}/5 "
+                    f"R={scores.get('readability', '-')}/5 "
+                    f"A={scores.get('aesthetics', '-')}/5"
+                )
 
         # Reset cost for next variant
         pipeline.reset_session_cost()
 
-    print(f"\n{'='*60}")
-    print(f"  ALL VARIANTS COMPLETE")
-    print(f"{'='*60}")
-    print(f"\nFiles on Desktop:")
+    print(f"\n{'=' * 60}")
+    print("  ALL VARIANTS COMPLETE")
+    print(f"{'=' * 60}")
+    print("\nFiles on Desktop:")
     for v in VARIANTS:
         path = os.path.join(output_dir, v["filename"])
         if os.path.exists(path):
-            size_mb = os.path.getsize(path) / (1024*1024)
+            size_mb = os.path.getsize(path) / (1024 * 1024)
             print(f"  ✓ {v['filename']} ({size_mb:.1f} MB)")
         else:
             print(f"  ✗ {v['filename']} (MISSING)")

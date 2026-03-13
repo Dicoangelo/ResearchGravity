@@ -45,6 +45,7 @@ GENAI_AVAILABLE = False
 try:
     from google import genai
     from google.genai import types
+
     GENAI_AVAILABLE = True
 except ImportError:
     pass
@@ -171,7 +172,9 @@ class GeminiImageGenerator:
 
         # Resolve quality tier
         tier = QUALITY_TIERS.get(quality, {}) if quality else {}
-        raw_resolution = resolution or tier.get("resolution") or self.config.image_resolution
+        raw_resolution = (
+            resolution or tier.get("resolution") or self.config.image_resolution
+        )
         effective_resolution = raw_resolution.upper()  # API expects "1K", "2K", "4K"
         effective_model = model or self.config.image_model
         quality_suffix = tier.get("suffix", "")
@@ -180,7 +183,9 @@ class GeminiImageGenerator:
         model_info = AVAILABLE_IMAGE_MODELS.get(effective_model, {})
         supported_lower = model_info.get("resolutions", ["1k", "2k", "4k"])
         if effective_resolution.lower() not in supported_lower:
-            effective_resolution = supported_lower[-1].upper() if supported_lower else "1K"
+            effective_resolution = (
+                supported_lower[-1].upper() if supported_lower else "1K"
+            )
 
         # Build full prompt
         full_prompt = prompt + quality_suffix
@@ -265,11 +270,13 @@ class GeminiImageGenerator:
                         image_data = part.inline_data.data
                         if isinstance(image_data, str):
                             import base64
+
                             image_data = base64.b64decode(image_data)
 
                         # Use PIL if available for format normalization
                         try:
                             from PIL import Image as PILImage
+
                             img = PILImage.open(BytesIO(image_data))
                             if img.mode == "RGBA":
                                 rgb = PILImage.new("RGB", img.size, (255, 255, 255))

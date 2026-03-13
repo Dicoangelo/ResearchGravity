@@ -52,6 +52,7 @@ _stats = {
 
 # ── Lifecycle ─────────────────────────────────────────────
 
+
 @app.on_event("startup")
 async def startup():
     global _pool, _dedup, _webhook_normalizer, _base_normalizer, _audit, _start_time
@@ -90,6 +91,7 @@ async def shutdown():
 
 
 # ── Main webhook endpoint ─────────────────────────────────
+
 
 @app.post("/webhook/{provider}")
 async def receive_webhook(provider: str, request: Request):
@@ -170,8 +172,10 @@ async def receive_webhook(provider: str, request: Request):
         content_hash = _base_normalizer.content_hash(captured.content)
 
         if _dedup.is_duplicate(
-            captured.event_id, content_hash,
-            captured.session_id, captured.platform,
+            captured.event_id,
+            content_hash,
+            captured.session_id,
+            captured.platform,
         ):
             _stats["events_deduped"] += 1
             continue
@@ -191,8 +195,10 @@ async def receive_webhook(provider: str, request: Request):
         try:
             await _store_event(row)
             _dedup.mark_seen(
-                captured.event_id, content_hash,
-                captured.session_id, captured.platform,
+                captured.event_id,
+                content_hash,
+                captured.session_id,
+                captured.platform,
             )
             stored += 1
             _stats["events_stored"] += 1
@@ -218,6 +224,7 @@ async def receive_webhook(provider: str, request: Request):
 
 # ── Relay endpoint (from Supabase Edge Function) ─────────
 
+
 @app.post("/webhook/relay/{provider}")
 async def receive_relay(provider: str, request: Request):
     """Accept forwarded webhooks from the Supabase relay."""
@@ -240,8 +247,10 @@ async def receive_relay(provider: str, request: Request):
     for captured in captured_events:
         content_hash = _base_normalizer.content_hash(captured.content)
         if _dedup.is_duplicate(
-            captured.event_id, content_hash,
-            captured.session_id, captured.platform,
+            captured.event_id,
+            content_hash,
+            captured.session_id,
+            captured.platform,
         ):
             continue
 
@@ -258,8 +267,10 @@ async def receive_relay(provider: str, request: Request):
         try:
             await _store_event(row)
             _dedup.mark_seen(
-                captured.event_id, content_hash,
-                captured.session_id, captured.platform,
+                captured.event_id,
+                content_hash,
+                captured.session_id,
+                captured.platform,
             )
             stored += 1
         except Exception as exc:
@@ -269,6 +280,7 @@ async def receive_relay(provider: str, request: Request):
 
 
 # ── Health / Status ───────────────────────────────────────
+
 
 @app.get("/webhook/health")
 async def health():
@@ -295,6 +307,7 @@ async def status():
 
 # ── Test endpoint ─────────────────────────────────────────
 
+
 @app.post("/webhook/test/{provider}")
 async def test_webhook(provider: str):
     """Simulate a webhook delivery for testing."""
@@ -309,35 +322,46 @@ async def test_webhook(provider: str):
                 "x-github-event": "push",
                 "x-github-delivery": "test-delivery-001",
             },
-            "body": json.dumps({
-                "ref": "refs/heads/main",
-                "pusher": {"name": "test-user"},
-                "repository": {"full_name": "Dicoangelo/test-repo"},
-                "commits": [{"id": "abc12345", "message": "Test commit from webhook receiver"}],
-            }).encode(),
+            "body": json.dumps(
+                {
+                    "ref": "refs/heads/main",
+                    "pusher": {"name": "test-user"},
+                    "repository": {"full_name": "Dicoangelo/test-repo"},
+                    "commits": [
+                        {
+                            "id": "abc12345",
+                            "message": "Test commit from webhook receiver",
+                        }
+                    ],
+                }
+            ).encode(),
         },
         "slack": {
             "headers": {},
-            "body": json.dumps({
-                "type": "event_callback",
-                "team_id": "T_TEST",
-                "event_id": "test-event-001",
-                "event": {
-                    "type": "message",
-                    "user": "U_TEST",
-                    "text": "Test message from webhook receiver",
-                    "channel": "C_TEST",
-                    "ts": str(time.time()),
-                },
-            }).encode(),
+            "body": json.dumps(
+                {
+                    "type": "event_callback",
+                    "team_id": "T_TEST",
+                    "event_id": "test-event-001",
+                    "event": {
+                        "type": "message",
+                        "user": "U_TEST",
+                        "text": "Test message from webhook receiver",
+                        "channel": "C_TEST",
+                        "ts": str(time.time()),
+                    },
+                }
+            ).encode(),
         },
         "generic": {
             "headers": {},
-            "body": json.dumps({
-                "type": "test",
-                "text": "Test event from webhook receiver",
-                "session_id": "test-session",
-            }).encode(),
+            "body": json.dumps(
+                {
+                    "type": "test",
+                    "text": "Test event from webhook receiver",
+                    "session_id": "test-session",
+                }
+            ).encode(),
         },
     }
 
@@ -345,7 +369,12 @@ async def test_webhook(provider: str):
     events = await handler.handle(test["headers"], test["body"])
 
     if not events:
-        return {"status": "ok", "provider": provider, "events_parsed": 0, "note": "no events"}
+        return {
+            "status": "ok",
+            "provider": provider,
+            "events_parsed": 0,
+            "note": "no events",
+        }
 
     captured = _webhook_normalizer.normalize_batch(provider, events)
 
@@ -379,6 +408,7 @@ async def test_webhook(provider: str):
 
 
 # ── Internal: store event ─────────────────────────────────
+
 
 async def _store_event(row: dict) -> None:
     """INSERT a cognitive_event row — mirrors capture/manager.py:_store_event."""

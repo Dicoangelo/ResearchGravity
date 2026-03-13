@@ -26,6 +26,7 @@ from enum import Enum
 # Optional imports with fallbacks
 try:
     import anthropic
+
     HAS_ANTHROPIC = True
 except ImportError:
     anthropic = None
@@ -33,6 +34,7 @@ except ImportError:
 
 try:
     import openai
+
     HAS_OPENAI = True
 except ImportError:
     openai = None
@@ -41,6 +43,7 @@ except ImportError:
 try:
     from google import genai
     from google.genai import types as genai_types
+
     HAS_GEMINI = True
 except ImportError:
     genai = None
@@ -57,34 +60,34 @@ CONFIG_FILE = HOME / ".agent-core" / "config.json"
 
 # Model mappings
 ANTHROPIC_MODELS = {
-    'opus': 'claude-opus-4-20250514',
-    'sonnet': 'claude-sonnet-4-6',
-    'haiku': 'claude-3-5-haiku-20241022',
-    'default': 'claude-sonnet-4-6',
+    "opus": "claude-opus-4-20250514",
+    "sonnet": "claude-sonnet-4-6",
+    "haiku": "claude-3-5-haiku-20241022",
+    "default": "claude-sonnet-4-6",
 }
 
 OPENAI_MODELS = {
-    'gpt4': 'gpt-4o',
-    'gpt4o': 'gpt-4o',
-    'gpt4o-mini': 'gpt-4o-mini',
-    'default': 'gpt-4o',
+    "gpt4": "gpt-4o",
+    "gpt4o": "gpt-4o",
+    "gpt4o-mini": "gpt-4o-mini",
+    "default": "gpt-4o",
 }
 
 GEMINI_MODELS = {
-    'pro': 'gemini-1.5-pro',
-    'flash': 'gemini-1.5-flash',
-    'default': 'gemini-1.5-pro',
+    "pro": "gemini-1.5-pro",
+    "flash": "gemini-1.5-flash",
+    "default": "gemini-1.5-pro",
 }
 
 # Cost per 1M tokens (input/output)
 MODEL_COSTS = {
-    'claude-opus-4-20250514': (15.0, 75.0),
-    'claude-sonnet-4-6': (3.0, 15.0),
-    'claude-3-5-haiku-20241022': (0.25, 1.25),
-    'gpt-4o': (2.5, 10.0),
-    'gpt-4o-mini': (0.15, 0.6),
-    'gemini-1.5-pro': (1.25, 5.0),
-    'gemini-1.5-flash': (0.075, 0.3),
+    "claude-opus-4-20250514": (15.0, 75.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-3-5-haiku-20241022": (0.25, 1.25),
+    "gpt-4o": (2.5, 10.0),
+    "gpt-4o-mini": (0.15, 0.6),
+    "gemini-1.5-pro": (1.25, 5.0),
+    "gemini-1.5-flash": (0.075, 0.3),
 }
 
 
@@ -92,15 +95,17 @@ MODEL_COSTS = {
 # DATA CLASSES
 # =============================================================================
 
+
 class Provider(str, Enum):
-    ANTHROPIC = 'anthropic'
-    OPENAI = 'openai'
-    GEMINI = 'gemini'
+    ANTHROPIC = "anthropic"
+    OPENAI = "openai"
+    GEMINI = "gemini"
 
 
 @dataclass
 class LLMResponse:
     """Response from an LLM call."""
+
     content: str
     model: str
     provider: Provider
@@ -112,20 +117,21 @@ class LLMResponse:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'content': self.content,
-            'model': self.model,
-            'provider': self.provider.value,
-            'input_tokens': self.input_tokens,
-            'output_tokens': self.output_tokens,
-            'latency_ms': self.latency_ms,
-            'cost_usd': self.cost_usd,
-            'metadata': self.metadata,
+            "content": self.content,
+            "model": self.model,
+            "provider": self.provider.value,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "latency_ms": self.latency_ms,
+            "cost_usd": self.cost_usd,
+            "metadata": self.metadata,
         }
 
 
 @dataclass
 class AgentResponse:
     """Response from a single agent."""
+
     agent_name: str
     role: str
     response: str
@@ -136,6 +142,7 @@ class AgentResponse:
 # =============================================================================
 # API KEY MANAGEMENT
 # =============================================================================
+
 
 def load_api_keys() -> Dict[str, str]:
     """Load API keys from config file and environment."""
@@ -148,10 +155,10 @@ def load_api_keys() -> Dict[str, str]:
                 config = json.load(f)
 
             # Direct keys
-            for provider in ['anthropic', 'openai', 'gemini', 'cohere']:
+            for provider in ["anthropic", "openai", "gemini", "cohere"]:
                 if provider in config:
                     if isinstance(config[provider], dict):
-                        keys[provider] = config[provider].get('api_key', '')
+                        keys[provider] = config[provider].get("api_key", "")
                     else:
                         keys[provider] = config[provider]
         except Exception:
@@ -159,9 +166,9 @@ def load_api_keys() -> Dict[str, str]:
 
     # Override with environment variables
     env_mappings = {
-        'anthropic': ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
-        'openai': ['OPENAI_API_KEY'],
-        'gemini': ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+        "anthropic": ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
+        "openai": ["OPENAI_API_KEY"],
+        "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
     }
 
     for provider, env_vars in env_mappings.items():
@@ -187,13 +194,14 @@ def save_api_key(provider: str, api_key: str):
     config[provider] = api_key
 
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_FILE, 'w') as f:
+    with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=2)
 
 
 # =============================================================================
 # LLM CLIENT
 # =============================================================================
+
 
 class LLMClient:
     """
@@ -206,7 +214,7 @@ class LLMClient:
     def __init__(
         self,
         preferred_provider: Provider = Provider.ANTHROPIC,
-        api_keys: Optional[Dict[str, str]] = None
+        api_keys: Optional[Dict[str, str]] = None,
     ):
         self.preferred_provider = preferred_provider
         self.api_keys = api_keys or load_api_keys()
@@ -216,27 +224,27 @@ class LLMClient:
     def _init_clients(self):
         """Initialize available provider clients."""
         # Anthropic
-        if HAS_ANTHROPIC and self.api_keys.get('anthropic'):
+        if HAS_ANTHROPIC and self.api_keys.get("anthropic"):
             try:
                 self._clients[Provider.ANTHROPIC] = anthropic.Anthropic(
-                    api_key=self.api_keys['anthropic']
+                    api_key=self.api_keys["anthropic"]
                 )
             except Exception as e:
                 print(f"Warning: Could not initialize Anthropic client: {e}")
 
         # OpenAI
-        if HAS_OPENAI and self.api_keys.get('openai'):
+        if HAS_OPENAI and self.api_keys.get("openai"):
             try:
                 self._clients[Provider.OPENAI] = openai.OpenAI(
-                    api_key=self.api_keys['openai']
+                    api_key=self.api_keys["openai"]
                 )
             except Exception as e:
                 print(f"Warning: Could not initialize OpenAI client: {e}")
 
         # Gemini
-        if HAS_GEMINI and self.api_keys.get('gemini'):
+        if HAS_GEMINI and self.api_keys.get("gemini"):
             try:
-                genai.configure(api_key=self.api_keys['gemini'])
+                genai.configure(api_key=self.api_keys["gemini"])
                 self._clients[Provider.GEMINI] = genai
             except Exception as e:
                 print(f"Warning: Could not initialize Gemini client: {e}")
@@ -278,7 +286,9 @@ class LLMClient:
 
         # Deduplicate while preserving order
         seen = set()
-        providers_to_try = [p for p in providers_to_try if not (p in seen or seen.add(p))]
+        providers_to_try = [
+            p for p in providers_to_try if not (p in seen or seen.add(p))
+        ]
 
         last_error = None
         for prov in providers_to_try:
@@ -307,11 +317,11 @@ class LLMClient:
         user_prompt: str,
         model: Optional[str],
         max_tokens: int,
-        temperature: float
+        temperature: float,
     ) -> LLMResponse:
         """Complete using Anthropic Claude."""
         client = self._clients[Provider.ANTHROPIC]
-        model_name = model or ANTHROPIC_MODELS['default']
+        model_name = model or ANTHROPIC_MODELS["default"]
 
         # Map short names to full names
         if model_name in ANTHROPIC_MODELS:
@@ -328,8 +338,8 @@ class LLMClient:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
-            )
+                messages=[{"role": "user", "content": user_prompt}],
+            ),
         )
 
         latency_ms = int((time.time() - start) * 1000)
@@ -350,7 +360,7 @@ class LLMClient:
             output_tokens=output_tokens,
             latency_ms=latency_ms,
             cost_usd=cost,
-            metadata={'stop_reason': response.stop_reason}
+            metadata={"stop_reason": response.stop_reason},
         )
 
     async def _complete_openai(
@@ -359,11 +369,11 @@ class LLMClient:
         user_prompt: str,
         model: Optional[str],
         max_tokens: int,
-        temperature: float
+        temperature: float,
     ) -> LLMResponse:
         """Complete using OpenAI GPT."""
         client = self._clients[Provider.OPENAI]
-        model_name = model or OPENAI_MODELS['default']
+        model_name = model or OPENAI_MODELS["default"]
 
         # Map short names
         if model_name in OPENAI_MODELS:
@@ -380,9 +390,9 @@ class LLMClient:
                 temperature=temperature,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]
-            )
+                    {"role": "user", "content": user_prompt},
+                ],
+            ),
         )
 
         latency_ms = int((time.time() - start) * 1000)
@@ -402,7 +412,11 @@ class LLMClient:
             output_tokens=output_tokens,
             latency_ms=latency_ms,
             cost_usd=cost,
-            metadata={'finish_reason': response.choices[0].finish_reason if response.choices else None}
+            metadata={
+                "finish_reason": response.choices[0].finish_reason
+                if response.choices
+                else None
+            },
         )
 
     async def _complete_gemini(
@@ -411,10 +425,10 @@ class LLMClient:
         user_prompt: str,
         model: Optional[str],
         max_tokens: int,
-        temperature: float
+        temperature: float,
     ) -> LLMResponse:
         """Complete using Google Gemini."""
-        model_name = model or GEMINI_MODELS['default']
+        model_name = model or GEMINI_MODELS["default"]
 
         if model_name in GEMINI_MODELS:
             model_name = GEMINI_MODELS[model_name]
@@ -434,8 +448,8 @@ class LLMClient:
                 generation_config=genai.types.GenerationConfig(
                     max_output_tokens=max_tokens,
                     temperature=temperature,
-                )
-            )
+                ),
+            ),
         )
 
         latency_ms = int((time.time() - start) * 1000)
@@ -480,11 +494,11 @@ class LLMClient:
         """
         tasks = [
             self.complete(
-                p['system_prompt'],
-                p['user_prompt'],
+                p["system_prompt"],
+                p["user_prompt"],
                 model=model,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
             )
             for p in prompts
         ]
@@ -494,17 +508,18 @@ class LLMClient:
     def get_status(self) -> Dict[str, Any]:
         """Get client status."""
         return {
-            'preferred_provider': self.preferred_provider.value,
-            'available_providers': [p.value for p in self.get_available_providers()],
-            'has_anthropic': HAS_ANTHROPIC and 'anthropic' in self.api_keys,
-            'has_openai': HAS_OPENAI and 'openai' in self.api_keys,
-            'has_gemini': HAS_GEMINI and 'gemini' in self.api_keys,
+            "preferred_provider": self.preferred_provider.value,
+            "available_providers": [p.value for p in self.get_available_providers()],
+            "has_anthropic": HAS_ANTHROPIC and "anthropic" in self.api_keys,
+            "has_openai": HAS_OPENAI and "openai" in self.api_keys,
+            "has_gemini": HAS_GEMINI and "gemini" in self.api_keys,
         }
 
 
 # =============================================================================
 # AGENT EXECUTOR
 # =============================================================================
+
 
 class AgentExecutor:
     """
@@ -519,7 +534,7 @@ class AgentExecutor:
     async def execute_agents(
         self,
         agent_prompts: List[Dict[str, str]],
-        model: str = 'sonnet',
+        model: str = "sonnet",
         max_tokens: int = 2048,
     ) -> List[AgentResponse]:
         """
@@ -535,10 +550,7 @@ class AgentExecutor:
         """
         # Build completion prompts
         prompts = [
-            {
-                'system_prompt': ap['system_prompt'],
-                'user_prompt': ap['user_prompt']
-            }
+            {"system_prompt": ap["system_prompt"], "user_prompt": ap["user_prompt"]}
             for ap in agent_prompts
         ]
 
@@ -548,7 +560,7 @@ class AgentExecutor:
             prompts,
             model=model,
             max_tokens=max_tokens,
-            temperature=0.3  # Lower temp for consistent outputs
+            temperature=0.3,  # Lower temp for consistent outputs
         )
 
         # Build agent responses
@@ -556,22 +568,26 @@ class AgentExecutor:
         for i, (ap, resp) in enumerate(zip(agent_prompts, responses)):
             if isinstance(resp, Exception):
                 # Handle failed agent
-                agent_responses.append(AgentResponse(
-                    agent_name=ap['agent'],
-                    role=ap['role'],
-                    response=f"[Agent failed: {str(resp)}]",
-                    confidence=0.0,
-                ))
+                agent_responses.append(
+                    AgentResponse(
+                        agent_name=ap["agent"],
+                        role=ap["role"],
+                        response=f"[Agent failed: {str(resp)}]",
+                        confidence=0.0,
+                    )
+                )
             else:
                 # Extract confidence from response if present
                 confidence = self._extract_confidence(resp.content)
-                agent_responses.append(AgentResponse(
-                    agent_name=ap['agent'],
-                    role=ap['role'],
-                    response=resp.content,
-                    confidence=confidence,
-                    llm_response=resp
-                ))
+                agent_responses.append(
+                    AgentResponse(
+                        agent_name=ap["agent"],
+                        role=ap["role"],
+                        response=resp.content,
+                        confidence=confidence,
+                        llm_response=resp,
+                    )
+                )
 
         return agent_responses
 
@@ -581,9 +597,9 @@ class AgentExecutor:
 
         # Look for patterns like "Confidence: 85%" or "confidence level: 90"
         patterns = [
-            r'[Cc]onfidence[:\s]+(\d+)%?',
-            r'(\d+)%\s+confident',
-            r'[Cc]onfidence\s+[Ll]evel[:\s]+(\d+)',
+            r"[Cc]onfidence[:\s]+(\d+)%?",
+            r"(\d+)%\s+confident",
+            r"[Cc]onfidence\s+[Ll]evel[:\s]+(\d+)",
         ]
 
         for pattern in patterns:
@@ -598,7 +614,7 @@ class AgentExecutor:
         self,
         query: str,
         agent_responses: List[AgentResponse],
-        model: str = 'sonnet',
+        model: str = "sonnet",
     ) -> LLMResponse:
         """
         Synthesize agent responses into final answer.
@@ -614,7 +630,7 @@ class AgentExecutor:
         # Build synthesis prompt
         agent_summaries = []
         for ar in agent_responses:
-            conf_str = f"{ar.confidence*100:.0f}%" if ar.confidence else "N/A"
+            conf_str = f"{ar.confidence * 100:.0f}%" if ar.confidence else "N/A"
             agent_summaries.append(
                 f"## {ar.agent_name} ({ar.role}) - Confidence: {conf_str}\n\n{ar.response}"
             )
@@ -652,7 +668,7 @@ Format your response with:
             user_prompt=synthesis_prompt,
             model=model,
             max_tokens=4096,
-            temperature=0.2  # Very low temp for consistent synthesis
+            temperature=0.2,  # Very low temp for consistent synthesis
         )
 
 
@@ -682,27 +698,23 @@ def get_agent_executor() -> AgentExecutor:
 
 
 async def complete(
-    system_prompt: str,
-    user_prompt: str,
-    model: Optional[str] = None,
-    **kwargs
+    system_prompt: str, user_prompt: str, model: Optional[str] = None, **kwargs
 ) -> LLMResponse:
     """Convenience function for single completion."""
     return await get_llm_client().complete(system_prompt, user_prompt, model, **kwargs)
 
 
 async def execute_agents(
-    agent_prompts: List[Dict[str, str]],
-    **kwargs
+    agent_prompts: List[Dict[str, str]], **kwargs
 ) -> List[AgentResponse]:
     """Convenience function for agent execution."""
     return await get_agent_executor().execute_agents(agent_prompts, **kwargs)
 
 
 async def synthesize(
-    query: str,
-    agent_responses: List[AgentResponse],
-    **kwargs
+    query: str, agent_responses: List[AgentResponse], **kwargs
 ) -> LLMResponse:
     """Convenience function for synthesis."""
-    return await get_agent_executor().synthesize_responses(query, agent_responses, **kwargs)
+    return await get_agent_executor().synthesize_responses(
+        query, agent_responses, **kwargs
+    )

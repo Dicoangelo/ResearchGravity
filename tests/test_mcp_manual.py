@@ -22,6 +22,7 @@ try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
     from mcp.types import Tool, TextContent
+
     print("   ✅ MCP server imports successful")
 except ImportError as e:
     print(f"   ❌ Import error: {e}")
@@ -52,6 +53,7 @@ try:
 except Exception as e:
     print(f"   ❌ Error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -71,11 +73,14 @@ try:
 
     # Test projects
     projects = mcp_server.load_json(mcp_server.PROJECTS_FILE)
-    print(f"   ✅ Projects loaded: {len([k for k in projects.keys() if not k.startswith('_')])} projects")
+    print(
+        f"   ✅ Projects loaded: {len([k for k in projects.keys() if not k.startswith('_')])} projects"
+    )
 
 except Exception as e:
     print(f"   ❌ Error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -95,6 +100,6 @@ print("2. Restart Claude Desktop")
 print()
 print("3. Use tools in Claude Desktop:")
 print("   - Get my active session context")
-print("   - Search learnings for \"multi-agent\"")
-print("   - Select context packs for \"debugging React\"")
+print('   - Search learnings for "multi-agent"')
+print('   - Select context packs for "debugging React"')
 print()

@@ -69,9 +69,12 @@ def extract_last_checkpoint(transcript: str, chars: int = 3000) -> str:
     # Try to find a good breaking point
     # Look for common checkpoint markers
     markers = [
-        "\n## ", "\n### ",  # Markdown headers
-        "\nCheckpoint:", "\nSummary:",
-        "\nCompleted:", "\nNext steps:",
+        "\n## ",
+        "\n### ",  # Markdown headers
+        "\nCheckpoint:",
+        "\nSummary:",
+        "\nCompleted:",
+        "\nNext steps:",
         "\n---",  # Section breaks
     ]
 
@@ -101,11 +104,11 @@ def identify_incomplete_tasks(transcript: str) -> list:
 
     # Look for TODO patterns
     todo_patterns = [
-        r'TODO[:\s]+([^\n]+)',
-        r'\[ \]\s*([^\n]+)',  # Markdown unchecked
-        r'PENDING[:\s]+([^\n]+)',
-        r'Next[:\s]+([^\n]+)',
-        r'remaining[:\s]+([^\n]+)',
+        r"TODO[:\s]+([^\n]+)",
+        r"\[ \]\s*([^\n]+)",  # Markdown unchecked
+        r"PENDING[:\s]+([^\n]+)",
+        r"Next[:\s]+([^\n]+)",
+        r"remaining[:\s]+([^\n]+)",
     ]
 
     for pattern in todo_patterns:
@@ -235,10 +238,10 @@ def build_reinvigoration_context(session_id: str) -> str:
     context = f"""## SESSION REINVIGORATION: {session_id[:50]}
 
 ### Session Info
-- **Topic:** {metadata.get('topic', 'Unknown')}
-- **Project:** {metadata.get('project') or 'None'}
-- **Status:** {metadata.get('status', 'archived')}
-- **Started:** {metadata.get('started_at', 'Unknown')}
+- **Topic:** {metadata.get("topic", "Unknown")}
+- **Project:** {metadata.get("project") or "None"}
+- **Status:** {metadata.get("status", "archived")}
+- **Started:** {metadata.get("started_at", "Unknown")}
 
 ### Key Findings ({len(findings)} total)
 {format_findings(findings)}
@@ -279,8 +282,8 @@ def verify_reinvigoration(session_id: str) -> dict:
 
     checks = {
         "session_json": (session_dir / "session.json").exists(),
-        "findings": (session_dir / "findings_captured.json").exists() or
-                    (session_dir / "findings_evidenced.json").exists(),
+        "findings": (session_dir / "findings_captured.json").exists()
+        or (session_dir / "findings_evidenced.json").exists(),
         "urls": (session_dir / "urls_captured.json").exists(),
         "transcript": (session_dir / "full_transcript.txt").exists(),
         "lineage": (session_dir / "lineage.json").exists(),
@@ -316,13 +319,15 @@ def list_resumable_sessions(limit: int = 20) -> list:
         verification = verify_reinvigoration(session_dir.name)
         if verification.get("complete"):
             metadata = get_session_metadata(session_dir)
-            sessions.append({
-                "id": session_dir.name,
-                "topic": metadata.get("topic", ""),
-                "project": metadata.get("project"),
-                "completeness": verification.get("completeness", 0),
-                "findings": verification.get("findings_count", 0),
-            })
+            sessions.append(
+                {
+                    "id": session_dir.name,
+                    "topic": metadata.get("topic", ""),
+                    "project": metadata.get("project"),
+                    "completeness": verification.get("completeness", 0),
+                    "findings": verification.get("findings_count", 0),
+                }
+            )
 
         if len(sessions) >= limit:
             break
@@ -361,11 +366,9 @@ def copy_to_clipboard(text: str) -> bool:
     """Copy text to clipboard (macOS)."""
     try:
         process = subprocess.Popen(
-            ['pbcopy'],
-            stdin=subprocess.PIPE,
-            env={'LANG': 'en_US.UTF-8'}
+            ["pbcopy"], stdin=subprocess.PIPE, env={"LANG": "en_US.UTF-8"}
         )
-        process.communicate(text.encode('utf-8'))
+        process.communicate(text.encode("utf-8"))
         return process.returncode == 0
     except:
         return False
@@ -376,16 +379,22 @@ def main():
         description="Reinvigoration System - Resume sessions with full context"
     )
     parser.add_argument("session_id", nargs="?", help="Session ID to reinvigorate")
-    parser.add_argument("--inject", "-i", action="store_true",
-                        help="Inject context into CLAUDE.md")
-    parser.add_argument("--clipboard", "-c", action="store_true",
-                        help="Copy context to clipboard")
-    parser.add_argument("--list", "-l", action="store_true",
-                        help="List resumable sessions")
-    parser.add_argument("--verify", "-v", action="store_true",
-                        help="Verify session reinvigoration readiness")
-    parser.add_argument("--limit", type=int, default=20,
-                        help="Limit for list output")
+    parser.add_argument(
+        "--inject", "-i", action="store_true", help="Inject context into CLAUDE.md"
+    )
+    parser.add_argument(
+        "--clipboard", "-c", action="store_true", help="Copy context to clipboard"
+    )
+    parser.add_argument(
+        "--list", "-l", action="store_true", help="List resumable sessions"
+    )
+    parser.add_argument(
+        "--verify",
+        "-v",
+        action="store_true",
+        help="Verify session reinvigoration readiness",
+    )
+    parser.add_argument("--limit", type=int, default=20, help="Limit for list output")
 
     args = parser.parse_args()
 
@@ -400,7 +409,9 @@ def main():
             print(f"  {s['id'][:50]}")
             print(f"    Topic: {s.get('topic', 'N/A')[:40]}")
             print(f"    Project: {s.get('project') or 'None'}")
-            print(f"    Completeness: {completeness}% | Findings: {s.get('findings', 0)}")
+            print(
+                f"    Completeness: {completeness}% | Findings: {s.get('findings', 0)}"
+            )
             print()
 
         print(f"Total: {len(sessions)} resumable sessions")

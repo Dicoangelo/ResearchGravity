@@ -140,6 +140,7 @@ TOOLS: List[Dict[str, Any]] = [
 
 # ── Dispatcher ───────────────────────────────────────────────────────────────
 
+
 async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """Route tool calls to implementations."""
     handlers = {
@@ -155,16 +156,21 @@ async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
 
     handler = handlers.get(name)
     if not handler:
-        return tool_result_content([text_content(f"Unknown research tool: {name}")], is_error=True)
+        return tool_result_content(
+            [text_content(f"Unknown research tool: {name}")], is_error=True
+        )
 
     try:
         return await handler(args)
     except Exception as exc:
         log.error(f"Tool {name} failed: {exc}", exc_info=True)
-        return tool_result_content([text_content(f"Error in {name}: {exc}")], is_error=True)
+        return tool_result_content(
+            [text_content(f"Error in {name}: {exc}")], is_error=True
+        )
 
 
 # ── Implementations ──────────────────────────────────────────────────────────
+
 
 async def _get_session_context(args: Dict) -> Dict:
     session_id = args.get("session_id")
@@ -172,33 +178,41 @@ async def _get_session_context(args: Dict) -> Dict:
     if session_id:
         session = _get_session_by_id(session_id)
         if not session:
-            return tool_result_content([text_content(f"Session not found: {session_id}")], is_error=True)
+            return tool_result_content(
+                [text_content(f"Session not found: {session_id}")], is_error=True
+            )
     else:
         session = _get_active_session()
         if not session:
-            return tool_result_content([text_content(
-                'No active session. Start a session with: python3 init_session.py "topic"'
-            )])
+            return tool_result_content(
+                [
+                    text_content(
+                        'No active session. Start a session with: python3 init_session.py "topic"'
+                    )
+                ]
+            )
 
-    output = f"""# Session: {session.get('topic', 'Unknown')}
+    output = f"""# Session: {session.get("topic", "Unknown")}
 
-**ID:** {session.get('session_id', 'unknown')}
-**Status:** {session.get('status', 'unknown')}
-**Started:** {session.get('started', 'unknown')}
-**Working Directory:** {session.get('working_directory', 'unknown')}
+**ID:** {session.get("session_id", "unknown")}
+**Status:** {session.get("status", "unknown")}
+**Started:** {session.get("started", "unknown")}
+**Working Directory:** {session.get("working_directory", "unknown")}
 
 ## URLs Captured
-{len(session.get('urls_captured', []))} URLs logged
+{len(session.get("urls_captured", []))} URLs logged
 
 ## Findings
-{len(session.get('findings_captured', []))} findings recorded
+{len(session.get("findings_captured", []))} findings recorded
 """
 
     findings = session.get("findings_captured", [])
     if findings:
         output += "\n### Recent Findings:\n"
         for f in findings[-5:]:
-            output += f"\n- **{f.get('type', 'general')}**: {f.get('text', '')[:200]}...\n"
+            output += (
+                f"\n- **{f.get('type', 'general')}**: {f.get('text', '')[:200]}...\n"
+            )
 
     return tool_result_content([text_content(output)])
 
@@ -210,9 +224,13 @@ async def _search_learnings(args: Dict) -> Dict:
     results = _search_learnings_text(query, limit)
 
     if not results:
-        return tool_result_content([text_content(f"No learnings found for query: {query}")])
+        return tool_result_content(
+            [text_content(f"No learnings found for query: {query}")]
+        )
 
-    output = f"# Search Results for: {query}\n\nFound {len(results)} relevant sections:\n\n"
+    output = (
+        f"# Search Results for: {query}\n\nFound {len(results)} relevant sections:\n\n"
+    )
     for i, result in enumerate(results, 1):
         output += f"## {i}. {result['title']}\n\n"
         output += f"{result['preview']}\n\n"
@@ -226,7 +244,9 @@ async def _get_project_research(args: Dict) -> Dict:
     files = _get_project_research_files(project_name)
 
     if not files:
-        return tool_result_content([text_content(f"No research files found for project: {project_name}")])
+        return tool_result_content(
+            [text_content(f"No research files found for project: {project_name}")]
+        )
 
     output = f"# Research Files for: {project_name}\n\nFound {len(files)} files:\n\n"
     for filename, content in files.items():
@@ -243,13 +263,22 @@ async def _log_finding(args: Dict) -> Dict:
     success = _log_finding_to_session(finding, finding_type)
 
     if success:
-        return tool_result_content([text_content(
-            f"Finding logged successfully\n\nType: {finding_type}\nText: {finding}"
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    f"Finding logged successfully\n\nType: {finding_type}\nText: {finding}"
+                )
+            ]
+        )
     else:
-        return tool_result_content([text_content(
-            "Failed to log finding. No active session or permission error."
-        )], is_error=True)
+        return tool_result_content(
+            [
+                text_content(
+                    "Failed to log finding. No active session or permission error."
+                )
+            ],
+            is_error=True,
+        )
 
 
 async def _select_context_packs(args: Dict) -> Dict:
@@ -275,7 +304,9 @@ async def _select_context_packs(args: Dict) -> Dict:
 
     except Exception as exc:
         log.error(f"Context pack selection failed: {exc}", exc_info=True)
-        return tool_result_content([text_content(f"Error selecting context packs: {exc}")], is_error=True)
+        return tool_result_content(
+            [text_content(f"Error selecting context packs: {exc}")], is_error=True
+        )
 
 
 async def _get_research_index(args: Dict) -> Dict:
@@ -312,8 +343,7 @@ async def _get_session_stats(args: Dict) -> Dict:
 
     total_sessions = len(tracker.get("sessions", {}))
     archived = sum(
-        1 for s in tracker.get("sessions", {}).values()
-        if s.get("status") == "archived"
+        1 for s in tracker.get("sessions", {}).values() if s.get("status") == "archived"
     )
 
     stats = projects.get("_stats", {})
@@ -334,13 +364,14 @@ async def _get_session_stats(args: Dict) -> Dict:
 
 **Cognitive Wallet Value:** ${wallet_value:.2f}
 
-**Projects:** {len([k for k in projects.keys() if not k.startswith('_')])}
+**Projects:** {len([k for k in projects.keys() if not k.startswith("_")])}
 """
 
     return tool_result_content([text_content(output)])
 
 
 # ── File helpers (no SDK dependency) ─────────────────────────────────────────
+
 
 def _load_json(path: Path) -> Dict:
     try:
@@ -395,11 +426,13 @@ def _search_learnings_text(query: str, limit: int = 10) -> List[Dict[str, Any]]:
             content = lines[1] if len(lines) > 1 else ""
             preview = content[:500] + "..." if len(content) > 500 else content
 
-            results.append({
-                "title": title,
-                "preview": preview,
-                "relevance": section.lower().count(query_lower),
-            })
+            results.append(
+                {
+                    "title": title,
+                    "preview": preview,
+                    "relevance": section.lower().count(query_lower),
+                }
+            )
             if len(results) >= limit:
                 break
 
@@ -431,11 +464,13 @@ def _log_finding_to_session(finding: str, finding_type: str = "general") -> bool
     if "findings_captured" not in session:
         session["findings_captured"] = []
 
-    session["findings_captured"].append({
-        "text": finding,
-        "type": finding_type,
-        "timestamp": datetime.now().isoformat(),
-    })
+    session["findings_captured"].append(
+        {
+            "text": finding,
+            "type": finding_type,
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
 
     try:
         with open(Config.SESSION_TRACKER, "w") as f:

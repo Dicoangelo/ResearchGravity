@@ -1,9 +1,12 @@
 """Generate the 3 remaining style variants: dark-premium, radial-flow, freeflow."""
+
 import asyncio
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from visual.refined_pipeline import RefinedPipeline
 from visual.config import get_visual_config
@@ -166,10 +169,10 @@ async def run_one(variant, config):
     """Run a single variant with its own pipeline instance."""
     pipeline = RefinedPipeline(config=config)
     name = variant["name"]
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Generating: {name.upper()}")
     print(f"  Output: {variant['filename']}")
-    print(f"{'='*60}\n", flush=True)
+    print(f"{'=' * 60}\n", flush=True)
 
     result = await pipeline.generate(
         source_context=SOURCE_CONTEXT,
@@ -188,7 +191,10 @@ async def run_one(variant, config):
 
     meta = result.get("metadata", {})
     print(f"  DONE ({name}): {result.get('png_path', '?')}", flush=True)
-    print(f"  Cost: ${meta.get('estimated_cost_usd', 0):.4f} | Time: {meta.get('elapsed_seconds', 0):.1f}s", flush=True)
+    print(
+        f"  Cost: ${meta.get('estimated_cost_usd', 0):.4f} | Time: {meta.get('elapsed_seconds', 0):.1f}s",
+        flush=True,
+    )
     return name, True
 
 
@@ -201,14 +207,14 @@ async def main():
     for variant in VARIANTS:
         await run_one(variant, config)
 
-    print(f"\n{'='*60}")
-    print(f"  ALL 3 VARIANTS COMPLETE")
-    print(f"{'='*60}\n")
+    print(f"\n{'=' * 60}")
+    print("  ALL 3 VARIANTS COMPLETE")
+    print(f"{'=' * 60}\n")
 
     for v in VARIANTS:
         path = f"/Users/dicoangelo/Desktop/{v['filename']}"
         if os.path.exists(path):
-            size_mb = os.path.getsize(path) / (1024*1024)
+            size_mb = os.path.getsize(path) / (1024 * 1024)
             print(f"  {v['filename']} ({size_mb:.1f} MB)")
         else:
             print(f"  {v['filename']} (MISSING)")

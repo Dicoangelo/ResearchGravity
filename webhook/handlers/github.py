@@ -12,7 +12,6 @@ from .base import WebhookHandler, WebhookEvent
 
 
 class GitHubHandler(WebhookHandler):
-
     @property
     def provider(self) -> str:
         return "github"
@@ -23,8 +22,14 @@ class GitHubHandler(WebhookHandler):
 
     def supported_events(self) -> List[str]:
         return [
-            "push", "pull_request", "issues", "issue_comment",
-            "star", "fork", "release", "workflow_run",
+            "push",
+            "pull_request",
+            "issues",
+            "issue_comment",
+            "star",
+            "fork",
+            "release",
+            "workflow_run",
         ]
 
     async def handle(
@@ -54,31 +59,39 @@ class GitHubHandler(WebhookHandler):
         pusher = payload.get("pusher", {}).get("name", "unknown")
 
         commit_msgs = "\n".join(
-            f"- {c.get('message', '').split(chr(10))[0]}"
-            for c in commits[:10]
+            f"- {c.get('message', '').split(chr(10))[0]}" for c in commits[:10]
         )
         content = (
-            f"Push to {repo}/{ref} by {pusher}: "
-            f"{len(commits)} commit(s)\n{commit_msgs}"
+            f"Push to {repo}/{ref} by {pusher}: {len(commits)} commit(s)\n{commit_msgs}"
         )
 
-        return [WebhookEvent(
-            event_type="push",
-            content=content,
-            metadata={
-                "repo": repo, "ref": ref, "pusher": pusher,
-                "commit_count": len(commits), "delivery_id": delivery_id,
-                "commits": [
-                    {"sha": c.get("id", "")[:8], "message": c.get("message", "")[:200]}
-                    for c in commits[:10]
-                ],
-            },
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type="push",
+                content=content,
+                metadata={
+                    "repo": repo,
+                    "ref": ref,
+                    "pusher": pusher,
+                    "commit_count": len(commits),
+                    "delivery_id": delivery_id,
+                    "commits": [
+                        {
+                            "sha": c.get("id", "")[:8],
+                            "message": c.get("message", "")[:200],
+                        }
+                        for c in commits[:10]
+                    ],
+                },
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="system",
+            )
+        ]
 
-    def _handle_pull_request(self, payload: dict, delivery_id: str) -> List[WebhookEvent]:
+    def _handle_pull_request(
+        self, payload: dict, delivery_id: str
+    ) -> List[WebhookEvent]:
         action = payload.get("action", "")
         pr = payload.get("pull_request", {})
         repo = payload.get("repository", {}).get("full_name", "unknown")
@@ -89,17 +102,23 @@ class GitHubHandler(WebhookHandler):
 
         content = f"PR #{number} {action} on {repo} by {user}: {title}\n{body_text}"
 
-        return [WebhookEvent(
-            event_type="pull_request",
-            content=content,
-            metadata={
-                "repo": repo, "action": action, "pr_number": number,
-                "user": user, "title": title, "delivery_id": delivery_id,
-            },
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type="pull_request",
+                content=content,
+                metadata={
+                    "repo": repo,
+                    "action": action,
+                    "pr_number": number,
+                    "user": user,
+                    "title": title,
+                    "delivery_id": delivery_id,
+                },
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="system",
+            )
+        ]
 
     def _handle_issue(self, payload: dict, delivery_id: str) -> List[WebhookEvent]:
         action = payload.get("action", "")
@@ -112,20 +131,28 @@ class GitHubHandler(WebhookHandler):
 
         content = f"Issue #{number} {action} on {repo} by {user}: {title}\n{body_text}"
 
-        return [WebhookEvent(
-            event_type="issue",
-            content=content,
-            metadata={
-                "repo": repo, "action": action, "issue_number": number,
-                "user": user, "title": title, "delivery_id": delivery_id,
-                "labels": [l.get("name", "") for l in issue.get("labels", [])],
-            },
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type="issue",
+                content=content,
+                metadata={
+                    "repo": repo,
+                    "action": action,
+                    "issue_number": number,
+                    "user": user,
+                    "title": title,
+                    "delivery_id": delivery_id,
+                    "labels": [l.get("name", "") for l in issue.get("labels", [])],
+                },
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="system",
+            )
+        ]
 
-    def _handle_issue_comment(self, payload: dict, delivery_id: str) -> List[WebhookEvent]:
+    def _handle_issue_comment(
+        self, payload: dict, delivery_id: str
+    ) -> List[WebhookEvent]:
         action = payload.get("action", "")
         comment = payload.get("comment", {})
         issue = payload.get("issue", {})
@@ -136,17 +163,22 @@ class GitHubHandler(WebhookHandler):
 
         content = f"Comment on #{number} ({action}) on {repo} by {user}:\n{body_text}"
 
-        return [WebhookEvent(
-            event_type="issue_comment",
-            content=content,
-            metadata={
-                "repo": repo, "action": action, "issue_number": number,
-                "user": user, "delivery_id": delivery_id,
-            },
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="user",
-        )]
+        return [
+            WebhookEvent(
+                event_type="issue_comment",
+                content=content,
+                metadata={
+                    "repo": repo,
+                    "action": action,
+                    "issue_number": number,
+                    "user": user,
+                    "delivery_id": delivery_id,
+                },
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="user",
+            )
+        ]
 
     def _handle_star(self, payload: dict, delivery_id: str) -> List[WebhookEvent]:
         action = payload.get("action", "created")
@@ -156,17 +188,22 @@ class GitHubHandler(WebhookHandler):
 
         content = f"Star {action} on {repo} by {user} (total: {stars})"
 
-        return [WebhookEvent(
-            event_type="star",
-            content=content,
-            metadata={
-                "repo": repo, "action": action, "user": user,
-                "stars": stars, "delivery_id": delivery_id,
-            },
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type="star",
+                content=content,
+                metadata={
+                    "repo": repo,
+                    "action": action,
+                    "user": user,
+                    "stars": stars,
+                    "delivery_id": delivery_id,
+                },
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="system",
+            )
+        ]
 
     def _handle_release(self, payload: dict, delivery_id: str) -> List[WebhookEvent]:
         action = payload.get("action", "")
@@ -178,19 +215,25 @@ class GitHubHandler(WebhookHandler):
 
         content = f"Release {tag} {action} on {repo}: {name}\n{body_text}"
 
-        return [WebhookEvent(
-            event_type="release",
-            content=content,
-            metadata={
-                "repo": repo, "action": action, "tag": tag,
-                "delivery_id": delivery_id,
-            },
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type="release",
+                content=content,
+                metadata={
+                    "repo": repo,
+                    "action": action,
+                    "tag": tag,
+                    "delivery_id": delivery_id,
+                },
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="system",
+            )
+        ]
 
-    def _handle_workflow_run(self, payload: dict, delivery_id: str) -> List[WebhookEvent]:
+    def _handle_workflow_run(
+        self, payload: dict, delivery_id: str
+    ) -> List[WebhookEvent]:
         action = payload.get("action", "")
         run = payload.get("workflow_run", {})
         repo = payload.get("repository", {}).get("full_name", "unknown")
@@ -200,29 +243,36 @@ class GitHubHandler(WebhookHandler):
 
         content = f"Workflow '{name}' {action} on {repo}/{branch}: {conclusion or 'in progress'}"
 
-        return [WebhookEvent(
-            event_type="workflow_run",
-            content=content,
-            metadata={
-                "repo": repo, "action": action, "workflow": name,
-                "conclusion": conclusion, "branch": branch,
-                "delivery_id": delivery_id,
-            },
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type="workflow_run",
+                content=content,
+                metadata={
+                    "repo": repo,
+                    "action": action,
+                    "workflow": name,
+                    "conclusion": conclusion,
+                    "branch": branch,
+                    "delivery_id": delivery_id,
+                },
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="system",
+            )
+        ]
 
     def _handle_generic(self, payload: dict, delivery_id: str) -> List[WebhookEvent]:
         repo = payload.get("repository", {}).get("full_name", "unknown")
         action = payload.get("action", "")
         content = f"GitHub event on {repo}: action={action}"
 
-        return [WebhookEvent(
-            event_type="generic",
-            content=content,
-            metadata={"repo": repo, "action": action, "delivery_id": delivery_id},
-            timestamp=time.time(),
-            session_id=f"github-{repo}",
-            role="system",
-        )]
+        return [
+            WebhookEvent(
+                event_type="generic",
+                content=content,
+                metadata={"repo": repo, "action": action, "delivery_id": delivery_id},
+                timestamp=time.time(),
+                session_id=f"github-{repo}",
+                role="system",
+            )
+        ]

@@ -17,6 +17,7 @@ from datetime import datetime
 
 class Severity(Enum):
     """Issue severity levels."""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -26,6 +27,7 @@ class Severity(Enum):
 @dataclass
 class Issue:
     """Represents a validation issue found by a critic."""
+
     code: str
     message: str
     severity: Severity
@@ -47,6 +49,7 @@ class Issue:
 @dataclass
 class ValidationResult:
     """Result of a critic validation pass."""
+
     valid: bool
     confidence: float  # 0.0 - 1.0
     issues: List[Issue] = field(default_factory=list)
@@ -63,7 +66,9 @@ class ValidationResult:
     @property
     def error_count(self) -> int:
         """Count of error-level issues."""
-        return sum(1 for i in self.issues if i.severity in (Severity.ERROR, Severity.CRITICAL))
+        return sum(
+            1 for i in self.issues if i.severity in (Severity.ERROR, Severity.CRITICAL)
+        )
 
     @property
     def warning_count(self) -> int:
@@ -136,7 +141,9 @@ class CriticBase(ABC):
         pass
 
     @abstractmethod
-    def _calculate_confidence(self, evidence: Dict[str, Any], issues: List[Issue]) -> float:
+    def _calculate_confidence(
+        self, evidence: Dict[str, Any], issues: List[Issue]
+    ) -> float:
         """
         Calculate confidence score based on evidence and issues.
 
@@ -151,7 +158,7 @@ class CriticBase(ABC):
         severity: Severity = Severity.WARNING,
         location: Optional[str] = None,
         suggestion: Optional[str] = None,
-        **context
+        **context,
     ) -> Issue:
         """Helper to create an issue."""
         return Issue(
@@ -171,7 +178,9 @@ class CriticBase(ABC):
         """Get recent validation history."""
         return self._validation_history[-limit:]
 
-    async def validate_batch(self, target_ids: List[str], **kwargs) -> List[ValidationResult]:
+    async def validate_batch(
+        self, target_ids: List[str], **kwargs
+    ) -> List[ValidationResult]:
         """Validate multiple targets."""
         results = []
         for target_id in target_ids:
@@ -200,10 +209,7 @@ class OracleConsensus:
         self.critics = critics
 
     async def validate_with_consensus(
-        self,
-        target_id: str,
-        weights: Optional[Dict[str, float]] = None,
-        **kwargs
+        self, target_id: str, weights: Optional[Dict[str, float]] = None, **kwargs
     ) -> ValidationResult:
         """
         Run all critics and compute consensus.
@@ -231,11 +237,14 @@ class OracleConsensus:
             results.append(result)
 
         # Compute weighted confidence
-        total_weight = sum(weights.get(c.name, 1/3) for c in self.critics)
-        weighted_confidence = sum(
-            r.confidence * weights.get(c.name, 1/3)
-            for r, c in zip(results, self.critics)
-        ) / total_weight
+        total_weight = sum(weights.get(c.name, 1 / 3) for c in self.critics)
+        weighted_confidence = (
+            sum(
+                r.confidence * weights.get(c.name, 1 / 3)
+                for r, c in zip(results, self.critics)
+            )
+            / total_weight
+        )
 
         # Collect all issues
         all_issues = []
@@ -247,10 +256,7 @@ class OracleConsensus:
         for issue in all_issues:
             issue_codes[issue.code] = issue_codes.get(issue.code, 0) + 1
 
-        consensus_issues = [
-            i for i in all_issues
-            if issue_codes[i.code] >= 2
-        ]
+        consensus_issues = [i for i in all_issues if issue_codes[i.code] >= 2]
 
         # Deduplicate
         seen_codes = set()
@@ -262,7 +268,8 @@ class OracleConsensus:
 
         # Build consensus result
         return ValidationResult(
-            valid=weighted_confidence >= 0.7 and len([i for i in unique_issues if i.severity == Severity.CRITICAL]) == 0,
+            valid=weighted_confidence >= 0.7
+            and len([i for i in unique_issues if i.severity == Severity.CRITICAL]) == 0,
             confidence=round(weighted_confidence, 3),
             issues=unique_issues,
             metrics={

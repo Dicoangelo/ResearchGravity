@@ -95,7 +95,16 @@ TOOLS: List[Dict[str, Any]] = [
                 },
                 "entity_type": {
                     "type": "string",
-                    "enum": ["concept", "tool", "project", "paper", "technology", "error", "platform", "person"],
+                    "enum": [
+                        "concept",
+                        "tool",
+                        "project",
+                        "paper",
+                        "technology",
+                        "error",
+                        "platform",
+                        "person",
+                    ],
                     "description": "Filter by entity type (for 'search')",
                 },
                 "limit": {
@@ -194,6 +203,7 @@ TOOLS: List[Dict[str, Any]] = [
 
 # ── Dispatcher ───────────────────────────────────────────────────────────────
 
+
 async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
     handlers = {
         "hybrid_search": _hybrid_search,
@@ -221,6 +231,7 @@ async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── hybrid_search ────────────────────────────────────────────────────────────
 
+
 async def _hybrid_search(args: Dict) -> Dict:
     """Run hybrid semantic + BM25 search with RRF fusion."""
     if not _pool:
@@ -240,20 +251,24 @@ async def _hybrid_search(args: Dict) -> Dict:
 
     if platform:
         results = await search.search_cross_platform(
-            query, exclude_platform=None, limit=limit,
-            semantic_weight=sem_w, bm25_weight=bm25_w,
+            query,
+            exclude_platform=None,
+            limit=limit,
+            semantic_weight=sem_w,
+            bm25_weight=bm25_w,
         )
         # Post-filter by platform
         results = [r for r in results if r.platform == platform][:limit]
     else:
         results = await search.search(
-            query, limit=limit, semantic_weight=sem_w, bm25_weight=bm25_w,
+            query,
+            limit=limit,
+            semantic_weight=sem_w,
+            bm25_weight=bm25_w,
         )
 
     if not results:
-        return tool_result_content([text_content(
-            f"No results for: '{query}'"
-        )])
+        return tool_result_content([text_content(f"No results for: '{query}'")])
 
     out = f"# Hybrid Search: '{query}'\n\n"
     out += f"**Results:** {len(results)} | Weights: semantic={sem_w}, bm25={bm25_w}\n\n"
@@ -272,6 +287,7 @@ async def _hybrid_search(args: Dict) -> Dict:
 
 # ── knowledge_graph ──────────────────────────────────────────────────────────
 
+
 async def _knowledge_graph(args: Dict) -> Dict:
     """Query the cognitive knowledge graph."""
     if not _pool:
@@ -287,7 +303,7 @@ async def _knowledge_graph(args: Dict) -> Dict:
     if action == "stats":
         stats = await graph.graph_stats()
         out = "# Knowledge Graph Stats\n\n"
-        out += f"| Metric | Value |\n|--------|-------|\n"
+        out += "| Metric | Value |\n|--------|-------|\n"
         out += f"| Entities | {stats['entity_count']:,} |\n"
         out += f"| Edges | {stats['edge_count']:,} |\n\n"
 
@@ -321,13 +337,19 @@ async def _knowledge_graph(args: Dict) -> Dict:
         entity_type = args.get("entity_type")
         limit = clamp_int(args.get("limit"), 20, 1, 100)
 
-        results = await graph.search_entities(query, entity_type=entity_type, limit=limit)
+        results = await graph.search_entities(
+            query, entity_type=entity_type, limit=limit
+        )
 
         if not results:
-            return tool_result_content([text_content(
-                f"No entities matching '{query}'" +
-                (f" (type: {entity_type})" if entity_type else "")
-            )])
+            return tool_result_content(
+                [
+                    text_content(
+                        f"No entities matching '{query}'"
+                        + (f" (type: {entity_type})" if entity_type else "")
+                    )
+                ]
+            )
 
         out = f"# Entity Search: '{query}'\n\n"
         for r in results:
@@ -352,9 +374,9 @@ async def _knowledge_graph(args: Dict) -> Dict:
         neighbors = await graph.get_neighbors(entity_id, limit=limit)
 
         if not neighbors:
-            return tool_result_content([text_content(
-                f"No neighbors found for entity: {entity_id}"
-            )])
+            return tool_result_content(
+                [text_content(f"No neighbors found for entity: {entity_id}")]
+            )
 
         # Get the source entity name
         entity = await graph.get_entity(entity_id)
@@ -380,13 +402,17 @@ async def _knowledge_graph(args: Dict) -> Dict:
 
         depth = clamp_int(args.get("depth"), 3, 1, 5)
         activations = await spreading_activation(
-            _pool, entity_id, depth=depth, decay=0.6, min_activation=0.05,
+            _pool,
+            entity_id,
+            depth=depth,
+            decay=0.6,
+            min_activation=0.05,
         )
 
         if not activations:
-            return tool_result_content([text_content(
-                f"No activations from entity: {entity_id}"
-            )])
+            return tool_result_content(
+                [text_content(f"No activations from entity: {entity_id}")]
+            )
 
         # Resolve entity names
         sorted_acts = sorted(activations.items(), key=lambda x: x[1], reverse=True)
@@ -414,6 +440,7 @@ async def _knowledge_graph(args: Dict) -> Dict:
 
 # ── insight_due ──────────────────────────────────────────────────────────────
 
+
 async def _insight_due(args: Dict) -> Dict:
     """Get insights due for FSRS review."""
     if not _pool:
@@ -435,7 +462,7 @@ async def _insight_due(args: Dict) -> Dict:
                 "SELECT MIN(next_review) FROM insight_schedule WHERE next_review > NOW()"
             )
 
-        msg = f"No insights due for review right now.\n\n"
+        msg = "No insights due for review right now.\n\n"
         msg += f"**Total scheduled:** {total}\n"
         if next_due:
             msg += f"**Next due:** {next_due.strftime('%Y-%m-%d %H:%M')}\n"
@@ -463,6 +490,7 @@ async def _insight_due(args: Dict) -> Dict:
 
 # ── insight_review ───────────────────────────────────────────────────────────
 
+
 async def _insight_review(args: Dict) -> Dict:
     """Record a review rating for an insight."""
     if not _pool:
@@ -477,7 +505,11 @@ async def _insight_review(args: Dict) -> Dict:
 
     if rating < 1:
         return tool_result_content(
-            [text_content("Rating must be 1 (forgot), 2 (hard), 3 (good), or 4 (easy).")],
+            [
+                text_content(
+                    "Rating must be 1 (forgot), 2 (hard), 3 (good), or 4 (easy)."
+                )
+            ],
             is_error=True,
         )
 
@@ -506,6 +538,7 @@ async def _insight_review(args: Dict) -> Dict:
 
 # ── coherence_arcs ───────────────────────────────────────────────────────────
 
+
 async def _coherence_arcs(args: Dict) -> Dict:
     """Detect and list coherence arcs."""
     if not _pool:
@@ -527,10 +560,14 @@ async def _coherence_arcs(args: Dict) -> Dict:
     arcs = arcs[:limit]
 
     if not arcs:
-        return tool_result_content([text_content(
-            "No coherence arcs detected." +
-            (f" (filter: {status_filter})" if status_filter != "all" else "")
-        )])
+        return tool_result_content(
+            [
+                text_content(
+                    "No coherence arcs detected."
+                    + (f" (filter: {status_filter})" if status_filter != "all" else "")
+                )
+            ]
+        )
 
     # Count by status
     active = sum(1 for a in arcs if a.status == "active")
@@ -541,7 +578,9 @@ async def _coherence_arcs(args: Dict) -> Dict:
     out += f"**Active:** {active} | **Dormant:** {dormant}\n\n"
 
     for i, arc in enumerate(arcs, 1):
-        status_icon = {"active": "🟢", "dormant": "🟡", "resolved": "✅"}.get(arc.status, "⚪")
+        status_icon = {"active": "🟢", "dormant": "🟡", "resolved": "✅"}.get(
+            arc.status, "⚪"
+        )
         platforms = ", ".join(arc.platforms) if arc.platforms else "-"
         entities = ", ".join(arc.key_entities[:5]) if arc.key_entities else "-"
 
@@ -556,6 +595,7 @@ async def _coherence_arcs(args: Dict) -> Dict:
 
 
 # ── dashboard_snapshot ───────────────────────────────────────────────────────
+
 
 async def _dashboard_snapshot(args: Dict) -> Dict:
     """Full system dashboard in one call."""
@@ -620,7 +660,7 @@ async def _dashboard_snapshot(args: Dict) -> Dict:
     out = "# UCW Dashboard\n\n"
 
     out += "## Core Metrics\n\n"
-    out += f"| Metric | Value |\n|--------|-------|\n"
+    out += "| Metric | Value |\n|--------|-------|\n"
     out += f"| Events | {total_events:,} |\n"
     out += f"| Embeddings | {total_embedded:,} |\n"
     out += f"| 768d Migrated | {embedded_768:,} / {embedded_768 + remaining_768:,} ({embedded_768 * 100 // max(1, embedded_768 + remaining_768)}%) |\n"
@@ -649,6 +689,7 @@ async def _dashboard_snapshot(args: Dict) -> Dict:
 
     # Background job status (check lock files)
     import os
+
     mig_lock = os.path.expanduser("~/.ucw/locks/migration.lock")
     kg_lock = os.path.expanduser("~/.ucw/locks/kg_extraction.lock")
     mig_running = False
@@ -676,6 +717,7 @@ async def _dashboard_snapshot(args: Dict) -> Dict:
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _parse_json(value) -> dict:
     """Safely parse a JSON value that might be a string or already a dict."""

@@ -25,6 +25,7 @@ from enum import Enum
 # Optional aiohttp import
 try:
     import aiohttp
+
     HAS_AIOHTTP = True
 except ImportError:
     aiohttp = None
@@ -39,12 +40,14 @@ logger = logging.getLogger(__name__)
 # CONNECTION MODES
 # =============================================================================
 
+
 class ConnectionMode(str, Enum):
     """Available connection modes to ResearchGravity."""
-    MCP = 'mcp'              # MCP Server (preferred)
-    REST = 'rest'            # REST API
-    FILE = 'file'            # Direct file access
-    DEGRADED = 'degraded'    # No connection
+
+    MCP = "mcp"  # MCP Server (preferred)
+    REST = "rest"  # REST API
+    FILE = "file"  # Direct file access
+    DEGRADED = "degraded"  # No connection
 
 
 # =============================================================================
@@ -72,9 +75,11 @@ REST_TIMEOUT = 10.0
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class RGContext:
     """Context retrieved from ResearchGravity."""
+
     learnings: str = ""
     packs: List[Dict[str, Any]] = field(default_factory=list)
     research_index: Dict[str, Any] = field(default_factory=dict)
@@ -98,7 +103,9 @@ class RGContext:
 
         # Add learnings first (most valuable)
         if self.learnings and remaining > 0:
-            learnings_truncated = self.learnings[:min(len(self.learnings), remaining // 2)]
+            learnings_truncated = self.learnings[
+                : min(len(self.learnings), remaining // 2)
+            ]
             parts.append(f"## Recent Learnings\n{learnings_truncated}")
             remaining -= len(learnings_truncated)
 
@@ -123,15 +130,15 @@ class RGContext:
         remaining = budget
 
         for session in self.sessions[:5]:  # Max 5 sessions
-            session_id = session.get('id', 'unknown')
-            topic = session.get('topic', session.get('title', 'Untitled'))
-            findings = session.get('findings', [])
+            session_id = session.get("id", "unknown")
+            topic = session.get("topic", session.get("title", "Untitled"))
+            findings = session.get("findings", [])
 
             line = f"- [{session_id}] {topic}"
             if findings:
                 top_findings = findings[:3]
                 for f in top_findings:
-                    content = f.get('content', '')[:100]
+                    content = f.get("content", "")[:100]
                     line += f"\n  - {content}..."
 
             if len(line) > remaining:
@@ -148,8 +155,8 @@ class RGContext:
         remaining = budget
 
         for pack in self.packs[:3]:  # Max 3 packs
-            name = pack.get('name', 'unnamed')
-            description = pack.get('description', '')[:100]
+            name = pack.get("name", "unnamed")
+            description = pack.get("description", "")[:100]
             line = f"- **{name}**: {description}"
 
             if len(line) > remaining:
@@ -164,6 +171,7 @@ class RGContext:
 @dataclass
 class SearchResult:
     """Result from semantic search."""
+
     content: str
     source: str
     relevance_score: float
@@ -174,6 +182,7 @@ class SearchResult:
 # =============================================================================
 # RESEARCHGRAVITY ADAPTER
 # =============================================================================
+
 
 class RGAdapter:
     """
@@ -227,13 +236,12 @@ class RGAdapter:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{RG_API_BASE}/",
-                    timeout=aiohttp.ClientTimeout(total=MCP_TIMEOUT)
+                    f"{RG_API_BASE}/", timeout=aiohttp.ClientTimeout(total=MCP_TIMEOUT)
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
                         # Check if MCP endpoints are available
-                        return data.get('status') == 'ok' or 'version' in data
+                        return data.get("status") == "ok" or "version" in data
         except Exception as e:
             logger.debug(f"MCP connection failed: {e}")
         return False
@@ -246,7 +254,7 @@ class RGAdapter:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{RG_API_BASE}/api/sessions",
-                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT)
+                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT),
                 ) as response:
                     return response.status == 200
         except Exception as e:
@@ -273,7 +281,7 @@ class RGAdapter:
         limit: int = 10,
         include_learnings: bool = True,
         include_packs: bool = True,
-        include_sessions: bool = True
+        include_sessions: bool = True,
     ) -> RGContext:
         """
         Get enriched context from ResearchGravity for a query.
@@ -294,7 +302,9 @@ class RGAdapter:
         context = RGContext(connection_mode=self._connection_mode)
 
         if self._connection_mode == ConnectionMode.DEGRADED:
-            context.warnings.append("Operating in degraded mode - no RG context available")
+            context.warnings.append(
+                "Operating in degraded mode - no RG context available"
+            )
             return context
 
         # Gather context based on connection mode
@@ -345,11 +355,11 @@ class RGAdapter:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{RG_API_BASE}/api/learnings",
-                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT)
+                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT),
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get('content', '')
+                        return data.get("content", "")
         except Exception:
             pass
 
@@ -376,11 +386,11 @@ class RGAdapter:
                 async with session.post(
                     f"{RG_API_BASE}/api/packs/select",
                     json={"query": query, "limit": limit},
-                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT)
+                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT),
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get('packs', [])
+                        return data.get("packs", [])
         except Exception:
             pass
 
@@ -401,12 +411,15 @@ class RGAdapter:
                     pack = json.load(f)
 
                 # Simple relevance check
-                name = pack.get('name', '').lower()
-                description = pack.get('description', '').lower()
-                tags = ' '.join(pack.get('tags', [])).lower()
+                name = pack.get("name", "").lower()
+                description = pack.get("description", "").lower()
+                tags = " ".join(pack.get("tags", [])).lower()
 
-                if any(word in name or word in description or word in tags
-                       for word in query_lower.split() if len(word) > 3):
+                if any(
+                    word in name or word in description or word in tags
+                    for word in query_lower.split()
+                    if len(word) > 3
+                ):
                     packs.append(pack)
 
                 if len(packs) >= limit:
@@ -426,35 +439,43 @@ class RGAdapter:
         else:
             return self._search_sessions_file(query, limit)
 
-    async def _search_sessions_mcp(self, query: str, limit: int) -> List[Dict[str, Any]]:
+    async def _search_sessions_mcp(
+        self, query: str, limit: int
+    ) -> List[Dict[str, Any]]:
         """Search sessions via MCP (semantic search)."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{RG_API_BASE}/api/search/semantic",
                     json={"query": query, "limit": limit, "collection": "sessions"},
-                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT)
+                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT),
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get('results', [])
+                        return data.get("results", [])
         except Exception as e:
             logger.debug(f"MCP session search failed: {e}")
 
         return await self._search_sessions_rest(query, limit)
 
-    async def _search_sessions_rest(self, query: str, limit: int) -> List[Dict[str, Any]]:
+    async def _search_sessions_rest(
+        self, query: str, limit: int
+    ) -> List[Dict[str, Any]]:
         """Search sessions via REST API."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{RG_API_BASE}/api/sessions",
                     params={"search": query, "limit": limit},
-                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT)
+                    timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT),
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get('sessions', data) if isinstance(data, dict) else data
+                        return (
+                            data.get("sessions", data)
+                            if isinstance(data, dict)
+                            else data
+                        )
         except Exception as e:
             logger.debug(f"REST session search failed: {e}")
 
@@ -483,14 +504,11 @@ class RGAdapter:
                     metadata = json.load(f)
 
                 # Check relevance
-                topic = metadata.get('topic', '').lower()
-                tags = ' '.join(metadata.get('tags', [])).lower()
+                topic = metadata.get("topic", "").lower()
+                tags = " ".join(metadata.get("tags", [])).lower()
 
                 if any(word in topic or word in tags for word in query_words):
-                    session_data = {
-                        'id': session_dir.name,
-                        **metadata
-                    }
+                    session_data = {"id": session_dir.name, **metadata}
 
                     # Load findings if available
                     findings_file = session_dir / "findings_captured.json"
@@ -498,7 +516,11 @@ class RGAdapter:
                         try:
                             with open(findings_file) as f:
                                 findings = json.load(f)
-                                session_data['findings'] = findings if isinstance(findings, list) else findings.get('findings', [])
+                                session_data["findings"] = (
+                                    findings
+                                    if isinstance(findings, list)
+                                    else findings.get("findings", [])
+                                )
                         except Exception:
                             pass
 
@@ -516,11 +538,7 @@ class RGAdapter:
     # SEMANTIC SEARCH
     # =========================================================================
 
-    async def search_learnings(
-        self,
-        query: str,
-        limit: int = 10
-    ) -> List[SearchResult]:
+    async def search_learnings(self, query: str, limit: int = 10) -> List[SearchResult]:
         """
         Search learnings for relevant content.
 
@@ -538,19 +556,27 @@ class RGAdapter:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
                         f"{RG_API_BASE}/api/search/semantic",
-                        json={"query": query, "limit": limit, "collection": "learnings"},
-                        timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT)
+                        json={
+                            "query": query,
+                            "limit": limit,
+                            "collection": "learnings",
+                        },
+                        timeout=aiohttp.ClientTimeout(total=REST_TIMEOUT),
                     ) as response:
                         if response.status == 200:
                             data = await response.json()
-                            for item in data.get('results', []):
-                                results.append(SearchResult(
-                                    content=item.get('content', ''),
-                                    source=item.get('source', 'learnings'),
-                                    relevance_score=item.get('score', item.get('relevance_score', 0.5)),
-                                    session_id=item.get('session_id'),
-                                    metadata=item.get('metadata', {})
-                                ))
+                            for item in data.get("results", []):
+                                results.append(
+                                    SearchResult(
+                                        content=item.get("content", ""),
+                                        source=item.get("source", "learnings"),
+                                        relevance_score=item.get(
+                                            "score", item.get("relevance_score", 0.5)
+                                        ),
+                                        session_id=item.get("session_id"),
+                                        metadata=item.get("metadata", {}),
+                                    )
+                                )
                             return results
             except Exception as e:
                 logger.debug(f"Semantic search failed: {e}")
@@ -561,22 +587,20 @@ class RGAdapter:
             # Simple keyword matching
             query_words = [w.lower() for w in query.split() if len(w) > 3]
 
-            for line in learnings.split('\n'):
+            for line in learnings.split("\n"):
                 if any(word in line.lower() for word in query_words):
-                    results.append(SearchResult(
-                        content=line,
-                        source='learnings.md',
-                        relevance_score=0.5
-                    ))
+                    results.append(
+                        SearchResult(
+                            content=line, source="learnings.md", relevance_score=0.5
+                        )
+                    )
                     if len(results) >= limit:
                         break
 
         return results
 
     async def select_context_packs(
-        self,
-        query: str,
-        budget: int = 10000
+        self, query: str, budget: int = 10000
     ) -> List[Dict[str, Any]]:
         """
         Select context packs within budget.
@@ -619,7 +643,7 @@ class RGAdapter:
             Source data if found
         """
         # Check if it's an arXiv ID
-        if source_id.startswith('arXiv:') or '.' in source_id:
+        if source_id.startswith("arXiv:") or "." in source_id:
             return await self._get_arxiv_source(source_id)
 
         # Check if it's a session ID
@@ -638,7 +662,7 @@ class RGAdapter:
     async def _get_arxiv_source(self, arxiv_id: str) -> Optional[Dict[str, Any]]:
         """Get arXiv paper info."""
         # Clean up ID
-        arxiv_id = arxiv_id.replace('arXiv:', '').strip()
+        arxiv_id = arxiv_id.replace("arXiv:", "").strip()
 
         # Try to find in logged URLs
         for session_dir in SESSIONS_DIR.iterdir():
@@ -650,25 +674,34 @@ class RGAdapter:
                 try:
                     with open(urls_file) as f:
                         urls = json.load(f)
-                        urls = urls if isinstance(urls, list) else urls.get('urls', [])
+                        urls = urls if isinstance(urls, list) else urls.get("urls", [])
 
                         for url_entry in urls:
-                            url = url_entry.get('url', '') if isinstance(url_entry, dict) else str(url_entry)
+                            url = (
+                                url_entry.get("url", "")
+                                if isinstance(url_entry, dict)
+                                else str(url_entry)
+                            )
                             if arxiv_id in url:
                                 return {
-                                    'arxiv_id': arxiv_id,
-                                    'url': url,
-                                    'session': session_dir.name,
-                                    **({k: v for k, v in url_entry.items() if k != 'url'} if isinstance(url_entry, dict) else {})
+                                    "arxiv_id": arxiv_id,
+                                    "url": url,
+                                    "session": session_dir.name,
+                                    **(
+                                        {
+                                            k: v
+                                            for k, v in url_entry.items()
+                                            if k != "url"
+                                        }
+                                        if isinstance(url_entry, dict)
+                                        else {}
+                                    ),
                                 }
                 except Exception:
                     pass
 
         # Return basic info
-        return {
-            'arxiv_id': arxiv_id,
-            'url': f'https://arxiv.org/abs/{arxiv_id}'
-        }
+        return {"arxiv_id": arxiv_id, "url": f"https://arxiv.org/abs/{arxiv_id}"}
 
     # =========================================================================
     # STATUS & INFO
@@ -677,11 +710,17 @@ class RGAdapter:
     def get_status(self) -> Dict[str, Any]:
         """Get adapter status."""
         return {
-            'connection_mode': self._connection_mode.value if self._connection_mode else 'uninitialized',
-            'agent_core_exists': AGENT_CORE_DIR.exists(),
-            'sessions_count': len(list(SESSIONS_DIR.iterdir())) if SESSIONS_DIR.exists() else 0,
-            'learnings_exists': LEARNINGS_FILE.exists(),
-            'packs_count': len(list(CONTEXT_PACKS_DIR.glob("*.json"))) if CONTEXT_PACKS_DIR.exists() else 0,
+            "connection_mode": self._connection_mode.value
+            if self._connection_mode
+            else "uninitialized",
+            "agent_core_exists": AGENT_CORE_DIR.exists(),
+            "sessions_count": len(list(SESSIONS_DIR.iterdir()))
+            if SESSIONS_DIR.exists()
+            else 0,
+            "learnings_exists": LEARNINGS_FILE.exists(),
+            "packs_count": len(list(CONTEXT_PACKS_DIR.glob("*.json")))
+            if CONTEXT_PACKS_DIR.exists()
+            else 0,
         }
 
 
@@ -695,6 +734,7 @@ rg_adapter = RGAdapter()
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 async def get_context(query: str, **kwargs) -> RGContext:
     """Get context from ResearchGravity."""

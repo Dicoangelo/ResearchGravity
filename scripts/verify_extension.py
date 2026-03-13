@@ -21,12 +21,14 @@ from pathlib import Path
 
 # Suppress tqdm in non-interactive mode
 import os
+
 os.environ.setdefault("TQDM_DISABLE", "1")
 
 
 async def check_api():
     """Check if the capture API is reachable."""
     import aiohttp
+
     url = "http://localhost:3847/api/v2/coherence/capture/extension"
     try:
         async with aiohttp.ClientSession() as session:
@@ -36,7 +38,9 @@ async def check_api():
                 "content": f"Health check at {time.strftime('%H:%M:%S')}",
                 "direction": "out",
             }
-            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.post(
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return True, f"API OK — event_id: {data.get('event_id', '?')}"
@@ -51,6 +55,7 @@ async def check_api():
 async def check_batch_api():
     """Check if the batch capture API is reachable."""
     import aiohttp
+
     url = "http://localhost:3847/api/v2/coherence/capture/extension/batch"
     try:
         async with aiohttp.ClientSession() as session:
@@ -62,10 +67,15 @@ async def check_batch_api():
                 }
                 for i in range(2)
             ]
-            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.post(
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    return True, f"Batch API OK — captured: {data.get('captured', '?')}, total: {data.get('total', '?')}"
+                    return (
+                        True,
+                        f"Batch API OK — captured: {data.get('captured', '?')}, total: {data.get('total', '?')}",
+                    )
                 else:
                     return False, f"Batch API returned {resp.status}"
     except aiohttp.ClientConnectorError:
@@ -78,7 +88,10 @@ async def check_db():
     """Check extension events in PostgreSQL."""
     try:
         import asyncpg
-        dsn = os.environ.get("UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive")
+
+        dsn = os.environ.get(
+            "UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive"
+        )
         conn = await asyncpg.connect(dsn)
 
         # Count extension events
@@ -135,7 +148,10 @@ async def check_embedding_pipeline():
     """Verify the embedding pipeline is functional."""
     try:
         import asyncpg
-        dsn = os.environ.get("UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive")
+
+        dsn = os.environ.get(
+            "UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive"
+        )
         conn = await asyncpg.connect(dsn)
 
         # Extension events without embeddings
@@ -196,9 +212,11 @@ async def check_embedding_pipeline():
 async def check_daemon():
     """Check if the coherence daemon is running."""
     import subprocess
+
     result = subprocess.run(
         ["pgrep", "-f", "coherence_engine"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     pids = result.stdout.strip().split("\n") if result.stdout.strip() else []
     if pids:
@@ -240,7 +258,10 @@ async def check_dedup():
     """Verify dedup is working — no duplicate event_ids in the DB."""
     try:
         import asyncpg
-        dsn = os.environ.get("UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive")
+
+        dsn = os.environ.get(
+            "UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive"
+        )
         conn = await asyncpg.connect(dsn)
 
         # event_id is PRIMARY KEY, so duplicates are impossible at DB level
@@ -264,7 +285,10 @@ async def check_dedup():
         if dup_count == 0:
             return True, f"No duplicate coherence_sigs ({total} events)"
         else:
-            return False, f"{dup_count} duplicate coherence_sig groups in {total} events"
+            return (
+                False,
+                f"{dup_count} duplicate coherence_sig groups in {total} events",
+            )
     except Exception as e:
         return False, f"Dedup check error: {e}"
 
@@ -274,7 +298,9 @@ async def send_test_event():
     import aiohttp
     import asyncpg
 
-    test_content = f"UCW verify_extension.py test event at {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    test_content = (
+        f"UCW verify_extension.py test event at {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
     url = "http://localhost:3847/api/v2/coherence/capture/extension"
 
     # Send
@@ -294,7 +320,9 @@ async def send_test_event():
 
     # Verify in DB
     await asyncio.sleep(1)
-    dsn = os.environ.get("UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive")
+    dsn = os.environ.get(
+        "UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive"
+    )
     conn = await asyncpg.connect(dsn)
     row = await conn.fetchrow(
         "SELECT event_id, platform, direction, coherence_sig FROM cognitive_events WHERE event_id = $1",
@@ -303,11 +331,13 @@ async def send_test_event():
     await conn.close()
 
     if row:
-        print(f"  Verified in DB: platform={row['platform']}, direction={row['direction']}")
+        print(
+            f"  Verified in DB: platform={row['platform']}, direction={row['direction']}"
+        )
         print(f"  Coherence sig: {row['coherence_sig'][:16]}...")
         return True
     else:
-        print(f"  NOT FOUND in DB after 1s")
+        print("  NOT FOUND in DB after 1s")
         return False
 
 
@@ -323,26 +353,35 @@ async def send_test_batch():
         payload = [
             {"platform": "test", "content": unique_content, "direction": "out"},
             {"platform": "test", "content": unique_content, "direction": "out"},  # dupe
-            {"platform": "test", "content": f"Second unique at {time.time_ns()}", "direction": "out"},
+            {
+                "platform": "test",
+                "content": f"Second unique at {time.time_ns()}",
+                "direction": "out",
+            },
         ]
         async with session.post(url, json=payload) as resp:
             data = await resp.json()
-            print(f"  Batch result: captured={data['captured']}, dupes={data['duplicates']}, errors={data['errors']}")
+            print(
+                f"  Batch result: captured={data['captured']}, dupes={data['duplicates']}, errors={data['errors']}"
+            )
             if data["duplicates"] >= 1:
-                print(f"  Dedup working correctly")
+                print("  Dedup working correctly")
                 return True
             elif data["captured"] >= 2:
-                print(f"  Batch captured (dedup via ON CONFLICT)")
+                print("  Batch captured (dedup via ON CONFLICT)")
                 return True
             else:
-                print(f"  Unexpected result")
+                print("  Unexpected result")
                 return False
 
 
 async def show_stats():
     """Show detailed extension event statistics."""
     import asyncpg
-    dsn = os.environ.get("UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive")
+
+    dsn = os.environ.get(
+        "UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive"
+    )
     conn = await asyncpg.connect(dsn)
 
     # By platform
@@ -379,7 +418,7 @@ async def show_stats():
     if quality:
         print("\n  Quality distribution:")
         for r in quality:
-            avg = f"{r['avg_score']:.3f}" if r['avg_score'] else "n/a"
+            avg = f"{r['avg_score']:.3f}" if r["avg_score"] else "n/a"
             print(f"    {r['cognitive_mode']:15s} {r['cnt']:>6d} events  (avg: {avg})")
 
     # Embedding coverage
@@ -407,9 +446,13 @@ async def show_stats():
 async def main():
     parser = argparse.ArgumentParser(description="UCW Extension Health Check")
     parser.add_argument("--send-test", action="store_true", help="Send a test event")
-    parser.add_argument("--send-batch", action="store_true", help="Send a test batch (with dedup)")
+    parser.add_argument(
+        "--send-batch", action="store_true", help="Send a test batch (with dedup)"
+    )
     parser.add_argument("--stats", action="store_true", help="Show extension stats")
-    parser.add_argument("--embedding", action="store_true", help="Check embedding pipeline")
+    parser.add_argument(
+        "--embedding", action="store_true", help="Check embedding pipeline"
+    )
     args = parser.parse_args()
 
     if args.stats:

@@ -32,7 +32,13 @@ from enum import Enum
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from .models import TaskProfile, SubTask, Assignment, DelegationEvent, VerificationResult
+from .models import (
+    TaskProfile,
+    SubTask,
+    Assignment,
+    DelegationEvent,
+    VerificationResult,
+)
 from .taxonomy import classify_task
 from .decomposer import decompose_task
 from .router import route_subtask, load_agent_registry, AgentCapability
@@ -42,12 +48,16 @@ from .four_ds import delegation_gate, description_gate, diligence_gate
 from .memory_bleed import inject_context
 from .permissions import PermissionManager
 from .ethical_delegation import (
-    HumanOversight, AccountabilityChain, get_service_tier, enforce_safety_floor
+    HumanOversight,
+    AccountabilityChain,
+    get_service_tier,
+    enforce_safety_floor,
 )
 
 # UCW capture integration (graceful degradation)
 try:
     from mcp_raw.capture import CaptureEngine
+
     _capture_engine = CaptureEngine()
     HAS_UCW_CAPTURE = True
 except ImportError:
@@ -62,6 +72,7 @@ except ImportError:
 
 class TriggerType(str, Enum):
     """Types of triggers that can activate adaptive responses"""
+
     # External triggers
     API_TIMEOUT = "api_timeout"
     RESOURCE_UNAVAILABLE = "resource_unavailable"
@@ -75,15 +86,17 @@ class TriggerType(str, Enum):
 
 class ResponseAction(str, Enum):
     """Adaptive responses to triggers"""
-    RETRY = "retry"          # 1st failure: retry same agent
-    REROUTE = "reroute"      # 2nd failure: reroute to next-best agent
-    ESCALATE = "escalate"    # 3rd failure: escalate for human review
-    ABORT = "abort"          # Unrecoverable failure
+
+    RETRY = "retry"  # 1st failure: retry same agent
+    REROUTE = "reroute"  # 2nd failure: reroute to next-best agent
+    ESCALATE = "escalate"  # 3rd failure: escalate for human review
+    ABORT = "abort"  # Unrecoverable failure
 
 
 @dataclass
 class Trigger:
     """Detected trigger event"""
+
     type: TriggerType
     subtask_id: str
     timestamp: float
@@ -93,6 +106,7 @@ class Trigger:
 @dataclass
 class ChainStatus:
     """Status of a delegation chain"""
+
     chain_id: str
     status: str  # "running", "completed", "failed", "escalated"
     progress: float  # 0.0-1.0
@@ -127,7 +141,7 @@ class DelegationCoordinator:
         db_path: str = "",
         check_interval: float = 5.0,
         quality_threshold: float = 0.7,
-        stall_timeout: float = 30.0
+        stall_timeout: float = 30.0,
     ):
         """
         Initialize delegation coordinator.
@@ -154,7 +168,9 @@ class DelegationCoordinator:
         # Google DeepMind framework (arXiv:2602.11865 Sections 4.7, 5.1-5.3)
         self.permission_manager = PermissionManager()
         self.human_oversight = HumanOversight()
-        self.accountability_chains: Dict[str, AccountabilityChain] = {}  # chain_id -> chain
+        self.accountability_chains: Dict[
+            str, AccountabilityChain
+        ] = {}  # chain_id -> chain
 
         # Background monitoring task
         self._monitor_task: Optional[asyncio.Task] = None
@@ -216,33 +232,54 @@ class DelegationCoordinator:
         approved, gate_reason = delegation_gate(task, profile)
         if not approved:
             chain_status = ChainStatus(
-                chain_id=chain_id, status="blocked", progress=0.0,
-                events=[{"type": "gate_blocked", "gate": "delegation",
-                         "reason": gate_reason, "timestamp": time.time()}],
+                chain_id=chain_id,
+                status="blocked",
+                progress=0.0,
+                events=[
+                    {
+                        "type": "gate_blocked",
+                        "gate": "delegation",
+                        "reason": gate_reason,
+                        "timestamp": time.time(),
+                    }
+                ],
             )
             self.chains[chain_id] = chain_status
-            await self._capture_event("delegation_gate_blocked", chain_id,
-                                      {"reason": gate_reason})
+            await self._capture_event(
+                "delegation_gate_blocked", chain_id, {"reason": gate_reason}
+            )
             return chain_id
 
         # Gate 4: Diligence — ethical/safety check
         safe, warnings = diligence_gate(task, profile)
         if not safe:
             chain_status = ChainStatus(
-                chain_id=chain_id, status="blocked", progress=0.0,
-                events=[{"type": "gate_blocked", "gate": "diligence",
-                         "warnings": warnings, "timestamp": time.time()}],
+                chain_id=chain_id,
+                status="blocked",
+                progress=0.0,
+                events=[
+                    {
+                        "type": "gate_blocked",
+                        "gate": "diligence",
+                        "warnings": warnings,
+                        "timestamp": time.time(),
+                    }
+                ],
             )
             self.chains[chain_id] = chain_status
-            await self._capture_event("diligence_gate_blocked", chain_id,
-                                      {"warnings": warnings})
+            await self._capture_event(
+                "diligence_gate_blocked", chain_id, {"warnings": warnings}
+            )
             return chain_id
 
         # Gate 2: Description — score task clarity (log warning if low)
         desc_score, desc_suggestions = description_gate(task, use_llm=False)
         if desc_score < 0.4:
-            await self._capture_event("description_gate_warning", chain_id,
-                                      {"score": desc_score, "suggestions": desc_suggestions})
+            await self._capture_event(
+                "description_gate_warning",
+                chain_id,
+                {"score": desc_score, "suggestions": desc_suggestions},
+            )
 
         # Step 1: Classification already done above
 
@@ -262,11 +299,15 @@ class DelegationCoordinator:
         )
 
         if oversight_decision.requires_human:
-            await self._capture_event("human_oversight_required", chain_id, {
-                "level": oversight_decision.oversight_level.value,
-                "friction": oversight_decision.cognitive_friction_score,
-                "reason": oversight_decision.reason,
-            })
+            await self._capture_event(
+                "human_oversight_required",
+                chain_id,
+                {
+                    "level": oversight_decision.oversight_level.value,
+                    "friction": oversight_decision.cognitive_friction_score,
+                    "reason": oversight_decision.reason,
+                },
+            )
 
         # Step 3b: Initialize accountability chain (Section 5.2)
         accountability = AccountabilityChain(chain_id=chain_id)
@@ -276,9 +317,7 @@ class DelegationCoordinator:
         assignments = {}
         for subtask in subtasks:
             assignment = route_subtask(
-                subtask=subtask,
-                available_agents=self.agent_registry,
-                use_llm=True
+                subtask=subtask, available_agents=self.agent_registry, use_llm=True
             )
             assignments[subtask.id] = assignment
 
@@ -318,20 +357,22 @@ class DelegationCoordinator:
                 }
                 for st in subtasks
             },
-            events=[{
-                "type": "chain_submitted",
-                "timestamp": time.time(),
-                "task": task,
-                "subtask_count": len(subtasks),
-                "service_tier": service_tier.name.value,
-                "safety_floor": service_tier.safety_floor,
-                "oversight_level": oversight_decision.oversight_level.value,
-                "cognitive_friction": oversight_decision.cognitive_friction_score,
-                "profile": {
-                    "complexity": profile.complexity,
-                    "criticality": profile.criticality,
+            events=[
+                {
+                    "type": "chain_submitted",
+                    "timestamp": time.time(),
+                    "task": task,
+                    "subtask_count": len(subtasks),
+                    "service_tier": service_tier.name.value,
+                    "safety_floor": service_tier.safety_floor,
+                    "oversight_level": oversight_decision.oversight_level.value,
+                    "cognitive_friction": oversight_decision.cognitive_friction_score,
+                    "profile": {
+                        "complexity": profile.complexity,
+                        "criticality": profile.criticality,
+                    },
                 }
-            }]
+            ],
         )
 
         self.chains[chain_id] = chain_status
@@ -344,13 +385,11 @@ class DelegationCoordinator:
                 "task": task,
                 "subtask_count": len(subtasks),
                 "complexity": profile.complexity,
-            }
+            },
         )
 
         # Step 7: Execute subtasks (non-blocking — fire and forget)
-        asyncio.create_task(
-            self._execute_chain(chain_id, subtasks, assignments)
-        )
+        asyncio.create_task(self._execute_chain(chain_id, subtasks, assignments))
 
         return chain_id
 
@@ -384,9 +423,7 @@ class DelegationCoordinator:
                 }
                 for st in parallel_tasks
             ]
-            results = await self.executor.execute_batch(
-                batch, chain_id, parallel=True
-            )
+            results = await self.executor.execute_batch(batch, chain_id, parallel=True)
             for result in results:
                 await self._process_result(chain_id, result)
 
@@ -403,9 +440,7 @@ class DelegationCoordinator:
         # Finalize chain status
         await self._finalize_chain(chain_id)
 
-    async def _process_result(
-        self, chain_id: str, result
-    ):
+    async def _process_result(self, chain_id: str, result):
         """Process a single subtask execution result."""
         chain = self.chains.get(chain_id)
         if not chain or result.subtask_id not in chain.subtask_statuses:
@@ -421,19 +456,22 @@ class DelegationCoordinator:
         st_status["last_update"] = time.time()
 
         # Log event
-        chain.events.append({
-            "type": "subtask_completed" if result.success else "subtask_failed",
-            "timestamp": result.timestamp,
-            "subtask_id": result.subtask_id,
-            "agent_id": result.agent_id,
-            "duration": result.duration,
-            "success": result.success,
-            "error": result.error if not result.success else None,
-        })
+        chain.events.append(
+            {
+                "type": "subtask_completed" if result.success else "subtask_failed",
+                "timestamp": result.timestamp,
+                "subtask_id": result.subtask_id,
+                "agent_id": result.agent_id,
+                "duration": result.duration,
+                "success": result.success,
+                "error": result.error if not result.success else None,
+            }
+        )
 
         # Update trust ledger
         try:
             from .trust_ledger import TrustLedger
+
             async with TrustLedger() as ledger:
                 quality = 0.8 if result.success else 0.2
                 await ledger.record_outcome(
@@ -457,12 +495,10 @@ class DelegationCoordinator:
 
         total = len(chain.subtask_statuses)
         completed = sum(
-            1 for st in chain.subtask_statuses.values()
-            if st["status"] == "completed"
+            1 for st in chain.subtask_statuses.values() if st["status"] == "completed"
         )
         failed = sum(
-            1 for st in chain.subtask_statuses.values()
-            if st["status"] == "failed"
+            1 for st in chain.subtask_statuses.values() if st["status"] == "failed"
         )
 
         chain.progress = (completed + failed) / total if total > 0 else 1.0
@@ -483,6 +519,7 @@ class DelegationCoordinator:
         # Feed to evolution engine
         try:
             from .evolution import EvolutionEngine
+
             engine = EvolutionEngine()
             engine.record_outcome(
                 delegation_id=chain_id,
@@ -532,7 +569,8 @@ class DelegationCoordinator:
         # Calculate progress
         total = len(chain.subtask_statuses)
         completed = sum(
-            1 for st in chain.subtask_statuses.values()
+            1
+            for st in chain.subtask_statuses.values()
             if st["status"] in ("completed", "failed")
         )
         chain.progress = completed / total if total > 0 else 0.0
@@ -548,7 +586,7 @@ class DelegationCoordinator:
                     "type": t.type,
                     "subtask_id": t.subtask_id,
                     "timestamp": t.timestamp,
-                    "details": t.details
+                    "details": t.details,
                 }
                 for t in chain.triggers
             ],
@@ -595,16 +633,11 @@ class DelegationCoordinator:
             except Exception as e:
                 # Log error but continue monitoring
                 await self._capture_event(
-                    event_type="monitor_error",
-                    chain_id="",
-                    details={"error": str(e)}
+                    event_type="monitor_error", chain_id="", details={"error": str(e)}
                 )
 
     async def _detect_triggers(
-        self,
-        chain_id: str,
-        subtask_id: str,
-        st_status: Dict[str, Any]
+        self, chain_id: str, subtask_id: str, st_status: Dict[str, Any]
     ) -> List[Trigger]:
         """
         Detect triggers for a subtask.
@@ -639,41 +672,47 @@ class DelegationCoordinator:
             elapsed = now - st_status["started_at"]
             # Rough heuristic: timeout if > 10x estimated duration
             if elapsed > 60.0:  # 1 minute timeout for now
-                triggers.append(Trigger(
-                    type=TriggerType.API_TIMEOUT,
-                    subtask_id=subtask_id,
-                    timestamp=now,
-                    details={"elapsed": elapsed}
-                ))
+                triggers.append(
+                    Trigger(
+                        type=TriggerType.API_TIMEOUT,
+                        subtask_id=subtask_id,
+                        timestamp=now,
+                        details={"elapsed": elapsed},
+                    )
+                )
 
         # Internal trigger: Progress stall
         last_update = st_status.get("last_update", st_status.get("started_at", now))
         if now - last_update > self.stall_timeout:
-            triggers.append(Trigger(
-                type=TriggerType.PROGRESS_STALL,
-                subtask_id=subtask_id,
-                timestamp=now,
-                details={"stalled_for": now - last_update}
-            ))
+            triggers.append(
+                Trigger(
+                    type=TriggerType.PROGRESS_STALL,
+                    subtask_id=subtask_id,
+                    timestamp=now,
+                    details={"stalled_for": now - last_update},
+                )
+            )
 
         # Internal trigger: Quality below threshold
         if st_status.get("verification"):
             quality = st_status["verification"].get("quality_score", 1.0)
             if quality < self.quality_threshold:
-                triggers.append(Trigger(
-                    type=TriggerType.QUALITY_BELOW_THRESHOLD,
-                    subtask_id=subtask_id,
-                    timestamp=now,
-                    details={"quality": quality, "threshold": self.quality_threshold}
-                ))
+                triggers.append(
+                    Trigger(
+                        type=TriggerType.QUALITY_BELOW_THRESHOLD,
+                        subtask_id=subtask_id,
+                        timestamp=now,
+                        details={
+                            "quality": quality,
+                            "threshold": self.quality_threshold,
+                        },
+                    )
+                )
 
         return triggers
 
     async def _respond_to_trigger(
-        self,
-        chain_id: str,
-        subtask_id: str,
-        trigger: Trigger
+        self, chain_id: str, subtask_id: str, trigger: Trigger
     ):
         """
         Respond adaptively to a trigger.
@@ -728,7 +767,7 @@ class DelegationCoordinator:
                     "subtask_id": subtask_id,
                     "trigger": trigger.type,
                     "attempt": failure_count + 1,
-                }
+                },
             )
 
         elif action == ResponseAction.REROUTE:
@@ -747,7 +786,7 @@ class DelegationCoordinator:
                         "subtask_id": subtask_id,
                         "new_agent_id": new_agent_id,
                         "trigger": trigger.type,
-                    }
+                    },
                 )
             else:
                 # No fallback agents → escalate
@@ -765,8 +804,8 @@ class DelegationCoordinator:
                     "subtask_id": subtask_id,
                     "trigger": trigger.type,
                     "failure_count": failure_count + 1,
-                    "reason": "Exceeded retry/reroute limits, requires human review"
-                }
+                    "reason": "Exceeded retry/reroute limits, requires human review",
+                },
             )
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -774,10 +813,7 @@ class DelegationCoordinator:
     # ═══════════════════════════════════════════════════════════════════════
 
     async def _capture_event(
-        self,
-        event_type: str,
-        chain_id: str,
-        details: Dict[str, Any]
+        self, event_type: str, chain_id: str, details: Dict[str, Any]
     ):
         """
         Capture coordination event as cognitive_event via mcp_raw/capture.
@@ -790,6 +826,7 @@ class DelegationCoordinator:
             details: Event details dict
         """
         import json as _json
+
         event = {
             "event_type": event_type,
             "chain_id": chain_id,

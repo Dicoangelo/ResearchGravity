@@ -63,6 +63,7 @@ def session_to_cognitive(session) -> dict:
     started_at = session["started_at"] or ""
     try:
         from datetime import datetime
+
         dt = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
         started_ns = int(dt.timestamp() * 1_000_000_000)
     except Exception:
@@ -154,6 +155,7 @@ def finding_to_event(finding, session_platform: str, session_started_ns: int) ->
     created_at = finding["created_at"] or ""
     try:
         from datetime import datetime
+
         dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
         timestamp_ns = int(dt.timestamp() * 1_000_000_000)
     except Exception:
@@ -230,7 +232,9 @@ async def migrate(dry_run=False, limit=None):
         if limit and sid not in {cs["session_id"] for cs in cognitive_sessions}:
             continue
 
-        event = finding_to_event(f, session_info["platform"], session_info["started_ns"])
+        event = finding_to_event(
+            f, session_info["platform"], session_info["started_ns"]
+        )
         cognitive_events.append(event)
 
     print(f"Converted {len(cognitive_events)} events (skipped {skipped} orphans)")
@@ -256,7 +260,9 @@ async def migrate(dry_run=False, limit=None):
 
     # Check for existing data
     async with pool.acquire() as conn:
-        existing_sessions = await conn.fetchval("SELECT COUNT(*) FROM cognitive_sessions")
+        existing_sessions = await conn.fetchval(
+            "SELECT COUNT(*) FROM cognitive_sessions"
+        )
         existing_events = await conn.fetchval("SELECT COUNT(*) FROM cognitive_events")
         print(f"Existing data: {existing_sessions} sessions, {existing_events} events")
 
@@ -265,7 +271,7 @@ async def migrate(dry_run=False, limit=None):
     batch_size = 500
     inserted_sessions = 0
     for i in range(0, len(cognitive_sessions), batch_size):
-        batch = cognitive_sessions[i:i + batch_size]
+        batch = cognitive_sessions[i : i + batch_size]
         async with pool.acquire() as conn:
             for cs in batch:
                 try:
@@ -276,16 +282,26 @@ async def migrate(dry_run=False, limit=None):
                             cognitive_mode, quality_score, metadata)
                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                            ON CONFLICT (session_id) DO NOTHING""",
-                        cs["session_id"], cs["started_ns"], cs["ended_ns"],
-                        cs["platform"], cs["status"], cs["event_count"],
-                        cs["turn_count"], cs["topics"], cs["summary"],
-                        cs["cognitive_mode"], cs["quality_score"], cs["metadata"],
+                        cs["session_id"],
+                        cs["started_ns"],
+                        cs["ended_ns"],
+                        cs["platform"],
+                        cs["status"],
+                        cs["event_count"],
+                        cs["turn_count"],
+                        cs["topics"],
+                        cs["summary"],
+                        cs["cognitive_mode"],
+                        cs["quality_score"],
+                        cs["metadata"],
                     )
                     inserted_sessions += 1
                 except Exception as e:
                     print(f"  Session error: {e}")
         if (i + batch_size) % 2000 == 0:
-            print(f"  Inserted {min(i + batch_size, len(cognitive_sessions))}/{len(cognitive_sessions)} sessions")
+            print(
+                f"  Inserted {min(i + batch_size, len(cognitive_sessions))}/{len(cognitive_sessions)} sessions"
+            )
 
     print(f"  Done: {inserted_sessions} sessions inserted")
 
@@ -293,7 +309,7 @@ async def migrate(dry_run=False, limit=None):
     print(f"\nInserting {len(cognitive_events)} events...")
     inserted_events = 0
     for i in range(0, len(cognitive_events), batch_size):
-        batch = cognitive_events[i:i + batch_size]
+        batch = cognitive_events[i : i + batch_size]
         async with pool.acquire() as conn:
             for ev in batch:
                 try:
@@ -309,21 +325,36 @@ async def migrate(dry_run=False, limit=None):
                                    $10, $11, $12, $13, $14, $15, $16,
                                    $17, $18, $19, $20, $21)
                            ON CONFLICT (event_id) DO NOTHING""",
-                        ev["event_id"], ev["session_id"], ev["timestamp_ns"],
-                        ev["direction"], ev["stage"], ev["method"],
-                        ev["request_id"], ev["parent_event_id"], ev["turn"],
-                        ev["raw_bytes"], ev["parsed_json"], ev["content_length"],
-                        ev["error"], ev["data_layer"], ev["light_layer"],
-                        ev["instinct_layer"], ev["coherence_sig"],
-                        ev["platform"], ev["protocol"],
-                        ev["quality_score"], ev["cognitive_mode"],
+                        ev["event_id"],
+                        ev["session_id"],
+                        ev["timestamp_ns"],
+                        ev["direction"],
+                        ev["stage"],
+                        ev["method"],
+                        ev["request_id"],
+                        ev["parent_event_id"],
+                        ev["turn"],
+                        ev["raw_bytes"],
+                        ev["parsed_json"],
+                        ev["content_length"],
+                        ev["error"],
+                        ev["data_layer"],
+                        ev["light_layer"],
+                        ev["instinct_layer"],
+                        ev["coherence_sig"],
+                        ev["platform"],
+                        ev["protocol"],
+                        ev["quality_score"],
+                        ev["cognitive_mode"],
                     )
                     inserted_events += 1
                 except Exception as e:
                     if "duplicate" not in str(e).lower():
                         print(f"  Event error: {e}")
         if (i + batch_size) % 5000 == 0:
-            print(f"  Inserted {min(i + batch_size, len(cognitive_events))}/{len(cognitive_events)} events")
+            print(
+                f"  Inserted {min(i + batch_size, len(cognitive_events))}/{len(cognitive_events)} events"
+            )
 
     print(f"  Done: {inserted_events} events inserted")
 

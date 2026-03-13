@@ -24,11 +24,7 @@ class TestDelegationGate:
 
     def test_blocks_high_risk_tasks(self):
         """High subjectivity + high criticality + low reversibility should be blocked"""
-        profile = TaskProfile(
-            subjectivity=0.8,
-            criticality=0.9,
-            reversibility=0.1
-        )
+        profile = TaskProfile(subjectivity=0.8, criticality=0.9, reversibility=0.1)
         approved, reason = delegation_gate("Make strategic hiring decision", profile)
         assert not approved
         assert "blocked" in reason.lower()
@@ -37,10 +33,7 @@ class TestDelegationGate:
     def test_blocks_critical_unverifiable(self):
         """High criticality + low verifiability should be blocked"""
         profile = TaskProfile(
-            criticality=0.9,
-            verifiability=0.2,
-            subjectivity=0.5,
-            reversibility=0.5
+            criticality=0.9, verifiability=0.2, subjectivity=0.5, reversibility=0.5
         )
         approved, reason = delegation_gate("Deploy to production", profile)
         assert not approved
@@ -49,10 +42,7 @@ class TestDelegationGate:
     def test_approves_safe_tasks(self):
         """Tasks within risk bounds should be approved"""
         profile = TaskProfile(
-            subjectivity=0.3,
-            criticality=0.5,
-            reversibility=0.8,
-            verifiability=0.7
+            subjectivity=0.3, criticality=0.5, reversibility=0.8, verifiability=0.7
         )
         approved, reason = delegation_gate("Format code files", profile)
         assert approved
@@ -64,7 +54,7 @@ class TestDelegationGate:
         profile = TaskProfile(
             subjectivity=0.6,
             criticality=0.8,  # >= 0.8 triggers block
-            reversibility=0.29  # < 0.3 triggers block
+            reversibility=0.29,  # < 0.3 triggers block
         )
         approved, reason = delegation_gate("Task at threshold", profile)
         assert not approved  # At >= threshold, so fails
@@ -73,9 +63,11 @@ class TestDelegationGate:
         profile_pass = TaskProfile(
             subjectivity=0.6,
             criticality=0.79,  # < 0.8, won't trigger
-            reversibility=0.29
+            reversibility=0.29,
         )
-        approved_pass, reason_pass = delegation_gate("Task below threshold", profile_pass)
+        approved_pass, reason_pass = delegation_gate(
+            "Task below threshold", profile_pass
+        )
         assert approved_pass
 
 
@@ -94,7 +86,11 @@ class TestDescriptionGate:
         score, suggestions = description_gate(desc, use_llm=False)
         assert score >= 0.6
         # Should have some positive feedback
-        assert "clear" in suggestions.lower() or "good" in suggestions.lower() or "complete" in suggestions.lower()
+        assert (
+            "clear" in suggestions.lower()
+            or "good" in suggestions.lower()
+            or "complete" in suggestions.lower()
+        )
 
     def test_penalizes_short_descriptions(self):
         """Very short descriptions should score low"""
@@ -165,7 +161,9 @@ class TestDiscernmentGate:
 
         # Too short
         output_short = "done"
-        score_short, issues_short = discernment_gate(output_short, expected, TaskProfile())
+        score_short, issues_short = discernment_gate(
+            output_short, expected, TaskProfile()
+        )
         assert any("shorter" in issue.lower() for issue in issues_short)
 
         # Too long (3x+)
@@ -178,7 +176,9 @@ class TestDiscernmentGate:
         expected = "authentication login logout tokens refresh user"
 
         # Good overlap
-        output_good = "implemented authentication with login logout and token refresh for users"
+        output_good = (
+            "implemented authentication with login logout and token refresh for users"
+        )
         score_good, _ = discernment_gate(output_good, expected, TaskProfile())
 
         # Poor overlap
@@ -202,14 +202,20 @@ class TestDiligenceGate:
     def test_warns_destructive_operations(self):
         """Destructive operations with low reversibility should warn"""
         profile = TaskProfile(reversibility=0.3)
-        safe, warnings = diligence_gate("Delete all user records from database", profile)
+        safe, warnings = diligence_gate(
+            "Delete all user records from database", profile
+        )
 
-        assert any("destructive" in w.lower() or "reversibility" in w.lower() for w in warnings)
+        assert any(
+            "destructive" in w.lower() or "reversibility" in w.lower() for w in warnings
+        )
 
     def test_blocks_unsafe_combination(self):
         """Sensitive + destructive + irreversible should be blocked"""
         profile = TaskProfile(reversibility=0.1)
-        safe, warnings = diligence_gate("Delete all API keys and credentials permanently", profile)
+        safe, warnings = diligence_gate(
+            "Delete all API keys and credentials permanently", profile
+        )
 
         assert not safe
         assert any("BLOCKED" in w.upper() for w in warnings)
@@ -220,15 +226,13 @@ class TestDiligenceGate:
         safe, warnings = diligence_gate("Deploy new release to production", profile)
 
         assert safe  # Warned but not blocked
-        assert any("production" in w.lower() or "verifiability" in w.lower() for w in warnings)
+        assert any(
+            "production" in w.lower() or "verifiability" in w.lower() for w in warnings
+        )
 
     def test_approves_safe_tasks(self):
         """Safe tasks should have no warnings"""
-        profile = TaskProfile(
-            reversibility=0.9,
-            verifiability=0.8,
-            criticality=0.3
-        )
+        profile = TaskProfile(reversibility=0.9, verifiability=0.8, criticality=0.3)
         safe, warnings = diligence_gate("Format markdown documentation", profile)
 
         assert safe
@@ -236,14 +240,12 @@ class TestDiligenceGate:
 
     def test_critical_irreversible_warning(self):
         """High criticality + low reversibility should warn"""
-        profile = TaskProfile(
-            criticality=0.9,
-            reversibility=0.2,
-            verifiability=0.8
-        )
+        profile = TaskProfile(criticality=0.9, reversibility=0.2, verifiability=0.8)
         safe, warnings = diligence_gate("Update production database schema", profile)
 
-        assert any("criticality" in w.lower() or "oversight" in w.lower() for w in warnings)
+        assert any(
+            "criticality" in w.lower() or "oversight" in w.lower() for w in warnings
+        )
 
 
 class TestFourDsGateClass:
@@ -328,7 +330,7 @@ class TestIntegrationScenarios:
             criticality=0.4,
             subjectivity=0.5,
             reversibility=0.9,
-            verifiability=0.7
+            verifiability=0.7,
         )
 
         # Gate 1: Should be approved for delegation
@@ -351,7 +353,7 @@ class TestIntegrationScenarios:
             criticality=0.9,
             subjectivity=0.3,
             reversibility=0.4,
-            verifiability=0.6
+            verifiability=0.6,
         )
 
         # Gate 1: May be approved but with concerns
@@ -359,8 +361,12 @@ class TestIntegrationScenarios:
         # Could go either way depending on exact thresholds
 
         # Gate 4: Should warn about production + verifiability
-        safe, warnings = diligence_gate("Deploy release v2.0 to production servers", profile)
-        assert any("production" in w.lower() or "verifiability" in w.lower() for w in warnings)
+        safe, warnings = diligence_gate(
+            "Deploy release v2.0 to production servers", profile
+        )
+        assert any(
+            "production" in w.lower() or "verifiability" in w.lower() for w in warnings
+        )
 
     def test_data_deletion_flow(self):
         """Sensitive data deletion should be heavily scrutinized"""
@@ -369,7 +375,7 @@ class TestIntegrationScenarios:
             criticality=0.9,
             reversibility=0.1,
             subjectivity=0.4,
-            verifiability=0.6
+            verifiability=0.6,
         )
 
         # Gate 1: Should be blocked (critical + irreversible)

@@ -30,6 +30,7 @@ try:
     from rich.layout import Layout
     from rich.live import Live
     from rich.text import Text
+
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
@@ -73,7 +74,9 @@ class CoherenceDashboard:
             """)
 
             # Coherence moments summary
-            moments_total = await conn.fetchval("SELECT COUNT(*) FROM coherence_moments")
+            moments_total = await conn.fetchval(
+                "SELECT COUNT(*) FROM coherence_moments"
+            )
             moments_24h = await conn.fetchval(
                 "SELECT COUNT(*) FROM coherence_moments WHERE created_at > NOW() - INTERVAL '24 hours'"
             )
@@ -189,7 +192,9 @@ class CoherenceDashboard:
                     ORDER BY similarity DESC
                     LIMIT 5
                 """)
-                session_coherence = [dict(r) for r in session_coherence] if session_coherence else None
+                session_coherence = (
+                    [dict(r) for r in session_coherence] if session_coherence else None
+                )
             except Exception:
                 session_coherence = None
 
@@ -206,7 +211,11 @@ class CoherenceDashboard:
                     ORDER BY version_count DESC
                     LIMIT 8
                 """)
-                concept_evolutions = [dict(r) for r in concept_evolutions] if concept_evolutions else None
+                concept_evolutions = (
+                    [dict(r) for r in concept_evolutions]
+                    if concept_evolutions
+                    else None
+                )
             except Exception:
                 concept_evolutions = None
 
@@ -220,7 +229,9 @@ class CoherenceDashboard:
                     ORDER BY detected_at DESC
                     LIMIT 5
                 """)
-                breakthroughs = [dict(r) for r in breakthroughs] if breakthroughs else None
+                breakthroughs = (
+                    [dict(r) for r in breakthroughs] if breakthroughs else None
+                )
             except Exception:
                 breakthroughs = None
 
@@ -257,21 +268,35 @@ class CoherenceDashboard:
         for p in data["platforms"]:
             last = p["last_seen"]
             if last:
-                ago = datetime.now(last.tzinfo) - last if hasattr(last, 'tzinfo') and last.tzinfo else timedelta(0)
-                ago_str = f"{ago.seconds // 60}m ago" if ago.total_seconds() < 3600 else f"{ago.seconds // 3600}h ago"
+                ago = (
+                    datetime.now(last.tzinfo) - last
+                    if hasattr(last, "tzinfo") and last.tzinfo
+                    else timedelta(0)
+                )
+                ago_str = (
+                    f"{ago.seconds // 60}m ago"
+                    if ago.total_seconds() < 3600
+                    else f"{ago.seconds // 3600}h ago"
+                )
             else:
                 ago_str = "never"
             status = "\033[32m●\033[0m" if p["today"] > 0 else "\033[31m○\033[0m"
-            lines.append(f"    {status} {p['platform']:20s} {p['total']:>8,} total  {p['today']:>6,} today  ({ago_str})")
+            lines.append(
+                f"    {status} {p['platform']:20s} {p['total']:>8,} total  {p['today']:>6,} today  ({ago_str})"
+            )
         lines.append("")
 
         # Moments summary
         lines.append("\033[1;33m  COHERENCE MOMENTS\033[0m")
-        lines.append(f"    Total: {data['moments_total']}  |  Last 24h: {data['moments_24h']}  |  Embedded: {data['embedded']:,}")
+        lines.append(
+            f"    Total: {data['moments_total']}  |  Last 24h: {data['moments_24h']}  |  Embedded: {data['embedded']:,}"
+        )
         lines.append("")
 
         for t in data["by_type"]:
-            lines.append(f"    {t['coherence_type']:20s} {t['cnt']:>4} moments  (avg {t['avg_conf']:.0%})")
+            lines.append(
+                f"    {t['coherence_type']:20s} {t['cnt']:>4} moments  (avg {t['avg_conf']:.0%})"
+            )
         lines.append("")
 
         # Confidence distribution
@@ -280,10 +305,10 @@ class CoherenceDashboard:
             lines.append("\033[1;33m  CONFIDENCE DISTRIBUTION\033[0m")
             tiers = [
                 ("90-100%", cd.get("tier_90", 0), "\033[32m"),
-                ("80-89%",  cd.get("tier_80", 0), "\033[32m"),
-                ("70-79%",  cd.get("tier_70", 0), "\033[33m"),
-                ("60-69%",  cd.get("tier_60", 0), "\033[33m"),
-                ("<60%",    cd.get("tier_low", 0), "\033[31m"),
+                ("80-89%", cd.get("tier_80", 0), "\033[32m"),
+                ("70-79%", cd.get("tier_70", 0), "\033[33m"),
+                ("60-69%", cd.get("tier_60", 0), "\033[33m"),
+                ("<60%", cd.get("tier_low", 0), "\033[31m"),
             ]
             max_bar = max(t[1] for t in tiers) or 1
             for label, count, color in tiers:
@@ -349,9 +374,7 @@ class CoherenceDashboard:
                 pb = pair.get("platform_b", "?")
                 sa = (pair.get("summary_a") or "")[:40]
                 sb = (pair.get("summary_b") or "")[:40]
-                lines.append(
-                    f"    \033[1m{sim:.0%}\033[0m {pa} <-> {pb}"
-                )
+                lines.append(f"    \033[1m{sim:.0%}\033[0m {pa} <-> {pb}")
                 if sa:
                     lines.append(f"          A: {sa}")
                 if sb:
@@ -381,9 +404,7 @@ class CoherenceDashboard:
                 novelty = bt.get("novelty_score") or 0
                 impact = bt.get("impact_score") or 0
                 plats = ", ".join(bt.get("platforms") or [])
-                lines.append(
-                    f"    \033[1;35m[{btype}]\033[0m {title}"
-                )
+                lines.append(f"    \033[1;35m[{btype}]\033[0m {title}")
                 lines.append(
                     f"          novelty={novelty:.0%} impact={impact:.0%} | {plats}"
                 )
@@ -426,7 +447,9 @@ class CoherenceDashboard:
 
         for p in data["platforms"]:
             status = "[green]●[/green]" if p["today"] > 0 else "[red]○[/red]"
-            plat_table.add_row(status, p["platform"], f"{p['total']:,}", f"{p['today']:,}")
+            plat_table.add_row(
+                status, p["platform"], f"{p['total']:,}", f"{p['today']:,}"
+            )
 
         # Moments table
         mom_table = Table(title="Recent Moments", show_header=True)

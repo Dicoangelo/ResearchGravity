@@ -23,6 +23,7 @@ try:
     import torch
     import torch.nn as nn
     import torch.optim as optim
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -35,6 +36,7 @@ except ImportError:
 # ============================================================================
 
 if TORCH_AVAILABLE:
+
     class PackOperationPolicy(nn.Module):
         """
         Neural network policy for pack operations
@@ -59,7 +61,6 @@ if TORCH_AVAILABLE:
             x = self.relu(self.fc2(x))
             x = self.fc3(x)
             return self.softmax(x)
-
 
     class AgentWeightOptimizer(nn.Module):
         """
@@ -89,9 +90,11 @@ if TORCH_AVAILABLE:
 # Pack Operation Manager
 # ============================================================================
 
+
 @dataclass
 class PackOperation:
     """A pack operation with reward feedback"""
+
     operation: str  # ADD, UPDATE, DELETE, MERGE, NOOP
     pack_id: str
     session_id: str
@@ -116,17 +119,19 @@ class RLPackManager:
 
     def __init__(self, storage_dir: str = None):
         if storage_dir is None:
-            storage_dir = os.path.expanduser('~/.agent-core/context-packs')
+            storage_dir = os.path.expanduser("~/.agent-core/context-packs")
 
         self.storage_dir = storage_dir
-        self.operations_log = os.path.join(storage_dir, 'rl_operations.jsonl')
+        self.operations_log = os.path.join(storage_dir, "rl_operations.jsonl")
 
         # Initialize RL policy
         if TORCH_AVAILABLE:
             self.policy = PackOperationPolicy()
             self.weight_optimizer = AgentWeightOptimizer()
             self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=0.001)
-            self.weight_opt_optimizer = optim.Adam(self.weight_optimizer.parameters(), lr=0.001)
+            self.weight_opt_optimizer = optim.Adam(
+                self.weight_optimizer.parameters(), lr=0.001
+            )
         else:
             self.policy = None
             self.weight_optimizer = None
@@ -144,7 +149,7 @@ class RLPackManager:
         if not os.path.exists(self.operations_log):
             return
 
-        with open(self.operations_log, 'r') as f:
+        with open(self.operations_log, "r") as f:
             for line in f:
                 data = json.loads(line)
                 op = PackOperation(**data)
@@ -155,14 +160,11 @@ class RLPackManager:
         self.operation_history.append(operation)
 
         # Append to log file
-        with open(self.operations_log, 'a') as f:
-            f.write(json.dumps(asdict(operation)) + '\n')
+        with open(self.operations_log, "a") as f:
+            f.write(json.dumps(asdict(operation)) + "\n")
 
     def encode_state(
-        self,
-        pack_data: Dict[str, Any],
-        context: str,
-        reward_history: List[float]
+        self, pack_data: Dict[str, Any], context: str, reward_history: List[float]
     ) -> Any:  # np.ndarray or list
         """
         Encode pack state for RL policy
@@ -177,29 +179,33 @@ class RLPackManager:
             state_vector = []
 
             # Pack metadata (20 dims)
-            state_vector.append(pack_data.get('size_tokens', 100) / 1000.0)  # Normalized tokens
+            state_vector.append(
+                pack_data.get("size_tokens", 100) / 1000.0
+            )  # Normalized tokens
 
             # Parse version (handle "1.0.0" format)
-            version = pack_data.get('version', '1.0.0')
+            version = pack_data.get("version", "1.0.0")
             if isinstance(version, str):
-                version_num = float(version.split('.')[0]) if '.' in version else float(version)
+                version_num = (
+                    float(version.split(".")[0]) if "." in version else float(version)
+                )
             else:
                 version_num = float(version)
             state_vector.append(version_num / 10.0)  # Normalized version
 
             # Usage stats (10 dims)
-            usage = pack_data.get('usage_stats', {})
-            state_vector.append(usage.get('times_selected', 0) / 100.0)
-            state_vector.append(usage.get('avg_session_relevance', 0.0))
-            state_vector.append(len(usage.get('sessions', [])) / 100.0)
-            state_vector.append(len(usage.get('combined_with', [])) / 10.0)
+            usage = pack_data.get("usage_stats", {})
+            state_vector.append(usage.get("times_selected", 0) / 100.0)
+            state_vector.append(usage.get("avg_session_relevance", 0.0))
+            state_vector.append(len(usage.get("sessions", [])) / 100.0)
+            state_vector.append(len(usage.get("combined_with", [])) / 10.0)
 
             # DQ metadata (10 dims)
-            dq = pack_data.get('dq_metadata', {})
-            state_vector.append(dq.get('base_validity', 0.5))
-            state_vector.append(dq.get('base_specificity', 0.5))
-            state_vector.append(dq.get('base_correctness', 0.5))
-            state_vector.append(dq.get('base_score', 0.5))
+            dq = pack_data.get("dq_metadata", {})
+            state_vector.append(dq.get("base_validity", 0.5))
+            state_vector.append(dq.get("base_specificity", 0.5))
+            state_vector.append(dq.get("base_correctness", 0.5))
+            state_vector.append(dq.get("base_score", 0.5))
 
             # Reward history stats (10 dims)
             if reward_history:
@@ -213,7 +219,7 @@ class RLPackManager:
 
             # Context relevance (mock - in production, use embeddings)
             context_lower = context.lower()
-            pack_id = pack_data.get('pack_id', '')
+            pack_id = pack_data.get("pack_id", "")
             relevance = 1.0 if pack_id.lower() in context_lower else 0.3
             state_vector.append(relevance)
 
@@ -227,10 +233,7 @@ class RLPackManager:
             return [0.5] * 128
 
     def decide_operation(
-        self,
-        pack_data: Dict[str, Any],
-        context: str,
-        session_id: str
+        self, pack_data: Dict[str, Any], context: str, session_id: str
     ) -> str:
         """
         Use RL policy to decide best operation for pack
@@ -238,9 +241,10 @@ class RLPackManager:
         Returns: Operation name (ADD, UPDATE, DELETE, MERGE, NOOP)
         """
         # Get reward history for this pack
-        pack_id = pack_data.get('pack_id', pack_data.get('id'))
+        pack_id = pack_data.get("pack_id", pack_data.get("id"))
         reward_history = [
-            op.reward for op in self.operation_history
+            op.reward
+            for op in self.operation_history
             if op.pack_id == pack_id and op.reward is not None
         ]
 
@@ -257,12 +261,12 @@ class RLPackManager:
             # Heuristic: UPDATE if pack is relevant, NOOP otherwise
             context_lower = context.lower()
             pack_id_lower = pack_id.lower()
-            if any(keyword in context_lower for keyword in pack_id_lower.split('-')):
+            if any(keyword in context_lower for keyword in pack_id_lower.split("-")):
                 action_idx = 1  # UPDATE
             else:
                 action_idx = 4  # NOOP
 
-        operations = ['ADD', 'UPDATE', 'DELETE', 'MERGE', 'NOOP']
+        operations = ["ADD", "UPDATE", "DELETE", "MERGE", "NOOP"]
         return operations[action_idx]
 
     def execute_operation(
@@ -271,26 +275,26 @@ class RLPackManager:
         pack_data: Dict[str, Any],
         context: str,
         session_id: str,
-        additional_data: Dict[str, Any] = None
+        additional_data: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """
         Execute a pack operation
 
         Returns: Updated pack data
         """
-        pack_id = pack_data.get('pack_id', pack_data.get('id'))
+        pack_id = pack_data.get("pack_id", pack_data.get("id"))
 
         # Record state before
         state_before = pack_data.copy()
 
         # Execute operation
-        if operation == 'ADD':
+        if operation == "ADD":
             result = self._add_pack(pack_data, additional_data)
-        elif operation == 'UPDATE':
+        elif operation == "UPDATE":
             result = self._update_pack(pack_data, context, additional_data)
-        elif operation == 'DELETE':
+        elif operation == "DELETE":
             result = self._delete_pack(pack_data)
-        elif operation == 'MERGE':
+        elif operation == "MERGE":
             result = self._merge_packs(pack_data, additional_data)
         else:  # NOOP
             result = pack_data.copy()
@@ -300,17 +304,19 @@ class RLPackManager:
             operation=operation,
             pack_id=pack_id,
             session_id=session_id,
-            timestamp=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             state_before=state_before,
             state_after=result,
             reward=None,  # Will be set later based on outcome
-            metadata={'context': context}
+            metadata={"context": context},
         )
         self._log_operation(op)
 
         return result
 
-    def _add_pack(self, pack_data: Dict[str, Any], additional_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _add_pack(
+        self, pack_data: Dict[str, Any], additional_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Create new pack"""
         # In prototype, just return the pack data
         # In production, create file and update registry
@@ -318,10 +324,7 @@ class RLPackManager:
         return pack_data
 
     def _update_pack(
-        self,
-        pack_data: Dict[str, Any],
-        context: str,
-        additional_data: Dict[str, Any]
+        self, pack_data: Dict[str, Any], context: str, additional_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Update existing pack content"""
         print(f"  [RL] UPDATE pack: {pack_data.get('pack_id')}")
@@ -329,17 +332,17 @@ class RLPackManager:
         updated = pack_data.copy()
 
         # Update DQ scores based on recent performance
-        if 'dq_metadata' in updated:
-            dq = updated['dq_metadata']
+        if "dq_metadata" in updated:
+            dq = updated["dq_metadata"]
             # Slight boost for being selected
-            dq['base_validity'] = min(1.0, dq.get('base_validity', 0.8) + 0.01)
-            updated['dq_metadata'] = dq
+            dq["base_validity"] = min(1.0, dq.get("base_validity", 0.8) + 0.01)
+            updated["dq_metadata"] = dq
 
         # Update usage stats
-        if 'usage_stats' in updated:
-            stats = updated['usage_stats']
-            stats['times_selected'] = stats.get('times_selected', 0) + 1
-            updated['usage_stats'] = stats
+        if "usage_stats" in updated:
+            stats = updated["usage_stats"]
+            stats["times_selected"] = stats.get("times_selected", 0) + 1
+            updated["usage_stats"] = stats
 
         return updated
 
@@ -347,10 +350,12 @@ class RLPackManager:
         """Delete pack (mark for deletion)"""
         print(f"  [RL] DELETE pack: {pack_data.get('pack_id')}")
         deleted = pack_data.copy()
-        deleted['_deleted'] = True
+        deleted["_deleted"] = True
         return deleted
 
-    def _merge_packs(self, pack_data: Dict[str, Any], additional_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _merge_packs(
+        self, pack_data: Dict[str, Any], additional_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Merge pack with similar packs"""
         print(f"  [RL] MERGE pack: {pack_data.get('pack_id')}")
 
@@ -358,29 +363,29 @@ class RLPackManager:
         # In production, merge content intelligently
         merged = pack_data.copy()
 
-        if additional_data and 'merge_with' in additional_data:
-            other_pack = additional_data['merge_with']
+        if additional_data and "merge_with" in additional_data:
+            other_pack = additional_data["merge_with"]
 
             # Merge content
-            if 'content' in merged:
-                content = merged['content']
-                other_content = other_pack.get('content', {})
+            if "content" in merged:
+                content = merged["content"]
+                other_content = other_pack.get("content", {})
 
                 # Combine keywords
-                keywords = set(content.get('keywords', []))
-                keywords.update(other_content.get('keywords', []))
-                content['keywords'] = list(keywords)
+                keywords = set(content.get("keywords", []))
+                keywords.update(other_content.get("keywords", []))
+                content["keywords"] = list(keywords)
 
                 # Combine papers
-                papers = content.get('papers', [])
-                other_papers = other_content.get('papers', [])
-                paper_ids = {p['arxiv_id'] for p in papers}
+                papers = content.get("papers", [])
+                other_papers = other_content.get("papers", [])
+                paper_ids = {p["arxiv_id"] for p in papers}
                 for paper in other_papers:
-                    if paper['arxiv_id'] not in paper_ids:
+                    if paper["arxiv_id"] not in paper_ids:
                         papers.append(paper)
-                content['papers'] = papers
+                content["papers"] = papers
 
-                merged['content'] = content
+                merged["content"] = content
 
         return merged
 
@@ -399,9 +404,9 @@ class RLPackManager:
                 break
 
         # Rewrite log file with updated rewards
-        with open(self.operations_log, 'w') as f:
+        with open(self.operations_log, "w") as f:
             for op in self.operation_history:
-                f.write(json.dumps(asdict(op)) + '\n')
+                f.write(json.dumps(asdict(op)) + "\n")
 
     def train_policy(self, batch_size: int = 32, epochs: int = 10):
         """
@@ -417,17 +422,23 @@ class RLPackManager:
             return
 
         # Filter operations with rewards
-        ops_with_rewards = [op for op in self.operation_history if op.reward is not None]
+        ops_with_rewards = [
+            op for op in self.operation_history if op.reward is not None
+        ]
 
         if len(ops_with_rewards) < batch_size:
-            print(f"⚠️  Not enough operations with rewards ({len(ops_with_rewards)} < {batch_size})")
+            print(
+                f"⚠️  Not enough operations with rewards ({len(ops_with_rewards)} < {batch_size})"
+            )
             return
 
         print(f"\nTraining RL policy on {len(ops_with_rewards)} operations...")
 
         for epoch in range(epochs):
             # Sample batch
-            batch_indices = np.random.choice(len(ops_with_rewards), batch_size, replace=False)
+            batch_indices = np.random.choice(
+                len(ops_with_rewards), batch_size, replace=False
+            )
             batch_ops = [ops_with_rewards[i] for i in batch_indices]
 
             total_loss = 0.0
@@ -435,13 +446,11 @@ class RLPackManager:
             for op in batch_ops:
                 # Encode state
                 state = self.encode_state(
-                    op.state_before,
-                    op.metadata.get('context', ''),
-                    []
+                    op.state_before, op.metadata.get("context", ""), []
                 )
 
                 # Get action index
-                operations = ['ADD', 'UPDATE', 'DELETE', 'MERGE', 'NOOP']
+                operations = ["ADD", "UPDATE", "DELETE", "MERGE", "NOOP"]
                 action_idx = operations.index(op.operation)
 
                 # Forward pass
@@ -460,7 +469,7 @@ class RLPackManager:
                 total_loss += loss.item()
 
             avg_loss = total_loss / batch_size
-            print(f"  Epoch {epoch+1}/{epochs}: Loss = {avg_loss:.4f}")
+            print(f"  Epoch {epoch + 1}/{epochs}: Loss = {avg_loss:.4f}")
 
         print("✓ Policy training complete")
 
@@ -468,7 +477,7 @@ class RLPackManager:
         self,
         context_embedding: Any,
         outcome_reward: float,
-        current_weights: Dict[str, float]
+        current_weights: Dict[str, float],
     ) -> Dict[str, float]:
         """
         Optimize agent weights based on outcome
@@ -486,14 +495,14 @@ class RLPackManager:
             adjusted = current_weights.copy()
             if outcome_reward > 0.8:
                 # Boost relevance agent if high reward
-                adjusted['relevance'] = min(1.0, adjusted['relevance'] * 1.1)
+                adjusted["relevance"] = min(1.0, adjusted["relevance"] * 1.1)
             elif outcome_reward < 0.3:
                 # Reduce efficiency agent if low reward
-                adjusted['efficiency'] = max(0.1, adjusted['efficiency'] * 0.9)
+                adjusted["efficiency"] = max(0.1, adjusted["efficiency"] * 0.9)
 
             # Renormalize
             total = sum(adjusted.values())
-            return {k: v/total for k, v in adjusted.items()}
+            return {k: v / total for k, v in adjusted.items()}
 
         # Use neural network to predict optimal weights
         with torch.no_grad():
@@ -504,7 +513,7 @@ class RLPackManager:
 
             optimal_weights = self.weight_optimizer(context_tensor)
 
-        agent_names = ['relevance', 'efficiency', 'recency', 'quality', 'diversity']
+        agent_names = ["relevance", "efficiency", "recency", "quality", "diversity"]
         return {name: float(optimal_weights[i]) for i, name in enumerate(agent_names)}
 
 
@@ -512,54 +521,61 @@ class RLPackManager:
 # CLI Interface
 # ============================================================================
 
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Context Packs V2 - Layer 4: RL Pack Manager'
+        description="Context Packs V2 - Layer 4: RL Pack Manager"
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Decide operation
-    decide_parser = subparsers.add_parser('decide', help='Decide operation for pack')
-    decide_parser.add_argument('--pack-id', required=True)
-    decide_parser.add_argument('--context', required=True)
-    decide_parser.add_argument('--session-id', required=True)
+    decide_parser = subparsers.add_parser("decide", help="Decide operation for pack")
+    decide_parser.add_argument("--pack-id", required=True)
+    decide_parser.add_argument("--context", required=True)
+    decide_parser.add_argument("--session-id", required=True)
 
     # Execute operation
-    execute_parser = subparsers.add_parser('execute', help='Execute operation')
-    execute_parser.add_argument('--operation', required=True, choices=['ADD', 'UPDATE', 'DELETE', 'MERGE', 'NOOP'])
-    execute_parser.add_argument('--pack-id', required=True)
-    execute_parser.add_argument('--context', required=True)
-    execute_parser.add_argument('--session-id', required=True)
+    execute_parser = subparsers.add_parser("execute", help="Execute operation")
+    execute_parser.add_argument(
+        "--operation",
+        required=True,
+        choices=["ADD", "UPDATE", "DELETE", "MERGE", "NOOP"],
+    )
+    execute_parser.add_argument("--pack-id", required=True)
+    execute_parser.add_argument("--context", required=True)
+    execute_parser.add_argument("--session-id", required=True)
 
     # Update reward
-    reward_parser = subparsers.add_parser('reward', help='Update reward for operation')
-    reward_parser.add_argument('--session-id', required=True)
-    reward_parser.add_argument('--pack-id', required=True)
-    reward_parser.add_argument('--reward', type=float, required=True)
+    reward_parser = subparsers.add_parser("reward", help="Update reward for operation")
+    reward_parser.add_argument("--session-id", required=True)
+    reward_parser.add_argument("--pack-id", required=True)
+    reward_parser.add_argument("--reward", type=float, required=True)
 
     # Train policy
-    train_parser = subparsers.add_parser('train', help='Train RL policy')
-    train_parser.add_argument('--batch-size', type=int, default=32)
-    train_parser.add_argument('--epochs', type=int, default=10)
+    train_parser = subparsers.add_parser("train", help="Train RL policy")
+    train_parser.add_argument("--batch-size", type=int, default=32)
+    train_parser.add_argument("--epochs", type=int, default=10)
 
     # Show history
-    history_parser = subparsers.add_parser('history', help='Show operation history')
-    history_parser.add_argument('--limit', type=int, default=20)
+    history_parser = subparsers.add_parser("history", help="Show operation history")
+    history_parser.add_argument("--limit", type=int, default=20)
 
     args = parser.parse_args()
 
     # Initialize manager
     manager = RLPackManager()
 
-    if args.command == 'decide':
+    if args.command == "decide":
         # Load pack
-        pack_storage = os.path.expanduser('~/.agent-core/context-packs')
+        pack_storage = os.path.expanduser("~/.agent-core/context-packs")
         pack_file = None
-        for pack_type in ['domain', 'project', 'pattern', 'paper']:
-            potential_file = os.path.join(pack_storage, pack_type, f'{args.pack_id}.pack.json')
+        for pack_type in ["domain", "project", "pattern", "paper"]:
+            potential_file = os.path.join(
+                pack_storage, pack_type, f"{args.pack_id}.pack.json"
+            )
             if os.path.exists(potential_file):
                 pack_file = potential_file
                 break
@@ -568,7 +584,7 @@ def main():
             print(f"❌ Pack not found: {args.pack_id}")
             return
 
-        with open(pack_file, 'r') as f:
+        with open(pack_file, "r") as f:
             pack_data = json.load(f)
 
         # Decide operation
@@ -577,27 +593,29 @@ def main():
         print(f"  Pack: {args.pack_id}")
         print(f"  Context: {args.context}")
 
-    elif args.command == 'execute':
+    elif args.command == "execute":
         # Similar to decide, but execute
         print(f"Executing {args.operation} on {args.pack_id}...")
 
-    elif args.command == 'reward':
+    elif args.command == "reward":
         manager.update_reward(args.session_id, args.pack_id, args.reward)
-        print(f"✓ Updated reward: {args.reward} for {args.pack_id} in {args.session_id}")
+        print(
+            f"✓ Updated reward: {args.reward} for {args.pack_id} in {args.session_id}"
+        )
 
-    elif args.command == 'train':
+    elif args.command == "train":
         manager.train_policy(batch_size=args.batch_size, epochs=args.epochs)
 
-    elif args.command == 'history':
-        print("\n" + "="*60)
+    elif args.command == "history":
+        print("\n" + "=" * 60)
         print("OPERATION HISTORY")
-        print("="*60)
+        print("=" * 60)
 
-        for op in manager.operation_history[-args.limit:]:
+        for op in manager.operation_history[-args.limit :]:
             print(f"\n{op.timestamp} | {op.operation} | {op.pack_id}")
             print(f"  Session: {op.session_id}")
             print(f"  Reward: {op.reward if op.reward is not None else 'pending'}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

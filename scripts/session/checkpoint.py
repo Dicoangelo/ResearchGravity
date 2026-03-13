@@ -45,7 +45,7 @@ def create_checkpoint(
     description: str,
     session_id: Optional[str] = None,
     tasks: list = None,
-    context: dict = None
+    context: dict = None,
 ) -> dict:
     """
     Create a checkpoint for the current session.
@@ -77,9 +77,7 @@ def create_checkpoint(
         "created_at": now.isoformat() + "Z",
         "tasks": tasks or [],
         "context": context or {},
-        "metadata": {
-            "auto": False
-        }
+        "metadata": {"auto": False},
     }
 
     # Load session state if available
@@ -103,7 +101,9 @@ def create_checkpoint(
                 urls = json.loads(urls_file.read_text())
                 if "state" not in checkpoint:
                     checkpoint["state"] = {}
-                checkpoint["state"]["urls_count"] = len(urls) if isinstance(urls, list) else 0
+                checkpoint["state"]["urls_count"] = (
+                    len(urls) if isinstance(urls, list) else 0
+                )
             except:
                 pass
 
@@ -139,13 +139,15 @@ def list_checkpoints(session_id: Optional[str] = None, limit: int = 20) -> list:
             if session_id and cp.get("session_id") != session_id:
                 continue
 
-            checkpoints.append({
-                "id": cp.get("id"),
-                "session_id": cp.get("session_id"),
-                "description": cp.get("description"),
-                "created_at": cp.get("created_at"),
-                "tasks_count": len(cp.get("tasks", []))
-            })
+            checkpoints.append(
+                {
+                    "id": cp.get("id"),
+                    "session_id": cp.get("session_id"),
+                    "description": cp.get("description"),
+                    "created_at": cp.get("created_at"),
+                    "tasks_count": len(cp.get("tasks", [])),
+                }
+            )
 
             if len(checkpoints) >= limit:
                 break
@@ -184,11 +186,11 @@ def restore_checkpoint(checkpoint_id: str) -> dict:
     context = f"""## CHECKPOINT RESTORATION: {checkpoint_id}
 
 ### Description
-{checkpoint.get('description', 'No description')}
+{checkpoint.get("description", "No description")}
 
 ### Session
-- ID: {checkpoint.get('session_id', 'Unknown')}
-- Created: {checkpoint.get('created_at', 'Unknown')}
+- ID: {checkpoint.get("session_id", "Unknown")}
+- Created: {checkpoint.get("created_at", "Unknown")}
 """
 
     # Add tasks
@@ -197,7 +199,9 @@ def restore_checkpoint(checkpoint_id: str) -> dict:
         context += "\n### Tasks at Checkpoint\n"
         for task in tasks:
             status = task.get("status", "unknown")
-            icon = {"completed": "✅", "in_progress": "🔄", "pending": "⏳"}.get(status, "•")
+            icon = {"completed": "✅", "in_progress": "🔄", "pending": "⏳"}.get(
+                status, "•"
+            )
             context += f"{icon} {task.get('content', task.get('description', 'Unknown task'))}\n"
 
     # Add state
@@ -219,10 +223,7 @@ def restore_checkpoint(checkpoint_id: str) -> dict:
 **Restore to this checkpoint and continue from here.**
 """
 
-    return {
-        "checkpoint": checkpoint,
-        "restoration_context": context
-    }
+    return {"checkpoint": checkpoint, "restoration_context": context}
 
 
 def auto_checkpoint(session_id: Optional[str] = None) -> dict:
@@ -234,7 +235,7 @@ def auto_checkpoint(session_id: Optional[str] = None) -> dict:
 
     checkpoint = create_checkpoint(
         description=f"Auto-checkpoint at {datetime.now().strftime('%H:%M')}",
-        session_id=session_id
+        session_id=session_id,
     )
 
     if "error" not in checkpoint:
@@ -257,7 +258,9 @@ def main():
     # Create command
     create_parser = subparsers.add_parser("create", help="Create checkpoint")
     create_parser.add_argument("description", help="Checkpoint description")
-    create_parser.add_argument("--session", "-s", help="Session ID (defaults to active)")
+    create_parser.add_argument(
+        "--session", "-s", help="Session ID (defaults to active)"
+    )
 
     # List command
     list_parser = subparsers.add_parser("list", help="List checkpoints")
@@ -276,8 +279,7 @@ def main():
 
     if args.command == "create":
         result = create_checkpoint(
-            description=args.description,
-            session_id=args.session
+            description=args.description, session_id=args.session
         )
 
         if "error" in result:
@@ -289,10 +291,7 @@ def main():
         print(f"   Description: {result['description']}")
 
     elif args.command == "list":
-        checkpoints = list_checkpoints(
-            session_id=args.session,
-            limit=args.limit
-        )
+        checkpoints = list_checkpoints(session_id=args.session, limit=args.limit)
 
         if not checkpoints:
             print("No checkpoints found")

@@ -41,22 +41,24 @@ logger = logging.getLogger("researchgravity.dlq")
 
 class DLQStatus(Enum):
     """Status of a dead-letter queue entry."""
-    PENDING = "pending"      # Awaiting retry
-    RETRYING = "retrying"    # Currently being retried
+
+    PENDING = "pending"  # Awaiting retry
+    RETRYING = "retrying"  # Currently being retried
     SUCCEEDED = "succeeded"  # Retry succeeded
-    FAILED = "failed"        # All retries exhausted
-    EXPIRED = "expired"      # Retention period passed
+    FAILED = "failed"  # All retries exhausted
+    EXPIRED = "expired"  # Retention period passed
 
 
 @dataclass
 class DLQEntry:
     """A dead-letter queue entry."""
+
     id: int
-    operation: str           # e.g., "upsert_finding", "upsert_session"
-    target: str              # e.g., "qdrant", "sqlite_vec"
+    operation: str  # e.g., "upsert_finding", "upsert_session"
+    target: str  # e.g., "qdrant", "sqlite_vec"
     payload: Dict[str, Any]  # The data that failed to write
-    error: str               # Error message
-    status: str              # DLQStatus value
+    error: str  # Error message
+    status: str  # DLQStatus value
     retry_count: int
     max_retries: int
     created_at: str
@@ -83,7 +85,7 @@ class DeadLetterQueue:
         db_path: Optional[Path] = None,
         max_retries: int = 5,
         base_delay_seconds: int = 60,
-        retention_days: int = 7
+        retention_days: int = 7,
     ):
         """
         Initialize the dead-letter queue.
@@ -146,10 +148,7 @@ class DeadLetterQueue:
         logger.info(f"DLQ initialized at {self.db_path}")
 
     def register_retry_handler(
-        self,
-        operation: str,
-        target: str,
-        handler: Callable[..., Awaitable[bool]]
+        self, operation: str, target: str, handler: Callable[..., Awaitable[bool]]
     ):
         """
         Register a handler function for retrying a specific operation.
@@ -169,7 +168,7 @@ class DeadLetterQueue:
         target: str,
         payload: Dict[str, Any],
         error: str,
-        max_retries: Optional[int] = None
+        max_retries: Optional[int] = None,
     ) -> int:
         """
         Add a failed write operation to the dead-letter queue.
@@ -191,22 +190,25 @@ class DeadLetterQueue:
         next_retry = now + timedelta(seconds=self.base_delay_seconds)
 
         async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 INSERT INTO dead_letter_queue
                 (operation, target, payload, error, status, retry_count,
                  max_retries, created_at, next_retry_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                operation,
-                target,
-                json.dumps(payload),
-                error,
-                DLQStatus.PENDING.value,
-                0,
-                max_retries or self.max_retries,
-                now.isoformat(),
-                next_retry.isoformat()
-            ))
+            """,
+                (
+                    operation,
+                    target,
+                    json.dumps(payload),
+                    error,
+                    DLQStatus.PENDING.value,
+                    0,
+                    max_retries or self.max_retries,
+                    now.isoformat(),
+                    next_retry.isoformat(),
+                ),
+            )
             await db.commit()
             entry_id = cursor.lastrowid
 
@@ -216,9 +218,7 @@ class DeadLetterQueue:
         return entry_id
 
     async def get_pending_entries(
-        self,
-        limit: int = 100,
-        target: Optional[str] = None
+        self, limit: int = 100, target: Optional[str] = None
     ) -> List[DLQEntry]:
         """Get entries ready for retry."""
         if not self._initialized:
@@ -230,19 +230,25 @@ class DeadLetterQueue:
             db.row_factory = aiosqlite.Row
 
             if target:
-                rows = await db.execute_fetchall("""
+                rows = await db.execute_fetchall(
+                    """
                     SELECT * FROM dead_letter_queue
                     WHERE status = ? AND target = ? AND next_retry_at <= ?
                     ORDER BY created_at ASC
                     LIMIT ?
-                """, (DLQStatus.PENDING.value, target, now, limit))
+                """,
+                    (DLQStatus.PENDING.value, target, now, limit),
+                )
             else:
-                rows = await db.execute_fetchall("""
+                rows = await db.execute_fetchall(
+                    """
                     SELECT * FROM dead_letter_queue
                     WHERE status = ? AND next_retry_at <= ?
                     ORDER BY created_at ASC
                     LIMIT ?
-                """, (DLQStatus.PENDING.value, now, limit))
+                """,
+                    (DLQStatus.PENDING.value, now, limit),
+                )
 
         return [
             DLQEntry(
@@ -256,7 +262,7 @@ class DeadLetterQueue:
                 max_retries=row["max_retries"],
                 created_at=row["created_at"],
                 last_retry_at=row["last_retry_at"],
-                next_retry_at=row["next_retry_at"]
+                next_retry_at=row["next_retry_at"],
             )
             for row in rows
         ]
@@ -278,11 +284,14 @@ class DeadLetterQueue:
 
         # Mark as retrying
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
+            await db.execute(
+                """
                 UPDATE dead_letter_queue
                 SET status = ?, last_retry_at = ?, retry_count = retry_count + 1
                 WHERE id = ?
-            """, (DLQStatus.RETRYING.value, now.isoformat(), entry.id))
+            """,
+                (DLQStatus.RETRYING.value, now.isoformat(), entry.id),
+            )
             await db.commit()
 
         try:
@@ -291,11 +300,14 @@ class DeadLetterQueue:
             if success:
                 # Mark as succeeded
                 async with aiosqlite.connect(self.db_path) as db:
-                    await db.execute("""
+                    await db.execute(
+                        """
                         UPDATE dead_letter_queue
                         SET status = ?
                         WHERE id = ?
-                    """, (DLQStatus.SUCCEEDED.value, entry.id))
+                    """,
+                        (DLQStatus.SUCCEEDED.value, entry.id),
+                    )
                     await db.commit()
                 logger.info(f"DLQ entry {entry.id} succeeded on retry")
                 return True
@@ -309,29 +321,35 @@ class DeadLetterQueue:
             if new_retry_count >= entry.max_retries:
                 # Mark as permanently failed
                 async with aiosqlite.connect(self.db_path) as db:
-                    await db.execute("""
+                    await db.execute(
+                        """
                         UPDATE dead_letter_queue
                         SET status = ?, error = ?
                         WHERE id = ?
-                    """, (DLQStatus.FAILED.value, error_msg, entry.id))
+                    """,
+                        (DLQStatus.FAILED.value, error_msg, entry.id),
+                    )
                     await db.commit()
                 logger.error(f"DLQ entry {entry.id} permanently failed: {error_msg}")
             else:
                 # Calculate next retry with exponential backoff
-                delay = self.base_delay_seconds * (2 ** new_retry_count)
+                delay = self.base_delay_seconds * (2**new_retry_count)
                 next_retry = now + timedelta(seconds=delay)
 
                 async with aiosqlite.connect(self.db_path) as db:
-                    await db.execute("""
+                    await db.execute(
+                        """
                         UPDATE dead_letter_queue
                         SET status = ?, error = ?, next_retry_at = ?
                         WHERE id = ?
-                    """, (
-                        DLQStatus.PENDING.value,
-                        error_msg,
-                        next_retry.isoformat(),
-                        entry.id
-                    ))
+                    """,
+                        (
+                            DLQStatus.PENDING.value,
+                            error_msg,
+                            next_retry.isoformat(),
+                            entry.id,
+                        ),
+                    )
                     await db.commit()
                 logger.warning(
                     f"DLQ entry {entry.id} retry failed, next attempt at {next_retry}"
@@ -340,9 +358,7 @@ class DeadLetterQueue:
             return False
 
     async def retry_failed_writes(
-        self,
-        target: Optional[str] = None,
-        limit: int = 100
+        self, target: Optional[str] = None, limit: int = 100
     ) -> Dict[str, int]:
         """
         Retry pending entries.
@@ -379,16 +395,19 @@ class DeadLetterQueue:
 
         async with aiosqlite.connect(self.db_path) as db:
             # Mark old entries as expired
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 UPDATE dead_letter_queue
                 SET status = ?
                 WHERE created_at < ? AND status IN (?, ?)
-            """, (
-                DLQStatus.EXPIRED.value,
-                cutoff,
-                DLQStatus.SUCCEEDED.value,
-                DLQStatus.FAILED.value
-            ))
+            """,
+                (
+                    DLQStatus.EXPIRED.value,
+                    cutoff,
+                    DLQStatus.SUCCEEDED.value,
+                    DLQStatus.FAILED.value,
+                ),
+            )
             await db.commit()
             expired_count = cursor.rowcount
 
@@ -396,10 +415,13 @@ class DeadLetterQueue:
             very_old = (
                 datetime.utcnow() - timedelta(days=self.retention_days * 2)
             ).isoformat()
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                """
                 DELETE FROM dead_letter_queue
                 WHERE created_at < ? AND status = ?
-            """, (very_old, DLQStatus.EXPIRED.value))
+            """,
+                (very_old, DLQStatus.EXPIRED.value),
+            )
             await db.commit()
             deleted_count = cursor.rowcount
 
@@ -431,17 +453,19 @@ class DeadLetterQueue:
 
             # Recent failures (last 24h)
             cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
-            rows = await db.execute_fetchall("""
+            rows = await db.execute_fetchall(
+                """
                 SELECT operation, target, COUNT(*) as count
                 FROM dead_letter_queue
                 WHERE created_at > ?
                 GROUP BY operation, target
                 ORDER BY count DESC
                 LIMIT 10
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
             recent_failures = [
-                {"operation": r[0], "target": r[1], "count": r[2]}
-                for r in rows
+                {"operation": r[0], "target": r[1], "count": r[2]} for r in rows
             ]
 
         return {

@@ -115,8 +115,14 @@ class TestBatchEndpointHTTP:
             for i in range(3)
         ]
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task"):
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task"),
+        ):
             result = await capture_extension_batch(events)
 
         assert result["captured"] == 3
@@ -136,7 +142,9 @@ class TestBatchEndpointHTTP:
             for i in range(3)
         ]
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool):
+        with patch(
+            "api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool
+        ):
             result = await capture_extension_batch(events)
 
         assert result["duplicates"] == 3
@@ -154,8 +162,14 @@ class TestBatchEndpointHTTP:
             for i in range(60)
         ]
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task"):
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task"),
+        ):
             result = await capture_extension_batch(events)
 
         assert result["total"] == 50
@@ -167,7 +181,9 @@ class TestBatchEndpointHTTP:
 
         pool, conn = _make_mock_pool()
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool):
+        with patch(
+            "api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool
+        ):
             result = await capture_extension_batch([])
 
         assert result["total"] == 0
@@ -180,10 +196,18 @@ class TestBatchEndpointHTTP:
 
         pool, conn = _make_mock_pool(dedup_hit=False)
 
-        events = [ExtensionEvent(**make_event(content=f"tx event {i}")) for i in range(3)]
+        events = [
+            ExtensionEvent(**make_event(content=f"tx event {i}")) for i in range(3)
+        ]
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task"):
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task"),
+        ):
             await capture_extension_batch(events)
 
         # transaction() was called once for the whole batch
@@ -212,8 +236,14 @@ class TestBatchEndpointHTTP:
             for i in range(3)
         ]
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task"):
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task"),
+        ):
             result = await capture_extension_batch(events)
 
         assert result["errors"] >= 1
@@ -228,8 +258,14 @@ class TestBatchEndpointHTTP:
 
         events = [ExtensionEvent(**make_event())]
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task"):
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task"),
+        ):
             result = await capture_extension_batch(events)
 
         assert set(result.keys()) == {"captured", "duplicates", "errors", "total"}
@@ -248,8 +284,14 @@ class TestBatchEndpointHTTP:
             for i in range(3)
         ]
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task") as mock_task:
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task") as mock_task,
+        ):
             result = await capture_extension_batch(events)
 
         assert result["captured"] == 3
@@ -267,7 +309,9 @@ class TestBatchEdgeCases:
         from api.routes.coherence import _build_extension_event, ExtensionEvent
 
         ev = ExtensionEvent(
-            **make_event(content="Analyzing 量子コンピューティング research — emergence detected!")
+            **make_event(
+                content="Analyzing 量子コンピューティング research — emergence detected!"
+            )
         )
         fields = _build_extension_event(ev)
         data = json.loads(fields["data_layer"])
@@ -343,7 +387,11 @@ class TestEmbeddingPipelineUnit:
 
         row = {
             "data_layer": {"content": "Analyzing sovereign AI architecture"},
-            "light_layer": {"topic": "AI", "intent": "analyze", "concepts": ["sovereign"]},
+            "light_layer": {
+                "topic": "AI",
+                "intent": "analyze",
+                "concepts": ["sovereign"],
+            },
             "platform": "chatgpt",
             "cognitive_mode": "deep_work",
         }

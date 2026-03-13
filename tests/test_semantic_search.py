@@ -30,21 +30,16 @@ async def test_search(query: str = "multi-agent consensus"):
         await q.close()
         return
 
-    print(f"\n🔍 Searching findings (with Cohere reranking)...")
+    print("\n🔍 Searching findings (with Cohere reranking)...")
     try:
-        results = await q.search_findings(
-            query,
-            limit=5,
-            rerank=True,
-            min_score=0.3
-        )
+        results = await q.search_findings(query, limit=5, rerank=True, min_score=0.3)
 
         if results:
             for i, r in enumerate(results, 1):
-                score = r.get('relevance_score', r.get('score', 0))
-                content = r.get('content', '')[:150]
-                session = r.get('session_id', 'unknown')[:35]
-                finding_type = r.get('type', 'unknown')
+                score = r.get("relevance_score", r.get("score", 0))
+                content = r.get("content", "")[:150]
+                session = r.get("session_id", "unknown")[:35]
+                finding_type = r.get("type", "unknown")
                 print(f"\n{i}. [Score: {score:.3f}] Type: {finding_type}")
                 print(f"   Session: {session}")
                 print(f"   {content}...")
@@ -54,6 +49,7 @@ async def test_search(query: str = "multi-agent consensus"):
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
 
     await q.close()
@@ -69,16 +65,16 @@ async def compare_search_modes(query: str = "agentic orchestration"):
     print("\n1️⃣  Vector Search Only (Cosine Similarity):")
     results_vector = await q.search_findings(query, limit=3, rerank=False)
     for i, r in enumerate(results_vector, 1):
-        score = r.get('score', 0)
-        content = r.get('content', '')[:80]
+        score = r.get("score", 0)
+        content = r.get("content", "")[:80]
         print(f"   {i}. [{score:.3f}] {content}...")
 
     # With reranking
     print("\n2️⃣  Vector + Reranking (Cohere rerank-v3.5):")
     results_reranked = await q.search_findings(query, limit=3, rerank=True)
     for i, r in enumerate(results_reranked, 1):
-        score = r.get('relevance_score', 0)
-        content = r.get('content', '')[:80]
+        score = r.get("relevance_score", 0)
+        content = r.get("content", "")[:80]
         print(f"   {i}. [{score:.3f}] {content}...")
 
     await q.close()

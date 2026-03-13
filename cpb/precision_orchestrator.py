@@ -31,28 +31,28 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable
 
-from .types import (
-    CPBPath
-)
+from .types import CPBPath
 from .precision_config import (
-    PRECISION_CONFIG, PrecisionConfig,
-    PRECISION_AGENT_PERSONAS, get_precision_agent_prompts
+    PRECISION_CONFIG,
+    PrecisionConfig,
+    PRECISION_AGENT_PERSONAS,
+    get_precision_agent_prompts,
 )
 from .rg_adapter import RGContext, rg_adapter
 from .critic_verifier import CriticVerifier, VerificationResult, verify
-from .search_layer import (
-    SearchContext, search_tiered, get_search_layer
-)
+from .search_layer import SearchContext, search_tiered, get_search_layer
 from .query_enhancer import enhance_query, EnhancedQuery
 
 # LLM client import (lazy to avoid circular deps)
 _llm_executor = None
+
 
 def _get_executor():
     """Get or create agent executor."""
     global _llm_executor
     if _llm_executor is None:
         from .llm_client import AgentExecutor, LLMClient
+
         _llm_executor = AgentExecutor(LLMClient())
     return _llm_executor
 
@@ -61,9 +61,11 @@ def _get_executor():
 # PRECISION RESULT
 # =============================================================================
 
+
 @dataclass
 class PrecisionResult:
     """Result from precision mode execution (v2 with ground truth)."""
+
     # Core output
     output: str = ""
     confidence: float = 0.0
@@ -124,7 +126,9 @@ class PrecisionResult:
     # Warnings and feedback
     warnings: List[str] = field(default_factory=list)
     feedback_history: List[str] = field(default_factory=list)
-    refinement_targets: List[str] = field(default_factory=list)  # Which DQ dims were targeted (v2)
+    refinement_targets: List[str] = field(
+        default_factory=list
+    )  # Which DQ dims were targeted (v2)
 
     # Query enhancement (v2.3)
     original_query: str = ""
@@ -143,7 +147,9 @@ class PrecisionResult:
     pioneer_mode: bool = False
     trust_context_provided: bool = False
     pioneer_auto_detected: bool = False  # True if pioneer mode was auto-enabled
-    pioneer_signals: List[str] = field(default_factory=list)  # Signals that triggered auto-detection
+    pioneer_signals: List[str] = field(
+        default_factory=list
+    )  # Signals that triggered auto-detection
 
     # Deep Research (v2.4)
     deep_research_used: bool = False
@@ -164,68 +170,68 @@ class PrecisionResult:
 
     def to_dict(self) -> Dict[str, Any]:
         result = {
-            'output': self.output,
-            'confidence': self.confidence,
-            'dq_score': self.dq_score,
-            'validity': self.validity,
-            'specificity': self.specificity,
-            'correctness': self.correctness,
+            "output": self.output,
+            "confidence": self.confidence,
+            "dq_score": self.dq_score,
+            "validity": self.validity,
+            "specificity": self.specificity,
+            "correctness": self.correctness,
             # Ground truth metrics (v2)
-            'ground_truth_score': self.ground_truth_score,
-            'factual_accuracy': self.factual_accuracy,
-            'cross_source_score': self.cross_source_score,
-            'self_consistency': self.self_consistency,
+            "ground_truth_score": self.ground_truth_score,
+            "factual_accuracy": self.factual_accuracy,
+            "cross_source_score": self.cross_source_score,
+            "self_consistency": self.self_consistency,
             # Claims analysis
-            'claims_checked': self.claims_checked,
-            'claims_verified': self.claims_verified,
-            'claims_contradicted': self.claims_contradicted,
-            'verified_claims': self.verified_claims,
-            'contradicted_claims': self.contradicted_claims,
+            "claims_checked": self.claims_checked,
+            "claims_verified": self.claims_verified,
+            "claims_contradicted": self.claims_contradicted,
+            "verified_claims": self.verified_claims,
+            "contradicted_claims": self.contradicted_claims,
             # Editorial
-            'thesis': self.thesis,
-            'gap': self.gap,
-            'innovation_direction': self.innovation_direction,
-            'verified': self.verified,
-            'needs_review': self.needs_review,
-            'verification': self.verification.to_dict() if self.verification else None,
-            'path': self.path.value,
-            'execution_time_ms': self.execution_time_ms,
-            'search_time_ms': self.search_time_ms,
-            'retry_count': self.retry_count,
-            'agent_count': self.agent_count,
-            'tier1_count': self.tier1_count,
-            'tier2_count': self.tier2_count,
-            'tier3_count': self.tier3_count,
-            'total_sources_found': self.total_sources_found,
-            'rg_connection_mode': self.rg_connection_mode,
-            'sources': self.sources,
-            'citations_found': self.citations_found,
-            'citations_verified': self.citations_verified,
-            'warnings': self.warnings,
-            'feedback_history': self.feedback_history,
-            'refinement_targets': self.refinement_targets,
+            "thesis": self.thesis,
+            "gap": self.gap,
+            "innovation_direction": self.innovation_direction,
+            "verified": self.verified,
+            "needs_review": self.needs_review,
+            "verification": self.verification.to_dict() if self.verification else None,
+            "path": self.path.value,
+            "execution_time_ms": self.execution_time_ms,
+            "search_time_ms": self.search_time_ms,
+            "retry_count": self.retry_count,
+            "agent_count": self.agent_count,
+            "tier1_count": self.tier1_count,
+            "tier2_count": self.tier2_count,
+            "tier3_count": self.tier3_count,
+            "total_sources_found": self.total_sources_found,
+            "rg_connection_mode": self.rg_connection_mode,
+            "sources": self.sources,
+            "citations_found": self.citations_found,
+            "citations_verified": self.citations_verified,
+            "warnings": self.warnings,
+            "feedback_history": self.feedback_history,
+            "refinement_targets": self.refinement_targets,
             # Query enhancement (v2.3)
-            'original_query': self.original_query,
-            'enhanced_query': self.enhanced_query,
-            'query_was_enhanced': self.query_was_enhanced,
-            'enhancement_reasoning': self.enhancement_reasoning,
-            'query_dimensions': self.query_dimensions,
-            'follow_up_queries': self.follow_up_queries,
+            "original_query": self.original_query,
+            "enhanced_query": self.enhanced_query,
+            "query_was_enhanced": self.query_was_enhanced,
+            "enhancement_reasoning": self.enhancement_reasoning,
+            "query_dimensions": self.query_dimensions,
+            "follow_up_queries": self.follow_up_queries,
             # Pioneer and Trust Context modes (v2.4)
-            'pioneer_mode': self.pioneer_mode,
-            'trust_context_provided': self.trust_context_provided,
-            'pioneer_auto_detected': self.pioneer_auto_detected,
-            'pioneer_signals': self.pioneer_signals,
+            "pioneer_mode": self.pioneer_mode,
+            "trust_context_provided": self.trust_context_provided,
+            "pioneer_auto_detected": self.pioneer_auto_detected,
+            "pioneer_signals": self.pioneer_signals,
             # Deep Research (v2.4)
-            'deep_research_used': self.deep_research_used,
-            'deep_research_provider': self.deep_research_provider,
-            'deep_research_time_ms': self.deep_research_time_ms,
-            'deep_research_citations': self.deep_research_citations,
+            "deep_research_used": self.deep_research_used,
+            "deep_research_provider": self.deep_research_provider,
+            "deep_research_time_ms": self.deep_research_time_ms,
+            "deep_research_citations": self.deep_research_citations,
             # Cost Tracking (v2.5)
-            'deep_research_cost_usd': self.deep_research_cost_usd,
-            'deep_research_tokens': self.deep_research_tokens,
-            'total_cost_usd': self.total_cost_usd,
-            'phase_timings': self.phase_timings,
+            "deep_research_cost_usd": self.deep_research_cost_usd,
+            "deep_research_tokens": self.deep_research_tokens,
+            "total_cost_usd": self.total_cost_usd,
+            "phase_timings": self.phase_timings,
         }
         return result
 
@@ -233,6 +239,7 @@ class PrecisionResult:
 @dataclass
 class PrecisionStatus:
     """Real-time status for precision execution."""
+
     phase: str = "initializing"
     progress: int = 0
     current_step: str = ""
@@ -247,6 +254,7 @@ class PrecisionStatus:
 # =============================================================================
 # PRECISION ORCHESTRATOR
 # =============================================================================
+
 
 class PrecisionOrchestrator:
     """
@@ -276,7 +284,7 @@ class PrecisionOrchestrator:
         pioneer: bool = False,
         trust_context: bool = False,
         deep_research: bool = False,
-        deep_provider: Optional[str] = None
+        deep_provider: Optional[str] = None,
     ) -> PrecisionResult:
         """
         Execute precision mode v2.4 query with query enhancement, mode flags, and deep research.
@@ -311,7 +319,7 @@ class PrecisionOrchestrator:
             path=CPBPath.CASCADE,
             agent_count=self.config.ace_config.agent_count,
             pioneer_mode=pioneer,
-            trust_context_provided=trust_context
+            trust_context_provided=trust_context,
         )
 
         try:
@@ -322,7 +330,9 @@ class PrecisionOrchestrator:
             working_query = query
 
             if enhance:
-                self._update_status("enhancing", 2, "Enhancing query for research depth...")
+                self._update_status(
+                    "enhancing", 2, "Enhancing query for research depth..."
+                )
                 try:
                     enhanced = await enhance_query(query, context, model="haiku")
                     result.enhanced_query = enhanced.enhanced
@@ -332,15 +342,23 @@ class PrecisionOrchestrator:
                     result.follow_up_queries = enhanced.follow_ups
 
                     # Store pioneer suggestion from enhancer (v2.5 - proper fields)
-                    result.enhancer_suggest_pioneer = getattr(enhanced, 'suggest_pioneer', False)
-                    result.enhancer_pioneer_signals = getattr(enhanced, 'pioneer_signals', []) or []
+                    result.enhancer_suggest_pioneer = getattr(
+                        enhanced, "suggest_pioneer", False
+                    )
+                    result.enhancer_pioneer_signals = (
+                        getattr(enhanced, "pioneer_signals", []) or []
+                    )
 
                     if enhanced.was_enhanced:
                         working_query = enhanced.enhanced
-                        self._update_status("enhancing", 4, f"Enhanced: {working_query[:60]}...")
+                        self._update_status(
+                            "enhancing", 4, f"Enhanced: {working_query[:60]}..."
+                        )
                     else:
                         result.enhanced_query = query  # Keep original if already good
-                        self._update_status("enhancing", 4, "Query already research-grade")
+                        self._update_status(
+                            "enhancing", 4, "Query already research-grade"
+                        )
                 except Exception as e:
                     # Enhancement failed, continue with original
                     result.enhanced_query = query
@@ -357,9 +375,16 @@ class PrecisionOrchestrator:
             # =================================================================
             deep_research_results = []
             if deep_research:
-                self._update_status("deep_research", 6, f"Running deep research via {deep_provider or 'auto'}...")
+                self._update_status(
+                    "deep_research",
+                    6,
+                    f"Running deep research via {deep_provider or 'auto'}...",
+                )
                 try:
-                    from .deep_research import deep_research as do_deep_research, get_best_available_provider
+                    from .deep_research import (
+                        deep_research as do_deep_research,
+                        get_best_available_provider,
+                    )
 
                     # Auto-detect provider if not specified
                     if not deep_provider:
@@ -367,42 +392,54 @@ class PrecisionOrchestrator:
 
                     if deep_provider:
                         dr_result, dr_search_results = await do_deep_research(
-                            working_query,
-                            provider=deep_provider
+                            working_query, provider=deep_provider
                         )
                         deep_research_results = dr_search_results
 
                         # Store deep research metadata
                         result.deep_research_used = True
-                        result.deep_research_provider = f"{dr_result.provider}/{dr_result.model}"
+                        result.deep_research_provider = (
+                            f"{dr_result.provider}/{dr_result.model}"
+                        )
                         result.deep_research_time_ms = dr_result.search_time_ms
                         result.deep_research_citations = len(dr_result.citations)
-                        result.deep_research_content = dr_result.content[:2000]  # Truncate for storage
+                        result.deep_research_content = dr_result.content[
+                            :2000
+                        ]  # Truncate for storage
                         # Cost tracking (v2.5)
                         result.deep_research_cost_usd = dr_result.cost_usd
                         result.deep_research_tokens = dr_result.token_count
-                        result.phase_timings['deep_research'] = dr_result.search_time_ms
+                        result.phase_timings["deep_research"] = dr_result.search_time_ms
 
                         self._update_status(
-                            "deep_research", 10,
-                            f"Deep research: {len(dr_result.citations)} citations in {dr_result.search_time_ms}ms (${dr_result.cost_usd:.4f})"
+                            "deep_research",
+                            10,
+                            f"Deep research: {len(dr_result.citations)} citations in {dr_result.search_time_ms}ms (${dr_result.cost_usd:.4f})",
                         )
                     else:
-                        result.warnings.append("Deep research requested but no provider available")
+                        result.warnings.append(
+                            "Deep research requested but no provider available"
+                        )
                 except Exception as e:
                     result.warnings.append(f"Deep research failed: {str(e)[:100]}")
-                    self._update_status("deep_research", 10, f"Deep research failed: {str(e)[:50]}")
+                    self._update_status(
+                        "deep_research", 10, f"Deep research failed: {str(e)[:50]}"
+                    )
 
             # =================================================================
             # PHASE 1: TIERED SEARCH (ResearchGravity methodology)
             # =================================================================
-            self._update_status("searching", 5, "Tier 1: Searching arXiv, labs, industry...")
+            self._update_status(
+                "searching", 5, "Tier 1: Searching arXiv, labs, industry..."
+            )
             search_context = await self._execute_tiered_search(working_query)
 
             # Inject deep research results as Tier 1 sources (at the top)
             if deep_research_results:
                 search_context.results = deep_research_results + search_context.results
-                search_context.tier1_results = deep_research_results + search_context.tier1_results
+                search_context.tier1_results = (
+                    deep_research_results + search_context.tier1_results
+                )
                 # Rebuild citation context to include deep research
                 search_context.build_citation_context()
 
@@ -411,12 +448,15 @@ class PrecisionOrchestrator:
             result.tier2_count = len(search_context.tier2_results)
             result.tier3_count = len(search_context.tier3_results)
             result.total_sources_found = len(search_context.results)
-            result.phase_timings['search'] = search_context.search_time_ms
+            result.phase_timings["search"] = search_context.search_time_ms
 
-            dr_suffix = f" +{len(deep_research_results)} deep" if deep_research_results else ""
+            dr_suffix = (
+                f" +{len(deep_research_results)} deep" if deep_research_results else ""
+            )
             self._update_status(
-                "searching", 15,
-                f"Found {result.total_sources_found} sources (T1:{result.tier1_count} T2:{result.tier2_count} T3:{result.tier3_count}){dr_suffix}"
+                "searching",
+                15,
+                f"Found {result.total_sources_found} sources (T1:{result.tier1_count} T2:{result.tier2_count} T3:{result.tier3_count}){dr_suffix}",
             )
 
             # =================================================================
@@ -428,19 +468,29 @@ class PrecisionOrchestrator:
             # Signal 1: Query enhancer detected pioneer indicators
             if result.enhancer_suggest_pioneer:
                 enhancer_signals = result.enhancer_pioneer_signals
-                pioneer_signals.extend(enhancer_signals or ["query targets cutting-edge research"])
+                pioneer_signals.extend(
+                    enhancer_signals or ["query targets cutting-edge research"]
+                )
 
             # Signal 2: Sparse Tier 1 results (< 3 high-quality sources)
             if result.tier1_count < 3:
-                pioneer_signals.append(f"sparse Tier 1 results ({result.tier1_count} found)")
+                pioneer_signals.append(
+                    f"sparse Tier 1 results ({result.tier1_count} found)"
+                )
 
             # Signal 3: Very recent sources dominate (most sources < 14 days old)
             recent_count = sum(
-                1 for r in search_context.results
+                1
+                for r in search_context.results
                 if r.published_date and (datetime.now() - r.published_date).days < 14
             )
-            if result.total_sources_found > 0 and recent_count / result.total_sources_found > 0.6:
-                pioneer_signals.append(f"mostly recent sources ({recent_count}/{result.total_sources_found} < 14 days)")
+            if (
+                result.total_sources_found > 0
+                and recent_count / result.total_sources_found > 0.6
+            ):
+                pioneer_signals.append(
+                    f"mostly recent sources ({recent_count}/{result.total_sources_found} < 14 days)"
+                )
 
             # Signal 4: User provided context (suggests synthesis request)
             if context and len(context) > 500:
@@ -451,7 +501,11 @@ class PrecisionOrchestrator:
                 pioneer = True
                 result.pioneer_auto_detected = True
                 result.pioneer_signals = pioneer_signals
-                self._update_status("routing", 18, f"Auto-enabled pioneer mode: {', '.join(pioneer_signals[:2])}")
+                self._update_status(
+                    "routing",
+                    18,
+                    f"Auto-enabled pioneer mode: {', '.join(pioneer_signals[:2])}",
+                )
 
             # Store final pioneer state
             result.pioneer_mode = pioneer
@@ -461,7 +515,11 @@ class PrecisionOrchestrator:
             # =================================================================
             self._update_status("grounding", 20, "Building citation-ready context...")
             grounding_prompt = search_context.get_grounding_prompt()
-            result.grounding_prompt = grounding_prompt[:2000] + "..." if len(grounding_prompt) > 2000 else grounding_prompt
+            result.grounding_prompt = (
+                grounding_prompt[:2000] + "..."
+                if len(grounding_prompt) > 2000
+                else grounding_prompt
+            )
 
             # Also get RG context for internal learnings
             rg_context = await self._enrich_context(working_query, context)
@@ -473,19 +531,21 @@ class PrecisionOrchestrator:
                 user_context=context,
                 search_context=search_context,
                 rg_context=rg_context,
-                trust_context=trust_context
+                trust_context=trust_context,
             )
             result.context_used = enriched_context[:1000] + "..."
 
             # =================================================================
             # PHASE 3: CASCADE EXECUTION (with grounded prompts)
             # =================================================================
-            self._update_status("executing", 30, "Running 7-agent cascade with grounded sources...")
+            self._update_status(
+                "executing", 30, "Running 7-agent cascade with grounded sources..."
+            )
             cascade_result = await self._execute_grounded_cascade(
                 working_query, enriched_context, search_context
             )
-            result.output = cascade_result.get('output', '')
-            result.sources = cascade_result.get('sources', [])
+            result.output = cascade_result.get("output", "")
+            result.sources = cascade_result.get("sources", [])
 
             # =================================================================
             # PHASE 4: MAR CONSENSUS (Multi-Agent Reflexion)
@@ -494,15 +554,19 @@ class PrecisionOrchestrator:
             mar_result = await self._execute_mar_consensus(
                 working_query, result.output, enriched_context, search_context
             )
-            result.output = mar_result.get('output', result.output)
+            result.output = mar_result.get("output", result.output)
 
             # =================================================================
             # PHASE 5: VERIFICATION + TARGETED REFINEMENT (IMPROVE pattern)
             # =================================================================
             self._update_status("verifying", 60, "Running critic verification...")
             verification = await self._verify_result(
-                result.output, result.sources, working_query, enriched_context,
-                pioneer_mode=pioneer, trust_context=trust_context
+                result.output,
+                result.sources,
+                working_query,
+                enriched_context,
+                pioneer_mode=pioneer,
+                trust_context=trust_context,
             )
 
             result.verification = verification
@@ -528,8 +592,8 @@ class PrecisionOrchestrator:
             # Targeted refinement loop (IMPROVE pattern)
             retry = 0
             while (
-                verification.dq_score < self.config.dq_threshold and
-                retry < self.config.max_retries
+                verification.dq_score < self.config.dq_threshold
+                and retry < self.config.max_retries
             ):
                 retry += 1
 
@@ -538,10 +602,11 @@ class PrecisionOrchestrator:
                 result.refinement_targets.append(weakest_dim)
 
                 self._update_status(
-                    "refining", 60 + (retry * 8),
+                    "refining",
+                    60 + (retry * 8),
                     f"Refining {weakest_dim} (DQ: {verification.dq_score:.2f})",
                     retry_attempt=retry,
-                    current_dq=verification.dq_score
+                    current_dq=verification.dq_score,
                 )
 
                 # Generate targeted feedback
@@ -552,13 +617,17 @@ class PrecisionOrchestrator:
                 cascade_result = await self._execute_grounded_cascade(
                     working_query, enriched_context, search_context, feedback=feedback
                 )
-                result.output = cascade_result.get('output', '')
-                result.sources = cascade_result.get('sources', [])
+                result.output = cascade_result.get("output", "")
+                result.sources = cascade_result.get("sources", [])
 
                 # Re-verify (v2.4: pass mode flags)
                 verification = await self._verify_result(
-                    result.output, result.sources, working_query, enriched_context,
-                    pioneer_mode=pioneer, trust_context=trust_context
+                    result.output,
+                    result.sources,
+                    working_query,
+                    enriched_context,
+                    pioneer_mode=pioneer,
+                    trust_context=trust_context,
                 )
 
                 result.verification = verification
@@ -591,17 +660,19 @@ class PrecisionOrchestrator:
             # =================================================================
             self._update_status("framing", 95, "Extracting editorial frame...")
             editorial = self._extract_editorial_frame(result.output)
-            result.thesis = editorial.get('thesis', '')
-            result.gap = editorial.get('gap', '')
-            result.innovation_direction = editorial.get('innovation_direction', '')
+            result.thesis = editorial.get("thesis", "")
+            result.gap = editorial.get("gap", "")
+            result.innovation_direction = editorial.get("innovation_direction", "")
 
             # Complete
             elapsed_ms = int((time.time() - start_time) * 1000)
             result.execution_time_ms = elapsed_ms
-            result.phase_timings['total'] = elapsed_ms
+            result.phase_timings["total"] = elapsed_ms
 
             # Calculate total cost (v2.5)
-            result.total_cost_usd = result.deep_research_cost_usd  # Add LLM costs if tracked
+            result.total_cost_usd = (
+                result.deep_research_cost_usd
+            )  # Add LLM costs if tracked
 
             # =================================================================
             # v2.2: STORE VERIFIED CLAIMS TO CORPUS (high-quality only)
@@ -610,6 +681,7 @@ class PrecisionOrchestrator:
             if result.dq_score >= 0.80 and result.citations_verified > 0:
                 try:
                     from .ground_truth import store_verified_claims, ClaimExtractor
+
                     extractor = ClaimExtractor()
                     claims = extractor.extract_claims(result.output)
                     store_verified_claims(
@@ -629,21 +701,24 @@ class PrecisionOrchestrator:
             # Every run gets logged - compute was used, capture the output
             try:
                 from .run_logger import log_run
+
                 log_result = log_run(result, query)
-                result.run_id = log_result.get('run_id', '')
-                result.run_tier = log_result.get('tier', '')
-                result.run_path = log_result.get('path', '')
+                result.run_id = log_result.get("run_id", "")
+                result.run_tier = log_result.get("tier", "")
+                result.run_path = log_result.get("path", "")
             except Exception:
                 pass  # Logging is best-effort
 
             self._update_status(
-                "complete", 100,
+                "complete",
+                100,
                 f"Done (DQ: {result.dq_score:.3f}, retries: {retry}, sources: {result.total_sources_found})",
-                current_dq=result.dq_score
+                current_dq=result.dq_score,
             )
 
         except Exception as e:
             import traceback
+
             result.warnings.append(f"Execution error: {str(e)}")
             result.warnings.append(traceback.format_exc())
             self._update_status("error", 0, f"Error: {str(e)}")
@@ -674,7 +749,7 @@ class PrecisionOrchestrator:
         search_context: SearchContext,
         rg_context: RGContext,
         budget: int = 20000,
-        trust_context: bool = False
+        trust_context: bool = False,
     ) -> str:
         """
         Build grounded context with citation-ready sources.
@@ -698,6 +773,7 @@ class PrecisionOrchestrator:
         # at the top of the search results
         if trust_context and user_context:
             from .search_layer import create_trusted_user_context
+
             trusted_result = create_trusted_user_context(user_context)
             # Prepend to search results
             search_context.results.insert(0, trusted_result)
@@ -708,13 +784,13 @@ class PrecisionOrchestrator:
         # Grounding prompt (search results - highest priority)
         grounding = search_context.get_grounding_prompt()
         if grounding and remaining > 0:
-            grounding_truncated = grounding[:min(len(grounding), remaining // 2)]
+            grounding_truncated = grounding[: min(len(grounding), remaining // 2)]
             parts.append(grounding_truncated)
             remaining -= len(grounding_truncated)
 
         # User context (if not already included as trusted source)
         if user_context and remaining > 0 and not trust_context:
-            user_truncated = user_context[:min(len(user_context), remaining // 3)]
+            user_truncated = user_context[: min(len(user_context), remaining // 3)]
             parts.append(f"## Additional Context\n{user_truncated}")
             remaining -= len(user_truncated)
 
@@ -735,7 +811,7 @@ class PrecisionOrchestrator:
         query: str,
         context: str,
         search_context: SearchContext,
-        feedback: Optional[str] = None
+        feedback: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Execute cascade with grounded prompts.
@@ -756,14 +832,18 @@ class PrecisionOrchestrator:
 """
 
         for prompt in prompts:
-            prompt['user_prompt'] = grounding_instruction + "\n\n" + prompt['user_prompt']
-            prompt['full_prompt'] = grounding_instruction + "\n\n" + prompt['full_prompt']
+            prompt["user_prompt"] = (
+                grounding_instruction + "\n\n" + prompt["user_prompt"]
+            )
+            prompt["full_prompt"] = (
+                grounding_instruction + "\n\n" + prompt["full_prompt"]
+            )
 
         # Add feedback if retrying
         if feedback:
             for prompt in prompts:
-                prompt['user_prompt'] += f"\n\n## REFINEMENT FEEDBACK\n{feedback}"
-                prompt['full_prompt'] += f"\n\n## REFINEMENT FEEDBACK\n{feedback}"
+                prompt["user_prompt"] += f"\n\n## REFINEMENT FEEDBACK\n{feedback}"
+                prompt["full_prompt"] += f"\n\n## REFINEMENT FEEDBACK\n{feedback}"
 
         # Get executor
         executor = _get_executor()
@@ -771,44 +851,46 @@ class PrecisionOrchestrator:
         # Check if LLM client is available
         if not executor.llm_client.get_available_providers():
             return {
-                'output': self._generate_stub_response(query, context, prompts, feedback),
-                'sources': self._extract_sources_from_search(search_context),
-                'prompts': prompts,
-                'agent_count': len(prompts),
-                'warning': 'No LLM providers available - using stub response'
+                "output": self._generate_stub_response(
+                    query, context, prompts, feedback
+                ),
+                "sources": self._extract_sources_from_search(search_context),
+                "prompts": prompts,
+                "agent_count": len(prompts),
+                "warning": "No LLM providers available - using stub response",
             }
 
         try:
             # Execute all agents in parallel
             self._update_status("executing", 35, "Running 7 agents in parallel...")
             agent_responses = await executor.execute_agents(
-                prompts,
-                model='sonnet',
-                max_tokens=2048
+                prompts, model="sonnet", max_tokens=2048
             )
 
             # Synthesize responses
-            self._update_status("synthesizing", 45, "Synthesizing agent perspectives...")
+            self._update_status(
+                "synthesizing", 45, "Synthesizing agent perspectives..."
+            )
             synthesis = await executor.synthesize_responses(
-                query,
-                agent_responses,
-                model='sonnet'
+                query, agent_responses, model="sonnet"
             )
 
             # Extract sources from search context
             sources = self._extract_sources_from_search(search_context)
 
             return {
-                'output': synthesis.content,
-                'sources': sources,
-                'prompts': prompts,
-                'agent_count': len(prompts),
-                'agent_responses': [
+                "output": synthesis.content,
+                "sources": sources,
+                "prompts": prompts,
+                "agent_count": len(prompts),
+                "agent_responses": [
                     {
-                        'agent': ar.agent_name,
-                        'role': ar.role,
-                        'confidence': ar.confidence,
-                        'response_preview': ar.response[:200] + '...' if len(ar.response) > 200 else ar.response
+                        "agent": ar.agent_name,
+                        "role": ar.role,
+                        "confidence": ar.confidence,
+                        "response_preview": ar.response[:200] + "..."
+                        if len(ar.response) > 200
+                        else ar.response,
                     }
                     for ar in agent_responses
                 ],
@@ -816,28 +898,34 @@ class PrecisionOrchestrator:
 
         except Exception as e:
             return {
-                'output': self._generate_stub_response(query, context, prompts, feedback),
-                'sources': self._extract_sources_from_search(search_context),
-                'prompts': prompts,
-                'agent_count': len(prompts),
-                'error': str(e)
+                "output": self._generate_stub_response(
+                    query, context, prompts, feedback
+                ),
+                "sources": self._extract_sources_from_search(search_context),
+                "prompts": prompts,
+                "agent_count": len(prompts),
+                "error": str(e),
             }
 
-    def _extract_sources_from_search(self, search_context: SearchContext) -> List[Dict[str, Any]]:
+    def _extract_sources_from_search(
+        self, search_context: SearchContext
+    ) -> List[Dict[str, Any]]:
         """Extract sources from search results for citation tracking."""
         sources = []
         for result in search_context.get_top_results(15):
-            sources.append({
-                'type': result.category.value,
-                'tier': result.tier.value,
-                'url': result.url,
-                'title': result.title,
-                'signal': result.signal_string,
-                'score': result.final_score,
-                # Include content for ground truth validation
-                'content': result.content or '',
-                'abstract': result.content[:500] if result.content else '',
-            })
+            sources.append(
+                {
+                    "type": result.category.value,
+                    "tier": result.tier.value,
+                    "url": result.url,
+                    "title": result.title,
+                    "signal": result.signal_string,
+                    "score": result.final_score,
+                    # Include content for ground truth validation
+                    "content": result.content or "",
+                    "abstract": result.content[:500] if result.content else "",
+                }
+            )
         return sources
 
     # =========================================================================
@@ -849,7 +937,7 @@ class PrecisionOrchestrator:
         query: str,
         initial_output: str,
         context: str,
-        search_context: SearchContext
+        search_context: SearchContext,
     ) -> Dict[str, Any]:
         """
         Execute MAR (Multi-Agent Reflexion) consensus pattern.
@@ -862,16 +950,16 @@ class PrecisionOrchestrator:
         executor = _get_executor()
 
         if not executor.llm_client.get_available_providers():
-            return {'output': initial_output}
+            return {"output": initial_output}
 
         try:
             # Define critic personas (from MAR pattern)
             critic_prompts = [
                 {
-                    'agent': 'ValidityCritic',
-                    'role': 'validity',
-                    'system_prompt': "You are a validity critic. Analyze logical coherence and technical feasibility.",
-                    'user_prompt': f"""Review this response for validity issues:
+                    "agent": "ValidityCritic",
+                    "role": "validity",
+                    "system_prompt": "You are a validity critic. Analyze logical coherence and technical feasibility.",
+                    "user_prompt": f"""Review this response for validity issues:
 
 {initial_output}
 
@@ -880,13 +968,13 @@ Find:
 2. Technically infeasible claims
 3. Unsupported assertions
 
-Output a brief critique with specific issues."""
+Output a brief critique with specific issues.""",
                 },
                 {
-                    'agent': 'EvidenceCritic',
-                    'role': 'evidence',
-                    'system_prompt': "You are an evidence critic. Verify all citations against sources.",
-                    'user_prompt': f"""Review this response for evidence quality:
+                    "agent": "EvidenceCritic",
+                    "role": "evidence",
+                    "system_prompt": "You are an evidence critic. Verify all citations against sources.",
+                    "user_prompt": f"""Review this response for evidence quality:
 
 {initial_output}
 
@@ -898,13 +986,13 @@ Check:
 2. Do sources support claims?
 3. Are there unsupported claims?
 
-Output a brief critique with specific issues."""
+Output a brief critique with specific issues.""",
                 },
                 {
-                    'agent': 'ActionabilityCritic',
-                    'role': 'actionability',
-                    'system_prompt': "You are an actionability critic. Assess practical value and specificity.",
-                    'user_prompt': f"""Review this response for actionability:
+                    "agent": "ActionabilityCritic",
+                    "role": "actionability",
+                    "system_prompt": "You are an actionability critic. Assess practical value and specificity.",
+                    "user_prompt": f"""Review this response for actionability:
 
 {initial_output}
 
@@ -913,22 +1001,21 @@ Check:
 2. Can a reader act on this?
 3. Are there vague or generic statements?
 
-Output a brief critique with specific issues."""
+Output a brief critique with specific issues.""",
                 },
             ]
 
             # Run critics in parallel
             critic_responses = await executor.execute_agents(
                 critic_prompts,
-                model='haiku',  # Use Haiku for critics (fast, cheap)
-                max_tokens=512
+                model="haiku",  # Use Haiku for critics (fast, cheap)
+                max_tokens=512,
             )
 
             # Synthesize critiques into improved output
-            critiques = "\n\n".join([
-                f"**{cr.agent_name}**: {cr.response}"
-                for cr in critic_responses
-            ])
+            critiques = "\n\n".join(
+                [f"**{cr.agent_name}**: {cr.response}" for cr in critic_responses]
+            )
 
             improvement_prompt = f"""Based on these critiques, improve the response:
 
@@ -945,19 +1032,17 @@ Generate an improved response that addresses all valid critiques while maintaini
 Include thesis, gap analysis, and innovation direction."""
 
             improved = await executor.llm_client.complete(
-                improvement_prompt,
-                model='sonnet',
-                max_tokens=3000
+                improvement_prompt, model="sonnet", max_tokens=3000
             )
 
             return {
-                'output': improved.content,
-                'critiques': critiques,
-                'critic_count': len(critic_responses),
+                "output": improved.content,
+                "critiques": critiques,
+                "critic_count": len(critic_responses),
             }
 
         except Exception as e:
-            return {'output': initial_output, 'error': str(e)}
+            return {"output": initial_output, "error": str(e)}
 
     # =========================================================================
     # PHASE 5: TARGETED REFINEMENT (IMPROVE pattern)
@@ -973,39 +1058,34 @@ Include thesis, gap analysis, and innovation direction."""
         v2 adds ground_truth as a targetable dimension.
         """
         dimensions = {
-            'validity': verification.validity,
-            'specificity': verification.specificity,
-            'correctness': verification.correctness,
-            'ground_truth': verification.ground_truth_score,  # v2
+            "validity": verification.validity,
+            "specificity": verification.specificity,
+            "correctness": verification.correctness,
+            "ground_truth": verification.ground_truth_score,  # v2
         }
         return min(dimensions, key=dimensions.get)
 
     def _generate_targeted_feedback(
-        self,
-        verification: VerificationResult,
-        target_dim: str
+        self, verification: VerificationResult, target_dim: str
     ) -> str:
         """Generate feedback targeting the weakest dimension (v2 with ground truth)."""
         prompts = {
-            'validity': """IMPROVE VALIDITY:
+            "validity": """IMPROVE VALIDITY:
 - Strengthen logical coherence
 - Add supporting evidence for claims
 - Remove technically infeasible statements
 - Ensure reasoning chain is sound""",
-
-            'specificity': """IMPROVE SPECIFICITY:
+            "specificity": """IMPROVE SPECIFICITY:
 - Add concrete details and numbers
 - Include specific examples from sources
 - Replace vague statements with precise ones
 - Add quantitative signals (stars, citations, dates)""",
-
-            'correctness': """IMPROVE CORRECTNESS:
+            "correctness": """IMPROVE CORRECTNESS:
 - Verify all claims against cited sources
 - Remove unsupported statements
 - Ensure citations match content
 - Fix any factual errors""",
-
-            'ground_truth': """IMPROVE GROUND TRUTH ACCURACY:
+            "ground_truth": """IMPROVE GROUND TRUTH ACCURACY:
 - Verify all factual claims against retrieved source content
 - Remove or qualify claims that multiple sources disagree on
 - Ensure consistency with previous responses on this topic
@@ -1038,52 +1118,48 @@ Include thesis, gap analysis, and innovation direction."""
         import re
 
         result = {
-            'thesis': '',
-            'gap': '',
-            'innovation_direction': '',
+            "thesis": "",
+            "gap": "",
+            "innovation_direction": "",
         }
 
         # Try to extract thesis
         thesis_patterns = [
-            r'##?\s*(?:Thesis|Summary|Key Finding)[:\s]*\n([^\n]+)',
-            r'(?:In summary|The key finding is|We find that)[:\s]*([^.]+\.)',
-            r'(?:^|\n)([A-Z][^.]+because[^.]+\.)',
+            r"##?\s*(?:Thesis|Summary|Key Finding)[:\s]*\n([^\n]+)",
+            r"(?:In summary|The key finding is|We find that)[:\s]*([^.]+\.)",
+            r"(?:^|\n)([A-Z][^.]+because[^.]+\.)",
         ]
         for pattern in thesis_patterns:
             match = re.search(pattern, output, re.IGNORECASE | re.MULTILINE)
             if match:
-                result['thesis'] = match.group(1).strip()
+                result["thesis"] = match.group(1).strip()
                 break
 
         # Try to extract gap
         gap_patterns = [
-            r'##?\s*(?:Gap|Missing|Limitation)[:\s]*\n([^\n]+)',
-            r'(?:The gap is|What\'s missing|However)[:\s]*([^.]+\.)',
+            r"##?\s*(?:Gap|Missing|Limitation)[:\s]*\n([^\n]+)",
+            r"(?:The gap is|What\'s missing|However)[:\s]*([^.]+\.)",
         ]
         for pattern in gap_patterns:
             match = re.search(pattern, output, re.IGNORECASE | re.MULTILINE)
             if match:
-                result['gap'] = match.group(1).strip()
+                result["gap"] = match.group(1).strip()
                 break
 
         # Try to extract innovation direction
         innovation_patterns = [
-            r'##?\s*(?:Innovation|Recommendation|Next Step)[:\s]*\n([^\n]+)',
-            r'(?:We recommend|The next step|Innovation opportunity)[:\s]*([^.]+\.)',
+            r"##?\s*(?:Innovation|Recommendation|Next Step)[:\s]*\n([^\n]+)",
+            r"(?:We recommend|The next step|Innovation opportunity)[:\s]*([^.]+\.)",
         ]
         for pattern in innovation_patterns:
             match = re.search(pattern, output, re.IGNORECASE | re.MULTILINE)
             if match:
-                result['innovation_direction'] = match.group(1).strip()
+                result["innovation_direction"] = match.group(1).strip()
                 break
 
         return result
 
-    async def _enrich_context(
-        self,
-        query: str,
-        context: Optional[str]
-    ) -> RGContext:
+    async def _enrich_context(self, query: str, context: Optional[str]) -> RGContext:
         """
         Enrich context from ResearchGravity.
 
@@ -1099,14 +1175,11 @@ Include thesis, gap analysis, and innovation direction."""
             limit=10,
             include_learnings=True,
             include_packs=True,
-            include_sessions=True
+            include_sessions=True,
         )
 
     def _merge_context(
-        self,
-        user_context: Optional[str],
-        rg_context: RGContext,
-        budget: int = 15000
+        self, user_context: Optional[str], rg_context: RGContext, budget: int = 15000
     ) -> str:
         """
         Merge user context with RG context within budget.
@@ -1124,7 +1197,7 @@ Include thesis, gap analysis, and innovation direction."""
 
         # User context first (highest priority)
         if user_context:
-            user_truncated = user_context[:min(len(user_context), budget // 2)]
+            user_truncated = user_context[: min(len(user_context), budget // 2)]
             parts.append(f"## User Context\n{user_truncated}")
             remaining -= len(user_truncated)
 
@@ -1136,10 +1209,7 @@ Include thesis, gap analysis, and innovation direction."""
         return "\n\n".join(parts)
 
     async def _execute_cascade(
-        self,
-        query: str,
-        context: str,
-        feedback: Optional[str] = None
+        self, query: str, context: str, feedback: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Execute cascade with 7-agent ACE consensus.
@@ -1160,8 +1230,12 @@ Include thesis, gap analysis, and innovation direction."""
         # Add feedback if retrying
         if feedback:
             for prompt in prompts:
-                prompt['user_prompt'] += f"\n\n## FEEDBACK FROM PREVIOUS ATTEMPT\n{feedback}"
-                prompt['full_prompt'] += f"\n\n## FEEDBACK FROM PREVIOUS ATTEMPT\n{feedback}"
+                prompt["user_prompt"] += (
+                    f"\n\n## FEEDBACK FROM PREVIOUS ATTEMPT\n{feedback}"
+                )
+                prompt["full_prompt"] += (
+                    f"\n\n## FEEDBACK FROM PREVIOUS ATTEMPT\n{feedback}"
+                )
 
         # Get executor
         executor = _get_executor()
@@ -1170,11 +1244,13 @@ Include thesis, gap analysis, and innovation direction."""
         if not executor.llm_client.get_available_providers():
             # Fall back to stub if no providers available
             return {
-                'output': self._generate_stub_response(query, context, prompts, feedback),
-                'sources': self._extract_sources(context),
-                'prompts': prompts,
-                'agent_count': len(prompts),
-                'warning': 'No LLM providers available - using stub response'
+                "output": self._generate_stub_response(
+                    query, context, prompts, feedback
+                ),
+                "sources": self._extract_sources(context),
+                "prompts": prompts,
+                "agent_count": len(prompts),
+                "warning": "No LLM providers available - using stub response",
             }
 
         try:
@@ -1182,16 +1258,18 @@ Include thesis, gap analysis, and innovation direction."""
             self._update_status("executing", 35, "Running 7 agents in parallel...")
             agent_responses = await executor.execute_agents(
                 prompts,
-                model='sonnet',  # Use Sonnet for agents (cost-effective)
-                max_tokens=2048
+                model="sonnet",  # Use Sonnet for agents (cost-effective)
+                max_tokens=2048,
             )
 
             # Synthesize responses
-            self._update_status("synthesizing", 50, "Synthesizing agent perspectives...")
+            self._update_status(
+                "synthesizing", 50, "Synthesizing agent perspectives..."
+            )
             synthesis = await executor.synthesize_responses(
                 query,
                 agent_responses,
-                model='sonnet'  # Use Sonnet for synthesis too
+                model="sonnet",  # Use Sonnet for synthesis too
             )
 
             # Extract sources from synthesis and context
@@ -1200,38 +1278,40 @@ Include thesis, gap analysis, and innovation direction."""
 
             # Calculate total cost
             total_cost = sum(
-                ar.llm_response.cost_usd
-                for ar in agent_responses
-                if ar.llm_response
+                ar.llm_response.cost_usd for ar in agent_responses if ar.llm_response
             )
             total_cost += synthesis.cost_usd
 
             return {
-                'output': synthesis.content,
-                'sources': sources,
-                'prompts': prompts,
-                'agent_count': len(prompts),
-                'agent_responses': [
+                "output": synthesis.content,
+                "sources": sources,
+                "prompts": prompts,
+                "agent_count": len(prompts),
+                "agent_responses": [
                     {
-                        'agent': ar.agent_name,
-                        'role': ar.role,
-                        'confidence': ar.confidence,
-                        'response_preview': ar.response[:200] + '...' if len(ar.response) > 200 else ar.response
+                        "agent": ar.agent_name,
+                        "role": ar.role,
+                        "confidence": ar.confidence,
+                        "response_preview": ar.response[:200] + "..."
+                        if len(ar.response) > 200
+                        else ar.response,
                     }
                     for ar in agent_responses
                 ],
-                'total_cost_usd': total_cost,
-                'synthesis_model': synthesis.model,
+                "total_cost_usd": total_cost,
+                "synthesis_model": synthesis.model,
             }
 
         except Exception as e:
             # Fall back to stub on error
             return {
-                'output': self._generate_stub_response(query, context, prompts, feedback),
-                'sources': self._extract_sources(context),
-                'prompts': prompts,
-                'agent_count': len(prompts),
-                'error': str(e)
+                "output": self._generate_stub_response(
+                    query, context, prompts, feedback
+                ),
+                "sources": self._extract_sources(context),
+                "prompts": prompts,
+                "agent_count": len(prompts),
+                "error": str(e),
             }
 
     def _generate_stub_response(
@@ -1239,7 +1319,7 @@ Include thesis, gap analysis, and innovation direction."""
         query: str,
         context: str,
         prompts: List[Dict[str, str]],
-        feedback: Optional[str]
+        feedback: Optional[str],
     ) -> str:
         """
         Generate stub response when LLM is unavailable.
@@ -1251,33 +1331,33 @@ Include thesis, gap analysis, and innovation direction."""
             "",
             "## Summary",
             f"This query was analyzed by {len(prompts)} specialized agents:",
-            ""
+            "",
         ]
 
         for prompt in prompts:
-            response_parts.append(f"- **{prompt['agent']}** ({prompt['role']}): Perspective considered")
+            response_parts.append(
+                f"- **{prompt['agent']}** ({prompt['role']}): Perspective considered"
+            )
 
-        response_parts.extend([
-            "",
-            "## Key Points",
-            "1. Evidence-based analysis conducted",
-            "2. Multiple perspectives synthesized",
-            "3. Citations required for all claims",
-            "",
-            "## Recommendations",
-            "- Review agent perspectives for detailed analysis",
-            "- Verify citations against sources",
-            "",
-            "*Note: LLM integration unavailable. Configure API keys to enable full functionality.*",
-            "*Run: python3 -m cpb.llm_client --setup to configure.*"
-        ])
+        response_parts.extend(
+            [
+                "",
+                "## Key Points",
+                "1. Evidence-based analysis conducted",
+                "2. Multiple perspectives synthesized",
+                "3. Citations required for all claims",
+                "",
+                "## Recommendations",
+                "- Review agent perspectives for detailed analysis",
+                "- Verify citations against sources",
+                "",
+                "*Note: LLM integration unavailable. Configure API keys to enable full functionality.*",
+                "*Run: python3 -m cpb.llm_client --setup to configure.*",
+            ]
+        )
 
         if feedback:
-            response_parts.extend([
-                "",
-                "## Addressed Feedback",
-                feedback
-            ])
+            response_parts.extend(["", "## Addressed Feedback", feedback])
 
         return "\n".join(response_parts)
 
@@ -1288,19 +1368,20 @@ Include thesis, gap analysis, and innovation direction."""
         sources = []
 
         # arXiv patterns
-        for match in re.finditer(r'arXiv:(\d{4}\.\d{4,5})', context, re.IGNORECASE):
-            sources.append({
-                'type': 'arxiv',
-                'arxiv_id': match.group(1),
-                'url': f'https://arxiv.org/abs/{match.group(1)}'
-            })
+        for match in re.finditer(r"arXiv:(\d{4}\.\d{4,5})", context, re.IGNORECASE):
+            sources.append(
+                {
+                    "type": "arxiv",
+                    "arxiv_id": match.group(1),
+                    "url": f"https://arxiv.org/abs/{match.group(1)}",
+                }
+            )
 
         # Session patterns
-        for match in re.finditer(r'([a-z]+-[a-z]+-\d{8}-\d{6})', context, re.IGNORECASE):
-            sources.append({
-                'type': 'session',
-                'session_id': match.group(1)
-            })
+        for match in re.finditer(
+            r"([a-z]+-[a-z]+-\d{8}-\d{6})", context, re.IGNORECASE
+        ):
+            sources.append({"type": "session", "session_id": match.group(1)})
 
         return sources
 
@@ -1311,7 +1392,7 @@ Include thesis, gap analysis, and innovation direction."""
         query: str,
         context: str,
         pioneer_mode: bool = False,
-        trust_context: bool = False
+        trust_context: bool = False,
     ) -> VerificationResult:
         """
         Run critic verification on result (v2.4 with mode flags).
@@ -1327,7 +1408,9 @@ Include thesis, gap analysis, and innovation direction."""
         Returns:
             VerificationResult with DQ score
         """
-        return await verify(output, sources, query, context, pioneer_mode, trust_context)
+        return await verify(
+            output, sources, query, context, pioneer_mode, trust_context
+        )
 
     def _update_status(
         self,
@@ -1335,7 +1418,7 @@ Include thesis, gap analysis, and innovation direction."""
         progress: int,
         message: str,
         retry_attempt: int = 0,
-        current_dq: float = 0.0
+        current_dq: float = 0.0,
     ):
         """Update status and call callback if set."""
         if self._status_callback:
@@ -1347,7 +1430,7 @@ Include thesis, gap analysis, and innovation direction."""
                 max_retries=self.config.max_retries,
                 current_dq=current_dq,
                 target_dq=self.config.dq_threshold,
-                message=message
+                message=message,
             )
             self._status_callback(status)
 
@@ -1358,22 +1441,21 @@ Include thesis, gap analysis, and innovation direction."""
     def get_status(self) -> Dict[str, Any]:
         """Get orchestrator status."""
         return {
-            'mode': 'precision',
-            'config': {
-                'dq_threshold': self.config.dq_threshold,
-                'max_retries': self.config.max_retries,
-                'agent_count': self.config.ace_config.agent_count,
-                'force_cascade': self.config.force_cascade,
-                'critic_validation': self.config.critic_validation,
+            "mode": "precision",
+            "config": {
+                "dq_threshold": self.config.dq_threshold,
+                "max_retries": self.config.max_retries,
+                "agent_count": self.config.ace_config.agent_count,
+                "force_cascade": self.config.force_cascade,
+                "critic_validation": self.config.critic_validation,
             },
-            'rg_status': self.rg_adapter.get_status()
+            "rg_status": self.rg_adapter.get_status(),
         }
 
     def get_agent_info(self) -> List[Dict[str, str]]:
         """Get information about precision agents."""
         return [
-            {'name': a['name'], 'role': a['role']}
-            for a in PRECISION_AGENT_PERSONAS
+            {"name": a["name"], "role": a["role"]} for a in PRECISION_AGENT_PERSONAS
         ]
 
 
@@ -1392,7 +1474,7 @@ async def execute_precision(
     pioneer: bool = False,
     trust_context: bool = False,
     deep_research: bool = False,
-    deep_provider: Optional[str] = None
+    deep_provider: Optional[str] = None,
 ) -> PrecisionResult:
     """
     Execute precision mode query with optional query enhancement (v2.4).
@@ -1411,8 +1493,14 @@ async def execute_precision(
         PrecisionResult with verified answer
     """
     return await precision_orchestrator.execute(
-        query, context, on_status, enhance, pioneer, trust_context,
-        deep_research, deep_provider
+        query,
+        context,
+        on_status,
+        enhance,
+        pioneer,
+        trust_context,
+        deep_research,
+        deep_provider,
     )
 
 
@@ -1424,6 +1512,7 @@ def get_precision_status() -> Dict[str, Any]:
 # =============================================================================
 # PRE/POST EXECUTION HOOKS
 # =============================================================================
+
 
 class PrecisionHooks:
     """
@@ -1466,7 +1555,7 @@ class PrecisionHooks:
 
     async def run_hooks(self, hook_type: str, data: Any) -> Any:
         """Run all hooks of a given type."""
-        hooks = getattr(self, f'_{hook_type}', [])
+        hooks = getattr(self, f"_{hook_type}", [])
         for hook in hooks:
             if asyncio.iscoroutinefunction(hook):
                 data = await hook(data)

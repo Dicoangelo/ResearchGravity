@@ -85,7 +85,9 @@ def pull_session(session_id: str = None):
         global_dir = global_base / session_id
     else:
         # Find most recent session
-        sessions = sorted(global_base.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+        sessions = sorted(
+            global_base.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True
+        )
         if not sessions:
             print("❌ No sessions found in global storage")
             return False
@@ -176,12 +178,16 @@ def sync_status():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync agent sessions between environments")
-    parser.add_argument("command", choices=["push", "pull", "status"],
-                        help="Sync command")
+    parser = argparse.ArgumentParser(
+        description="Sync agent sessions between environments"
+    )
+    parser.add_argument(
+        "command", choices=["push", "pull", "status"], help="Sync command"
+    )
     parser.add_argument("--session", help="Specific session ID (for pull)")
-    parser.add_argument("--force", action="store_true",
-                        help="Force overwrite without confirmation")
+    parser.add_argument(
+        "--force", action="store_true", help="Force overwrite without confirmation"
+    )
 
     args = parser.parse_args()
 

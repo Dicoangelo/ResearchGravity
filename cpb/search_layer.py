@@ -20,12 +20,14 @@ from enum import Enum
 # Optional imports for API access
 try:
     import arxiv
+
     HAS_ARXIV = True
 except ImportError:
     HAS_ARXIV = False
 
 try:
     import aiohttp
+
     HAS_AIOHTTP = True
 except ImportError:
     HAS_AIOHTTP = False
@@ -33,6 +35,7 @@ except ImportError:
 
 class SourceTier(Enum):
     """ResearchGravity source hierarchy."""
+
     TIER_1 = 1  # Primary: arXiv, labs, industry
     TIER_2 = 2  # Amplifiers: GitHub, benchmarks, social
     TIER_3 = 3  # Context: internal, newsletters
@@ -40,18 +43,20 @@ class SourceTier(Enum):
 
 class SourceCategory(Enum):
     """Source categories for filtering."""
-    RESEARCH = "research"      # arXiv, papers
-    LAB = "lab"                # OpenAI, Anthropic, Google AI
-    INDUSTRY = "industry"      # TechCrunch, Verge
-    GITHUB = "github"          # Repositories
-    BENCHMARK = "benchmark"    # METR, ARC Prize
-    SOCIAL = "social"          # Twitter/X
-    INTERNAL = "internal"      # Your learnings
+
+    RESEARCH = "research"  # arXiv, papers
+    LAB = "lab"  # OpenAI, Anthropic, Google AI
+    INDUSTRY = "industry"  # TechCrunch, Verge
+    GITHUB = "github"  # Repositories
+    BENCHMARK = "benchmark"  # METR, ARC Prize
+    SOCIAL = "social"  # Twitter/X
+    INTERNAL = "internal"  # Your learnings
 
 
 @dataclass
 class SearchResult:
     """A single search result with signal quantification."""
+
     url: str
     title: str
     content: str  # Abstract, description, or excerpt
@@ -63,17 +68,17 @@ class SearchResult:
 
     # Signal quantification (ResearchGravity methodology)
     published_date: Optional[datetime] = None
-    citations: Optional[int] = None      # For papers
-    stars: Optional[int] = None          # For GitHub
-    engagement: Optional[int] = None     # For social
+    citations: Optional[int] = None  # For papers
+    stars: Optional[int] = None  # For GitHub
+    engagement: Optional[int] = None  # For social
 
     # Computed scores
-    base_relevance: float = 0.0          # From search/embedding
-    time_decay_score: float = 0.0        # After recency adjustment
-    final_score: float = 0.0             # tier_weight × time_decay_score
+    base_relevance: float = 0.0  # From search/embedding
+    time_decay_score: float = 0.0  # After recency adjustment
+    final_score: float = 0.0  # tier_weight × time_decay_score
 
     # For citation formatting
-    signal_string: str = ""              # e.g., "★2.3k, 7 days old"
+    signal_string: str = ""  # e.g., "★2.3k, 7 days old"
 
     def __post_init__(self):
         self._compute_signal_string()
@@ -86,7 +91,7 @@ class SearchResult:
 
         if self.stars is not None:
             if self.stars >= 1000:
-                signals.append(f"★{self.stars/1000:.1f}k")
+                signals.append(f"★{self.stars / 1000:.1f}k")
             else:
                 signals.append(f"★{self.stars}")
 
@@ -114,20 +119,22 @@ class SearchResult:
     def _compute_time_decay(self):
         """Apply time-decay scoring based on source type."""
         if not self.published_date:
-            self.time_decay_score = self.base_relevance * 0.7  # Penalty for unknown date
+            self.time_decay_score = (
+                self.base_relevance * 0.7
+            )  # Penalty for unknown date
             return
 
         days_old = max(0, (datetime.now() - self.published_date).days)
 
         # Different decay rates by category (from my architecture)
         decay_rates = {
-            SourceCategory.RESEARCH: 0.03,    # 23-day half-life
-            SourceCategory.LAB: 0.05,         # 14-day half-life
-            SourceCategory.INDUSTRY: 0.15,    # 4.6-day half-life
-            SourceCategory.GITHUB: 0.02,      # 35-day half-life
-            SourceCategory.BENCHMARK: 0.04,   # 17-day half-life
-            SourceCategory.SOCIAL: 0.35,      # 2-day half-life
-            SourceCategory.INTERNAL: 0.01,    # 69-day half-life
+            SourceCategory.RESEARCH: 0.03,  # 23-day half-life
+            SourceCategory.LAB: 0.05,  # 14-day half-life
+            SourceCategory.INDUSTRY: 0.15,  # 4.6-day half-life
+            SourceCategory.GITHUB: 0.02,  # 35-day half-life
+            SourceCategory.BENCHMARK: 0.04,  # 17-day half-life
+            SourceCategory.SOCIAL: 0.35,  # 2-day half-life
+            SourceCategory.INTERNAL: 0.01,  # 69-day half-life
         }
 
         lambda_decay = decay_rates.get(self.category, 0.1)
@@ -156,6 +163,7 @@ class SearchResult:
 @dataclass
 class SearchContext:
     """Aggregated search results ready for agent injection."""
+
     query: str
     results: list[SearchResult] = field(default_factory=list)
 
@@ -165,7 +173,9 @@ class SearchContext:
     tier3_results: list[SearchResult] = field(default_factory=list)
 
     # For grounded generation
-    citation_context: dict[str, str] = field(default_factory=dict)  # source_id -> content
+    citation_context: dict[str, str] = field(
+        default_factory=dict
+    )  # source_id -> content
 
     search_time_ms: int = 0
 
@@ -178,13 +188,13 @@ class SearchContext:
         top_results = self.get_top_results(limit)
 
         for i, result in enumerate(top_results):
-            source_id = f"[{i+1}]"
+            source_id = f"[{i + 1}]"
             self.citation_context[source_id] = {
-                'url': result.url,
-                'title': result.title,
-                'content': result.content[:2000],  # Truncate for context window
-                'signal': result.signal_string,
-                'tier': result.tier.name,
+                "url": result.url,
+                "title": result.title,
+                "content": result.content[:2000],  # Truncate for context window
+                "signal": result.signal_string,
+                "tier": result.tier.name,
             }
 
     def get_grounding_prompt(self) -> str:
@@ -196,7 +206,7 @@ class SearchContext:
             "## Retrieved Sources (cite these ONLY)",
             "",
             "You MUST cite sources using [N] format. Only cite from this list:",
-            ""
+            "",
         ]
 
         for source_id, data in self.citation_context.items():
@@ -241,8 +251,8 @@ class TieredSearchLayer:
         if config_path.exists():
             with open(config_path) as f:
                 cfg = json.load(f)
-                self.cohere_key = cfg.get('cohere', {}).get('api_key')
-                self.github_token = cfg.get('github', {}).get('token')
+                self.cohere_key = cfg.get("cohere", {}).get("api_key")
+                self.github_token = cfg.get("github", {}).get("token")
         else:
             self.cohere_key = None
             self.github_token = None
@@ -264,10 +274,7 @@ class TieredSearchLayer:
         tier3_task = self._search_tier3(query, max_results_per_tier)
 
         results = await asyncio.gather(
-            tier1_task,
-            tier2_task,
-            tier3_task,
-            return_exceptions=True
+            tier1_task, tier2_task, tier3_task, return_exceptions=True
         )
 
         # Collect results
@@ -286,7 +293,9 @@ class TieredSearchLayer:
         # Build citation context
         context.build_citation_context()
 
-        context.search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        context.search_time_ms = int(
+            (datetime.now() - start_time).total_seconds() * 1000
+        )
 
         return context
 
@@ -352,17 +361,19 @@ class TieredSearchLayer:
                 query=arxiv_query,
                 max_results=limit * 2,  # Get more, then filter
                 sort_by=arxiv.SortCriterion.Relevance,  # Sort by relevance, not date
-                sort_order=arxiv.SortOrder.Descending
+                sort_order=arxiv.SortOrder.Descending,
             )
 
             for paper in client.results(search):
                 # Extract arXiv ID
-                arxiv_id = paper.entry_id.split('/abs/')[-1]
-                if 'v' in arxiv_id:
-                    arxiv_id = arxiv_id.split('v')[0]
+                arxiv_id = paper.entry_id.split("/abs/")[-1]
+                if "v" in arxiv_id:
+                    arxiv_id = arxiv_id.split("v")[0]
 
                 # Check if paper is from relevant categories
-                categories = [cat for cat in paper.categories] if paper.categories else []
+                categories = (
+                    [cat for cat in paper.categories] if paper.categories else []
+                )
                 relevance_boost = self._compute_category_relevance(categories, query)
 
                 result = SearchResult(
@@ -372,7 +383,9 @@ class TieredSearchLayer:
                     tier=SourceTier.TIER_1,
                     category=SourceCategory.RESEARCH,
                     source_name="arXiv",
-                    published_date=paper.published.replace(tzinfo=None) if paper.published else None,
+                    published_date=paper.published.replace(tzinfo=None)
+                    if paper.published
+                    else None,
                     base_relevance=0.85 + relevance_boost,  # Boost relevant categories
                 )
                 results.append(result)
@@ -393,28 +406,75 @@ class TieredSearchLayer:
         """
         # Stopwords to remove
         stopwords = {
-            'what', 'are', 'the', 'best', 'practices', 'for', 'in', 'how',
-            'do', 'does', 'can', 'should', 'would', 'could', 'a', 'an',
-            'to', 'of', 'and', 'or', 'is', 'it', 'this', 'that', 'with',
-            'from', 'by', 'on', 'at', 'as', 'be', 'was', 'were', 'been',
-            'have', 'has', 'had', 'having', 'about', 'into', 'through',
-            'during', 'before', 'after', 'above', 'below', 'between',
-            '2024', '2025', '2026', 'current', 'latest', 'recent', 'new'
+            "what",
+            "are",
+            "the",
+            "best",
+            "practices",
+            "for",
+            "in",
+            "how",
+            "do",
+            "does",
+            "can",
+            "should",
+            "would",
+            "could",
+            "a",
+            "an",
+            "to",
+            "of",
+            "and",
+            "or",
+            "is",
+            "it",
+            "this",
+            "that",
+            "with",
+            "from",
+            "by",
+            "on",
+            "at",
+            "as",
+            "be",
+            "was",
+            "were",
+            "been",
+            "have",
+            "has",
+            "had",
+            "having",
+            "about",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "2024",
+            "2025",
+            "2026",
+            "current",
+            "latest",
+            "recent",
+            "new",
         }
 
         # Domain-specific keyword mappings for better arXiv search
         keyword_expansions = {
-            'multi-agent': ['multi-agent', 'multiagent', 'MAS', 'multi agent'],
-            'orchestration': ['orchestration', 'coordination', 'collaboration'],
-            'llm': ['LLM', 'large language model', 'GPT', 'transformer'],
-            'agent': ['agent', 'autonomous', 'agentic'],
-            'rag': ['RAG', 'retrieval augmented', 'retrieval-augmented'],
-            'consensus': ['consensus', 'agreement', 'voting', 'debate'],
-            'reasoning': ['reasoning', 'chain-of-thought', 'CoT'],
+            "multi-agent": ["multi-agent", "multiagent", "MAS", "multi agent"],
+            "orchestration": ["orchestration", "coordination", "collaboration"],
+            "llm": ["LLM", "large language model", "GPT", "transformer"],
+            "agent": ["agent", "autonomous", "agentic"],
+            "rag": ["RAG", "retrieval augmented", "retrieval-augmented"],
+            "consensus": ["consensus", "agreement", "voting", "debate"],
+            "reasoning": ["reasoning", "chain-of-thought", "CoT"],
         }
 
         # Extract words from query
-        words = re.findall(r'\b[a-zA-Z]+(?:-[a-zA-Z]+)?\b', query.lower())
+        words = re.findall(r"\b[a-zA-Z]+(?:-[a-zA-Z]+)?\b", query.lower())
 
         # Filter out stopwords
         keywords = [w for w in words if w not in stopwords and len(w) > 2]
@@ -433,7 +493,9 @@ class TieredSearchLayer:
 
         if expanded:
             # Use OR for keywords to get broader results
-            keyword_query = " OR ".join(f'"{kw}"' if ' ' in kw or '-' in kw else kw for kw in expanded[:6])
+            keyword_query = " OR ".join(
+                f'"{kw}"' if " " in kw or "-" in kw else kw for kw in expanded[:6]
+            )
             return f"({keyword_query}) AND {categories}"
         else:
             # Fallback to original query with category filter
@@ -449,19 +511,23 @@ class TieredSearchLayer:
 
         # Category relevance for common query topics
         category_boosts = {
-            'cs.AI': 0.10,   # Artificial Intelligence
-            'cs.MA': 0.15,   # Multi-agent systems (highest for agent queries)
-            'cs.LG': 0.08,   # Machine Learning
-            'cs.CL': 0.08,   # Computation and Language (NLP/LLM)
-            'cs.SE': 0.05,   # Software Engineering
-            'cs.DC': 0.05,   # Distributed Computing
-            'cs.NE': 0.05,   # Neural/Evolutionary Computing
+            "cs.AI": 0.10,  # Artificial Intelligence
+            "cs.MA": 0.15,  # Multi-agent systems (highest for agent queries)
+            "cs.LG": 0.08,  # Machine Learning
+            "cs.CL": 0.08,  # Computation and Language (NLP/LLM)
+            "cs.SE": 0.05,  # Software Engineering
+            "cs.DC": 0.05,  # Distributed Computing
+            "cs.NE": 0.05,  # Neural/Evolutionary Computing
         }
 
         # Extra boost for multi-agent queries
-        if 'multi-agent' in query_lower or 'orchestration' in query_lower or 'agent' in query_lower:
-            category_boosts['cs.MA'] = 0.20
-            category_boosts['cs.AI'] = 0.15
+        if (
+            "multi-agent" in query_lower
+            or "orchestration" in query_lower
+            or "agent" in query_lower
+        ):
+            category_boosts["cs.MA"] = 0.20
+            category_boosts["cs.AI"] = 0.15
 
         boost = 0.0
         for cat in categories:
@@ -481,9 +547,9 @@ class TieredSearchLayer:
             # Apply ResearchGravity's viral filter
             search_query = f"{query} stars:>100"
 
-            headers = {'Accept': 'application/vnd.github.v3+json'}
+            headers = {"Accept": "application/vnd.github.v3+json"}
             if self.github_token:
-                headers['Authorization'] = f'token {self.github_token}'
+                headers["Authorization"] = f"token {self.github_token}"
 
             async with aiohttp.ClientSession() as session:
                 url = f"https://api.github.com/search/repositories?q={search_query}&sort=stars&per_page={limit}"
@@ -491,24 +557,26 @@ class TieredSearchLayer:
                     if response.status == 200:
                         data = await response.json()
 
-                        for repo in data.get('items', [])[:limit]:
+                        for repo in data.get("items", [])[:limit]:
                             # Parse dates
                             pushed_at = None
-                            if repo.get('pushed_at'):
+                            if repo.get("pushed_at"):
                                 try:
-                                    pushed_at = datetime.fromisoformat(repo['pushed_at'].replace('Z', ''))
+                                    pushed_at = datetime.fromisoformat(
+                                        repo["pushed_at"].replace("Z", "")
+                                    )
                                 except:
                                     pass
 
                             result = SearchResult(
-                                url=repo['html_url'],
-                                title=repo['full_name'],
-                                content=repo.get('description', '') or '',
+                                url=repo["html_url"],
+                                title=repo["full_name"],
+                                content=repo.get("description", "") or "",
                                 tier=SourceTier.TIER_2,
                                 category=SourceCategory.GITHUB,
                                 source_name="GitHub",
                                 published_date=pushed_at,
-                                stars=repo.get('stargazers_count', 0),
+                                stars=repo.get("stargazers_count", 0),
                                 base_relevance=0.85,
                             )
                             results.append(result)
@@ -535,7 +603,8 @@ class TieredSearchLayer:
         try:
             # Import Qdrant client
             import sys
-            sys.path.insert(0, '/Users/dicoangelo/researchgravity')
+
+            sys.path.insert(0, "/Users/dicoangelo/researchgravity")
             from storage.qdrant_db import get_qdrant
 
             qdrant = await get_qdrant()
@@ -544,13 +613,17 @@ class TieredSearchLayer:
 
             for finding in findings:
                 result = SearchResult(
-                    url=finding.get('url', f"internal://{finding.get('id', 'unknown')}"),
-                    title=finding.get('title', 'Internal Learning'),
-                    content=finding.get('content', ''),
+                    url=finding.get(
+                        "url", f"internal://{finding.get('id', 'unknown')}"
+                    ),
+                    title=finding.get("title", "Internal Learning"),
+                    content=finding.get("content", ""),
                     tier=SourceTier.TIER_3,
                     category=SourceCategory.INTERNAL,
                     source_name="ResearchGravity",
-                    base_relevance=finding.get('relevance_score', finding.get('score', 0.7)),
+                    base_relevance=finding.get(
+                        "relevance_score", finding.get("score", 0.7)
+                    ),
                 )
                 results.append(result)
 
@@ -562,6 +635,7 @@ class TieredSearchLayer:
 
 # Singleton instance
 _search_layer: Optional[TieredSearchLayer] = None
+
 
 def get_search_layer() -> TieredSearchLayer:
     """Get or create the search layer singleton."""

@@ -137,7 +137,7 @@ class EvolutionEngine:
         complexity: float = 0.5,
         subtask_count: int = 0,
         agent_ids: Optional[List[str]] = None,
-        feedback: str = ""
+        feedback: str = "",
     ) -> None:
         """
         Record a delegation outcome for learning.
@@ -155,24 +155,27 @@ class EvolutionEngine:
         """
         conn = self._connect()
         try:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO evolution_outcomes (
                     delegation_id, timestamp, success, quality_score,
                     actual_cost, actual_duration, complexity,
                     subtask_count, agent_ids, feedback
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                delegation_id,
-                time.time(),
-                1 if success else 0,
-                max(0.0, min(1.0, quality_score)),
-                actual_cost,
-                actual_duration,
-                complexity,
-                subtask_count,
-                json.dumps(agent_ids or []),
-                feedback,
-            ))
+            """,
+                (
+                    delegation_id,
+                    time.time(),
+                    1 if success else 0,
+                    max(0.0, min(1.0, quality_score)),
+                    actual_cost,
+                    actual_duration,
+                    complexity,
+                    subtask_count,
+                    json.dumps(agent_ids or []),
+                    feedback,
+                ),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -229,7 +232,8 @@ class EvolutionEngine:
         result = {}
 
         for low, high, band in COMPLEXITY_BANDS:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT subtask_count, quality_score
                 FROM evolution_outcomes
                 WHERE success = 1
@@ -237,7 +241,9 @@ class EvolutionEngine:
                   AND subtask_count > 0
                 ORDER BY timestamp DESC
                 LIMIT 50
-            """, (low, high)).fetchall()
+            """,
+                (low, high),
+            ).fetchall()
 
             if not rows:
                 continue
@@ -245,9 +251,10 @@ class EvolutionEngine:
             # Weighted average: higher quality outcomes weight more
             total_weight = sum(r["quality_score"] for r in rows)
             if total_weight > 0:
-                optimal_count = sum(
-                    r["subtask_count"] * r["quality_score"] for r in rows
-                ) / total_weight
+                optimal_count = (
+                    sum(r["subtask_count"] * r["quality_score"] for r in rows)
+                    / total_weight
+                )
             else:
                 optimal_count = sum(r["subtask_count"] for r in rows) / len(rows)
 
@@ -276,8 +283,10 @@ class EvolutionEngine:
             for agent_id in agents:
                 if agent_id not in agent_stats:
                     agent_stats[agent_id] = {
-                        "successes": 0, "failures": 0,
-                        "quality_sum": 0.0, "count": 0,
+                        "successes": 0,
+                        "failures": 0,
+                        "quality_sum": 0.0,
+                        "count": 0,
                     }
                 stats = agent_stats[agent_id]
                 stats["count"] += 1
@@ -293,7 +302,9 @@ class EvolutionEngine:
             total = stats["successes"] + stats["failures"]
             affinity[agent_id] = {
                 "success_rate": round(stats["successes"] / total, 3) if total else 0,
-                "avg_quality": round(stats["quality_sum"] / stats["count"], 3) if stats["count"] else 0,
+                "avg_quality": round(stats["quality_sum"] / stats["count"], 3)
+                if stats["count"]
+                else 0,
                 "total_delegations": total,
             }
 
@@ -319,7 +330,9 @@ class EvolutionEngine:
         mid = len(rows) // 2
         if mid > 0:
             first_half = sum(r["quality_score"] for r in rows[:mid]) / mid
-            second_half = sum(r["quality_score"] for r in rows[mid:]) / (len(rows) - mid)
+            second_half = sum(r["quality_score"] for r in rows[mid:]) / (
+                len(rows) - mid
+            )
             delta = second_half - first_half
 
             if delta > 0.05:
@@ -363,10 +376,13 @@ class EvolutionEngine:
 
     def _set_weight(self, conn: sqlite3.Connection, key: str, value: float):
         """Store an evolved weight."""
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO evolution_weights (key, value, updated_at)
             VALUES (?, ?, ?)
-        """, (key, value, time.time()))
+        """,
+            (key, value, time.time()),
+        )
 
     def get_weight(self, key: str, default: float = 0.0) -> float:
         """Retrieve an evolved weight."""
@@ -396,7 +412,8 @@ class EvolutionEngine:
         cutoff = time.time() - (window_days * 86400)
         conn = self._connect()
         try:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT
                     date(timestamp, 'unixepoch') as day,
                     COUNT(*) as count,
@@ -408,26 +425,34 @@ class EvolutionEngine:
                 WHERE timestamp >= ?
                 GROUP BY day
                 ORDER BY day ASC
-            """, (cutoff,)).fetchall()
+            """,
+                (cutoff,),
+            ).fetchall()
 
             if not rows:
                 return {"days": [], "summary": {"total": 0}}
 
             days = []
             for row in rows:
-                days.append({
-                    "date": row["day"],
-                    "delegations": row["count"],
-                    "success_rate": round(row["successes"] / row["count"], 3) if row["count"] else 0,
-                    "avg_quality": round(row["avg_quality"], 3) if row["avg_quality"] else 0,
-                    "avg_cost": round(row["avg_cost"], 3) if row["avg_cost"] else 0,
-                    "avg_duration": round(row["avg_duration"], 1) if row["avg_duration"] else 0,
-                })
+                days.append(
+                    {
+                        "date": row["day"],
+                        "delegations": row["count"],
+                        "success_rate": round(row["successes"] / row["count"], 3)
+                        if row["count"]
+                        else 0,
+                        "avg_quality": round(row["avg_quality"], 3)
+                        if row["avg_quality"]
+                        else 0,
+                        "avg_cost": round(row["avg_cost"], 3) if row["avg_cost"] else 0,
+                        "avg_duration": round(row["avg_duration"], 1)
+                        if row["avg_duration"]
+                        else 0,
+                    }
+                )
 
             total = sum(d["delegations"] for d in days)
-            total_success = sum(
-                d["delegations"] * d["success_rate"] for d in days
-            )
+            total_success = sum(d["delegations"] * d["success_rate"] for d in days)
 
             return {
                 "days": days,

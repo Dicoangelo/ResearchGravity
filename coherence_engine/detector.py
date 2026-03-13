@@ -25,6 +25,7 @@ log = logging.getLogger("coherence.detector")
 @dataclass
 class SynchronicityScore:
     """Result of synchronicity detection between two events."""
+
     confidence: float
     signals: Dict[str, float]
     is_synchronicity: bool
@@ -33,6 +34,7 @@ class SynchronicityScore:
 @dataclass
 class DetectionResult:
     """A coherence detection from any layer."""
+
     coherence_type: str  # signature_match, semantic_echo, synchronicity
     event_a_id: str
     event_b_id: str
@@ -70,7 +72,8 @@ class SignatureDetector:
                    FROM cognitive_events
                    WHERE coherence_sig = $1 AND platform != $2
                    LIMIT 20""",
-                sig, platform,
+                sig,
+                platform,
             )
 
         # Filter out same-family platforms
@@ -89,16 +92,18 @@ class SignatureDetector:
                 light = json.loads(light)
             topic = light.get("topic", "unknown") if light else "unknown"
 
-            results.append(DetectionResult(
-                coherence_type="signature_match",
-                event_a_id=event_row["event_id"],
-                event_b_id=row["event_id"],
-                platform_a=platform,
-                platform_b=row["platform"],
-                confidence=cfg.SIGNATURE_CONFIDENCE,
-                description=f"Exact signature match on topic '{topic}'",
-                time_gap_s=gap,
-            ))
+            results.append(
+                DetectionResult(
+                    coherence_type="signature_match",
+                    event_a_id=event_row["event_id"],
+                    event_b_id=row["event_id"],
+                    platform_a=platform,
+                    platform_b=row["platform"],
+                    confidence=cfg.SIGNATURE_CONFIDENCE,
+                    description=f"Exact signature match on topic '{topic}'",
+                    time_gap_s=gap,
+                )
+            )
 
         return results
 
@@ -140,20 +145,22 @@ class SemanticDetector:
             light = sr.light_layer or {}
             topic = light.get("topic", "unknown")
 
-            results.append(DetectionResult(
-                coherence_type="semantic_echo",
-                event_a_id=event_row["event_id"],
-                event_b_id=sr.event_id,
-                platform_a=platform,
-                platform_b=sr.platform,
-                confidence=round(confidence, 4),
-                description=(
-                    f"Semantic echo: '{sr.preview[:80]}' "
-                    f"(sim={sr.similarity:.3f}, topic='{topic}')"
-                ),
-                time_gap_s=gap,
-                signals={"similarity": sr.similarity},
-            ))
+            results.append(
+                DetectionResult(
+                    coherence_type="semantic_echo",
+                    event_a_id=event_row["event_id"],
+                    event_b_id=sr.event_id,
+                    platform_a=platform,
+                    platform_b=sr.platform,
+                    confidence=round(confidence, 4),
+                    description=(
+                        f"Semantic echo: '{sr.preview[:80]}' "
+                        f"(sim={sr.similarity:.3f}, topic='{topic}')"
+                    ),
+                    time_gap_s=gap,
+                    signals={"similarity": sr.similarity},
+                )
+            )
 
         return results
 
@@ -185,9 +192,7 @@ class SynchronicityDetector:
             "concept_overlap": self._concept_score(event_row, candidate),
         }
 
-        confidence = sum(
-            signals[k] * cfg.SYNC_WEIGHTS[k] for k in cfg.SYNC_WEIGHTS
-        )
+        confidence = sum(signals[k] * cfg.SYNC_WEIGHTS[k] for k in cfg.SYNC_WEIGHTS)
 
         return SynchronicityScore(
             confidence=round(confidence, 4),
@@ -218,7 +223,9 @@ class SynchronicityDetector:
             return 0.5 + (similarity - cfg.SEMANTIC_MEDIUM_THRESHOLD) * 3
         return max(0.0, similarity - 0.5) * 2
 
-    def _meta_cognitive_score(self, event_row: Dict, candidate: SimilarityResult) -> float:
+    def _meta_cognitive_score(
+        self, event_row: Dict, candidate: SimilarityResult
+    ) -> float:
         """Score based on meta-cognitive keyword presence in both events."""
         event_light = event_row.get("light_layer", {})
         if isinstance(event_light, str):
@@ -237,7 +244,8 @@ class SynchronicityDetector:
         meta_in_event = len(cfg.META_COGNITIVE_TERMS & event_concepts)
         meta_in_cand = len(cfg.META_COGNITIVE_TERMS & cand_concepts)
         meta_in_text = sum(
-            1 for t in cfg.META_COGNITIVE_TERMS
+            1
+            for t in cfg.META_COGNITIVE_TERMS
             if t in event_summary or t in cand_preview
         )
 

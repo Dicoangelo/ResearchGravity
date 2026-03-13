@@ -17,11 +17,11 @@ from typing import Any, Dict, List, Optional
 class CapturedEvent:
     """A single captured event from an external platform."""
 
-    platform: str                # 'chatgpt', 'cursor', 'grok'
-    session_id: str              # Platform-specific conversation/session ID
-    content: str                 # Message text
-    role: str                    # 'user' or 'assistant'
-    timestamp: float             # Unix timestamp (seconds)
+    platform: str  # 'chatgpt', 'cursor', 'grok'
+    session_id: str  # Platform-specific conversation/session ID
+    content: str  # Message text
+    role: str  # 'user' or 'assistant'
+    timestamp: float  # Unix timestamp (seconds)
     metadata: Dict[str, Any] = field(default_factory=dict)
     quality_score: float = 0.0
     cognitive_mode: str = "exploration"
@@ -43,8 +43,8 @@ class AdapterStatus:
     """Health check result for a platform adapter."""
 
     healthy: bool
-    last_poll: float            # Unix timestamp of last successful poll
-    events_captured: int        # Total events captured this session
+    last_poll: float  # Unix timestamp of last successful poll
+    events_captured: int  # Total events captured this session
     error: Optional[str] = None
 
 

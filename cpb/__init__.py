@@ -54,14 +54,12 @@ from .types import (
     CPBPath,
     CPBPhase,
     ReasoningModel,
-
     # Configuration
     CPBConfig,
     RLMConfig,
     ACEConfig,
     DEFAULT_CPB_CONFIG,
     STANDARD_CPB_CONFIG,
-
     # Signals & Results
     PathSignals,
     CPBStatus,
@@ -69,14 +67,11 @@ from .types import (
     DQScore,
     RoutingDecision,
     PathAlternative,
-
     # Requests
     CPBRequest,
-
     # Learning
     CPBPattern,
     LearnedRouting,
-
     # Constants
     ACE_AGENT_PERSONAS,
 )
@@ -115,32 +110,43 @@ from .dq_scorer import (
     meets_threshold,
 )
 
+
 # Precision Mode (lazy imports to avoid circular deps)
 def get_precision_config():
     """Get precision mode configuration."""
     from .precision_config import PRECISION_CONFIG
+
     return PRECISION_CONFIG
+
 
 def get_precision_orchestrator():
     """Get precision orchestrator singleton."""
     from .precision_orchestrator import precision_orchestrator
+
     return precision_orchestrator
+
 
 async def execute_precision(query: str, context=None, on_status=None):
     """Execute precision mode query (v2 with tiered search)."""
     from .precision_orchestrator import execute_precision as _execute
+
     return await _execute(query, context, on_status)
+
 
 # Search Layer (v2)
 def get_search_layer():
     """Get tiered search layer singleton."""
     from .search_layer import get_search_layer as _get
+
     return _get()
+
 
 async def search_tiered(query: str, max_results: int = 30):
     """Execute tiered search using ResearchGravity methodology."""
     from .search_layer import search_tiered as _search
+
     return await _search(query, max_results)
+
 
 # Hooks
 from .orchestrator import cpb_hooks
@@ -164,12 +170,15 @@ from .ground_truth import (
     store_verified_claims,
 )
 
-__version__ = '2.5.0'  # v2.5: Comprehensive hardening (caching, retry, fallback, cost tracking)
+__version__ = (
+    "2.5.0"  # v2.5: Comprehensive hardening (caching, retry, fallback, cost tracking)
+)
 
 
 # =============================================================================
 # DEPENDENCY CHECK (v2.5)
 # =============================================================================
+
 
 def check_dependencies() -> dict:
     """
@@ -186,13 +195,13 @@ def check_dependencies() -> dict:
     import importlib.metadata
 
     dependencies = [
-        'aiohttp',
-        'google-genai',
-        'anthropic',
-        'pytest',
-        'pytest-asyncio',
-        'arxiv',
-        'cohere',
+        "aiohttp",
+        "google-genai",
+        "anthropic",
+        "pytest",
+        "pytest-asyncio",
+        "arxiv",
+        "cohere",
     ]
 
     result = {}
@@ -201,14 +210,14 @@ def check_dependencies() -> dict:
         try:
             version = importlib.metadata.version(dep)
             result[dep] = {
-                'installed': True,
-                'version': version,
+                "installed": True,
+                "version": version,
             }
         except importlib.metadata.PackageNotFoundError:
             result[dep] = {
-                'installed': False,
-                'version': None,
-                'message': 'Not installed',
+                "installed": False,
+                "version": None,
+                "message": "Not installed",
             }
 
     return result
@@ -238,94 +247,89 @@ def get_deep_research_status() -> dict:
     best_provider, _ = get_best_available_provider()
 
     return {
-        'gemini': {
-            'available': gemini_available,
-            'message': gemini_msg,
+        "gemini": {
+            "available": gemini_available,
+            "message": gemini_msg,
         },
-        'perplexity': {
-            'available': perplexity_available,
-            'message': perplexity_msg,
+        "perplexity": {
+            "available": perplexity_available,
+            "message": perplexity_msg,
         },
-        'best_provider': best_provider,
-        'cache_stats': get_cache_stats(),
+        "best_provider": best_provider,
+        "cache_stats": get_cache_stats(),
     }
+
+
 __all__ = [
     # Types
-    'CPBPath',
-    'CPBPhase',
-    'ReasoningModel',
-    'CPBConfig',
-    'RLMConfig',
-    'ACEConfig',
-    'DEFAULT_CPB_CONFIG',
-    'STANDARD_CPB_CONFIG',
-    'PathSignals',
-    'CPBStatus',
-    'CPBResult',
-    'DQScore',
-    'RoutingDecision',
-    'PathAlternative',
-    'CPBRequest',
-    'CPBPattern',
-    'LearnedRouting',
-    'ACE_AGENT_PERSONAS',
-
+    "CPBPath",
+    "CPBPhase",
+    "ReasoningModel",
+    "CPBConfig",
+    "RLMConfig",
+    "ACEConfig",
+    "DEFAULT_CPB_CONFIG",
+    "STANDARD_CPB_CONFIG",
+    "PathSignals",
+    "CPBStatus",
+    "CPBResult",
+    "DQScore",
+    "RoutingDecision",
+    "PathAlternative",
+    "CPBRequest",
+    "CPBPattern",
+    "LearnedRouting",
+    "ACE_AGENT_PERSONAS",
     # Router
-    'extract_complexity_signals',
-    'calculate_complexity_score',
-    'select_path',
-    'should_orchestrate',
-    'analyze_query',
-    'hash_query',
-    'get_reasoning_tier',
-    'get_model_recommendation',
-    'STANDARD_THRESHOLDS',
-    'ELITE_THRESHOLDS',
-
+    "extract_complexity_signals",
+    "calculate_complexity_score",
+    "select_path",
+    "should_orchestrate",
+    "analyze_query",
+    "hash_query",
+    "get_reasoning_tier",
+    "get_model_recommendation",
+    "STANDARD_THRESHOLDS",
+    "ELITE_THRESHOLDS",
     # Orchestrator
-    'CPBOrchestrator',
-    'cpb',
-    'analyze',
-    'route',
-    'build_ace_prompts',
-    'score_response',
-
+    "CPBOrchestrator",
+    "cpb",
+    "analyze",
+    "route",
+    "build_ace_prompts",
+    "score_response",
     # DQ Scorer
-    'DQScorer',
-    'dq_scorer',
-    'score',
-    'log_score',
-    'get_stats',
-    'meets_threshold',
-
+    "DQScorer",
+    "dq_scorer",
+    "score",
+    "log_score",
+    "get_stats",
+    "meets_threshold",
     # Precision Mode v2
-    'get_precision_config',
-    'get_precision_orchestrator',
-    'execute_precision',
-    'get_search_layer',
-    'search_tiered',
-
+    "get_precision_config",
+    "get_precision_orchestrator",
+    "execute_precision",
+    "get_search_layer",
+    "search_tiered",
     # Hooks
-    'cpb_hooks',
-
+    "cpb_hooks",
     # Ground Truth (v2.1) + Corpus (v2.2)
-    'GroundTruthValidator',
-    'GroundTruthClaim',
-    'GroundTruthResult',
-    'ClaimExtractor',
-    'CrossSourceValidator',
-    'SelfConsistencyChecker',
-    'FeedbackCollector',
-    'TruthSource',
-    'get_ground_truth_validator',
-    'validate_against_ground_truth',
-    'record_feedback',
+    "GroundTruthValidator",
+    "GroundTruthClaim",
+    "GroundTruthResult",
+    "ClaimExtractor",
+    "CrossSourceValidator",
+    "SelfConsistencyChecker",
+    "FeedbackCollector",
+    "TruthSource",
+    "get_ground_truth_validator",
+    "validate_against_ground_truth",
+    "record_feedback",
     # v2.2
-    'GroundTruthCorpus',
-    'get_ground_truth_corpus',
-    'store_verified_claims',
-
+    "GroundTruthCorpus",
+    "get_ground_truth_corpus",
+    "store_verified_claims",
     # v2.5: Dependency check
-    'check_dependencies',
-    'get_deep_research_status',
+    "check_dependencies",
+    "get_deep_research_status",
 ]

@@ -36,10 +36,12 @@ try:
         TextContent,
         ImageContent,
         EmbeddedResource,
-        LoggingLevel
+        LoggingLevel,
     )
 except ImportError:
-    print("ERROR: MCP SDK not installed. Install with: pip install mcp", file=sys.stderr)
+    print(
+        "ERROR: MCP SDK not installed. Install with: pip install mcp", file=sys.stderr
+    )
     sys.exit(1)
 
 # ResearchGravity paths
@@ -60,12 +62,11 @@ def load_json(path: Path) -> Dict:
     try:
         if not path.exists():
             return {}
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             return json.load(f)
     except Exception as e:
         app.server.request_context.session.send_log_message(
-            level=LoggingLevel.ERROR,
-            data=f"Error loading {path}: {e}"
+            level=LoggingLevel.ERROR, data=f"Error loading {path}: {e}"
         )
         return {}
 
@@ -75,12 +76,11 @@ def load_text(path: Path) -> str:
     try:
         if not path.exists():
             return ""
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             return f.read()
     except Exception as e:
         app.server.request_context.session.send_log_message(
-            level=LoggingLevel.ERROR,
-            data=f"Error loading {path}: {e}"
+            level=LoggingLevel.ERROR, data=f"Error loading {path}: {e}"
         )
         return ""
 
@@ -88,20 +88,20 @@ def load_text(path: Path) -> str:
 def get_active_session() -> Optional[Dict]:
     """Get active session data"""
     tracker = load_json(SESSION_TRACKER)
-    if not tracker or 'active_session' not in tracker:
+    if not tracker or "active_session" not in tracker:
         return None
 
-    session_id = tracker['active_session']
-    if not session_id or session_id not in tracker.get('sessions', {}):
+    session_id = tracker["active_session"]
+    if not session_id or session_id not in tracker.get("sessions", {}):
         return None
 
-    return tracker['sessions'][session_id]
+    return tracker["sessions"][session_id]
 
 
 def get_session_by_id(session_id: str) -> Optional[Dict]:
     """Get session by ID"""
     tracker = load_json(SESSION_TRACKER)
-    return tracker.get('sessions', {}).get(session_id)
+    return tracker.get("sessions", {}).get(session_id)
 
 
 def search_learnings_text(query: str, limit: int = 10) -> List[Dict[str, str]]:
@@ -115,27 +115,29 @@ def search_learnings_text(query: str, limit: int = 10) -> List[Dict[str, str]]:
     results = []
 
     # Split by ## headers
-    sections = learnings_text.split('\n## ')
+    sections = learnings_text.split("\n## ")
     for section in sections[1:]:  # Skip first (title)
         if query_lower in section.lower():
-            lines = section.split('\n', 1)
+            lines = section.split("\n", 1)
             title = lines[0].strip()
             content = lines[1] if len(lines) > 1 else ""
 
             # Get first 500 chars of content
             preview = content[:500] + "..." if len(content) > 500 else content
 
-            results.append({
-                'title': title,
-                'preview': preview,
-                'relevance': section.lower().count(query_lower)
-            })
+            results.append(
+                {
+                    "title": title,
+                    "preview": preview,
+                    "relevance": section.lower().count(query_lower),
+                }
+            )
 
             if len(results) >= limit:
                 break
 
     # Sort by relevance
-    results.sort(key=lambda x: x['relevance'], reverse=True)
+    results.sort(key=lambda x: x["relevance"], reverse=True)
     return results
 
 
@@ -155,33 +157,30 @@ def get_project_research_files(project_name: str) -> Dict[str, str]:
 def log_finding_to_session(finding: str, finding_type: str = "general") -> bool:
     """Log a finding to the active session"""
     tracker = load_json(SESSION_TRACKER)
-    if not tracker or 'active_session' not in tracker:
+    if not tracker or "active_session" not in tracker:
         return False
 
-    session_id = tracker['active_session']
-    if not session_id or session_id not in tracker.get('sessions', {}):
+    session_id = tracker["active_session"]
+    if not session_id or session_id not in tracker.get("sessions", {}):
         return False
 
     # Add finding
-    session = tracker['sessions'][session_id]
-    if 'findings_captured' not in session:
-        session['findings_captured'] = []
+    session = tracker["sessions"][session_id]
+    if "findings_captured" not in session:
+        session["findings_captured"] = []
 
-    session['findings_captured'].append({
-        'text': finding,
-        'type': finding_type,
-        'timestamp': datetime.now().isoformat()
-    })
+    session["findings_captured"].append(
+        {"text": finding, "type": finding_type, "timestamp": datetime.now().isoformat()}
+    )
 
     # Save
     try:
-        with open(SESSION_TRACKER, 'w') as f:
+        with open(SESSION_TRACKER, "w") as f:
             json.dump(tracker, f, indent=2)
         return True
     except Exception as e:
         app.server.request_context.session.send_log_message(
-            level=LoggingLevel.ERROR,
-            data=f"Error saving finding: {e}"
+            level=LoggingLevel.ERROR, data=f"Error saving finding: {e}"
         )
         return False
 
@@ -189,6 +188,7 @@ def log_finding_to_session(finding: str, finding_type: str = "general") -> bool:
 # ============================================================================
 # MCP Tool Handlers
 # ============================================================================
+
 
 @app.list_tools()
 async def list_tools() -> List[Tool]:
@@ -202,10 +202,10 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "session_id": {
                         "type": "string",
-                        "description": "Optional: Specific session ID. If not provided, returns active session."
+                        "description": "Optional: Specific session ID. If not provided, returns active session.",
                     }
-                }
-            }
+                },
+            },
         ),
         Tool(
             name="search_learnings",
@@ -215,16 +215,16 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query (keywords or phrases)"
+                        "description": "Search query (keywords or phrases)",
                     },
                     "limit": {
                         "type": "number",
                         "description": "Maximum results to return (default: 10)",
-                        "default": 10
-                    }
+                        "default": 10,
+                    },
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         ),
         Tool(
             name="get_project_research",
@@ -234,11 +234,11 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "project_name": {
                         "type": "string",
-                        "description": "Project name (e.g., 'os-app', 'careercoach', 'metaventions')"
+                        "description": "Project name (e.g., 'os-app', 'careercoach', 'metaventions')",
                     }
                 },
-                "required": ["project_name"]
-            }
+                "required": ["project_name"],
+            },
         ),
         Tool(
             name="log_finding",
@@ -248,16 +248,16 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "finding": {
                         "type": "string",
-                        "description": "The finding text to record"
+                        "description": "The finding text to record",
                     },
                     "type": {
                         "type": "string",
                         "description": "Finding type: general, implementation, metrics, innovation, etc.",
-                        "default": "general"
-                    }
+                        "default": "general",
+                    },
                 },
-                "required": ["finding"]
-            }
+                "required": ["finding"],
+            },
         ),
         Tool(
             name="select_context_packs",
@@ -267,45 +267,36 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Query for context pack selection"
+                        "description": "Query for context pack selection",
                     },
                     "budget": {
                         "type": "number",
                         "description": "Token budget (default: 50000)",
-                        "default": 50000
+                        "default": 50000,
                     },
                     "use_v1": {
                         "type": "boolean",
                         "description": "Force V1 engine (2 layers) instead of V2 (7 layers)",
-                        "default": False
-                    }
+                        "default": False,
+                    },
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         ),
         Tool(
             name="get_research_index",
             description="Get the unified research index with cross-project paper references and concepts",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="list_projects",
             description="List all tracked projects with their metadata, tech stack, and status",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="get_session_stats",
             description="Get statistics about research sessions, papers, concepts, and cognitive wallet value",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
         # ── Visual Intelligence Layer ──
         # PaperBanana 5-agent pipeline (academic diagrams)
@@ -317,24 +308,24 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "methodology": {
                         "type": "string",
-                        "description": "Research methodology or system architecture text to visualize"
+                        "description": "Research methodology or system architecture text to visualize",
                     },
                     "caption": {
                         "type": "string",
-                        "description": "Diagram caption (concise, descriptive)"
+                        "description": "Diagram caption (concise, descriptive)",
                     },
                     "session_id": {
                         "type": "string",
-                        "description": "Optional: Session ID to associate diagram with"
+                        "description": "Optional: Session ID to associate diagram with",
                     },
                     "profile": {
                         "type": "string",
                         "description": "Quality profile: max, balanced, fast, budget (default: from config)",
-                        "enum": ["max", "balanced", "fast", "budget"]
-                    }
+                        "enum": ["max", "balanced", "fast", "budget"],
+                    },
                 },
-                "required": ["methodology", "caption"]
-            }
+                "required": ["methodology", "caption"],
+            },
         ),
         Tool(
             name="diagram_from_session",
@@ -344,20 +335,20 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "session_id": {
                         "type": "string",
-                        "description": "Session ID to generate diagrams for"
+                        "description": "Session ID to generate diagrams for",
                     },
                     "finding_filter": {
                         "type": "string",
-                        "description": "Optional: Filter findings by type (innovation, implementation, thesis)"
+                        "description": "Optional: Filter findings by type (innovation, implementation, thesis)",
                     },
                     "profile": {
                         "type": "string",
                         "description": "Quality profile: max, balanced, fast, budget",
-                        "enum": ["max", "balanced", "fast", "budget"]
-                    }
+                        "enum": ["max", "balanced", "fast", "budget"],
+                    },
                 },
-                "required": ["session_id"]
-            }
+                "required": ["session_id"],
+            },
         ),
         Tool(
             name="illustrate_finding",
@@ -367,29 +358,26 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "finding_text": {
                         "type": "string",
-                        "description": "The finding text to illustrate"
+                        "description": "The finding text to illustrate",
                     },
                     "diagram_type": {
                         "type": "string",
                         "description": "Diagram type: methodology or statistical_plot",
-                        "enum": ["methodology", "statistical_plot"]
+                        "enum": ["methodology", "statistical_plot"],
                     },
-                    "caption": {
-                        "type": "string",
-                        "description": "Diagram caption"
-                    },
+                    "caption": {"type": "string", "description": "Diagram caption"},
                     "session_id": {
                         "type": "string",
-                        "description": "Optional: Session ID"
+                        "description": "Optional: Session ID",
                     },
                     "profile": {
                         "type": "string",
                         "description": "Quality profile: max, balanced, fast, budget",
-                        "enum": ["max", "balanced", "fast", "budget"]
-                    }
+                        "enum": ["max", "balanced", "fast", "budget"],
+                    },
                 },
-                "required": ["finding_text", "diagram_type", "caption"]
-            }
+                "required": ["finding_text", "diagram_type", "caption"],
+            },
         ),
         Tool(
             name="evaluate_paper_figures",
@@ -399,23 +387,20 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "generated_path": {
                         "type": "string",
-                        "description": "Path to generated diagram"
+                        "description": "Path to generated diagram",
                     },
                     "reference_path": {
                         "type": "string",
-                        "description": "Path to human reference diagram"
+                        "description": "Path to human reference diagram",
                     },
                     "context": {
                         "type": "string",
-                        "description": "Methodology text for evaluation context"
+                        "description": "Methodology text for evaluation context",
                     },
-                    "caption": {
-                        "type": "string",
-                        "description": "Diagram caption"
-                    }
+                    "caption": {"type": "string", "description": "Diagram caption"},
                 },
-                "required": ["generated_path", "reference_path", "context", "caption"]
-            }
+                "required": ["generated_path", "reference_path", "context", "caption"],
+            },
         ),
         # ── Gemini Native Image Generation (direct google-genai SDK) ──
         Tool(
@@ -426,40 +411,40 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "prompt": {
                         "type": "string",
-                        "description": "Image generation prompt — describe what you want to create"
+                        "description": "Image generation prompt — describe what you want to create",
                     },
                     "resolution": {
                         "type": "string",
                         "description": "Output resolution: 1K, 2K, or 4K (default: from quality tier or config)",
-                        "enum": ["1K", "2K", "4K"]
+                        "enum": ["1K", "2K", "4K"],
                     },
                     "aspect_ratio": {
                         "type": "string",
                         "description": "Aspect ratio: 1:1, 3:4, 4:3, 5:4, 9:16, 16:9",
-                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"]
+                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"],
                     },
                     "quality": {
                         "type": "string",
                         "description": "Quality tier: max (4K + quality suffix), high (2K), fast (1K)",
-                        "enum": ["max", "high", "fast"]
+                        "enum": ["max", "high", "fast"],
                     },
                     "input_images": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Paths to input images for editing/composition (up to 14)"
+                        "description": "Paths to input images for editing/composition (up to 14)",
                     },
                     "use_search_grounding": {
                         "type": "boolean",
                         "description": "Enable Google Search grounding for factual image content",
-                        "default": False
+                        "default": False,
                     },
                     "session_id": {
                         "type": "string",
-                        "description": "Optional: Session ID for UCW capture"
-                    }
+                        "description": "Optional: Session ID for UCW capture",
+                    },
                 },
-                "required": ["prompt"]
-            }
+                "required": ["prompt"],
+            },
         ),
         Tool(
             name="edit_image",
@@ -469,35 +454,35 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "prompt": {
                         "type": "string",
-                        "description": "Edit instruction — what to do with the input images"
+                        "description": "Edit instruction — what to do with the input images",
                     },
                     "input_images": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Paths to images to edit/compose (1-14 images, required)"
+                        "description": "Paths to images to edit/compose (1-14 images, required)",
                     },
                     "resolution": {
                         "type": "string",
                         "description": "Output resolution: 1K, 2K, or 4K",
-                        "enum": ["1K", "2K", "4K"]
+                        "enum": ["1K", "2K", "4K"],
                     },
                     "aspect_ratio": {
                         "type": "string",
                         "description": "Output aspect ratio",
-                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"]
+                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"],
                     },
                     "quality": {
                         "type": "string",
                         "description": "Quality tier: max, high, fast",
-                        "enum": ["max", "high", "fast"]
+                        "enum": ["max", "high", "fast"],
                     },
                     "session_id": {
                         "type": "string",
-                        "description": "Optional: Session ID"
-                    }
+                        "description": "Optional: Session ID",
+                    },
                 },
-                "required": ["prompt", "input_images"]
-            }
+                "required": ["prompt", "input_images"],
+            },
         ),
         # ── Refined Pipeline (PaperBanana-style 5-agent) ──
         Tool(
@@ -508,54 +493,51 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "source_context": {
                         "type": "string",
-                        "description": "The source material to visualize — architecture description, methodology, system specification, etc."
+                        "description": "The source material to visualize — architecture description, methodology, system specification, etc.",
                     },
                     "caption": {
                         "type": "string",
-                        "description": "What the diagram should show (communicative intent)"
+                        "description": "What the diagram should show (communicative intent)",
                     },
                     "resolution": {
                         "type": "string",
                         "description": "Output resolution: 1K, 2K, or 4K",
-                        "enum": ["1K", "2K", "4K"]
+                        "enum": ["1K", "2K", "4K"],
                     },
                     "aspect_ratio": {
                         "type": "string",
                         "description": "Aspect ratio: 1:1, 3:4, 4:3, 5:4, 9:16, 16:9",
-                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"]
+                        "enum": ["1:1", "3:4", "4:3", "5:4", "9:16", "16:9"],
                     },
                     "quality": {
                         "type": "string",
                         "description": "Quality tier: max (4K, 5 iterations), high (2K, 3 iterations), fast (1K, 2 iterations)",
-                        "enum": ["max", "high", "fast"]
+                        "enum": ["max", "high", "fast"],
                     },
                     "iterations": {
                         "type": "integer",
                         "description": "Number of Critique→Refine→Regenerate rounds (default: from config/quality tier, recommended: 3)",
                         "minimum": 1,
-                        "maximum": 5
+                        "maximum": 5,
                     },
                     "session_id": {
                         "type": "string",
-                        "description": "Optional: Session ID for UCW capture"
+                        "description": "Optional: Session ID for UCW capture",
                     },
                     "skip_planning": {
                         "type": "boolean",
                         "description": "Skip Planner+Stylist stages (use source_context directly as image prompt)",
-                        "default": False
-                    }
+                        "default": False,
+                    },
                 },
-                "required": ["source_context", "caption"]
-            }
+                "required": ["source_context", "caption"],
+            },
         ),
         # ── Visual Config & Profiles ──
         Tool(
             name="list_visual_profiles",
             description="List all available visual generation profiles with models, resolutions, costs, and estimated times. Also lists all available VLM and image generation models.",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
     ]
 
@@ -570,35 +552,36 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         if session_id:
             session = get_session_by_id(session_id)
             if not session:
-                return [TextContent(
-                    type="text",
-                    text=f"Session not found: {session_id}"
-                )]
+                return [
+                    TextContent(type="text", text=f"Session not found: {session_id}")
+                ]
         else:
             session = get_active_session()
             if not session:
-                return [TextContent(
-                    type="text",
-                    text="No active session. Start a session with: python3 init_session.py \"topic\""
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text='No active session. Start a session with: python3 init_session.py "topic"',
+                    )
+                ]
 
         # Format session info
-        output = f"""# Session: {session.get('topic', 'Unknown')}
+        output = f"""# Session: {session.get("topic", "Unknown")}
 
-**ID:** {session.get('session_id', 'unknown')}
-**Status:** {session.get('status', 'unknown')}
-**Started:** {session.get('started', 'unknown')}
-**Working Directory:** {session.get('working_directory', 'unknown')}
+**ID:** {session.get("session_id", "unknown")}
+**Status:** {session.get("status", "unknown")}
+**Started:** {session.get("started", "unknown")}
+**Working Directory:** {session.get("working_directory", "unknown")}
 
 ## URLs Captured
-{len(session.get('urls_captured', []))} URLs logged
+{len(session.get("urls_captured", []))} URLs logged
 
 ## Findings
-{len(session.get('findings_captured', []))} findings recorded
+{len(session.get("findings_captured", []))} findings recorded
 """
 
         # Add findings if present
-        findings = session.get('findings_captured', [])
+        findings = session.get("findings_captured", [])
         if findings:
             output += "\n### Recent Findings:\n"
             for f in findings[-5:]:  # Last 5
@@ -613,10 +596,9 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         results = search_learnings_text(query, limit)
 
         if not results:
-            return [TextContent(
-                type="text",
-                text=f"No learnings found for query: {query}"
-            )]
+            return [
+                TextContent(type="text", text=f"No learnings found for query: {query}")
+            ]
 
         output = f"# Search Results for: {query}\n\nFound {len(results)} relevant sections:\n\n"
 
@@ -633,10 +615,12 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         files = get_project_research_files(project_name)
 
         if not files:
-            return [TextContent(
-                type="text",
-                text=f"No research files found for project: {project_name}"
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"No research files found for project: {project_name}",
+                )
+            ]
 
         output = f"# Research Files for: {project_name}\n\n"
         output += f"Found {len(files)} files:\n\n"
@@ -656,15 +640,19 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         success = log_finding_to_session(finding, finding_type)
 
         if success:
-            return [TextContent(
-                type="text",
-                text=f"✅ Finding logged successfully\n\nType: {finding_type}\nText: {finding}"
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"✅ Finding logged successfully\n\nType: {finding_type}\nText: {finding}",
+                )
+            ]
         else:
-            return [TextContent(
-                type="text",
-                text="❌ Failed to log finding. No active session or permission error."
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text="❌ Failed to log finding. No active session or permission error.",
+                )
+            ]
 
     elif name == "select_context_packs":
         query = arguments["query"]
@@ -674,34 +662,31 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         # Import and use Context Packs selector
         try:
             sys.path.insert(0, str(Path(__file__).parent))
-            from select_packs_v2_integrated import PackSelectorV2Integrated, format_output
+            from select_packs_v2_integrated import (
+                PackSelectorV2Integrated,
+                format_output,
+            )
 
             selector = PackSelectorV2Integrated(force_v1=use_v1)
             packs, metadata = selector.select_packs(
-                context=query,
-                token_budget=budget,
-                enable_pruning=True
+                context=query, token_budget=budget, enable_pruning=True
             )
 
-            output = format_output(packs, metadata, output_format='text')
+            output = format_output(packs, metadata, output_format="text")
 
             return [TextContent(type="text", text=output)]
 
         except Exception as e:
-            return [TextContent(
-                type="text",
-                text=f"❌ Error selecting context packs: {e}"
-            )]
+            return [
+                TextContent(type="text", text=f"❌ Error selecting context packs: {e}")
+            ]
 
     elif name == "get_research_index":
         index_file = RESEARCH_DIR / "INDEX.md"
         content = load_text(index_file)
 
         if not content:
-            return [TextContent(
-                type="text",
-                text="Research index not found or empty"
-            )]
+            return [TextContent(type="text", text="Research index not found or empty")]
 
         return [TextContent(type="text", text=content)]
 
@@ -709,10 +694,7 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         projects = load_json(PROJECTS_FILE)
 
         if not projects:
-            return [TextContent(
-                type="text",
-                text="No projects found"
-            )]
+            return [TextContent(type="text", text="No projects found")]
 
         output = "# Tracked Projects\n\n"
 
@@ -729,14 +711,18 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         projects = load_json(PROJECTS_FILE)
 
         # Count stats
-        total_sessions = len(tracker.get('sessions', {}))
-        archived = sum(1 for s in tracker.get('sessions', {}).values() if s.get('status') == 'archived')
+        total_sessions = len(tracker.get("sessions", {}))
+        archived = sum(
+            1
+            for s in tracker.get("sessions", {}).values()
+            if s.get("status") == "archived"
+        )
 
         # Count from projects.json if available
-        total_concepts = projects.get('_stats', {}).get('concepts', 0)
-        total_papers = projects.get('_stats', {}).get('papers', 0)
-        total_urls = projects.get('_stats', {}).get('urls', 0)
-        wallet_value = projects.get('_stats', {}).get('cognitive_wallet', 0)
+        total_concepts = projects.get("_stats", {}).get("concepts", 0)
+        total_papers = projects.get("_stats", {}).get("papers", 0)
+        total_urls = projects.get("_stats", {}).get("urls", 0)
+        wallet_value = projects.get("_stats", {}).get("cognitive_wallet", 0)
 
         output = f"""# ResearchGravity Statistics
 
@@ -750,7 +736,7 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
 
 **Cognitive Wallet Value:** ${wallet_value:.2f}
 
-**Projects:** {len([k for k in projects.keys() if not k.startswith('_')])}
+**Projects:** {len([k for k in projects.keys() if not k.startswith("_")])}
 """
 
         return [TextContent(type="text", text=output)]
@@ -760,6 +746,7 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
     elif name == "visualize_research":
         try:
             from visual import PaperBananaAdapter, get_visual_config
+
             config = get_visual_config()
             profile = arguments.get("profile")
             if profile:
@@ -775,15 +762,15 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
 
             output = f"""✅ Diagram generated
 
-**Asset ID:** {result['asset_id']}
-**Path:** {result['png_path']}
-**Type:** {result['diagram_type']}
+**Asset ID:** {result["asset_id"]}
+**Path:** {result["png_path"]}
+**Type:** {result["diagram_type"]}
 **Profile:** {config.profile}
-**Cost:** ${result['metadata']['estimated_cost_usd']:.4f}
-**Iterations:** {result['metadata']['iterations']}
-**Model:** {result['metadata']['vlm_model']} + {result['metadata']['image_model']}
-**Resolution:** {result['metadata']['resolution']}
-**Time:** {result['metadata']['elapsed_seconds']}s"""
+**Cost:** ${result["metadata"]["estimated_cost_usd"]:.4f}
+**Iterations:** {result["metadata"]["iterations"]}
+**Model:** {result["metadata"]["vlm_model"]} + {result["metadata"]["image_model"]}
+**Resolution:** {result["metadata"]["resolution"]}
+**Time:** {result["metadata"]["elapsed_seconds"]}s"""
             return [TextContent(type="text", text=output)]
         except Exception as e:
             return [TextContent(type="text", text=f"❌ Visual generation failed: {e}")]
@@ -795,16 +782,23 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
 
             session = get_session_by_id(session_id)
             if not session:
-                return [TextContent(type="text", text=f"Session not found: {session_id}")]
+                return [
+                    TextContent(type="text", text=f"Session not found: {session_id}")
+                ]
 
             findings = session.get("findings_captured", [])
             if finding_filter:
                 findings = [f for f in findings if f.get("type") == finding_filter]
 
             if not findings:
-                return [TextContent(type="text", text=f"No findings in session {session_id}")]
+                return [
+                    TextContent(
+                        type="text", text=f"No findings in session {session_id}"
+                    )
+                ]
 
             from visual import PaperBananaAdapter, get_visual_config
+
             config = get_visual_config()
             profile = arguments.get("profile")
             if profile:
@@ -821,19 +815,33 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
             )
 
             if not results:
-                return [TextContent(type="text", text="No diagrams generated (findings may be too short)")]
+                return [
+                    TextContent(
+                        type="text",
+                        text="No diagrams generated (findings may be too short)",
+                    )
+                ]
 
-            output = f"✅ Generated {len(results)} diagram(s) for session {session_id}\n\n"
+            output = (
+                f"✅ Generated {len(results)} diagram(s) for session {session_id}\n\n"
+            )
             for r in results:
-                output += f"- **{r['asset_id']}**: {r['caption'][:60]}... → {r['png_path']}\n"
+                output += (
+                    f"- **{r['asset_id']}**: {r['caption'][:60]}... → {r['png_path']}\n"
+                )
             output += f"\n**Profile:** {config.profile}\n**Total cost:** ${adapter.get_session_cost():.4f}"
             return [TextContent(type="text", text=output)]
         except Exception as e:
-            return [TextContent(type="text", text=f"❌ Session diagram generation failed: {e}")]
+            return [
+                TextContent(
+                    type="text", text=f"❌ Session diagram generation failed: {e}"
+                )
+            ]
 
     elif name == "illustrate_finding":
         try:
             from visual import PaperBananaAdapter, get_visual_config
+
             config = get_visual_config()
             profile = arguments.get("profile")
             if profile:
@@ -864,6 +872,7 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
     elif name == "evaluate_paper_figures":
         try:
             from visual import PaperBananaAdapter
+
             adapter = PaperBananaAdapter()
             scores = await adapter.evaluate_diagram(
                 generated_path=arguments["generated_path"],
@@ -879,11 +888,11 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
 
 | Dimension | Score |
 |-----------|-------|
-| Faithfulness | {scores.get('faithfulness', 0):.2f} |
-| Readability | {scores.get('readability', 0):.2f} |
-| Conciseness | {scores.get('conciseness', 0):.2f} |
-| Aesthetics | {scores.get('aesthetics', 0):.2f} |
-| **Overall** | **{scores.get('overall', 0):.2f}** |"""
+| Faithfulness | {scores.get("faithfulness", 0):.2f} |
+| Readability | {scores.get("readability", 0):.2f} |
+| Conciseness | {scores.get("conciseness", 0):.2f} |
+| Aesthetics | {scores.get("aesthetics", 0):.2f} |
+| **Overall** | **{scores.get("overall", 0):.2f}** |"""
             return [TextContent(type="text", text=output)]
         except Exception as e:
             return [TextContent(type="text", text=f"❌ Evaluation failed: {e}")]
@@ -893,6 +902,7 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
     elif name == "generate_image":
         try:
             from visual import GeminiImageGenerator
+
             gen = GeminiImageGenerator()
             result = await gen.generate(
                 prompt=arguments["prompt"],
@@ -909,27 +919,30 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
             meta = result["metadata"]
             output = f"""✅ Image generated (Gemini Native)
 
-**Asset ID:** {result['asset_id']}
-**Path:** {result['png_path']}
+**Asset ID:** {result["asset_id"]}
+**Path:** {result["png_path"]}
 **Engine:** gemini_native
-**Model:** {meta['model']}
-**Resolution:** {meta['resolution']}
-**Aspect Ratio:** {meta.get('aspect_ratio') or 'auto'}
-**Quality:** {meta['quality']}
-**Cost:** ${meta['estimated_cost_usd']:.4f}
-**Time:** {meta['elapsed_seconds']}s
-**File Size:** {meta['file_size_bytes'] // 1024}KB"""
+**Model:** {meta["model"]}
+**Resolution:** {meta["resolution"]}
+**Aspect Ratio:** {meta.get("aspect_ratio") or "auto"}
+**Quality:** {meta["quality"]}
+**Cost:** ${meta["estimated_cost_usd"]:.4f}
+**Time:** {meta["elapsed_seconds"]}s
+**File Size:** {meta["file_size_bytes"] // 1024}KB"""
             if meta.get("input_images", 0) > 0:
                 output += f"\n**Input Images:** {meta['input_images']}"
             if result.get("model_text"):
                 output += f"\n**Model Response:** {result['model_text'][:200]}"
             return [TextContent(type="text", text=output)]
         except Exception as e:
-            return [TextContent(type="text", text=f"❌ Native image generation failed: {e}")]
+            return [
+                TextContent(type="text", text=f"❌ Native image generation failed: {e}")
+            ]
 
     elif name == "edit_image":
         try:
             from visual import GeminiImageGenerator
+
             gen = GeminiImageGenerator()
             result = await gen.edit_image(
                 prompt=arguments["prompt"],
@@ -945,12 +958,12 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
             meta = result["metadata"]
             output = f"""✅ Image edited (Gemini Native)
 
-**Asset ID:** {result['asset_id']}
-**Path:** {result['png_path']}
-**Input Images:** {meta['input_images']}
-**Resolution:** {meta['resolution']}
-**Cost:** ${meta['estimated_cost_usd']:.4f}
-**Time:** {meta['elapsed_seconds']}s"""
+**Asset ID:** {result["asset_id"]}
+**Path:** {result["png_path"]}
+**Input Images:** {meta["input_images"]}
+**Resolution:** {meta["resolution"]}
+**Cost:** ${meta["estimated_cost_usd"]:.4f}
+**Time:** {meta["elapsed_seconds"]}s"""
             if result.get("model_text"):
                 output += f"\n**Model Response:** {result['model_text'][:200]}"
             return [TextContent(type="text", text=output)]
@@ -960,6 +973,7 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
     elif name == "generate_refined":
         try:
             from visual import RefinedPipeline
+
             pipeline = RefinedPipeline()
             result = await pipeline.generate(
                 source_context=arguments["source_context"],
@@ -977,16 +991,16 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
             meta = result["metadata"]
             output = f"""✅ Refined Pipeline Complete
 
-**Asset ID:** {result['asset_id']}
-**Path:** {result['png_path']}
+**Asset ID:** {result["asset_id"]}
+**Path:** {result["png_path"]}
 **Engine:** refined_pipeline (Plan → Style → [Generate → Critique] × T)
-**VLM Model:** {meta['vlm_model']}
-**Image Model:** {meta['model']}
-**Resolution:** {meta['resolution']}
-**Iterations:** {meta['iterations_run']}/{meta['iterations_planned']}
-**Total Cost:** ${meta['estimated_cost_usd']:.4f}
-**Total Time:** {meta['elapsed_seconds']}s
-**File Size:** {meta['file_size_bytes'] // 1024}KB
+**VLM Model:** {meta["vlm_model"]}
+**Image Model:** {meta["model"]}
+**Resolution:** {meta["resolution"]}
+**Iterations:** {meta["iterations_run"]}/{meta["iterations_planned"]}
+**Total Cost:** ${meta["estimated_cost_usd"]:.4f}
+**Total Time:** {meta["elapsed_seconds"]}s
+**File Size:** {meta["file_size_bytes"] // 1024}KB
 
 ## Pipeline Trace"""
             for stage in result.get("pipeline_trace", []):
@@ -1005,11 +1019,15 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
                 if ir.get("critic_elapsed_s"):
                     output += f"\n- Critique: {ir['critic_elapsed_s']}s"
                 if ir.get("text_errors"):
-                    output += f"\n- Text errors found: {', '.join(ir['text_errors'][:5])}"
+                    output += (
+                        f"\n- Text errors found: {', '.join(ir['text_errors'][:5])}"
+                    )
                 if ir.get("hallucinated_content"):
                     output += f"\n- Hallucinations flagged: {', '.join(ir['hallucinated_content'][:5])}"
                 if ir.get("duplicated_elements"):
-                    output += f"\n- Duplicates: {', '.join(ir['duplicated_elements'][:5])}"
+                    output += (
+                        f"\n- Duplicates: {', '.join(ir['duplicated_elements'][:5])}"
+                    )
                 if ir.get("description_refined"):
                     output += "\n- Description refined for next round"
                 if ir.get("early_stop"):
@@ -1027,9 +1045,11 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
             profiles = list_profiles()
             models = list_models()
 
-            output = f"# Visual Intelligence Layer\n\n"
+            output = "# Visual Intelligence Layer\n\n"
             output += f"**Active Profile:** {config.profile}\n"
-            output += f"**Estimated Cost/Diagram:** ${config.estimate_diagram_cost():.4f}\n\n"
+            output += (
+                f"**Estimated Cost/Diagram:** ${config.estimate_diagram_cost():.4f}\n\n"
+            )
 
             output += "## Profiles\n\n"
             output += "| Profile | VLM | Image Gen | Resolution | Iterations | Est. Cost | Est. Time |\n"
@@ -1059,7 +1079,9 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
                 c1k = f"${m_info['cost_1k']:.3f}" if m_info.get("cost_1k") else "N/A"
                 c2k = f"${m_info['cost_2k']:.3f}" if m_info.get("cost_2k") else "N/A"
                 c4k = f"${m_info['cost_4k']:.3f}" if m_info.get("cost_4k") else "N/A"
-                output += f"| {m_name} | {m_info['description']} | {c1k} | {c2k} | {c4k} |\n"
+                output += (
+                    f"| {m_name} | {m_info['description']} | {c1k} | {c2k} | {c4k} |\n"
+                )
 
             output += "\n## Engines\n\n"
             output += "| Engine | Best For | Method | Tool |\n"
@@ -1073,15 +1095,13 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
             return [TextContent(type="text", text=f"❌ Failed to list profiles: {e}")]
 
     else:
-        return [TextContent(
-            type="text",
-            text=f"Unknown tool: {name}"
-        )]
+        return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
 # ============================================================================
 # MCP Resource Handlers
 # ============================================================================
+
 
 @app.list_resources()
 async def list_resources() -> List[Any]:
@@ -1091,32 +1111,34 @@ async def list_resources() -> List[Any]:
             "uri": "session://active",
             "name": "Active Session",
             "description": "Currently active research session data",
-            "mimeType": "application/json"
+            "mimeType": "application/json",
         },
         {
             "uri": "learnings://all",
             "name": "All Learnings",
             "description": "Archived learnings from all sessions",
-            "mimeType": "text/markdown"
+            "mimeType": "text/markdown",
         },
         {
             "uri": "research://index",
             "name": "Research Index",
             "description": "Unified cross-project research index",
-            "mimeType": "text/markdown"
-        }
+            "mimeType": "text/markdown",
+        },
     ]
 
     # Add project resources
     projects = load_json(PROJECTS_FILE)
     for project_name in projects.keys():
-        if not project_name.startswith('_'):
-            resources.append({
-                "uri": f"project://{project_name}/research",
-                "name": f"{project_name} Research",
-                "description": f"Research files for {project_name} project",
-                "mimeType": "text/markdown"
-            })
+        if not project_name.startswith("_"):
+            resources.append(
+                {
+                    "uri": f"project://{project_name}/research",
+                    "name": f"{project_name} Research",
+                    "description": f"Research files for {project_name} project",
+                    "mimeType": "text/markdown",
+                }
+            )
 
     return resources
 
@@ -1158,16 +1180,14 @@ async def read_resource(uri: str) -> str:
 # Main Entry Point
 # ============================================================================
 
+
 async def main():
     """Run the MCP server"""
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options()
-        )
+        await app.run(read_stream, write_stream, app.create_initialization_options())
 
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())

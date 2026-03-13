@@ -42,9 +42,9 @@ URL_TIMEOUT = 5  # seconds
 
 # Oracle stream perspectives
 ORACLE_PERSPECTIVES = [
-    "accuracy",      # Are sources and claims factually correct?
+    "accuracy",  # Are sources and claims factually correct?
     "completeness",  # Does evidence fully support the finding?
-    "relevance",     # Are sources actually relevant to the claim?
+    "relevance",  # Are sources actually relevant to the claim?
 ]
 
 
@@ -92,8 +92,7 @@ def check_url_validity(url: str, timeout: int = URL_TIMEOUT) -> dict:
 
     try:
         req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "AntigravityValidator/1.0"}
+            url, headers={"User-Agent": "AntigravityValidator/1.0"}
         )
         with urllib.request.urlopen(req, timeout=timeout) as response:
             result["status_code"] = response.status
@@ -155,7 +154,9 @@ def validate_source(source: dict, check_url: bool = False) -> dict:
     if check_url and url:
         url_check = check_url_validity(url)
         if not url_check["valid"]:
-            result["issues"].append(f"URL not reachable: {url_check.get('error', 'unknown')}")
+            result["issues"].append(
+                f"URL not reachable: {url_check.get('error', 'unknown')}"
+            )
             # Don't invalidate for network issues
 
     return result
@@ -189,15 +190,12 @@ def validate_reasoning_chain(finding: dict) -> dict:
     if chain:
         for i, step in enumerate(chain):
             if len(step) < 20:
-                result["issues"].append(f"Reasoning step {i+1} too short")
+                result["issues"].append(f"Reasoning step {i + 1} too short")
 
     return result
 
 
-def run_oracle_stream(
-    finding: dict,
-    perspective: str
-) -> dict:
+def run_oracle_stream(finding: dict, perspective: str) -> dict:
     """
     Simulate an Oracle validation stream for a given perspective.
 
@@ -246,11 +244,13 @@ def run_oracle_stream(
         has_excerpts = all(s.get("excerpt") for s in sources)
         has_chain = len(evidence.get("reasoning_chain", [])) > 0 or len(sources) <= 1
 
-        completeness_score = sum([
-            has_sources * 0.4,
-            has_excerpts * 0.3,
-            has_chain * 0.3,
-        ])
+        completeness_score = sum(
+            [
+                has_sources * 0.4,
+                has_excerpts * 0.3,
+                has_chain * 0.3,
+            ]
+        )
         result["confidence"] = completeness_score
 
         if has_sources:
@@ -314,8 +314,7 @@ def run_oracle_consensus(finding: dict) -> ValidationResult:
     # Accuracy weighted highest, then completeness, then relevance
     weights = {"accuracy": 0.4, "completeness": 0.35, "relevance": 0.25}
     weighted_confidence = sum(
-        stream["confidence"] * weights[stream["perspective"]]
-        for stream in streams
+        stream["confidence"] * weights[stream["perspective"]] for stream in streams
     )
 
     result.confidence = round(weighted_confidence, 3)
@@ -323,8 +322,8 @@ def run_oracle_consensus(finding: dict) -> ValidationResult:
 
     # Validation decision
     result.validated = (
-        result.confidence >= CONFIDENCE_THRESHOLD and
-        len(result.issues) < 3  # Allow some minor issues
+        result.confidence >= CONFIDENCE_THRESHOLD
+        and len(result.issues) < 3  # Allow some minor issues
     )
 
     return result
@@ -355,9 +354,7 @@ def validate_finding(finding: dict) -> ValidationResult:
 
 
 def validate_session(
-    session_id: str,
-    update_file: bool = False,
-    verbose: bool = False
+    session_id: str, update_file: bool = False, verbose: bool = False
 ) -> dict:
     """
     Validate all findings in a session.
@@ -404,7 +401,9 @@ def validate_session(
 
         if verbose:
             status = "✅" if result.validated else "❌"
-            print(f"  {status} {finding.get('id', 'N/A')[:30]}: {result.confidence:.2f}")
+            print(
+                f"  {status} {finding.get('id', 'N/A')[:30]}: {result.confidence:.2f}"
+            )
             if result.issues:
                 for issue in result.issues[:2]:
                     print(f"      ⚠ {issue}")
@@ -417,15 +416,18 @@ def validate_session(
             "oracle_streams": result.oracle_streams,
         }
         finding["evidence"]["confidence"] = max(
-            finding["evidence"].get("confidence", 0),
-            result.confidence
+            finding["evidence"].get("confidence", 0), result.confidence
         )
 
         validated_findings.append(finding)
 
     # Calculate stats
     validated_count = sum(1 for r in validation_results if r.validated)
-    avg_confidence = sum(r.confidence for r in validation_results) / len(validation_results) if validation_results else 0
+    avg_confidence = (
+        sum(r.confidence for r in validation_results) / len(validation_results)
+        if validation_results
+        else 0
+    )
 
     stats = {
         "session_id": session_id,
@@ -433,7 +435,9 @@ def validate_session(
         "passed": validated_count,
         "failed": len(validation_results) - validated_count,
         "avg_confidence": avg_confidence,
-        "pass_rate": validated_count / len(validation_results) if validation_results else 0,
+        "pass_rate": validated_count / len(validation_results)
+        if validation_results
+        else 0,
     }
 
     # Update file if requested
@@ -490,7 +494,9 @@ def spot_check_validation(sample_size: int = 20, verbose: bool = False) -> dict:
 
         if verbose:
             status = "✅" if result.validated else "❌"
-            print(f"{status} {finding.get('_session_id', '')[:30]}: {result.confidence:.2f}")
+            print(
+                f"{status} {finding.get('_session_id', '')[:30]}: {result.confidence:.2f}"
+            )
             if result.issues:
                 print(f"   Issues: {', '.join(result.issues[:2])}")
 
@@ -512,14 +518,22 @@ def main():
     parser = argparse.ArgumentParser(
         description="Validate findings using Writer-Critic pattern"
     )
-    parser.add_argument("--session", "-s",
-                        help="Validate specific session")
-    parser.add_argument("--update", "-u", action="store_true",
-                        help="Update findings file with validation metadata")
-    parser.add_argument("--spot-check", type=int, metavar="N",
-                        help="Validate random sample of N findings")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Show detailed output")
+    parser.add_argument("--session", "-s", help="Validate specific session")
+    parser.add_argument(
+        "--update",
+        "-u",
+        action="store_true",
+        help="Update findings file with validation metadata",
+    )
+    parser.add_argument(
+        "--spot-check",
+        type=int,
+        metavar="N",
+        help="Validate random sample of N findings",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show detailed output"
+    )
 
     args = parser.parse_args()
 
@@ -530,9 +544,7 @@ def main():
     if args.session:
         print(f"\nValidating session: {args.session[:50]}")
         stats = validate_session(
-            args.session,
-            update_file=args.update,
-            verbose=args.verbose
+            args.session, update_file=args.update, verbose=args.verbose
         )
 
         if "error" in stats:
@@ -540,7 +552,7 @@ def main():
         else:
             print("\n📊 Validation Results:")
             print(f"   Findings validated: {stats['findings_validated']}")
-            print(f"   Passed: {stats['passed']} ({stats['pass_rate']*100:.1f}%)")
+            print(f"   Passed: {stats['passed']} ({stats['pass_rate'] * 100:.1f}%)")
             print(f"   Failed: {stats['failed']}")
             print(f"   Average confidence: {stats['avg_confidence']:.3f}")
             if args.update:
@@ -554,8 +566,10 @@ def main():
             print(f"❌ {stats['error']}")
         else:
             print("\n📊 Spot Check Results:")
-            print(f"   Sample size: {stats['sample_size']} / {stats['total_findings']} total")
-            print(f"   Passed: {stats['validated']} ({stats['pass_rate']*100:.1f}%)")
+            print(
+                f"   Sample size: {stats['sample_size']} / {stats['total_findings']} total"
+            )
+            print(f"   Passed: {stats['validated']} ({stats['pass_rate'] * 100:.1f}%)")
             print(f"   Failed: {stats['failed']}")
             print(f"   Average confidence: {stats['avg_confidence']:.3f}")
 

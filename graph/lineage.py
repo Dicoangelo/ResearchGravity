@@ -14,6 +14,7 @@ from enum import Enum
 
 class NodeType(Enum):
     """Types of nodes in the knowledge graph."""
+
     SESSION = "session"
     FINDING = "finding"
     PAPER = "paper"
@@ -24,18 +25,20 @@ class NodeType(Enum):
 
 class EdgeType(Enum):
     """Types of relationships between nodes."""
-    CONTAINS = "contains"       # session → finding
-    CITES = "cites"             # finding → paper/url
+
+    CONTAINS = "contains"  # session → finding
+    CITES = "cites"  # finding → paper/url
     DERIVES_FROM = "derives_from"  # finding → finding
-    ENABLES = "enables"         # session → session
-    INFORMS = "informs"         # paper → finding
-    BELONGS_TO = "belongs_to"   # session → project
-    RELATED = "related"         # semantic similarity
+    ENABLES = "enables"  # session → session
+    INFORMS = "informs"  # paper → finding
+    BELONGS_TO = "belongs_to"  # session → project
+    RELATED = "related"  # semantic similarity
 
 
 @dataclass
 class LineageNode:
     """A node in the knowledge graph."""
+
     id: str
     type: NodeType
     label: str
@@ -55,6 +58,7 @@ class LineageNode:
 @dataclass
 class LineageEdge:
     """An edge (relationship) in the knowledge graph."""
+
     source_id: str
     target_id: str
     edge_type: EdgeType
@@ -74,6 +78,7 @@ class LineageEdge:
 @dataclass
 class LineageGraph:
     """A subgraph of the knowledge graph."""
+
     nodes: List[LineageNode] = field(default_factory=list)
     edges: List[LineageEdge] = field(default_factory=list)
 
@@ -89,12 +94,7 @@ class LineageGraph:
         """Convert to D3.js force-directed graph format."""
         return {
             "nodes": [
-                {
-                    "id": n.id,
-                    "group": n.type.value,
-                    "label": n.label,
-                    **n.metadata
-                }
+                {"id": n.id, "group": n.type.value, "label": n.label, **n.metadata}
                 for n in self.nodes
             ],
             "links": [
@@ -105,7 +105,7 @@ class LineageGraph:
                     "type": e.edge_type.value,
                 }
                 for e in self.edges
-            ]
+            ],
         }
 
 
@@ -212,10 +212,12 @@ class LineageTracker:
 
         return LineageGraph(
             nodes=[self._nodes[nid] for nid in visited_nodes if nid in self._nodes],
-            edges=visited_edges
+            edges=visited_edges,
         )
 
-    def find_path(self, source_id: str, target_id: str, max_depth: int = 5) -> List[LineageNode]:
+    def find_path(
+        self, source_id: str, target_id: str, max_depth: int = 5
+    ) -> List[LineageNode]:
         """Find a path between two nodes (BFS)."""
         if source_id not in self._nodes or target_id not in self._nodes:
             return []
@@ -247,7 +249,9 @@ class LineageTracker:
 
         edge_type_counts = {}
         for edge in self._edges:
-            edge_type_counts[edge.edge_type.value] = edge_type_counts.get(edge.edge_type.value, 0) + 1
+            edge_type_counts[edge.edge_type.value] = (
+                edge_type_counts.get(edge.edge_type.value, 0) + 1
+            )
 
         return {
             "total_nodes": len(self._nodes),

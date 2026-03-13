@@ -27,6 +27,7 @@ from . import config as cfg
 
 def setup_logging():
     from .logging_config import setup_logging as _setup
+
     _setup("coherence")
     _setup("coherence.daemon")
     _setup("coherence.scorer")
@@ -133,12 +134,16 @@ async def cmd_retroactive():
         since = None
     else:
         # Default: last 7 days
-        since = datetime.now().replace(hour=0, minute=0, second=0) - __import__("datetime").timedelta(days=7)
+        since = datetime.now().replace(hour=0, minute=0, second=0) - __import__(
+            "datetime"
+        ).timedelta(days=7)
 
     pool = await asyncpg.create_pool(cfg.PG_DSN, min_size=2, max_size=5)
     analyzer = RetroactiveAnalyzer(pool)
 
-    print(f"Running retroactive analysis{f' since {since}' if since else ' (all time)'}...")
+    print(
+        f"Running retroactive analysis{f' since {since}' if since else ' (all time)'}..."
+    )
     report = await analyzer.analyze(since=since)
     print(format_report(report))
 
@@ -181,26 +186,30 @@ async def cmd_graph():
         for k in total:
             total[k] += result[k]
         offset += batch_size
-        print(f"  Batch done: offset={offset}, entities={total['entities_created']}, edges={total['edges_created']}")
+        print(
+            f"  Batch done: offset={offset}, entities={total['entities_created']}, edges={total['edges_created']}"
+        )
 
     # Print stats
     graph = GraphManager(pool)
     stats = await graph.graph_stats()
     await pool.close()
 
-    print(f"\nKnowledge Graph Extraction Complete:")
+    print("\nKnowledge Graph Extraction Complete:")
     print(f"  Events processed: {total['events_processed']:,}")
     print(f"  Entities created: {total['entities_created']:,}")
     print(f"  Edges created:    {total['edges_created']:,}")
-    print(f"\nGraph Stats:")
+    print("\nGraph Stats:")
     print(f"  Total entities: {stats['entity_count']:,}")
     print(f"  Total edges:    {stats['edge_count']:,}")
     if stats.get("entities_by_type"):
         print(f"  By type: {stats['entities_by_type']}")
     if stats.get("top_entities"):
-        print(f"  Top entities:")
+        print("  Top entities:")
         for e in stats["top_entities"][:5]:
-            print(f"    {e['name']} ({e['entity_type']}) — {e['mention_count']} mentions, {e['platform_count']} platforms")
+            print(
+                f"    {e['name']} ({e['entity_type']}) — {e['mention_count']} mentions, {e['platform_count']} platforms"
+            )
 
 
 async def cmd_insights():
@@ -222,12 +231,12 @@ async def cmd_insights():
         print(f"Extracting insight for moment {moment_id}...")
         result = await extract_insight_for_moment(pool, moment_id)
         if result:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"  Moment:   {result.moment_id}")
             print(f"  Category: {result.category}")
             print(f"  Novelty:  {result.novelty:.2f}")
             print(f"  Summary:  {result.summary}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
         else:
             print("Failed to extract insight.")
     else:
@@ -269,7 +278,9 @@ async def cmd_concept_evolution():
         if chains:
             print(f"\n{len(chains)} evolving concepts found:\n")
             for chain in chains[:20]:
-                print(f"  {chain.concept} (v{chain.total_versions}, {chain.time_span_hours:.0f}h)")
+                print(
+                    f"  {chain.concept} (v{chain.total_versions}, {chain.time_span_hours:.0f}h)"
+                )
                 print(f"    Platforms: {', '.join(chain.platforms_involved)}")
                 for v in chain.versions[:3]:
                     defn = v.definition[:80] if v.definition else ""
@@ -306,7 +317,7 @@ async def cmd_semantic():
     result = await semantic_extract_batch(pool, limit=batch_size, offset=start_offset)
     await pool.close()
 
-    print(f"\nSemantic Extraction Complete:")
+    print("\nSemantic Extraction Complete:")
     print(f"  Events processed: {result['events_processed']}")
     print(f"  Entities created: {result['entities_created']}")
     print(f"  Edges created:    {result['edges_created']}")
@@ -327,12 +338,16 @@ async def cmd_emergence():
         print(f"\n{len(breakthroughs)} breakthroughs detected:\n")
         for bt in breakthroughs:
             print(f"  [{bt.breakthrough_type}] {bt.title}")
-            print(f"    Novelty: {bt.novelty_score:.2f} | Impact: {bt.impact_score:.2f}")
+            print(
+                f"    Novelty: {bt.novelty_score:.2f} | Impact: {bt.impact_score:.2f}"
+            )
             print(f"    Platforms: {', '.join(bt.platforms)}")
             print(f"    {bt.narrative[:200]}...")
             print()
     else:
-        print("\nNo breakthroughs detected. Continue working — patterns emerge over time.")
+        print(
+            "\nNo breakthroughs detected. Continue working — patterns emerge over time."
+        )
 
     await pool.close()
 
@@ -366,8 +381,12 @@ async def cmd_sessions():
                 hours = int(arg.split("=")[1])
             elif arg.startswith("--min="):
                 min_sim = float(arg.split("=")[1])
-        print(f"Finding cross-platform session coherence (last {hours}h, min={min_sim})...")
-        results = await find_session_coherence(pool, since_hours=hours, min_similarity=min_sim)
+        print(
+            f"Finding cross-platform session coherence (last {hours}h, min={min_sim})..."
+        )
+        results = await find_session_coherence(
+            pool, since_hours=hours, min_similarity=min_sim
+        )
         print(f"\n{len(results)} session coherence pairs found:\n")
         for sc in results[:20]:
             print(f"  [{sc.similarity:.2f}] {sc.platform_a} <-> {sc.platform_b}")
@@ -415,7 +434,9 @@ async def cmd_review_due():
         stab = ins.get("stability", 1.0)
         reviews = ins.get("review_count", 0)
         print(f"  #{i} [{ins['insight_id']}]")
-        print(f"     {ins.get('coherence_type', '?')} | {platforms} | confidence={conf:.0%}")
+        print(
+            f"     {ins.get('coherence_type', '?')} | {platforms} | confidence={conf:.0%}"
+        )
         print(f"     stability={stab:.1f}d | reviews={reviews}")
         print(f"     {desc}")
         print()
@@ -423,6 +444,7 @@ async def cmd_review_due():
     # Send macOS notification if requested
     if notify and cfg.DESKTOP_NOTIFICATIONS:
         import subprocess
+
         title = f"UCW: {len(due)} insight{'s' if len(due) != 1 else ''} due for review"
         top = due[0]
         body = (
@@ -431,11 +453,15 @@ async def cmd_review_due():
         )
         try:
             subprocess.run(
-                ["osascript", "-e",
-                 f'display notification "{body}" with title "{title}"'],
-                capture_output=True, timeout=5,
+                [
+                    "osascript",
+                    "-e",
+                    f'display notification "{body}" with title "{title}"',
+                ],
+                capture_output=True,
+                timeout=5,
             )
-            print(f"Desktop notification sent.")
+            print("Desktop notification sent.")
         except Exception as e:
             print(f"Notification failed: {e}")
 
@@ -473,11 +499,19 @@ def main():
         print("  retroactive       Retroactive analysis (--since YYYY-MM-DD | --all)")
         print("  consolidate       Nightly consolidation (arcs, FSRS, significance)")
         print("  graph             Extract entities into knowledge graph (--batch=N)")
-        print("  insights          Extract real insights from moments via LLM (--moment=ID | --limit=N)")
+        print(
+            "  insights          Extract real insights from moments via LLM (--moment=ID | --limit=N)"
+        )
         print("  emergence         Scan for cognitive breakthroughs")
-        print("  sessions          Session embeddings + cross-platform coherence (embed|coherence)")
-        print("  semantic          LLM-powered entity + relationship extraction (--batch=N --offset=N)")
-        print("  concept-evolution Concept evolution tracking (show|track) (--hours=N --limit=N)")
+        print(
+            "  sessions          Session embeddings + cross-platform coherence (embed|coherence)"
+        )
+        print(
+            "  semantic          LLM-powered entity + relationship extraction (--batch=N --offset=N)"
+        )
+        print(
+            "  concept-evolution Concept evolution tracking (show|track) (--hours=N --limit=N)"
+        )
         print("  review-due        Check due insights and notify (--notify --limit=N)")
         print("  founding-moment   Validate 2026-02-06 founding moment detection")
         sys.exit(1)

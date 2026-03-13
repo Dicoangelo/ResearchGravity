@@ -22,6 +22,7 @@ from collections import defaultdict
 
 try:
     import numpy as np
+
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
@@ -31,9 +32,11 @@ except ImportError:
 # Focus Agent - Semantic Focus Extraction
 # ============================================================================
 
+
 @dataclass
 class FocusToken:
     """A semantic focus token identified from query"""
+
     token: str
     importance: float
     context_window: int
@@ -65,61 +68,60 @@ class FocusAgent:
         focus_tokens = []
 
         # Heuristic: longer words and compound terms are more important
-        important_words = [w for w in tokens if len(w) > 5 or '-' in w]
+        important_words = [w for w in tokens if len(w) > 5 or "-" in w]
 
         for word in important_words[:3]:  # Top 3 focus tokens
             focus = FocusToken(
                 token=word,
                 importance=1.0 / (important_words.index(word) + 1),  # Decay by position
                 context_window=50,  # Characters around this token
-                related_concepts=[]
+                related_concepts=[],
             )
             focus_tokens.append(focus)
 
         # If no long words, use first 2 words
         if not focus_tokens and tokens:
             for word in tokens[:2]:
-                focus_tokens.append(FocusToken(
-                    token=word,
-                    importance=0.8,
-                    context_window=50,
-                    related_concepts=[]
-                ))
+                focus_tokens.append(
+                    FocusToken(
+                        token=word,
+                        importance=0.8,
+                        context_window=50,
+                        related_concepts=[],
+                    )
+                )
 
         self.focus_history.extend(focus_tokens)
         return focus_tokens
 
     def compute_attention(
-        self,
-        focus_tokens: List[FocusToken],
-        content: Dict[str, Any]
+        self, focus_tokens: List[FocusToken], content: Dict[str, Any]
     ) -> Dict[str, List[float]]:
         """
         Calculate attention scores for pack content based on focus tokens
 
         Content closer to focus tokens gets higher attention
         """
-        attention_scores = {
-            'papers': [],
-            'learnings': [],
-            'keywords': []
-        }
+        attention_scores = {"papers": [], "learnings": [], "keywords": []}
 
         # Papers attention
-        for paper in content.get('papers', []):
-            arxiv_id = paper.get('arxiv_id', '')
+        for paper in content.get("papers", []):
+            arxiv_id = paper.get("arxiv_id", "")
             score = 0.3  # Base score
 
             # Boost if focus token relates to paper domain
             for focus in focus_tokens:
                 # Mock: check if focus appears in common paper topics
-                if any(topic in focus.token for topic in ['agent', 'multi', 'memory', 'optimization']):
+                if any(
+                    topic in focus.token
+                    for topic in ["agent", "multi", "memory", "optimization"]
+                ):
                     score += 0.2 * focus.importance
 
-            attention_scores['papers'].append(min(1.0, score))
+            attention_scores["papers"].append(min(1.0, score))
 
         # Learnings attention
-        for learning in content.get('learnings', []):
+        for learning in content.get("learnings", []):
             learning_lower = learning.lower()
             score = 0.2  # Base score
 
@@ -128,10 +130,10 @@ class FocusAgent:
                 if focus.token in learning_lower:
                     score += 0.5 * focus.importance
 
-            attention_scores['learnings'].append(min(1.0, score))
+            attention_scores["learnings"].append(min(1.0, score))
 
         # Keywords attention
-        for keyword in content.get('keywords', []):
+        for keyword in content.get("keywords", []):
             keyword_lower = keyword.lower()
             score = 0.2  # Base score
 
@@ -140,7 +142,7 @@ class FocusAgent:
                 if focus.token in keyword_lower or keyword_lower in focus.token:
                     score += 0.7 * focus.importance
 
-            attention_scores['keywords'].append(min(1.0, score))
+            attention_scores["keywords"].append(min(1.0, score))
 
         return attention_scores
 
@@ -148,40 +150,43 @@ class FocusAgent:
         self,
         content: Dict[str, Any],
         attention_scores: Dict[str, List[float]],
-        threshold: float = 0.3
+        threshold: float = 0.3,
     ) -> Dict[str, Any]:
         """
         Prune content below attention threshold
 
         Achieves target 22.7% reduction by removing low-attention elements
         """
-        compressed = {
-            'papers': [],
-            'learnings': [],
-            'keywords': []
-        }
+        compressed = {"papers": [], "learnings": [], "keywords": []}
 
         # Keep high-attention papers
-        for i, paper in enumerate(content.get('papers', [])):
-            if i < len(attention_scores['papers']) and attention_scores['papers'][i] > threshold:
-                compressed['papers'].append(paper)
+        for i, paper in enumerate(content.get("papers", [])):
+            if (
+                i < len(attention_scores["papers"])
+                and attention_scores["papers"][i] > threshold
+            ):
+                compressed["papers"].append(paper)
 
         # Keep high-attention learnings
-        for i, learning in enumerate(content.get('learnings', [])):
-            if i < len(attention_scores['learnings']) and attention_scores['learnings'][i] > threshold:
-                compressed['learnings'].append(learning)
+        for i, learning in enumerate(content.get("learnings", [])):
+            if (
+                i < len(attention_scores["learnings"])
+                and attention_scores["learnings"][i] > threshold
+            ):
+                compressed["learnings"].append(learning)
 
         # Keep high-attention keywords
-        for i, keyword in enumerate(content.get('keywords', [])):
-            if i < len(attention_scores['keywords']) and attention_scores['keywords'][i] > threshold:
-                compressed['keywords'].append(keyword)
+        for i, keyword in enumerate(content.get("keywords", [])):
+            if (
+                i < len(attention_scores["keywords"])
+                and attention_scores["keywords"][i] > threshold
+            ):
+                compressed["keywords"].append(keyword)
 
         return compressed
 
     def compress_pack(
-        self,
-        pack_data: Dict[str, Any],
-        query: str
+        self, pack_data: Dict[str, Any], query: str
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Autonomously compress pack content using focus-based attention
@@ -192,18 +197,18 @@ class FocusAgent:
         focus_tokens = self.extract_query_focus(query)
 
         # Get pack content — handle both old ('content') and new ('context' + top-level keywords) schemas
-        if 'content' in pack_data:
-            content = pack_data['content']
+        if "content" in pack_data:
+            content = pack_data["content"]
         else:
             # Build content-like dict from new schema
-            ctx = pack_data.get('context', {})
-            papers = ctx.get('papers_implemented', ctx.get('papers_adopted', {}))
+            ctx = pack_data.get("context", {})
+            papers = ctx.get("papers_implemented", ctx.get("papers_adopted", {}))
             if isinstance(papers, dict):
-                papers = [{'arxiv_id': k, 'relevance': 5} for k in papers.keys()]
+                papers = [{"arxiv_id": k, "relevance": 5} for k in papers.keys()]
             content = {
-                'keywords': pack_data.get('keywords', []),
-                'papers': papers if isinstance(papers, list) else [],
-                'learnings': ctx.get('learnings', []),
+                "keywords": pack_data.get("keywords", []),
+                "papers": papers if isinstance(papers, list) else [],
+                "learnings": ctx.get("learnings", []),
             }
 
         # Compute attention scores
@@ -217,39 +222,50 @@ class FocusAgent:
         if all_scores:
             all_scores_sorted = sorted(all_scores, reverse=True)
             keep_count = int(len(all_scores_sorted) * (1 - self.compression_target))
-            threshold = all_scores_sorted[keep_count] if keep_count < len(all_scores_sorted) else min(all_scores_sorted)
+            threshold = (
+                all_scores_sorted[keep_count]
+                if keep_count < len(all_scores_sorted)
+                else min(all_scores_sorted)
+            )
         else:
             threshold = 0.3
 
         # Prune by attention
-        compressed_content = self.prune_by_attention(content, attention_scores, threshold)
+        compressed_content = self.prune_by_attention(
+            content, attention_scores, threshold
+        )
 
         # Build compressed pack
         compressed_pack = pack_data.copy()
-        if 'content' in compressed_pack:
-            compressed_pack['content'] = compressed_content
+        if "content" in compressed_pack:
+            compressed_pack["content"] = compressed_content
         else:
             compressed_pack.update(compressed_content)
 
         # Metrics
-        original_count = sum(len(content.get(k, [])) for k in ['papers', 'learnings', 'keywords'])
-        compressed_count = sum(len(compressed_content.get(k, [])) for k in ['papers', 'learnings', 'keywords'])
+        original_count = sum(
+            len(content.get(k, [])) for k in ["papers", "learnings", "keywords"]
+        )
+        compressed_count = sum(
+            len(compressed_content.get(k, []))
+            for k in ["papers", "learnings", "keywords"]
+        )
 
         metrics = {
-            'focus_tokens': [f.token for f in focus_tokens],
-            'original_elements': original_count,
-            'compressed_elements': compressed_count,
-            'reduction_rate': 1 - (compressed_count / original_count) if original_count > 0 else 0.0,
-            'threshold': threshold,
-            'target_reduction': self.compression_target
+            "focus_tokens": [f.token for f in focus_tokens],
+            "original_elements": original_count,
+            "compressed_elements": compressed_count,
+            "reduction_rate": 1 - (compressed_count / original_count)
+            if original_count > 0
+            else 0.0,
+            "threshold": threshold,
+            "target_reduction": self.compression_target,
         }
 
         return compressed_pack, metrics
 
     def consolidate_learnings(
-        self,
-        learnings: List[str],
-        max_output: int = 3
+        self, learnings: List[str], max_output: int = 3
     ) -> List[str]:
         """
         Consolidate multiple learnings into concise key learnings
@@ -284,9 +300,11 @@ class FocusAgent:
 # Layer 6: Continuum Memory Evolution
 # ============================================================================
 
+
 @dataclass
 class MemoryState:
     """Persistent memory state across sessions"""
+
     pack_id: str
     importance_score: float
     last_used: str
@@ -310,10 +328,10 @@ class ContinuumMemory:
 
     def __init__(self, storage_dir: str = None):
         if storage_dir is None:
-            storage_dir = os.path.expanduser('~/.agent-core/context-packs')
+            storage_dir = os.path.expanduser("~/.agent-core/context-packs")
 
         self.storage_dir = storage_dir
-        self.memory_state_file = os.path.join(storage_dir, 'continuum_memory.json')
+        self.memory_state_file = os.path.join(storage_dir, "continuum_memory.json")
 
         # Load persistent state
         self.memory_states: Dict[str, MemoryState] = {}
@@ -327,7 +345,7 @@ class ContinuumMemory:
         if not os.path.exists(self.memory_state_file):
             return
 
-        with open(self.memory_state_file, 'r') as f:
+        with open(self.memory_state_file, "r") as f:
             data = json.load(f)
             for pack_id, state_dict in data.items():
                 self.memory_states[pack_id] = MemoryState(**state_dict)
@@ -336,24 +354,21 @@ class ContinuumMemory:
         """Save memory states to disk"""
         data = {
             pack_id: {
-                'pack_id': state.pack_id,
-                'importance_score': state.importance_score,
-                'last_used': state.last_used,
-                'usage_count': state.usage_count,
-                'success_rate': state.success_rate,
-                'associations': state.associations,
-                'temporal_chain': state.temporal_chain
+                "pack_id": state.pack_id,
+                "importance_score": state.importance_score,
+                "last_used": state.last_used,
+                "usage_count": state.usage_count,
+                "success_rate": state.success_rate,
+                "associations": state.associations,
+                "temporal_chain": state.temporal_chain,
             }
             for pack_id, state in self.memory_states.items()
         }
 
-        with open(self.memory_state_file, 'w') as f:
+        with open(self.memory_state_file, "w") as f:
             json.dump(data, f, indent=2)
 
-    def update_persistent_state(
-        self,
-        session_outcome: Dict[str, Any]
-    ):
+    def update_persistent_state(self, session_outcome: Dict[str, Any]):
         """
         Update persistent state after session
 
@@ -361,9 +376,9 @@ class ContinuumMemory:
         - Associative routing: link packs used together
         - Temporal chaining: track usage sequence
         """
-        packs_used = session_outcome.get('packs_used', [])
-        success_metric = session_outcome.get('success_metric', 0.5)
-        timestamp = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        packs_used = session_outcome.get("packs_used", [])
+        success_metric = session_outcome.get("success_metric", 0.5)
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
         # Update states for used packs
         for pack_id in packs_used:
@@ -376,7 +391,7 @@ class ContinuumMemory:
                     usage_count=0,
                     success_rate=0.5,
                     associations=[],
-                    temporal_chain=[]
+                    temporal_chain=[],
                 )
 
             state = self.memory_states[pack_id]
@@ -387,10 +402,14 @@ class ContinuumMemory:
 
             # Update success rate (exponential moving average)
             alpha = 0.3
-            state.success_rate = alpha * success_metric + (1 - alpha) * state.success_rate
+            state.success_rate = (
+                alpha * success_metric + (1 - alpha) * state.success_rate
+            )
 
             # Update importance (based on usage and success)
-            state.importance_score = 0.5 * (state.usage_count / 100.0) + 0.5 * state.success_rate
+            state.importance_score = (
+                0.5 * (state.usage_count / 100.0) + 0.5 * state.success_rate
+            )
             state.importance_score = min(1.0, state.importance_score)
 
         # Build associations (packs used together)
@@ -403,7 +422,7 @@ class ContinuumMemory:
         # Build temporal chains
         for pack_id in packs_used:
             state = self.memory_states[pack_id]
-            state.temporal_chain.append(session_outcome.get('session_id', 'unknown'))
+            state.temporal_chain.append(session_outcome.get("session_id", "unknown"))
             # Keep last 20 sessions
             if len(state.temporal_chain) > 20:
                 state.temporal_chain = state.temporal_chain[-20:]
@@ -419,7 +438,8 @@ class ContinuumMemory:
         Selective retention: remove packs with low importance scores
         """
         to_forget = [
-            pack_id for pack_id, state in self.memory_states.items()
+            pack_id
+            for pack_id, state in self.memory_states.items()
             if state.importance_score < threshold and state.usage_count < 2
         ]
 
@@ -455,8 +475,7 @@ class ContinuumMemory:
         """
         # Consolidate if we have many packs with high association counts
         high_association_count = sum(
-            1 for state in self.memory_states.values()
-            if len(state.associations) > 3
+            1 for state in self.memory_states.values() if len(state.associations) > 3
         )
 
         return high_association_count > 10
@@ -465,6 +484,7 @@ class ContinuumMemory:
 # ============================================================================
 # Layer 7: Trainable Pack Weights
 # ============================================================================
+
 
 class TrainablePackGraph:
     """
@@ -483,9 +503,9 @@ class TrainablePackGraph:
 
         # Layer structure
         self.layers = {
-            'raw': {},          # Raw pack content
-            'structured': {},   # Processed pack metadata
-            'meta': {}          # High-level pack relationships
+            "raw": {},  # Raw pack content
+            "structured": {},  # Processed pack metadata
+            "meta": {},  # High-level pack relationships
         }
 
         # Learning rate
@@ -494,10 +514,7 @@ class TrainablePackGraph:
         print("Trainable Pack Graph initialized")
         print(f"  Pack weights: {len(self.pack_weights)}")
 
-    def optimize_weights(
-        self,
-        session_outcomes: List[Dict[str, Any]]
-    ):
+    def optimize_weights(self, session_outcomes: List[Dict[str, Any]]):
         """
         RL update: increase weights for packs used in successful sessions
 
@@ -507,8 +524,8 @@ class TrainablePackGraph:
             return
 
         for outcome in session_outcomes:
-            packs_used = outcome.get('packs_used', [])
-            reward = outcome.get('success_metric', 0.5)
+            packs_used = outcome.get("packs_used", [])
+            reward = outcome.get("success_metric", 0.5)
 
             # Update weights for successful packs
             for pack_id in packs_used:
@@ -532,9 +549,7 @@ class TrainablePackGraph:
     def get_top_packs(self, n: int = 10) -> List[Tuple[str, float]]:
         """Get top N packs by learned weight"""
         sorted_packs = sorted(
-            self.pack_weights.items(),
-            key=lambda x: x[1],
-            reverse=True
+            self.pack_weights.items(), key=lambda x: x[1], reverse=True
         )
         return sorted_packs[:n]
 
@@ -543,49 +558,48 @@ class TrainablePackGraph:
 # CLI Interface
 # ============================================================================
 
+
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description='Context Packs V2 - Layers 5-7'
-    )
+    parser = argparse.ArgumentParser(description="Context Packs V2 - Layers 5-7")
 
-    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Focus compression
-    focus_parser = subparsers.add_parser('focus', help='Apply focus compression')
-    focus_parser.add_argument('--pack-id', required=True)
-    focus_parser.add_argument('--query', required=True)
+    focus_parser = subparsers.add_parser("focus", help="Apply focus compression")
+    focus_parser.add_argument("--pack-id", required=True)
+    focus_parser.add_argument("--query", required=True)
 
     # Continuum memory
-    memory_parser = subparsers.add_parser('memory', help='View continuum memory')
-    memory_parser.add_argument('--pack-id', help='Specific pack to view')
+    memory_parser = subparsers.add_parser("memory", help="View continuum memory")
+    memory_parser.add_argument("--pack-id", help="Specific pack to view")
 
     # Trainable weights
-    weights_parser = subparsers.add_parser('weights', help='View trainable weights')
-    weights_parser.add_argument('--top', type=int, default=10)
+    weights_parser = subparsers.add_parser("weights", help="View trainable weights")
+    weights_parser.add_argument("--top", type=int, default=10)
 
     args = parser.parse_args()
 
-    if args.command == 'focus':
+    if args.command == "focus":
         # Test focus compression
         focus_agent = FocusAgent()
 
         # Mock pack data
         pack_data = {
-            'pack_id': args.pack_id,
-            'content': {
-                'papers': [{'arxiv_id': '2601.12345'}] * 5,
-                'learnings': ['Learning about agents'] * 10,
-                'keywords': ['agent', 'multi-agent', 'consensus', 'optimization'] * 2
-            }
+            "pack_id": args.pack_id,
+            "content": {
+                "papers": [{"arxiv_id": "2601.12345"}] * 5,
+                "learnings": ["Learning about agents"] * 10,
+                "keywords": ["agent", "multi-agent", "consensus", "optimization"] * 2,
+            },
         }
 
         compressed, metrics = focus_agent.compress_pack(pack_data, args.query)
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("FOCUS COMPRESSION RESULTS")
-        print("="*60)
+        print("=" * 60)
         print(f"\nQuery: {args.query}")
         print(f"Focus Tokens: {metrics['focus_tokens']}")
         print(f"Original Elements: {metrics['original_elements']}")
@@ -593,7 +607,7 @@ def main():
         print(f"Reduction Rate: {metrics['reduction_rate']:.1%}")
         print(f"Target: {metrics['target_reduction']:.1%}")
 
-    elif args.command == 'memory':
+    elif args.command == "memory":
         continuum = ContinuumMemory()
 
         if args.pack_id:
@@ -610,14 +624,16 @@ def main():
         else:
             print(f"\nTotal Memory States: {len(continuum.memory_states)}")
             for pack_id, state in list(continuum.memory_states.items())[:10]:
-                print(f"  {pack_id}: importance={state.importance_score:.3f}, uses={state.usage_count}")
+                print(
+                    f"  {pack_id}: importance={state.importance_score:.3f}, uses={state.usage_count}"
+                )
 
-    elif args.command == 'weights':
+    elif args.command == "weights":
         graph = TrainablePackGraph()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TRAINABLE PACK WEIGHTS")
-        print("="*60)
+        print("=" * 60)
 
         if not graph.pack_weights:
             print("\nNo trained weights yet. Use after collecting session outcomes.")
@@ -628,5 +644,5 @@ def main():
                 print(f"  {i}. {pack_id}: {weight:.3f}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

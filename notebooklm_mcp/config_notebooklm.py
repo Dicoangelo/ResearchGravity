@@ -45,8 +45,7 @@ class NotebookLMConfig:
 
     # Database connection (PostgreSQL for UCW)
     DATABASE_URL = os.getenv(
-        "UCW_DATABASE_URL",
-        "postgresql://localhost:5432/ucw_cognitive"
+        "UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive"
     )
 
     @classmethod

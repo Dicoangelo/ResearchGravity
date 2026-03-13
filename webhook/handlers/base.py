@@ -16,12 +16,12 @@ from typing import Any, Dict, List, Mapping
 class WebhookEvent:
     """Parsed webhook event before normalization to CapturedEvent."""
 
-    event_type: str             # e.g., "push", "pull_request", "message"
-    content: str                # Human-readable content string
+    event_type: str  # e.g., "push", "pull_request", "message"
+    content: str  # Human-readable content string
     metadata: Dict[str, Any] = field(default_factory=dict)
-    timestamp: float = 0.0     # Unix timestamp
-    session_id: str = ""       # Provider-specific grouping key
-    role: str = "system"       # "user", "assistant", "system"
+    timestamp: float = 0.0  # Unix timestamp
+    session_id: str = ""  # Provider-specific grouping key
+    role: str = "system"  # "user", "assistant", "system"
 
 
 class WebhookHandler(ABC):

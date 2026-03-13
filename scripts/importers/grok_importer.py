@@ -46,38 +46,74 @@ BATCH_SIZE = 500
 
 # Intent signals for light layer
 _INTENT_SIGNALS = {
-    "search":   ["search", "find", "look", "where", "grep"],
-    "create":   ["create", "build", "write", "make", "generate", "implement"],
-    "analyze":  ["analyze", "review", "check", "explain", "why", "debug"],
+    "search": ["search", "find", "look", "where", "grep"],
+    "create": ["create", "build", "write", "make", "generate", "implement"],
+    "analyze": ["analyze", "review", "check", "explain", "why", "debug"],
     "retrieve": ["get", "read", "list", "show", "fetch"],
-    "explore":  ["what", "how", "tell me", "explore", "discuss"],
+    "explore": ["what", "how", "tell me", "explore", "discuss"],
     "strategize": ["strategy", "market", "invest", "growth", "forecast", "trend"],
 }
 
 # Domain keywords for topic classification
 _DOMAIN_KEYWORDS = {
-    "strategy":     ["strategy", "market", "trend", "geopolitics", "economics", "growth", "investment"],
-    "ai_agents":    ["agent", "multi-agent", "orchestrat", "coordinat", "ai", "llm", "model"],
-    "coding":       ["function", "class", "import", "variable", "refactor", "debug", "code"],
-    "ucw":          ["ucw", "cognitive wallet", "coherence", "sovereignty"],
-    "research":     ["research", "paper", "arxiv", "finding", "hypothesis"],
-    "database":     ["database", "sql", "schema", "query", "postgres"],
-    "career":       ["career", "job", "resume", "interview", "skills", "role"],
-    "business":     ["business", "startup", "product", "customer", "revenue"],
-    "philosophy":   ["philosophy", "consciousness", "meaning", "existence", "think"],
+    "strategy": [
+        "strategy",
+        "market",
+        "trend",
+        "geopolitics",
+        "economics",
+        "growth",
+        "investment",
+    ],
+    "ai_agents": [
+        "agent",
+        "multi-agent",
+        "orchestrat",
+        "coordinat",
+        "ai",
+        "llm",
+        "model",
+    ],
+    "coding": ["function", "class", "import", "variable", "refactor", "debug", "code"],
+    "ucw": ["ucw", "cognitive wallet", "coherence", "sovereignty"],
+    "research": ["research", "paper", "arxiv", "finding", "hypothesis"],
+    "database": ["database", "sql", "schema", "query", "postgres"],
+    "career": ["career", "job", "resume", "interview", "skills", "role"],
+    "business": ["business", "startup", "product", "customer", "revenue"],
+    "philosophy": ["philosophy", "consciousness", "meaning", "existence", "think"],
 }
 
 # Concepts to detect for instinct layer
 _CONCEPT_TARGETS = [
-    "mcp", "ucw", "database", "schema", "coherence", "protocol",
-    "cognitive", "semantic", "embedding", "sovereign", "platform",
-    "research", "session", "capture", "agent", "orchestrat",
-    "strategy", "market", "innovation", "disruption", "growth",
-    "career", "architecture", "emergence",
+    "mcp",
+    "ucw",
+    "database",
+    "schema",
+    "coherence",
+    "protocol",
+    "cognitive",
+    "semantic",
+    "embedding",
+    "sovereign",
+    "platform",
+    "research",
+    "session",
+    "capture",
+    "agent",
+    "orchestrat",
+    "strategy",
+    "market",
+    "innovation",
+    "disruption",
+    "growth",
+    "career",
+    "architecture",
+    "emergence",
 ]
 
 
 # ─── Timestamp Parsing ──────────────────────────────────────────────────────
+
 
 def parse_grok_timestamp(create_time) -> int:
     """Parse Grok MongoDB-style timestamp to nanoseconds.
@@ -86,9 +122,9 @@ def parse_grok_timestamp(create_time) -> int:
     """
     ts_ms = 0
     if isinstance(create_time, dict):
-        date_obj = create_time.get('$date', {})
+        date_obj = create_time.get("$date", {})
         if isinstance(date_obj, dict):
-            ts_ms = int(date_obj.get('$numberLong', '0'))
+            ts_ms = int(date_obj.get("$numberLong", "0"))
         elif isinstance(date_obj, (int, float)):
             ts_ms = int(date_obj)
     elif isinstance(create_time, (int, float)):
@@ -116,6 +152,7 @@ def parse_iso_timestamp(ts_str: str) -> int:
 
 
 # ─── Layer Extraction ───────────────────────────────────────────────────────
+
 
 def _classify(text: str, mapping: Dict[str, List[str]], *, default: str) -> str:
     best, best_score = default, 0
@@ -168,14 +205,17 @@ def build_instinct_layer(light: Dict) -> Dict:
         "coherence_potential": round(cp, 3),
         "emergence_indicators": indicators,
         "gut_signal": (
-            "breakthrough_potential" if len(indicators) >= 2
-            else "interesting" if indicators
+            "breakthrough_potential"
+            if len(indicators) >= 2
+            else "interesting"
+            if indicators
             else "routine"
         ),
     }
 
 
 # ─── Conversation Processing ───────────────────────────────────────────────
+
 
 def process_conversation(
     conv_entry: Dict,
@@ -199,7 +239,8 @@ def process_conversation(
 
     # Count user+assistant turns
     turn_count = sum(
-        1 for r in responses
+        1
+        for r in responses
         if r.get("response", {}).get("sender") in ("human", "assistant")
     )
 
@@ -222,19 +263,21 @@ def process_conversation(
         "summary": title,
         "cognitive_mode": cognitive_mode,
         "quality_score": quality_score,
-        "metadata": json.dumps({
-            "source": "grok_export",
-            "conversation_id": conv_id,
-            "model": metrics.get("model", ""),
-            "depth": metrics.get("depth", 0),
-            "focus": metrics.get("focus", 0),
-            "signal": metrics.get("signal", 0),
-            "signal_strength": metrics.get("signal_strength", 0),
-            "message_count": metrics.get("message_count", turn_count),
-            "total_chars": metrics.get("total_chars", 0),
-            "starred": conv.get("starred", False),
-            "system_prompt_name": conv.get("system_prompt_name", ""),
-        }),
+        "metadata": json.dumps(
+            {
+                "source": "grok_export",
+                "conversation_id": conv_id,
+                "model": metrics.get("model", ""),
+                "depth": metrics.get("depth", 0),
+                "focus": metrics.get("focus", 0),
+                "signal": metrics.get("signal", 0),
+                "signal_strength": metrics.get("signal_strength", 0),
+                "message_count": metrics.get("message_count", turn_count),
+                "total_chars": metrics.get("total_chars", 0),
+                "starred": conv.get("starred", False),
+                "system_prompt_name": conv.get("system_prompt_name", ""),
+            }
+        ),
     }
 
     # Process responses into events
@@ -304,12 +347,14 @@ def process_conversation(
             "parent_event_id": resp.get("parent_response_id"),
             "turn": turn_counter,
             "raw_bytes": text.encode("utf-8")[:10000],
-            "parsed_json": json.dumps({
-                "type": method,
-                "role": method,
-                "model": model,
-                "content_preview": text[:500],
-            }),
+            "parsed_json": json.dumps(
+                {
+                    "type": method,
+                    "role": method,
+                    "model": model,
+                    "content_preview": text[:500],
+                }
+            ),
             "content_length": len(text),
             "error": None,
             "data_layer": json.dumps(data_layer),
@@ -329,10 +374,11 @@ def process_conversation(
 
 # ─── Database Operations ────────────────────────────────────────────────────
 
+
 async def insert_sessions(pool, sessions: List[Dict]) -> int:
     inserted = 0
     for i in range(0, len(sessions), BATCH_SIZE):
-        batch = sessions[i:i + BATCH_SIZE]
+        batch = sessions[i : i + BATCH_SIZE]
         async with pool.acquire() as conn:
             for cs in batch:
                 try:
@@ -343,10 +389,18 @@ async def insert_sessions(pool, sessions: List[Dict]) -> int:
                             cognitive_mode, quality_score, metadata)
                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                            ON CONFLICT (session_id) DO NOTHING""",
-                        cs["session_id"], cs["started_ns"], cs["ended_ns"],
-                        cs["platform"], cs["status"], cs["event_count"],
-                        cs["turn_count"], cs["topics"], cs["summary"],
-                        cs["cognitive_mode"], cs["quality_score"], cs["metadata"],
+                        cs["session_id"],
+                        cs["started_ns"],
+                        cs["ended_ns"],
+                        cs["platform"],
+                        cs["status"],
+                        cs["event_count"],
+                        cs["turn_count"],
+                        cs["topics"],
+                        cs["summary"],
+                        cs["cognitive_mode"],
+                        cs["quality_score"],
+                        cs["metadata"],
                     )
                     if "INSERT 0 1" in result:
                         inserted += 1
@@ -358,7 +412,7 @@ async def insert_sessions(pool, sessions: List[Dict]) -> int:
 async def insert_events(pool, events: List[Dict]) -> int:
     inserted = 0
     for i in range(0, len(events), BATCH_SIZE):
-        batch = events[i:i + BATCH_SIZE]
+        batch = events[i : i + BATCH_SIZE]
         async with pool.acquire() as conn:
             for ev in batch:
                 try:
@@ -374,14 +428,27 @@ async def insert_events(pool, events: List[Dict]) -> int:
                                    $10, $11, $12, $13, $14, $15, $16,
                                    $17, $18, $19, $20, $21)
                            ON CONFLICT (event_id) DO NOTHING""",
-                        ev["event_id"], ev["session_id"], ev["timestamp_ns"],
-                        ev["direction"], ev["stage"], ev["method"],
-                        ev["request_id"], ev["parent_event_id"], ev["turn"],
-                        ev["raw_bytes"], ev["parsed_json"], ev["content_length"],
-                        ev["error"], ev["data_layer"], ev["light_layer"],
-                        ev["instinct_layer"], ev["coherence_sig"],
-                        ev["platform"], ev["protocol"],
-                        ev["quality_score"], ev["cognitive_mode"],
+                        ev["event_id"],
+                        ev["session_id"],
+                        ev["timestamp_ns"],
+                        ev["direction"],
+                        ev["stage"],
+                        ev["method"],
+                        ev["request_id"],
+                        ev["parent_event_id"],
+                        ev["turn"],
+                        ev["raw_bytes"],
+                        ev["parsed_json"],
+                        ev["content_length"],
+                        ev["error"],
+                        ev["data_layer"],
+                        ev["light_layer"],
+                        ev["instinct_layer"],
+                        ev["coherence_sig"],
+                        ev["platform"],
+                        ev["protocol"],
+                        ev["quality_score"],
+                        ev["cognitive_mode"],
                     )
                     if "INSERT 0 1" in result:
                         inserted += 1
@@ -392,6 +459,7 @@ async def insert_events(pool, events: List[Dict]) -> int:
 
 
 # ─── Main ───────────────────────────────────────────────────────────────────
+
 
 async def run_import(
     export_path: Path,
@@ -440,13 +508,15 @@ async def run_import(
     # Filter by tier
     if tier != "all":
         target_ids = {
-            cid for cid, s in scores_index.items()
+            cid
+            for cid, s in scores_index.items()
             if s.get("metrics", {}).get("cognitive_mode") == tier
         }
     else:
         # Import all non-garbage (quality >= 0.40)
         target_ids = {
-            cid for cid, s in scores_index.items()
+            cid
+            for cid, s in scores_index.items()
             if s.get("metrics", {}).get("import_recommended", False)
         }
 
@@ -489,7 +559,9 @@ async def run_import(
                 purpose_counts[scores.get("metrics", {}).get("purpose", "random")] += 1
 
                 if verbose:
-                    print(f"  [{i+1:5d}] {title[:55]:55s} -> {len(events):4d} events ({session['cognitive_mode']})")
+                    print(
+                        f"  [{i + 1:5d}] {title[:55]:55s} -> {len(events):4d} events ({session['cognitive_mode']})"
+                    )
 
         except Exception as e:
             errors.append({"conversation_id": cid, "title": title, "error": str(e)})
@@ -497,7 +569,9 @@ async def run_import(
                 print(f"  ERROR on '{title[:40]}': {e}")
 
         if (i + 1) % 500 == 0 and not verbose:
-            print(f"  Processed {i+1}/{len(conv_lookup)}... ({len(all_events)} events)")
+            print(
+                f"  Processed {i + 1}/{len(conv_lookup)}... ({len(all_events)} events)"
+            )
 
     print(f"\n  Sessions:  {len(all_sessions)}")
     print(f"  Events:    {len(all_events)}")
@@ -533,8 +607,10 @@ async def run_import(
             print("\nSample events (first 5):")
             for ev in all_events[:5]:
                 pj = json.loads(ev["parsed_json"])
-                print(f"  [{ev['direction']:3s}] {ev['method']:10s} | "
-                      f"{pj.get('content_preview', '')[:80]}...")
+                print(
+                    f"  [{ev['direction']:3s}] {ev['method']:10s} | "
+                    f"{pj.get('content_preview', '')[:80]}..."
+                )
         return
 
     # Connect to PostgreSQL
@@ -543,26 +619,36 @@ async def run_import(
 
     # Check existing data
     async with pool.acquire() as conn:
-        existing_sessions = await conn.fetchval("SELECT COUNT(*) FROM cognitive_sessions")
+        existing_sessions = await conn.fetchval(
+            "SELECT COUNT(*) FROM cognitive_sessions"
+        )
         existing_events = await conn.fetchval("SELECT COUNT(*) FROM cognitive_events")
         existing_grok = await conn.fetchval(
             "SELECT COUNT(*) FROM cognitive_events WHERE platform = 'grok'"
         )
-    print(f"  Existing: {existing_sessions} sessions, {existing_events} events ({existing_grok} grok)")
+    print(
+        f"  Existing: {existing_sessions} sessions, {existing_events} events ({existing_grok} grok)"
+    )
     print()
 
     # Insert sessions
     print(f"Inserting {len(all_sessions)} sessions...")
     inserted_sessions = await insert_sessions(pool, all_sessions)
-    print(f"  Inserted: {inserted_sessions} new sessions (skipped {len(all_sessions) - inserted_sessions} duplicates)")
+    print(
+        f"  Inserted: {inserted_sessions} new sessions (skipped {len(all_sessions) - inserted_sessions} duplicates)"
+    )
 
     # Insert events
     print(f"\nInserting {len(all_events)} events...")
     t0 = time.time()
     inserted_events = await insert_events(pool, all_events)
     elapsed = time.time() - t0
-    print(f"  Inserted: {inserted_events} new events (skipped {len(all_events) - inserted_events} duplicates)")
-    print(f"  Time: {elapsed:.1f}s ({len(all_events) / max(elapsed, 0.1):.0f} events/sec)")
+    print(
+        f"  Inserted: {inserted_events} new events (skipped {len(all_events) - inserted_events} duplicates)"
+    )
+    print(
+        f"  Time: {elapsed:.1f}s ({len(all_events) / max(elapsed, 0.1):.0f} events/sec)"
+    )
 
     # Verification
     print("\nVerification:")
@@ -618,7 +704,9 @@ async def run_import(
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 grok_importer.py <export_dir> [--tier all] [--dry-run] [--verbose] [--limit N]")
+        print(
+            "Usage: python3 grok_importer.py <export_dir> [--tier all] [--dry-run] [--verbose] [--limit N]"
+        )
         sys.exit(1)
 
     export_path = Path(sys.argv[1]).expanduser()
@@ -638,7 +726,11 @@ def main():
         elif arg == "--limit" and i + 1 < len(args):
             limit = int(args[i + 1])
 
-    asyncio.run(run_import(export_path, tier=tier, dry_run=dry_run, verbose=verbose, limit=limit))
+    asyncio.run(
+        run_import(
+            export_path, tier=tier, dry_run=dry_run, verbose=verbose, limit=limit
+        )
+    )
 
 
 if __name__ == "__main__":

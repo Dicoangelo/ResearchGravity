@@ -20,6 +20,7 @@ from datetime import datetime
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.prediction.intelligence import (
@@ -36,12 +37,14 @@ router = APIRouter(prefix="/api/v2/intelligence", tags=["intelligence"])
 
 class PredictRequest(BaseModel):
     """Request for session quality prediction."""
+
     intent: str = Field(..., description="Task/intent description")
     context: Optional[str] = Field(None, description="Additional context")
 
 
 class PredictResponse(BaseModel):
     """Response for session quality prediction."""
+
     intent: str
     predicted_quality: float
     success_probability: float
@@ -56,12 +59,14 @@ class PredictResponse(BaseModel):
 
 class ErrorsRequest(BaseModel):
     """Request for likely errors."""
+
     context: str = Field(..., description="Context to search for errors")
     limit: int = Field(5, description="Maximum errors to return")
 
 
 class FeedbackRequest(BaseModel):
     """Request to record outcome feedback."""
+
     prediction_id: Optional[str] = Field(None, description="Original prediction ID")
     intent: str = Field(..., description="Original intent")
     actual_quality: float = Field(..., ge=1, le=5, description="Actual quality (1-5)")
@@ -72,6 +77,7 @@ class FeedbackRequest(BaseModel):
 
 class FeedbackResponse(BaseModel):
     """Response for feedback recording."""
+
     success: bool
     message: str
     timestamp: str
@@ -98,14 +104,12 @@ async def predict_session(request: PredictRequest):
         storage_engine = None
         try:
             from storage.engine import get_engine
+
             storage_engine = await get_engine()
         except Exception:
             pass
 
-        prediction = await predict_session_quality(
-            request.intent,
-            storage_engine
-        )
+        prediction = await predict_session_quality(request.intent, storage_engine)
 
         if storage_engine:
             await storage_engine.close()
@@ -149,6 +153,7 @@ async def likely_errors(request: ErrorsRequest):
         storage_engine = None
         try:
             from storage.engine import get_engine
+
             storage_engine = await get_engine()
         except Exception:
             pass
@@ -162,7 +167,7 @@ async def likely_errors(request: ErrorsRequest):
             "status": "ok",
             "data": {
                 "context": request.context,
-                "errors": errors[:request.limit],
+                "errors": errors[: request.limit],
             },
         }
     except Exception as e:
@@ -177,6 +182,7 @@ async def record_feedback(request: FeedbackRequest):
         storage_engine = None
         try:
             from storage.engine import get_engine
+
             storage_engine = await get_engine()
         except Exception:
             pass
@@ -187,7 +193,7 @@ async def record_feedback(request: FeedbackRequest):
                     prediction_id=request.prediction_id,
                     actual_quality=request.actual_quality,
                     actual_outcome=request.actual_outcome,
-                    session_id=request.session_id or ""
+                    session_id=request.session_id or "",
                 )
             except Exception as e:
                 print(f"Warning: Could not update prediction: {e}")
@@ -212,6 +218,7 @@ async def related_research(query: str, limit: int = 5):
         storage_engine = None
         try:
             from storage.engine import get_engine
+
             storage_engine = await get_engine()
         except Exception:
             pass

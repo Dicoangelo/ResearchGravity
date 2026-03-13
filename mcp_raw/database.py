@@ -27,6 +27,7 @@ log = get_logger("database")
 # Try to import asyncpg (optional dependency)
 try:
     import asyncpg
+
     HAS_ASYNCPG = True
 except ImportError:
     HAS_ASYNCPG = False
@@ -34,10 +35,7 @@ except ImportError:
 
 
 # Connection config from environment
-PG_DSN = os.environ.get(
-    "UCW_DATABASE_URL",
-    "postgresql://localhost:5432/ucw_cognitive"
-)
+PG_DSN = os.environ.get("UCW_DATABASE_URL", "postgresql://localhost:5432/ucw_cognitive")
 PG_MIN_POOL = int(os.environ.get("UCW_PG_MIN_POOL", "2"))
 PG_MAX_POOL = int(os.environ.get("UCW_PG_MAX_POOL", "10"))
 
@@ -102,7 +100,9 @@ class CognitiveDatabase:
                        ON CONFLICT (session_id) DO UPDATE
                        SET started_ns = EXCLUDED.started_ns,
                            status = 'active'""",
-                    self._session_id, time.time_ns(), Config.PLATFORM,
+                    self._session_id,
+                    time.time_ns(),
+                    Config.PLATFORM,
                 )
 
             self._available = True
@@ -117,7 +117,11 @@ class CognitiveDatabase:
     async def _ensure_schema(self, conn):
         """Create tables if they don't exist."""
         # Read and execute the schema file
-        schema_path = Config.AGENT_CORE.parent / "researchgravity" / "unified_cognitive_schema.sql"
+        schema_path = (
+            Config.AGENT_CORE.parent
+            / "researchgravity"
+            / "unified_cognitive_schema.sql"
+        )
         if schema_path.exists():
             sql = schema_path.read_text()
             await conn.execute(sql)
@@ -295,7 +299,8 @@ class CognitiveDatabase:
                    WHERE coherence_sig = $1
                    ORDER BY timestamp_ns DESC
                    LIMIT $2""",
-                signature, limit,
+                signature,
+                limit,
             )
             return [dict(r) for r in rows]
 
@@ -360,7 +365,8 @@ class CognitiveDatabase:
                               turn_count = (SELECT MAX(turn) FROM cognitive_events WHERE session_id = $2),
                               status = 'completed'
                            WHERE session_id = $2""",
-                        time.time_ns(), self._session_id,
+                        time.time_ns(),
+                        self._session_id,
                     )
             except Exception as exc:
                 log.error(f"Error finalizing session: {exc}")

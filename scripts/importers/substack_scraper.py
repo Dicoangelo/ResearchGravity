@@ -53,30 +53,30 @@ class HTMLTextExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
         self.text_parts = []
-        self.skip_tags = {'script', 'style', 'head', 'meta', 'link'}
+        self.skip_tags = {"script", "style", "head", "meta", "link"}
         self.current_skip = False
 
     def handle_starttag(self, tag, attrs):
         if tag in self.skip_tags:
             self.current_skip = True
-        elif tag in ('p', 'br', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'):
-            self.text_parts.append('\n')
+        elif tag in ("p", "br", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li"):
+            self.text_parts.append("\n")
 
     def handle_endtag(self, tag):
         if tag in self.skip_tags:
             self.current_skip = False
-        elif tag in ('p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
-            self.text_parts.append('\n')
+        elif tag in ("p", "div", "h1", "h2", "h3", "h4", "h5", "h6"):
+            self.text_parts.append("\n")
 
     def handle_data(self, data):
         if not self.current_skip:
             self.text_parts.append(data)
 
     def get_text(self) -> str:
-        text = ''.join(self.text_parts)
+        text = "".join(self.text_parts)
         # Clean up whitespace
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        text = re.sub(r' +', ' ', text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = re.sub(r" +", " ", text)
         return text.strip()
 
 
@@ -95,26 +95,28 @@ def parse_substack_input(substack_input: str) -> tuple[str, str]:
     substack_input = substack_input.strip()
 
     # Handle full URLs: https://example.substack.com/archive or https://example.substack.com
-    url_match = re.match(r'https?://([^.]+)\.substack\.com(?:/.*)?', substack_input)
+    url_match = re.match(r"https?://([^.]+)\.substack\.com(?:/.*)?", substack_input)
     if url_match:
         name = url_match.group(1)
         return name, f"https://{name}.substack.com"
 
     # Handle substack.com/@username format
-    username_match = re.match(r'https?://(?:www\.)?substack\.com/@([^/?\s]+)', substack_input)
+    username_match = re.match(
+        r"https?://(?:www\.)?substack\.com/@([^/?\s]+)", substack_input
+    )
     if username_match:
         name = username_match.group(1)
         return name, f"https://substack.com/@{name}"
 
     # Handle @username format
-    if substack_input.startswith('@'):
+    if substack_input.startswith("@"):
         name = substack_input[1:]
         return name, f"https://substack.com/@{name}"
 
     # Handle custom domain: https://example.com
-    if substack_input.startswith('http'):
+    if substack_input.startswith("http"):
         parsed = urlparse(substack_input)
-        name = parsed.netloc.replace('www.', '').split('.')[0]
+        name = parsed.netloc.replace("www.", "").split(".")[0]
         return name, f"{parsed.scheme}://{parsed.netloc}"
 
     # Assume it's just the publication name
@@ -126,18 +128,21 @@ def fetch_rss_feed(base_url: str) -> str:
     feed_url = f"{base_url}/feed"
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
     }
 
     request = urllib.request.Request(feed_url, headers=headers)
 
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
-            return response.read().decode('utf-8')
+            return response.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         if e.code == 404:
             print(f"ERROR: RSS feed not found at {feed_url}", file=sys.stderr)
-            print("  Try the full Substack URL or check the publication name.", file=sys.stderr)
+            print(
+                "  Try the full Substack URL or check the publication name.",
+                file=sys.stderr,
+            )
         else:
             print(f"ERROR: Failed to fetch RSS feed: {e}", file=sys.stderr)
         sys.exit(1)
@@ -157,24 +162,32 @@ def fetch_archive_api(base_url: str, limit: Optional[int] = None) -> list[dict]:
     batch_size = 50
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
     }
 
     while True:
         # Substack archive API endpoint
-        api_url = f"{base_url}/api/v1/archive?sort=new&offset={offset}&limit={batch_size}"
+        api_url = (
+            f"{base_url}/api/v1/archive?sort=new&offset={offset}&limit={batch_size}"
+        )
 
         request = urllib.request.Request(api_url, headers=headers)
 
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                data = json.loads(response.read().decode('utf-8'))
+                data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 # Might be a custom domain, try without /api/v1
-                print(f"  Archive API not available, falling back to RSS only.", file=sys.stderr)
+                print(
+                    "  Archive API not available, falling back to RSS only.",
+                    file=sys.stderr,
+                )
                 return []
-            print(f"WARNING: Failed to fetch archive batch at offset {offset}: {e}", file=sys.stderr)
+            print(
+                f"WARNING: Failed to fetch archive batch at offset {offset}: {e}",
+                file=sys.stderr,
+            )
             break
         except (urllib.error.URLError, json.JSONDecodeError) as e:
             print(f"WARNING: Error fetching archive: {e}", file=sys.stderr)
@@ -185,29 +198,31 @@ def fetch_archive_api(base_url: str, limit: Optional[int] = None) -> list[dict]:
 
         for item in data:
             # Skip if not a post (could be a thread, podcast, etc.)
-            if item.get('type') != 'newsletter' and item.get('type') != 'post':
-                if item.get('type') not in ('thread', 'podcast'):
+            if item.get("type") != "newsletter" and item.get("type") != "post":
+                if item.get("type") not in ("thread", "podcast"):
                     pass  # Include most types
 
-            post_date = item.get('post_date', '')[:10] if item.get('post_date') else ''
+            post_date = item.get("post_date", "")[:10] if item.get("post_date") else ""
 
             article = {
-                'id': str(item.get('id', '')),
-                'title': item.get('title', 'Untitled'),
-                'slug': item.get('slug', ''),
-                'published': post_date,
-                'url': item.get('canonical_url', ''),
-                'subtitle': item.get('subtitle', ''),
-                'description': item.get('description', ''),
-                'word_count': item.get('wordcount', 0),
-                'likes': item.get('reactions', {}).get('❤', 0) if isinstance(item.get('reactions'), dict) else 0,
-                'comments': item.get('comment_count', 0),
-                'is_paid': item.get('audience') == 'only_paid',
-                'type': item.get('type', 'post'),
+                "id": str(item.get("id", "")),
+                "title": item.get("title", "Untitled"),
+                "slug": item.get("slug", ""),
+                "published": post_date,
+                "url": item.get("canonical_url", ""),
+                "subtitle": item.get("subtitle", ""),
+                "description": item.get("description", ""),
+                "word_count": item.get("wordcount", 0),
+                "likes": item.get("reactions", {}).get("❤", 0)
+                if isinstance(item.get("reactions"), dict)
+                else 0,
+                "comments": item.get("comment_count", 0),
+                "is_paid": item.get("audience") == "only_paid",
+                "type": item.get("type", "post"),
             }
 
-            if not article['url'] and article['slug']:
-                article['url'] = f"{base_url}/p/{article['slug']}"
+            if not article["url"] and article["slug"]:
+                article["url"] = f"{base_url}/p/{article['slug']}"
 
             articles.append(article)
 
@@ -232,64 +247,64 @@ def parse_rss_feed(xml_content: str, base_url: str) -> tuple[dict, list[dict]]:
     """Parse RSS feed and extract publication info and articles."""
     root = ET.fromstring(xml_content)
 
-    channel = root.find('channel')
+    channel = root.find("channel")
     if channel is None:
         print("ERROR: Invalid RSS feed structure.", file=sys.stderr)
         sys.exit(1)
 
     # Extract publication info
     publication = {
-        'name': channel.findtext('title', 'Unknown'),
-        'description': channel.findtext('description', ''),
-        'url': base_url,
-        'image': '',
+        "name": channel.findtext("title", "Unknown"),
+        "description": channel.findtext("description", ""),
+        "url": base_url,
+        "image": "",
     }
 
-    image = channel.find('image')
+    image = channel.find("image")
     if image is not None:
-        publication['image'] = image.findtext('url', '')
+        publication["image"] = image.findtext("url", "")
 
     # Extract articles
     articles = []
-    for item in channel.findall('item'):
-        pub_date = item.findtext('pubDate', '')
+    for item in channel.findall("item"):
+        pub_date = item.findtext("pubDate", "")
         # Parse date: "Wed, 15 Jan 2025 12:00:00 GMT" -> "2025-01-15"
-        date_str = ''
+        date_str = ""
         if pub_date:
             try:
                 # Try parsing RSS date format
-                dt = datetime.strptime(pub_date, '%a, %d %b %Y %H:%M:%S %Z')
-                date_str = dt.strftime('%Y-%m-%d')
+                dt = datetime.strptime(pub_date, "%a, %d %b %Y %H:%M:%S %Z")
+                date_str = dt.strftime("%Y-%m-%d")
             except ValueError:
                 try:
-                    dt = datetime.strptime(pub_date[:25], '%a, %d %b %Y %H:%M:%S')
-                    date_str = dt.strftime('%Y-%m-%d')
+                    dt = datetime.strptime(pub_date[:25], "%a, %d %b %Y %H:%M:%S")
+                    date_str = dt.strftime("%Y-%m-%d")
                 except ValueError:
                     date_str = pub_date[:10]
 
         # Get content if available
-        content = ''
-        content_encoded = item.find('{http://purl.org/rss/1.0/modules/content/}encoded')
+        content = ""
+        content_encoded = item.find("{http://purl.org/rss/1.0/modules/content/}encoded")
         if content_encoded is not None and content_encoded.text:
             content = html_to_text(content_encoded.text)
 
-        url = item.findtext('link', '')
+        url = item.findtext("link", "")
 
         # Extract slug from URL
-        slug = ''
-        slug_match = re.search(r'/p/([^/?]+)', url)
+        slug = ""
+        slug_match = re.search(r"/p/([^/?]+)", url)
         if slug_match:
             slug = slug_match.group(1)
 
         article = {
-            'id': item.findtext('guid', url),
-            'title': item.findtext('title', 'Untitled'),
-            'slug': slug,
-            'published': date_str,
-            'url': url,
-            'description': html_to_text(item.findtext('description', '')),
-            'content_preview': content[:500] if content else '',
-            'word_count': len(content.split()) if content else 0,
+            "id": item.findtext("guid", url),
+            "title": item.findtext("title", "Untitled"),
+            "slug": slug,
+            "published": date_str,
+            "url": url,
+            "description": html_to_text(item.findtext("description", "")),
+            "content_preview": content[:500] if content else "",
+            "word_count": len(content.split()) if content else 0,
         }
 
         articles.append(article)
@@ -300,23 +315,23 @@ def parse_rss_feed(xml_content: str, base_url: str) -> tuple[dict, list[dict]]:
 def fetch_full_content(url: str) -> dict:
     """Fetch full article content from a Substack post URL."""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
     }
 
     request = urllib.request.Request(url, headers=headers)
 
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
-            html = response.read().decode('utf-8')
+            html = response.read().decode("utf-8")
     except Exception as e:
-        return {'status': 'error', 'error': str(e)}
+        return {"status": "error", "error": str(e)}
 
     # Try to find the article body
     # Substack uses a specific div class for content
     content_match = re.search(
         r'<div[^>]*class="[^"]*available-content[^"]*"[^>]*>(.*?)</div>\s*(?:<div[^>]*class="[^"]*subscription-widget)',
         html,
-        re.DOTALL | re.IGNORECASE
+        re.DOTALL | re.IGNORECASE,
     )
 
     if not content_match:
@@ -324,7 +339,7 @@ def fetch_full_content(url: str) -> dict:
         content_match = re.search(
             r'<div[^>]*class="[^"]*body[^"]*markup[^"]*"[^>]*>(.*?)</div>',
             html,
-            re.DOTALL | re.IGNORECASE
+            re.DOTALL | re.IGNORECASE,
         )
 
     if not content_match:
@@ -332,7 +347,7 @@ def fetch_full_content(url: str) -> dict:
         content_match = re.search(
             r'<div[^>]*class="[^"]*post-content[^"]*"[^>]*>(.*?)</div>\s*<div[^>]*class="[^"]*post-footer',
             html,
-            re.DOTALL | re.IGNORECASE
+            re.DOTALL | re.IGNORECASE,
         )
 
     if content_match:
@@ -340,32 +355,36 @@ def fetch_full_content(url: str) -> dict:
         text = html_to_text(content_html)
         word_count = len(text.split())
         return {
-            'status': 'ok',
-            'text': text,
-            'word_count': word_count,
+            "status": "ok",
+            "text": text,
+            "word_count": word_count,
         }
 
     # Fallback: try to extract from JSON-LD
-    jsonld_match = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.DOTALL)
+    jsonld_match = re.search(
+        r'<script type="application/ld\+json">(.*?)</script>', html, re.DOTALL
+    )
     if jsonld_match:
         try:
             data = json.loads(jsonld_match.group(1))
             if isinstance(data, list):
                 data = data[0]
-            if 'articleBody' in data:
-                text = data['articleBody']
+            if "articleBody" in data:
+                text = data["articleBody"]
                 return {
-                    'status': 'ok',
-                    'text': text,
-                    'word_count': len(text.split()),
+                    "status": "ok",
+                    "text": text,
+                    "word_count": len(text.split()),
                 }
         except (json.JSONDecodeError, KeyError, IndexError):
             pass
 
-    return {'status': 'no_content'}
+    return {"status": "no_content"}
 
 
-def fetch_all_content(articles: list[dict], output_dir: Path, delay: float = 2.0) -> dict:
+def fetch_all_content(
+    articles: list[dict], output_dir: Path, delay: float = 2.0
+) -> dict:
     """Fetch full content for all articles with rate limiting and resume support."""
     content_dir = output_dir / "content"
     content_dir.mkdir(parents=True, exist_ok=True)
@@ -386,10 +405,10 @@ def fetch_all_content(articles: list[dict], output_dir: Path, delay: float = 2.0
     errors = 0
 
     for i, article in enumerate(articles):
-        article_id = article.get('id') or article.get('slug') or str(i)
+        article_id = article.get("id") or article.get("slug") or str(i)
 
         # Skip already-extracted articles
-        if article_id in index and index[article_id].get('status') == 'ok':
+        if article_id in index and index[article_id].get("status") == "ok":
             skipped += 1
             continue
 
@@ -397,30 +416,30 @@ def fetch_all_content(articles: list[dict], output_dir: Path, delay: float = 2.0
         if i > 0:
             time.sleep(delay)
 
-        url = article.get('url')
+        url = article.get("url")
         if not url:
-            index[article_id] = {'status': 'no_url'}
+            index[article_id] = {"status": "no_url"}
             errors += 1
             continue
 
         result = fetch_full_content(url)
 
-        if result['status'] == 'ok':
+        if result["status"] == "ok":
             extracted += 1
 
             # Write plain text file
-            safe_slug = re.sub(r'[^\w\-]', '_', article.get('slug', article_id))[:100]
+            safe_slug = re.sub(r"[^\w\-]", "_", article.get("slug", article_id))[:100]
             txt_file = content_dir / f"{safe_slug}.txt"
-            txt_file.write_text(result['text'])
+            txt_file.write_text(result["text"])
 
             index[article_id] = {
-                'status': 'ok',
-                'word_count': result['word_count'],
-                'file': txt_file.name,
+                "status": "ok",
+                "word_count": result["word_count"],
+                "file": txt_file.name,
             }
         else:
             errors += 1
-            index[article_id] = {'status': result.get('status', 'error')}
+            index[article_id] = {"status": result.get("status", "error")}
 
         # Checkpoint every 10 articles
         if (i + 1) % 10 == 0 or i == total - 1:
@@ -428,8 +447,10 @@ def fetch_all_content(articles: list[dict], output_dir: Path, delay: float = 2.0
 
         # Progress
         done = extracted + skipped + errors
-        print(f"  Content: [{done}/{total}] {extracted} extracted, {skipped} resumed, {errors} errors",
-              file=sys.stderr)
+        print(
+            f"  Content: [{done}/{total}] {extracted} extracted, {skipped} resumed, {errors} errors",
+            file=sys.stderr,
+        )
 
     # Final save
     index_file.write_text(json.dumps(index, indent=2))
@@ -438,7 +459,9 @@ def fetch_all_content(articles: list[dict], output_dir: Path, delay: float = 2.0
     return index
 
 
-def write_outputs(publication: dict, articles: list[dict], output_dir: Path, urls_only: bool = False) -> None:
+def write_outputs(
+    publication: dict, articles: list[dict], output_dir: Path, urls_only: bool = False
+) -> None:
     """Write output files."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -456,7 +479,7 @@ def write_outputs(publication: dict, articles: list[dict], output_dir: Path, url
     for a in articles:
         lines.append(f"{a['published']} | {a['url']}")
         lines.append(a["title"])
-        if a.get('subtitle'):
+        if a.get("subtitle"):
             lines.append(f"  {a['subtitle']}")
         lines.append("")
     articles_file.write_text("\n".join(lines))
@@ -469,10 +492,10 @@ def write_outputs(publication: dict, articles: list[dict], output_dir: Path, url
             "name": publication["name"],
             "description": publication.get("description", ""),
             "url": publication["url"],
-            "scraped_at": datetime.now().isoformat()
+            "scraped_at": datetime.now().isoformat(),
         },
         "articles": articles,
-        "total": len(articles)
+        "total": len(articles),
     }
     full_file.write_text(json.dumps(output, indent=2, ensure_ascii=False))
     print(f"  Written: {full_file}")
@@ -493,7 +516,7 @@ def update_publications_registry(publication: dict, article_count: int) -> None:
         "name": name,
         "url": publication["url"],
         "article_count": article_count,
-        "last_scraped": datetime.now().isoformat()
+        "last_scraped": datetime.now().isoformat(),
     }
 
     if existing:
@@ -504,7 +527,9 @@ def update_publications_registry(publication: dict, article_count: int) -> None:
     registry_file.write_text(json.dumps(registry, indent=2))
 
 
-def log_to_session(publication: dict, article_count: int, tier: int, category: str) -> None:
+def log_to_session(
+    publication: dict, article_count: int, tier: int, category: str
+) -> None:
     """Log to active research session if one exists."""
     local_agent = Path.cwd() / ".agent" / "research"
     scratchpad_file = local_agent / "scratchpad.json"
@@ -519,15 +544,17 @@ def log_to_session(publication: dict, article_count: int, tier: int, category: s
         if "urls_visited" not in scratchpad:
             scratchpad["urls_visited"] = []
 
-        scratchpad["urls_visited"].append({
-            "url": publication["url"],
-            "source": "Substack Publication",
-            "tier": tier,
-            "category": category,
-            "publication_name": publication["name"],
-            "articles_count": article_count,
-            "timestamp": datetime.now().isoformat()
-        })
+        scratchpad["urls_visited"].append(
+            {
+                "url": publication["url"],
+                "source": "Substack Publication",
+                "tier": tier,
+                "category": category,
+                "publication_name": publication["name"],
+                "articles_count": article_count,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         scratchpad_file.write_text(json.dumps(scratchpad, indent=2))
         print(f"  Logged to session: {scratchpad_file}")
@@ -545,28 +572,51 @@ Examples:
   %(prog)s https://www.platformer.news --tier 1 --category research
   %(prog)s https://example.substack.com --limit 100
   %(prog)s newsletter --full-content --log-to-session
-        """
+        """,
     )
 
     parser.add_argument("substack", help="Substack URL, publication name, or @username")
-    parser.add_argument("--tier", type=int, choices=[1, 2, 3], default=2,
-                        help="Source tier for research tracking (default: 2)")
-    parser.add_argument("--category", choices=["labs", "research", "industry", "newsletter", "education"],
-                        default="newsletter", help="Category (default: newsletter)")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Max articles to fetch (default: all)")
-    parser.add_argument("--output-dir", type=Path, default=None,
-                        help="Custom output directory")
-    parser.add_argument("--urls-only", action="store_true",
-                        help="Only output urls.txt file")
-    parser.add_argument("--rss-only", action="store_true",
-                        help="Only use RSS feed (faster but limited to ~20 recent posts)")
-    parser.add_argument("--full-content", action="store_true",
-                        help="Fetch full article content (slow, respects rate limits)")
-    parser.add_argument("--content-delay", type=float, default=2.0,
-                        help="Seconds between content requests (default: 2.0)")
-    parser.add_argument("--log-to-session", action="store_true",
-                        help="Add to active research session")
+    parser.add_argument(
+        "--tier",
+        type=int,
+        choices=[1, 2, 3],
+        default=2,
+        help="Source tier for research tracking (default: 2)",
+    )
+    parser.add_argument(
+        "--category",
+        choices=["labs", "research", "industry", "newsletter", "education"],
+        default="newsletter",
+        help="Category (default: newsletter)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Max articles to fetch (default: all)"
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, default=None, help="Custom output directory"
+    )
+    parser.add_argument(
+        "--urls-only", action="store_true", help="Only output urls.txt file"
+    )
+    parser.add_argument(
+        "--rss-only",
+        action="store_true",
+        help="Only use RSS feed (faster but limited to ~20 recent posts)",
+    )
+    parser.add_argument(
+        "--full-content",
+        action="store_true",
+        help="Fetch full article content (slow, respects rate limits)",
+    )
+    parser.add_argument(
+        "--content-delay",
+        type=float,
+        default=2.0,
+        help="Seconds between content requests (default: 2.0)",
+    )
+    parser.add_argument(
+        "--log-to-session", action="store_true", help="Add to active research session"
+    )
 
     args = parser.parse_args()
 
@@ -585,7 +635,7 @@ Examples:
     if args.output_dir:
         output_dir = args.output_dir
     else:
-        safe_name = re.sub(r'[^\w\-]', '_', name)
+        safe_name = re.sub(r"[^\w\-]", "_", name)
         output_dir = get_substack_dir() / safe_name
 
     # Fetch complete archive unless --rss-only
@@ -605,22 +655,24 @@ Examples:
 
     # Apply limit if specified and not already applied
     if args.limit and len(articles) > args.limit:
-        articles = articles[:args.limit]
+        articles = articles[: args.limit]
 
     # Fetch full content if requested
     if args.full_content:
         print("Fetching full article content...")
-        content_index = fetch_all_content(articles, output_dir, delay=args.content_delay)
+        content_index = fetch_all_content(
+            articles, output_dir, delay=args.content_delay
+        )
 
         # Merge content metadata into articles
         for article in articles:
-            article_id = article.get('id') or article.get('slug')
+            article_id = article.get("id") or article.get("slug")
             if article_id and article_id in content_index:
                 entry = content_index[article_id]
-                article['content'] = {
-                    'status': entry.get('status'),
-                    'word_count': entry.get('word_count'),
-                    'file': entry.get('file'),
+                article["content"] = {
+                    "status": entry.get("status"),
+                    "word_count": entry.get("word_count"),
+                    "file": entry.get("file"),
                 }
 
     # Write outputs

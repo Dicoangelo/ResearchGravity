@@ -21,7 +21,9 @@ class TestHeuristicScoring:
 
     def test_complexity_high(self):
         """High complexity keywords are detected"""
-        score = _heuristic_score_dimension("implement authentication system", "complexity")
+        score = _heuristic_score_dimension(
+            "implement authentication system", "complexity"
+        )
         assert score >= 0.6, "Should detect high complexity"
 
     def test_complexity_medium(self):
@@ -36,7 +38,9 @@ class TestHeuristicScoring:
 
     def test_criticality_high(self):
         """High criticality keywords are detected"""
-        score = _heuristic_score_dimension("fix security vulnerability in authentication", "criticality")
+        score = _heuristic_score_dimension(
+            "fix security vulnerability in authentication", "criticality"
+        )
         assert score >= 0.7, "Should detect high criticality"
 
     def test_criticality_low(self):
@@ -46,7 +50,9 @@ class TestHeuristicScoring:
 
     def test_uncertainty_high(self):
         """High uncertainty keywords are detected"""
-        score = _heuristic_score_dimension("explore solutions for unclear requirements", "uncertainty")
+        score = _heuristic_score_dimension(
+            "explore solutions for unclear requirements", "uncertainty"
+        )
         assert score >= 0.7, "Should detect high uncertainty"
 
     def test_uncertainty_low(self):
@@ -61,7 +67,9 @@ class TestHeuristicScoring:
 
     def test_reversibility_low(self):
         """Low reversibility keywords are detected"""
-        score = _heuristic_score_dimension("delete production database", "reversibility")
+        score = _heuristic_score_dimension(
+            "delete production database", "reversibility"
+        )
         assert score <= 0.4, "Should detect low reversibility"
 
     def test_reversibility_high(self):
@@ -76,12 +84,16 @@ class TestHeuristicScoring:
 
     def test_resource_requirements_integration(self):
         """Resource requirements for integration tasks"""
-        score = _heuristic_score_dimension("integrate with third-party API", "resource_requirements")
+        score = _heuristic_score_dimension(
+            "integrate with third-party API", "resource_requirements"
+        )
         assert score >= 0.5, "Should detect resource requirements"
 
     def test_contextuality_existing_system(self):
         """Contextuality for existing system integration"""
-        score = _heuristic_score_dimension("update existing authentication flow", "contextuality")
+        score = _heuristic_score_dimension(
+            "update existing authentication flow", "contextuality"
+        )
         assert score >= 0.6, "Should detect high contextuality"
 
     def test_subjectivity_design(self):
@@ -91,7 +103,9 @@ class TestHeuristicScoring:
 
     def test_subjectivity_technical(self):
         """Low subjectivity for technical tasks"""
-        score = _heuristic_score_dimension("implement sorting algorithm", "subjectivity")
+        score = _heuristic_score_dimension(
+            "implement sorting algorithm", "subjectivity"
+        )
         assert score <= 0.4, "Should detect low subjectivity"
 
 
@@ -109,37 +123,36 @@ class TestHeuristicClassification:
         """Complex task scores high on multiple dimensions"""
         profile = _heuristic_classify("implement distributed caching system with Redis")
         assert profile.complexity >= 0.5
-        assert profile.resource_requirements >= 0.4  # Adjusted: "implement" doesn't hit integration keywords
+        assert (
+            profile.resource_requirements >= 0.4
+        )  # Adjusted: "implement" doesn't hit integration keywords
         assert 0.0 <= profile.risk_score <= 1.0
 
     def test_critical_task(self):
         """Critical task has high criticality score"""
-        profile = _heuristic_classify("fix authentication bypass security vulnerability")
+        profile = _heuristic_classify(
+            "fix authentication bypass security vulnerability"
+        )
         assert profile.criticality >= 0.7
-        assert profile.complexity >= 0.4  # "fix" is not in high complexity list, moderate is fine
+        assert (
+            profile.complexity >= 0.4
+        )  # "fix" is not in high complexity list, moderate is fine
 
     def test_context_adjustment_critical(self):
         """Context can boost criticality"""
         profile = _heuristic_classify(
-            "update user profile",
-            context={"is_critical": True}
+            "update user profile", context={"is_critical": True}
         )
         assert profile.criticality >= 0.7
 
     def test_context_adjustment_time_sensitive(self):
         """Context can boost duration"""
-        profile = _heuristic_classify(
-            "simple update",
-            context={"time_sensitive": True}
-        )
+        profile = _heuristic_classify("simple update", context={"time_sensitive": True})
         assert profile.duration >= 0.6
 
     def test_context_adjustment_high_stakes(self):
         """Context can reduce reversibility"""
-        profile = _heuristic_classify(
-            "refactor code",
-            context={"high_stakes": True}
-        )
+        profile = _heuristic_classify("refactor code", context={"high_stakes": True})
         assert profile.reversibility <= 0.4
 
 
@@ -150,13 +163,15 @@ class TestDiverseTaskProfiles:
         """Task: Implement user authentication system"""
         profile = classify_task(
             "Implement user authentication system with OAuth2 and JWT tokens",
-            use_llm=False  # Force heuristic for deterministic test
+            use_llm=False,  # Force heuristic for deterministic test
         )
 
         # Should be complex, critical, and require resources
         assert profile.complexity >= 0.5, "Auth is complex"
         assert profile.criticality >= 0.7, "Auth is critical (security keyword)"
-        assert profile.resource_requirements >= 0.4, "OAuth implies some dependencies (heuristic is conservative)"
+        assert profile.resource_requirements >= 0.4, (
+            "OAuth implies some dependencies (heuristic is conservative)"
+        )
         assert profile.reversibility >= 0.6, "Code changes are reversible"
 
         # Computed properties should work
@@ -166,8 +181,7 @@ class TestDiverseTaskProfiles:
     def test_database_migration(self):
         """Task: Database schema migration"""
         profile = classify_task(
-            "Migrate database schema to add user preferences table",
-            use_llm=False
+            "Migrate database schema to add user preferences table", use_llm=False
         )
 
         assert profile.criticality >= 0.4, "Data changes are important"
@@ -178,7 +192,7 @@ class TestDiverseTaskProfiles:
         """Task: Cosmetic UI update"""
         profile = classify_task(
             "Update button colors to match brand guidelines - cosmetic change",
-            use_llm=False
+            use_llm=False,
         )
 
         assert profile.criticality <= 0.3, "Cosmetic is low criticality"
@@ -189,7 +203,7 @@ class TestDiverseTaskProfiles:
         """Task: Exploratory research"""
         profile = classify_task(
             "Research and explore different approaches for real-time notifications",
-            use_llm=False
+            use_llm=False,
         )
 
         assert profile.uncertainty >= 0.7, "Research implies high uncertainty"
@@ -200,8 +214,7 @@ class TestDiverseTaskProfiles:
     def test_bug_fix_critical(self):
         """Task: Critical production bug fix"""
         profile = classify_task(
-            "Fix critical production crash in payment processing",
-            use_llm=False
+            "Fix critical production crash in payment processing", use_llm=False
         )
 
         assert profile.criticality >= 0.8, "Production crash is critical"
@@ -210,8 +223,7 @@ class TestDiverseTaskProfiles:
     def test_documentation_task(self):
         """Task: Write documentation"""
         profile = classify_task(
-            "Write API documentation for new endpoints",
-            use_llm=False
+            "Write API documentation for new endpoints", use_llm=False
         )
 
         assert profile.complexity <= 0.5, "Documentation is moderate complexity"
@@ -222,8 +234,7 @@ class TestDiverseTaskProfiles:
     def test_performance_optimization(self):
         """Task: Optimize performance"""
         profile = classify_task(
-            "Optimize database queries to reduce API latency",
-            use_llm=False
+            "Optimize database queries to reduce API latency", use_llm=False
         )
 
         assert profile.complexity >= 0.6, "Optimization requires expertise"
@@ -246,20 +257,12 @@ class TestComputedProperties:
 
     def test_risk_score_safe_task(self):
         """Low-risk task: not critical, reversible, clear"""
-        profile = TaskProfile(
-            criticality=0.2,
-            reversibility=0.9,
-            uncertainty=0.2
-        )
+        profile = TaskProfile(criticality=0.2, reversibility=0.9, uncertainty=0.2)
         assert profile.risk_score <= 0.3, "Should be low risk"
 
     def test_risk_score_high_risk_task(self):
         """High-risk task: critical, irreversible, uncertain"""
-        profile = TaskProfile(
-            criticality=0.9,
-            reversibility=0.1,
-            uncertainty=0.8
-        )
+        profile = TaskProfile(criticality=0.9, reversibility=0.1, uncertainty=0.8)
         # Risk is additive weighted combination:
         # 0.9 * 0.5 + (1-0.1) * 0.3 + 0.8 * 0.2 = 0.45 + 0.27 + 0.16 = 0.88
         assert profile.risk_score >= 0.8, "Should have high risk"
@@ -270,9 +273,7 @@ class TestComputedProperties:
             for rev in [0.0, 0.5, 1.0]:
                 for unc in [0.0, 0.5, 1.0]:
                     profile = TaskProfile(
-                        criticality=crit,
-                        reversibility=rev,
-                        uncertainty=unc
+                        criticality=crit, reversibility=rev, uncertainty=unc
                     )
                     assert 0.0 <= profile.risk_score <= 1.0
 
@@ -293,28 +294,20 @@ class TestPublicAPI:
     def test_classify_with_context(self):
         """Context is passed through to classifier"""
         profile = classify_task(
-            "update component",
-            context={"is_critical": True},
-            use_llm=False
+            "update component", context={"is_critical": True}, use_llm=False
         )
         assert profile.criticality >= 0.7
 
     def test_classify_force_heuristic(self):
         """use_llm=False forces heuristic path"""
-        profile = classify_task(
-            "implement feature",
-            use_llm=False
-        )
+        profile = classify_task("implement feature", use_llm=False)
         # Should succeed even if LLM not available
         assert isinstance(profile, TaskProfile)
         assert 0.0 <= profile.complexity <= 1.0
 
     def test_classify_returns_valid_profile(self):
         """Result is always a valid TaskProfile"""
-        profile = classify_task(
-            "analyze user behavior patterns",
-            use_llm=False
-        )
+        profile = classify_task("analyze user behavior patterns", use_llm=False)
 
         # All dimensions should be in range
         assert 0.0 <= profile.complexity <= 1.0
@@ -340,30 +333,38 @@ class TestScoringRubrics:
     def test_all_dimensions_have_rubrics(self):
         """All 11 dimensions have rubrics"""
         expected_dims = {
-            'complexity', 'criticality', 'uncertainty', 'duration', 'cost',
-            'resource_requirements', 'constraints', 'verifiability',
-            'reversibility', 'contextuality', 'subjectivity'
+            "complexity",
+            "criticality",
+            "uncertainty",
+            "duration",
+            "cost",
+            "resource_requirements",
+            "constraints",
+            "verifiability",
+            "reversibility",
+            "contextuality",
+            "subjectivity",
         }
         assert set(SCORING_RUBRICS.keys()) == expected_dims
 
     def test_rubrics_have_descriptions(self):
         """Each rubric has a description"""
         for dim, rubric in SCORING_RUBRICS.items():
-            assert 'description' in rubric, f"{dim} missing description"
-            assert isinstance(rubric['description'], str)
-            assert len(rubric['description']) > 0
+            assert "description" in rubric, f"{dim} missing description"
+            assert isinstance(rubric["description"], str)
+            assert len(rubric["description"]) > 0
 
     def test_rubrics_have_scale(self):
         """Each rubric has a scale"""
         for dim, rubric in SCORING_RUBRICS.items():
-            assert 'scale' in rubric, f"{dim} missing scale"
-            assert isinstance(rubric['scale'], dict)
-            assert len(rubric['scale']) > 0
+            assert "scale" in rubric, f"{dim} missing scale"
+            assert isinstance(rubric["scale"], dict)
+            assert len(rubric["scale"]) > 0
 
     def test_scales_have_boundary_values(self):
         """Scales include 0.0 and 1.0 boundary points"""
         for dim, rubric in SCORING_RUBRICS.items():
-            scale = rubric['scale']
+            scale = rubric["scale"]
             assert 0.0 in scale, f"{dim} scale missing 0.0"
             assert 1.0 in scale, f"{dim} scale missing 1.0"
 
@@ -377,8 +378,7 @@ class TestPerformance:
 
         start = time.time()
         profile = classify_task(
-            "Implement complex multi-agent orchestration system",
-            use_llm=False
+            "Implement complex multi-agent orchestration system", use_llm=False
         )
         elapsed = (time.time() - start) * 1000  # Convert to ms
 
@@ -399,7 +399,7 @@ class TestPerformance:
             "Research ML algorithms",
             "Refactor legacy code",
             "Add unit tests",
-            "Configure CI/CD pipeline"
+            "Configure CI/CD pipeline",
         ]
 
         start = time.time()

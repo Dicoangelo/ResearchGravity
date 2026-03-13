@@ -134,10 +134,12 @@ class TestBuildExtensionEvent:
         """Coherence potential never exceeds 0.9."""
         from api.routes.coherence import _build_extension_event, ExtensionEvent
 
-        ev = ExtensionEvent(**make_event(
-            content="x" * 20000,
-            concepts=["a", "b", "c"],
-        ))
+        ev = ExtensionEvent(
+            **make_event(
+                content="x" * 20000,
+                concepts=["a", "b", "c"],
+            )
+        )
         fields = _build_extension_event(ev)
         potential = json.loads(fields["instinct_layer"])["coherence_potential"]
         assert potential <= 0.9
@@ -223,14 +225,21 @@ class TestBuildExtensionEvent:
         """Build result includes quality_score and cognitive_mode."""
         from api.routes.coherence import _build_extension_event, ExtensionEvent
 
-        ev = ExtensionEvent(**make_event(
-            content="Implementing a distributed database schema with coherent architecture",
-        ))
+        ev = ExtensionEvent(
+            **make_event(
+                content="Implementing a distributed database schema with coherent architecture",
+            )
+        )
         fields = _build_extension_event(ev)
         assert "quality_score" in fields
         assert "cognitive_mode" in fields
         assert isinstance(fields["quality_score"], float)
-        assert fields["cognitive_mode"] in ("deep_work", "exploration", "casual", "garbage")
+        assert fields["cognitive_mode"] in (
+            "deep_work",
+            "exploration",
+            "casual",
+            "garbage",
+        )
 
 
 # -- Test ExtensionEvent model ------------------------------------------------
@@ -274,7 +283,11 @@ class TestStoreExtensionEvent:
     @pytest.mark.asyncio
     async def test_store_returns_captured_on_insert(self):
         """New event returns status='captured'."""
-        from api.routes.coherence import _store_extension_event, _build_extension_event, ExtensionEvent
+        from api.routes.coherence import (
+            _store_extension_event,
+            _build_extension_event,
+            ExtensionEvent,
+        )
 
         ev = ExtensionEvent(**make_event())
         fields = _build_extension_event(ev)
@@ -290,7 +303,11 @@ class TestStoreExtensionEvent:
     @pytest.mark.asyncio
     async def test_store_returns_duplicate_on_coherence_sig_hit(self):
         """Existing coherence_sig returns status='duplicate' before insert."""
-        from api.routes.coherence import _store_extension_event, _build_extension_event, ExtensionEvent
+        from api.routes.coherence import (
+            _store_extension_event,
+            _build_extension_event,
+            ExtensionEvent,
+        )
 
         ev = ExtensionEvent(**make_event())
         fields = _build_extension_event(ev)
@@ -305,7 +322,11 @@ class TestStoreExtensionEvent:
     @pytest.mark.asyncio
     async def test_store_returns_duplicate_on_event_id_conflict(self):
         """ON CONFLICT DO NOTHING returns status='duplicate'."""
-        from api.routes.coherence import _store_extension_event, _build_extension_event, ExtensionEvent
+        from api.routes.coherence import (
+            _store_extension_event,
+            _build_extension_event,
+            ExtensionEvent,
+        )
 
         ev = ExtensionEvent(**make_event())
         fields = _build_extension_event(ev)
@@ -319,7 +340,11 @@ class TestStoreExtensionEvent:
     @pytest.mark.asyncio
     async def test_store_upserts_session(self):
         """Session is upserted with ON CONFLICT before event insert."""
-        from api.routes.coherence import _store_extension_event, _build_extension_event, ExtensionEvent
+        from api.routes.coherence import (
+            _store_extension_event,
+            _build_extension_event,
+            ExtensionEvent,
+        )
 
         ev = ExtensionEvent(**make_event())
         fields = _build_extension_event(ev)
@@ -337,7 +362,11 @@ class TestStoreExtensionEvent:
     @pytest.mark.asyncio
     async def test_store_event_insert_has_on_conflict(self):
         """Event INSERT uses ON CONFLICT (event_id) DO NOTHING."""
-        from api.routes.coherence import _store_extension_event, _build_extension_event, ExtensionEvent
+        from api.routes.coherence import (
+            _store_extension_event,
+            _build_extension_event,
+            ExtensionEvent,
+        )
 
         ev = ExtensionEvent(**make_event())
         fields = _build_extension_event(ev)
@@ -354,11 +383,17 @@ class TestStoreExtensionEvent:
     @pytest.mark.asyncio
     async def test_store_includes_quality_score(self):
         """Stored event includes quality_score and cognitive_mode."""
-        from api.routes.coherence import _store_extension_event, _build_extension_event, ExtensionEvent
+        from api.routes.coherence import (
+            _store_extension_event,
+            _build_extension_event,
+            ExtensionEvent,
+        )
 
-        ev = ExtensionEvent(**make_event(
-            content="Implementing sovereign AI architecture with coherence detection",
-        ))
+        ev = ExtensionEvent(
+            **make_event(
+                content="Implementing sovereign AI architecture with coherence detection",
+            )
+        )
         fields = _build_extension_event(ev)
 
         conn = _make_mock_conn(dedup_hit=False)
@@ -372,7 +407,11 @@ class TestStoreExtensionEvent:
     @pytest.mark.asyncio
     async def test_store_coherence_sig_dedup_query(self):
         """Dedup check queries coherence_sig before insert."""
-        from api.routes.coherence import _store_extension_event, _build_extension_event, ExtensionEvent
+        from api.routes.coherence import (
+            _store_extension_event,
+            _build_extension_event,
+            ExtensionEvent,
+        )
 
         ev = ExtensionEvent(**make_event())
         fields = _build_extension_event(ev)
@@ -400,8 +439,14 @@ class TestCaptureEndpointHTTP:
 
         pool, conn = _make_mock_pool(dedup_hit=False)
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task"):  # suppress embedding trigger
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task"),
+        ):  # suppress embedding trigger
             ev = ExtensionEvent(**make_event())
             result = await capture_extension_event(ev)
 
@@ -416,7 +461,9 @@ class TestCaptureEndpointHTTP:
 
         pool, conn = _make_mock_pool(dedup_hit=True)
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool):
+        with patch(
+            "api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool
+        ):
             ev = ExtensionEvent(**make_event())
             result = await capture_extension_event(ev)
 
@@ -429,8 +476,14 @@ class TestCaptureEndpointHTTP:
 
         pool, conn = _make_mock_pool(dedup_hit=False)
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task"):
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task"),
+        ):
             ev = ExtensionEvent(**make_event())
             result = await capture_extension_event(ev)
 
@@ -444,8 +497,14 @@ class TestCaptureEndpointHTTP:
 
         pool, conn = _make_mock_pool(dedup_hit=False)
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task") as mock_task:
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task") as mock_task,
+        ):
             ev = ExtensionEvent(**make_event())
             result = await capture_extension_event(ev)
 
@@ -459,8 +518,14 @@ class TestCaptureEndpointHTTP:
 
         pool, conn = _make_mock_pool(dedup_hit=True)
 
-        with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-             patch("asyncio.create_task") as mock_task:
+        with (
+            patch(
+                "api.routes.coherence._get_pool",
+                new_callable=AsyncMock,
+                return_value=pool,
+            ),
+            patch("asyncio.create_task") as mock_task,
+        ):
             ev = ExtensionEvent(**make_event())
             result = await capture_extension_event(ev)
 
@@ -474,8 +539,14 @@ class TestCaptureEndpointHTTP:
 
         for platform in ["chatgpt", "grok", "gemini", "notebooklm", "youtube"]:
             pool, conn = _make_mock_pool(dedup_hit=False)
-            with patch("api.routes.coherence._get_pool", new_callable=AsyncMock, return_value=pool), \
-                 patch("asyncio.create_task"):
+            with (
+                patch(
+                    "api.routes.coherence._get_pool",
+                    new_callable=AsyncMock,
+                    return_value=pool,
+                ),
+                patch("asyncio.create_task"),
+            ):
                 ev = ExtensionEvent(**make_event(platform=platform))
                 result = await capture_extension_event(ev)
             assert result["platform"] == platform

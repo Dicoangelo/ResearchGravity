@@ -10,18 +10,57 @@ from typing import Tuple
 
 # Depth keywords (from chatgpt_quality_scorer.py)
 _DEPTH_KEYWORDS = {
-    "code", "function", "algorithm", "database", "schema", "implementation",
-    "architecture", "design", "analysis", "research", "theory", "model",
-    "system", "protocol", "framework", "optimization", "performance",
-    "explain", "understand", "concept", "principle", "mechanism",
-    "cognitive", "semantic", "temporal", "coherence", "emergence",
-    "infrastructure", "sovereign", "autonomous", "intelligence",
+    "code",
+    "function",
+    "algorithm",
+    "database",
+    "schema",
+    "implementation",
+    "architecture",
+    "design",
+    "analysis",
+    "research",
+    "theory",
+    "model",
+    "system",
+    "protocol",
+    "framework",
+    "optimization",
+    "performance",
+    "explain",
+    "understand",
+    "concept",
+    "principle",
+    "mechanism",
+    "cognitive",
+    "semantic",
+    "temporal",
+    "coherence",
+    "emergence",
+    "infrastructure",
+    "sovereign",
+    "autonomous",
+    "intelligence",
 }
 
 # Garbage signals
 _GARBAGE_SIGNALS = {
-    "hi", "hello", "thanks", "thank you", "ok", "okay", "yes", "no",
-    "lol", "haha", "cool", "nice", "great", "awesome", "test", "testing",
+    "hi",
+    "hello",
+    "thanks",
+    "thank you",
+    "ok",
+    "okay",
+    "yes",
+    "no",
+    "lol",
+    "haha",
+    "cool",
+    "nice",
+    "great",
+    "awesome",
+    "test",
+    "testing",
 }
 
 # Quality thresholds
@@ -31,10 +70,10 @@ CASUAL_THRESHOLD = 0.30
 
 # Platform adjustments (curated platforms get bonus)
 _PLATFORM_BONUS = {
-    "claude-desktop": 0.10,   # MCP capture = high-quality by design
-    "chatgpt": 0.0,           # Neutral
-    "cursor": 0.05,           # Coding context = above average
-    "grok": 0.05,             # Strategic/world-level thinking
+    "claude-desktop": 0.10,  # MCP capture = high-quality by design
+    "chatgpt": 0.0,  # Neutral
+    "cursor": 0.05,  # Coding context = above average
+    "grok": 0.05,  # Strategic/world-level thinking
 }
 
 

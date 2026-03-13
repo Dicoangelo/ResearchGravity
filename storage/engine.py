@@ -103,7 +103,9 @@ class StorageEngine:
 
         # Ensure at least one vector backend is available
         if not self._qdrant_enabled and not self._sqlite_vec_enabled:
-            logger.warning("No vector backend available. Semantic search will use FTS fallback.")
+            logger.warning(
+                "No vector backend available. Semantic search will use FTS fallback."
+            )
 
         # Initialize dead-letter queue for failed writes
         if self._enable_dlq:
@@ -134,72 +136,67 @@ class StorageEngine:
         # Qdrant handlers
         if self.qdrant:
             self.dlq.register_retry_handler(
-                "upsert_session", "qdrant",
-                lambda p: self.qdrant.upsert_session(**p)
+                "upsert_session", "qdrant", lambda p: self.qdrant.upsert_session(**p)
             )
             self.dlq.register_retry_handler(
-                "upsert_finding", "qdrant",
-                lambda p: self.qdrant.upsert_finding(**p)
+                "upsert_finding", "qdrant", lambda p: self.qdrant.upsert_finding(**p)
             )
             self.dlq.register_retry_handler(
-                "upsert_pack", "qdrant",
-                lambda p: self.qdrant.upsert_pack(**p)
+                "upsert_pack", "qdrant", lambda p: self.qdrant.upsert_pack(**p)
             )
             self.dlq.register_retry_handler(
-                "upsert_outcome", "qdrant",
-                lambda p: self.qdrant.upsert_outcome(**p)
+                "upsert_outcome", "qdrant", lambda p: self.qdrant.upsert_outcome(**p)
             )
             self.dlq.register_retry_handler(
-                "upsert_cognitive_state", "qdrant",
-                lambda p: self.qdrant.upsert_cognitive_state(**p)
+                "upsert_cognitive_state",
+                "qdrant",
+                lambda p: self.qdrant.upsert_cognitive_state(**p),
             )
             self.dlq.register_retry_handler(
-                "upsert_error_pattern", "qdrant",
-                lambda p: self.qdrant.upsert_error_pattern(**p)
+                "upsert_error_pattern",
+                "qdrant",
+                lambda p: self.qdrant.upsert_error_pattern(**p),
             )
             self.dlq.register_retry_handler(
-                "upsert_paper", "qdrant",
-                lambda p: self.qdrant.upsert_paper(**p)
+                "upsert_paper", "qdrant", lambda p: self.qdrant.upsert_paper(**p)
             )
 
         # sqlite-vec handlers
         if self.sqlite_vec:
             self.dlq.register_retry_handler(
-                "upsert_session", "sqlite_vec",
-                lambda p: self.sqlite_vec.upsert_session(**p)
+                "upsert_session",
+                "sqlite_vec",
+                lambda p: self.sqlite_vec.upsert_session(**p),
             )
             self.dlq.register_retry_handler(
-                "upsert_finding", "sqlite_vec",
-                lambda p: self.sqlite_vec.upsert_finding(**p)
+                "upsert_finding",
+                "sqlite_vec",
+                lambda p: self.sqlite_vec.upsert_finding(**p),
             )
 
     async def _add_to_dlq(
-        self,
-        operation: str,
-        target: str,
-        payload: Dict[str, Any],
-        error: Exception
+        self, operation: str, target: str, payload: Dict[str, Any], error: Exception
     ):
         """Add a failed write operation to the dead-letter queue."""
         if self.dlq:
             await self.dlq.add_failed_write(
-                operation=operation,
-                target=target,
-                payload=payload,
-                error=str(error)
+                operation=operation, target=target, payload=payload, error=str(error)
             )
         else:
             # Fallback to logging if DLQ not available
             logger.error(f"Failed {operation}@{target}: {error} (no DLQ)")
 
     async def retry_failed_writes(
-        self,
-        target: Optional[str] = None,
-        limit: int = 100
+        self, target: Optional[str] = None, limit: int = 100
     ) -> Dict[str, int]:
         """Retry pending entries in the dead-letter queue."""
         if not self.dlq:
-            return {"attempted": 0, "succeeded": 0, "failed": 0, "error": "DLQ not available"}
+            return {
+                "attempted": 0,
+                "succeeded": 0,
+                "failed": 0,
+                "error": "DLQ not available",
+            }
         return await self.dlq.retry_failed_writes(target=target, limit=limit)
 
     async def get_dlq_stats(self) -> Dict[str, Any]:
@@ -211,9 +208,7 @@ class StorageEngine:
     # --- Session Operations ---
 
     async def store_session(
-        self,
-        session: Dict[str, Any],
-        source: str = "local"
+        self, session: Dict[str, Any], source: str = "local"
     ) -> str:
         """Store a session in SQLite and index in vector backends."""
         # Store in SQLite
@@ -224,7 +219,7 @@ class StorageEngine:
             entity_type="session",
             entity_id=session_id,
             source_type=source,
-            metadata={"stored_at": datetime.now().isoformat()}
+            metadata={"stored_at": datetime.now().isoformat()},
         )
 
         metadata = {
@@ -238,40 +233,44 @@ class StorageEngine:
         if self._qdrant_enabled and session.get("topic"):
             try:
                 await self.qdrant.upsert_session(
-                    session_id=session_id,
-                    topic=session["topic"],
-                    metadata=metadata
+                    session_id=session_id, topic=session["topic"], metadata=metadata
                 )
             except Exception as e:
                 logger.warning(f"Failed to index session in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_session", "qdrant",
-                    {"session_id": session_id, "topic": session["topic"], "metadata": metadata},
-                    e
+                    "upsert_session",
+                    "qdrant",
+                    {
+                        "session_id": session_id,
+                        "topic": session["topic"],
+                        "metadata": metadata,
+                    },
+                    e,
                 )
 
         # Dual-write: Index in sqlite-vec
         if self._sqlite_vec_enabled and self.sqlite_vec and session.get("topic"):
             try:
                 await self.sqlite_vec.upsert_session(
-                    session_id=session_id,
-                    topic=session["topic"],
-                    metadata=metadata
+                    session_id=session_id, topic=session["topic"], metadata=metadata
                 )
             except Exception as e:
                 logger.warning(f"Failed to index session in sqlite-vec: {e}")
                 await self._add_to_dlq(
-                    "upsert_session", "sqlite_vec",
-                    {"session_id": session_id, "topic": session["topic"], "metadata": metadata},
-                    e
+                    "upsert_session",
+                    "sqlite_vec",
+                    {
+                        "session_id": session_id,
+                        "topic": session["topic"],
+                        "metadata": metadata,
+                    },
+                    e,
                 )
 
         return session_id
 
     async def store_sessions_batch(
-        self,
-        sessions: List[Dict[str, Any]],
-        source: str = "local"
+        self, sessions: List[Dict[str, Any]], source: str = "local"
     ) -> int:
         """Store multiple sessions."""
         count = 0
@@ -285,10 +284,7 @@ class StorageEngine:
         return await self.sqlite.get_session(session_id)
 
     async def list_sessions(
-        self,
-        limit: int = 50,
-        offset: int = 0,
-        project: Optional[str] = None
+        self, limit: int = 50, offset: int = 0, project: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """List sessions."""
         return await self.sqlite.list_sessions(
@@ -298,9 +294,7 @@ class StorageEngine:
     # --- Finding Operations ---
 
     async def store_finding(
-        self,
-        finding: Dict[str, Any],
-        source: str = "local"
+        self, finding: Dict[str, Any], source: str = "local"
     ) -> str:
         """Store a finding in SQLite and index in vector backends."""
         # Ensure ID exists
@@ -312,9 +306,7 @@ class StorageEngine:
 
         # Track provenance
         await self.sqlite.track_provenance(
-            entity_type="finding",
-            entity_id=finding_id,
-            source_type=source
+            entity_type="finding", entity_id=finding_id, source_type=source
         )
 
         metadata = {
@@ -328,40 +320,44 @@ class StorageEngine:
         if self._qdrant_enabled:
             try:
                 await self.qdrant.upsert_finding(
-                    finding_id=finding_id,
-                    content=finding["content"],
-                    metadata=metadata
+                    finding_id=finding_id, content=finding["content"], metadata=metadata
                 )
             except Exception as e:
                 logger.warning(f"Failed to index finding in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_finding", "qdrant",
-                    {"finding_id": finding_id, "content": finding["content"], "metadata": metadata},
-                    e
+                    "upsert_finding",
+                    "qdrant",
+                    {
+                        "finding_id": finding_id,
+                        "content": finding["content"],
+                        "metadata": metadata,
+                    },
+                    e,
                 )
 
         # Dual-write: Index in sqlite-vec
         if self._sqlite_vec_enabled and self.sqlite_vec:
             try:
                 await self.sqlite_vec.upsert_finding(
-                    finding_id=finding_id,
-                    content=finding["content"],
-                    metadata=metadata
+                    finding_id=finding_id, content=finding["content"], metadata=metadata
                 )
             except Exception as e:
                 logger.warning(f"Failed to index finding in sqlite-vec: {e}")
                 await self._add_to_dlq(
-                    "upsert_finding", "sqlite_vec",
-                    {"finding_id": finding_id, "content": finding["content"], "metadata": metadata},
-                    e
+                    "upsert_finding",
+                    "sqlite_vec",
+                    {
+                        "finding_id": finding_id,
+                        "content": finding["content"],
+                        "metadata": metadata,
+                    },
+                    e,
                 )
 
         return finding_id
 
     async def store_findings_batch(
-        self,
-        findings: List[Dict[str, Any]],
-        source: str = "local"
+        self, findings: List[Dict[str, Any]], source: str = "local"
     ) -> int:
         """Store multiple findings efficiently."""
         # Ensure all have IDs
@@ -381,10 +377,17 @@ class StorageEngine:
                 # Add each finding to DLQ for individual retry
                 for f in findings:
                     await self._add_to_dlq(
-                        "upsert_finding", "qdrant",
-                        {"finding_id": f["id"], "content": f["content"],
-                         "metadata": {"type": f.get("type"), "session_id": f.get("session_id")}},
-                        e
+                        "upsert_finding",
+                        "qdrant",
+                        {
+                            "finding_id": f["id"],
+                            "content": f["content"],
+                            "metadata": {
+                                "type": f.get("type"),
+                                "session_id": f.get("session_id"),
+                            },
+                        },
+                        e,
                     )
 
         return count
@@ -394,14 +397,14 @@ class StorageEngine:
         session_id: Optional[str] = None,
         finding_type: Optional[str] = None,
         project: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get findings with filtering."""
         return await self.sqlite.get_findings(
             session_id=session_id,
             finding_type=finding_type,
             project=project,
-            limit=limit
+            limit=limit,
         )
 
     # --- URL Operations ---
@@ -452,15 +455,22 @@ class StorageEngine:
                         "ai_keywords": meta_dict.get("ai_keywords"),
                         "upvotes": meta_dict.get("upvotes"),
                         "github_repo": meta_dict.get("github_repo"),
-                    }
+                    },
                 )
             except Exception as e:
                 logger.warning(f"Failed to index paper in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_paper", "qdrant",
-                    {"paper_id": paper_id, "content": embed_text,
-                     "metadata": {"title": title, "relevance": paper.get("relevance")}},
-                    e
+                    "upsert_paper",
+                    "qdrant",
+                    {
+                        "paper_id": paper_id,
+                        "content": embed_text,
+                        "metadata": {
+                            "title": title,
+                            "relevance": paper.get("relevance"),
+                        },
+                    },
+                    e,
                 )
 
         return paper_id
@@ -488,18 +498,20 @@ class StorageEngine:
                 else:
                     meta_dict = metadata or {}
 
-                qdrant_papers.append({
-                    "id": p.get("id", ""),
-                    "title": title,
-                    "abstract": abstract,
-                    "authors": p.get("authors"),
-                    "relevance": p.get("relevance"),
-                    "source": meta_dict.get("source"),
-                    "url": p.get("url"),
-                    "ai_keywords": meta_dict.get("ai_keywords"),
-                    "upvotes": meta_dict.get("upvotes"),
-                    "github_repo": meta_dict.get("github_repo"),
-                })
+                qdrant_papers.append(
+                    {
+                        "id": p.get("id", ""),
+                        "title": title,
+                        "abstract": abstract,
+                        "authors": p.get("authors"),
+                        "relevance": p.get("relevance"),
+                        "source": meta_dict.get("source"),
+                        "url": p.get("url"),
+                        "ai_keywords": meta_dict.get("ai_keywords"),
+                        "upvotes": meta_dict.get("upvotes"),
+                        "github_repo": meta_dict.get("github_repo"),
+                    }
+                )
 
             try:
                 return await self.qdrant.upsert_papers_batch(qdrant_papers)
@@ -507,10 +519,17 @@ class StorageEngine:
                 logger.warning(f"Failed to batch index papers in Qdrant: {e}")
                 for p in qdrant_papers:
                     await self._add_to_dlq(
-                        "upsert_paper", "qdrant",
-                        {"paper_id": p["id"], "content": f"{p['title']}\n\n{p.get('abstract', '')}",
-                         "metadata": {"title": p["title"], "relevance": p.get("relevance")}},
-                        e
+                        "upsert_paper",
+                        "qdrant",
+                        {
+                            "paper_id": p["id"],
+                            "content": f"{p['title']}\n\n{p.get('abstract', '')}",
+                            "metadata": {
+                                "title": p["title"],
+                                "relevance": p.get("relevance"),
+                            },
+                        },
+                        e,
                     )
 
         return 0
@@ -539,11 +558,17 @@ class StorageEngine:
                     "SELECT id, title, abstract, authors, relevance, url, metadata "
                     "FROM papers WHERE title LIKE ? OR abstract LIKE ? "
                     "ORDER BY relevance DESC LIMIT ?",
-                    (f"%{query}%", f"%{query}%", limit)
+                    (f"%{query}%", f"%{query}%", limit),
                 )
                 return [
-                    {"paper_id": r[0], "title": r[1], "content": r[2],
-                     "authors": r[3], "relevance": r[4], "url": r[5]}
+                    {
+                        "paper_id": r[0],
+                        "title": r[1],
+                        "content": r[2],
+                        "authors": r[3],
+                        "relevance": r[4],
+                        "url": r[5],
+                    }
                     for r in rows
                 ]
         return []
@@ -554,7 +579,7 @@ class StorageEngine:
         self,
         pack: Dict[str, Any],
         source: str = "local",
-        source_id: Optional[str] = None
+        source_id: Optional[str] = None,
     ) -> str:
         """Store a context pack."""
         # Ensure ID exists
@@ -569,7 +594,7 @@ class StorageEngine:
             entity_type="pack",
             entity_id=pack_id,
             source_type=source,
-            source_id=source_id
+            source_id=source_id,
         )
 
         # Index in Qdrant
@@ -577,11 +602,13 @@ class StorageEngine:
             try:
                 content = pack.get("content", {})
                 if isinstance(content, dict):
-                    text = " ".join([
-                        pack.get("name", ""),
-                        content.get("description", ""),
-                        " ".join(content.get("keywords", []))
-                    ])
+                    text = " ".join(
+                        [
+                            pack.get("name", ""),
+                            content.get("description", ""),
+                            " ".join(content.get("keywords", [])),
+                        ]
+                    )
                 else:
                     text = str(content)[:1000]
 
@@ -593,15 +620,22 @@ class StorageEngine:
                         "type": pack.get("type"),
                         "source": source,
                         "tokens": pack.get("tokens"),
-                    }
+                    },
                 )
             except Exception as e:
                 logger.warning(f"Failed to index pack in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_pack", "qdrant",
-                    {"pack_id": pack_id, "content": pack["content"][:1000],
-                     "metadata": {"name": pack.get("name"), "type": pack.get("type")}},
-                    e
+                    "upsert_pack",
+                    "qdrant",
+                    {
+                        "pack_id": pack_id,
+                        "content": pack["content"][:1000],
+                        "metadata": {
+                            "name": pack.get("name"),
+                            "type": pack.get("type"),
+                        },
+                    },
+                    e,
                 )
 
         return pack_id
@@ -611,7 +645,7 @@ class StorageEngine:
         packs: List[Dict[str, Any]],
         source: str = "ucw_trade",
         source_id: Optional[str] = None,
-        validate: bool = True
+        validate: bool = True,
     ) -> Dict[str, Any]:
         """
         Ingest multiple packs from UCW trade or external source.
@@ -634,15 +668,14 @@ class StorageEngine:
                     pack["id"] = f"pack-{uuid.uuid4().hex[:12]}"
 
                 # Store with provenance
-                pack_id = await self.store_pack(pack, source=source, source_id=source_id)
+                pack_id = await self.store_pack(
+                    pack, source=source, source_id=source_id
+                )
                 results["imported"] += 1
                 results["pack_ids"].append(pack_id)
 
             except Exception as e:
-                results["errors"].append({
-                    "pack_id": pack.get("id"),
-                    "error": str(e)
-                })
+                results["errors"].append({"pack_id": pack.get("id"), "error": str(e)})
 
         return results
 
@@ -650,13 +683,11 @@ class StorageEngine:
         self,
         pack_type: Optional[str] = None,
         source: Optional[str] = None,
-        limit: int = 50
+        limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """Get context packs."""
         return await self.sqlite.get_packs(
-            pack_type=pack_type,
-            source=source,
-            limit=limit
+            pack_type=pack_type, source=source, limit=limit
         )
 
     # --- Search Operations ---
@@ -666,7 +697,7 @@ class StorageEngine:
         query: str,
         limit: int = 10,
         min_score: float = 0.4,
-        collections: Optional[List[str]] = None
+        collections: Optional[List[str]] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Semantic search across all content.
@@ -681,7 +712,7 @@ class StorageEngine:
                     query=query,
                     collections=collections,
                     limit=limit,
-                    min_score=min_score
+                    min_score=min_score,
                 )
             except Exception as e:
                 print(f"Warning: Qdrant search failed, falling back: {e}")
@@ -689,8 +720,12 @@ class StorageEngine:
         # Try sqlite-vec
         if self._sqlite_vec_enabled and self.sqlite_vec:
             try:
-                findings = await self.sqlite_vec.search_findings(query, limit, min_score)
-                sessions = await self.sqlite_vec.search_sessions(query, limit, min_score)
+                findings = await self.sqlite_vec.search_findings(
+                    query, limit, min_score
+                )
+                sessions = await self.sqlite_vec.search_sessions(
+                    query, limit, min_score
+                )
                 packs = await self.sqlite_vec.search_packs(query, limit, min_score)
                 return {
                     "findings": findings,
@@ -714,7 +749,7 @@ class StorageEngine:
         limit: int = 10,
         min_score: float = 0.5,
         filter_type: Optional[str] = None,
-        filter_project: Optional[str] = None
+        filter_project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search for findings. Priority: Qdrant > sqlite-vec > FTS"""
         # Try Qdrant first
@@ -725,7 +760,7 @@ class StorageEngine:
                     limit=limit,
                     min_score=min_score,
                     filter_type=filter_type,
-                    filter_project=filter_project
+                    filter_project=filter_project,
                 )
             except Exception:
                 pass
@@ -738,7 +773,7 @@ class StorageEngine:
                     limit=limit,
                     min_score=min_score,
                     filter_type=filter_type,
-                    filter_project=filter_project
+                    filter_project=filter_project,
                 )
             except Exception:
                 pass
@@ -751,7 +786,7 @@ class StorageEngine:
         query: str,
         limit: int = 10,
         min_score: float = 0.4,
-        filter_project: Optional[str] = None
+        filter_project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search for sessions."""
         if self._qdrant_enabled:
@@ -759,7 +794,7 @@ class StorageEngine:
                 query=query,
                 limit=limit,
                 min_score=min_score,
-                filter_project=filter_project
+                filter_project=filter_project,
             )
         else:
             # Fallback to listing sessions (no semantic capability without Qdrant)
@@ -771,7 +806,7 @@ class StorageEngine:
         limit: int = 10,
         min_score: float = 0.4,
         filter_type: Optional[str] = None,
-        filter_source: Optional[str] = None
+        filter_source: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search for context packs."""
         if self._qdrant_enabled:
@@ -780,13 +815,11 @@ class StorageEngine:
                 limit=limit,
                 min_score=min_score,
                 filter_type=filter_type,
-                filter_source=filter_source
+                filter_source=filter_source,
             )
         else:
             return await self.sqlite.get_packs(
-                pack_type=filter_type,
-                source=filter_source,
-                limit=limit
+                pack_type=filter_type, source=filter_source, limit=limit
             )
 
     # --- Visual Asset Operations ---
@@ -809,7 +842,9 @@ class StorageEngine:
 
         # Index in Qdrant for semantic reference retrieval
         if self._qdrant_enabled:
-            embed_text = f"{asset.get('caption', '')} {asset.get('methodology_text', '')[:500]}"
+            embed_text = (
+                f"{asset.get('caption', '')} {asset.get('methodology_text', '')[:500]}"
+            )
             try:
                 await self.qdrant.upsert(
                     collection_name="visual_assets",
@@ -827,7 +862,8 @@ class StorageEngine:
             except Exception as e:
                 logger.warning(f"Failed to index visual asset in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_visual_asset", "qdrant",
+                    "upsert_visual_asset",
+                    "qdrant",
                     {"point_id": asset_id, "text": embed_text},
                     e,
                 )
@@ -885,7 +921,7 @@ class StorageEngine:
         target_type: str,
         target_id: str,
         relation: str,
-        weight: float = 1.0
+        weight: float = 1.0,
     ):
         """Add a lineage relationship."""
         await self.sqlite.add_lineage(
@@ -894,28 +930,21 @@ class StorageEngine:
             target_type=target_type,
             target_id=target_id,
             relation=relation,
-            weight=weight
+            weight=weight,
         )
 
     async def get_lineage(
-        self,
-        entity_type: str,
-        entity_id: str,
-        direction: str = "both"
+        self, entity_type: str, entity_id: str, direction: str = "both"
     ) -> List[Dict[str, Any]]:
         """Get lineage for an entity."""
         return await self.sqlite.get_lineage(
-            entity_type=entity_type,
-            entity_id=entity_id,
-            direction=direction
+            entity_type=entity_type, entity_id=entity_id, direction=direction
         )
 
     # --- Session Outcome Operations ---
 
     async def store_outcome(
-        self,
-        outcome: Dict[str, Any],
-        source: str = "local"
+        self, outcome: Dict[str, Any], source: str = "local"
     ) -> str:
         """Store a session outcome in SQLite and index in Qdrant."""
         # Store in SQLite
@@ -926,24 +955,21 @@ class StorageEngine:
             intent = outcome.get("intent", outcome.get("title", ""))
             try:
                 await self.qdrant.upsert_outcome(
-                    outcome_id=outcome_id,
-                    intent=intent,
-                    metadata=outcome
+                    outcome_id=outcome_id, intent=intent, metadata=outcome
                 )
             except Exception as e:
                 logger.warning(f"Failed to index outcome in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_outcome", "qdrant",
+                    "upsert_outcome",
+                    "qdrant",
                     {"outcome_id": outcome_id, "intent": intent, "metadata": outcome},
-                    e
+                    e,
                 )
 
         return outcome_id
 
     async def store_outcomes_batch(
-        self,
-        outcomes: List[Dict[str, Any]],
-        source: str = "local"
+        self, outcomes: List[Dict[str, Any]], source: str = "local"
     ) -> int:
         """Store multiple outcomes efficiently."""
         # Batch store in SQLite
@@ -958,9 +984,14 @@ class StorageEngine:
                 # Add each outcome to DLQ for individual retry
                 for o in outcomes:
                     await self._add_to_dlq(
-                        "upsert_outcome", "qdrant",
-                        {"outcome_id": o.get("id"), "intent": o.get("intent", ""), "metadata": o},
-                        e
+                        "upsert_outcome",
+                        "qdrant",
+                        {
+                            "outcome_id": o.get("id"),
+                            "intent": o.get("intent", ""),
+                            "metadata": o,
+                        },
+                        e,
                     )
 
         return count
@@ -971,7 +1002,7 @@ class StorageEngine:
         limit: int = 10,
         min_score: float = 0.5,
         filter_outcome: Optional[str] = None,
-        min_quality: Optional[float] = None
+        min_quality: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search for session outcomes."""
         if self._qdrant_enabled:
@@ -980,13 +1011,11 @@ class StorageEngine:
                 limit=limit,
                 min_score=min_score,
                 filter_outcome=filter_outcome,
-                min_quality=min_quality
+                min_quality=min_quality,
             )
         else:
             return await self.sqlite.get_outcomes(
-                limit=limit,
-                min_quality=min_quality,
-                outcome_filter=filter_outcome
+                limit=limit, min_quality=min_quality, outcome_filter=filter_outcome
             )
 
     # --- Cognitive State Operations ---
@@ -999,16 +1028,15 @@ class StorageEngine:
             context = f"{state.get('mode', '')} energy_{state.get('energy_level', 0):.2f} flow_{state.get('flow_score', 0):.2f}"
             try:
                 await self.qdrant.upsert_cognitive_state(
-                    state_id=state_id,
-                    context=context,
-                    metadata=state
+                    state_id=state_id, context=context, metadata=state
                 )
             except Exception as e:
                 logger.warning(f"Failed to index cognitive state in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_cognitive_state", "qdrant",
+                    "upsert_cognitive_state",
+                    "qdrant",
                     {"state_id": state_id, "context": context, "metadata": state},
-                    e
+                    e,
                 )
 
         return state_id
@@ -1024,27 +1052,25 @@ class StorageEngine:
                 logger.warning(f"Failed to batch index cognitive states in Qdrant: {e}")
                 # Add each state to DLQ for individual retry
                 for s in states:
-                    context = f"{s.get('mode', '')} energy_{s.get('energy_level', 0):.2f}"
+                    context = (
+                        f"{s.get('mode', '')} energy_{s.get('energy_level', 0):.2f}"
+                    )
                     await self._add_to_dlq(
-                        "upsert_cognitive_state", "qdrant",
+                        "upsert_cognitive_state",
+                        "qdrant",
                         {"state_id": s.get("id"), "context": context, "metadata": s},
-                        e
+                        e,
                     )
 
         return count
 
     async def search_cognitive_states(
-        self,
-        query: str,
-        limit: int = 10,
-        min_score: float = 0.5
+        self, query: str, limit: int = 10, min_score: float = 0.5
     ) -> List[Dict[str, Any]]:
         """Semantic search for cognitive states."""
         if self._qdrant_enabled:
             return await self.qdrant.search_cognitive_states(
-                query=query,
-                limit=limit,
-                min_score=min_score
+                query=query, limit=limit, min_score=min_score
             )
         else:
             return await self.sqlite.get_cognitive_states(limit=limit)
@@ -1059,16 +1085,15 @@ class StorageEngine:
             context = f"{error.get('error_type', '')} in {error.get('context', '')} solved_by {error.get('solution', '')}"
             try:
                 await self.qdrant.upsert_error_pattern(
-                    error_id=error_id,
-                    context=context,
-                    metadata=error
+                    error_id=error_id, context=context, metadata=error
                 )
             except Exception as e:
                 logger.warning(f"Failed to index error pattern in Qdrant: {e}")
                 await self._add_to_dlq(
-                    "upsert_error_pattern", "qdrant",
+                    "upsert_error_pattern",
+                    "qdrant",
                     {"error_id": error_id, "context": context, "metadata": error},
-                    e
+                    e,
                 )
 
         return error_id
@@ -1086,9 +1111,14 @@ class StorageEngine:
                 for err in errors:
                     context = f"{err.get('error_type', '')} in {err.get('context', '')}"
                     await self._add_to_dlq(
-                        "upsert_error_pattern", "qdrant",
-                        {"error_id": err.get("id"), "context": context, "metadata": err},
-                        e
+                        "upsert_error_pattern",
+                        "qdrant",
+                        {
+                            "error_id": err.get("id"),
+                            "context": context,
+                            "metadata": err,
+                        },
+                        e,
                     )
 
         return count
@@ -1098,7 +1128,7 @@ class StorageEngine:
         query: str,
         limit: int = 10,
         min_score: float = 0.5,
-        min_success_rate: Optional[float] = None
+        min_success_rate: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search for error patterns."""
         if self._qdrant_enabled:
@@ -1106,12 +1136,11 @@ class StorageEngine:
                 query=query,
                 limit=limit,
                 min_score=min_score,
-                min_success_rate=min_success_rate
+                min_success_rate=min_success_rate,
             )
         else:
             return await self.sqlite.get_error_patterns(
-                limit=limit,
-                min_success_rate=min_success_rate
+                limit=limit, min_success_rate=min_success_rate
             )
 
     # --- Prediction Tracking (Phase 4: Calibration Loop) ---
@@ -1125,14 +1154,14 @@ class StorageEngine:
         prediction_id: str,
         actual_quality: float,
         actual_outcome: str,
-        session_id: str
+        session_id: str,
     ):
         """Update a prediction with actual outcome."""
         await self.sqlite.update_prediction_outcome(
             prediction_id=prediction_id,
             actual_quality=actual_quality,
             actual_outcome=actual_outcome,
-            session_id=session_id
+            session_id=session_id,
         )
 
     async def get_prediction_accuracy(self, days: int = 30) -> Dict[str, Any]:
