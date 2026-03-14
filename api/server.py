@@ -23,7 +23,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Callable, TypeVar
 
 # Add parent for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -75,17 +75,19 @@ if FASTAPI_AVAILABLE:
         AUTH_AVAILABLE = True
 
         # Rate limit decorators (conditional on limiter availability)
-        def rate_limit_default(func):
+        F = TypeVar("F", bound=Callable[..., Any])
+
+        def rate_limit_default(func: F) -> F:
             if limiter:
                 return limiter.limit(RATE_LIMIT_DEFAULT)(func)
             return func
 
-        def rate_limit_search(func):
+        def rate_limit_search(func: F) -> F:
             if limiter:
                 return limiter.limit(RATE_LIMIT_SEARCH)(func)
             return func
 
-        def rate_limit_write(func):
+        def rate_limit_write(func: F) -> F:
             if limiter:
                 return limiter.limit(RATE_LIMIT_WRITE)(func)
             return func
@@ -98,19 +100,21 @@ if FASTAPI_AVAILABLE:
         Request = None
         Depends = None
 
-        def rate_limit_default(func):
+        F = TypeVar("F", bound=Callable[..., Any])
+
+        def rate_limit_default(func: F) -> F:
             return func
 
-        def rate_limit_search(func):
+        def rate_limit_search(func: F) -> F:
             return func
 
-        def rate_limit_write(func):
+        def rate_limit_write(func: F) -> F:
             return func
 
-        async def get_current_user():
+        async def get_current_user() -> Dict[str, str]:
             return {"type": "anonymous"}
 
-        async def optional_auth():
+        async def optional_auth() -> None:
             return None
 
     # Add request logging middleware
@@ -264,7 +268,7 @@ if FASTAPI_AVAILABLE:
 _storage_engine: Optional["StorageEngine"] = None
 
 
-async def get_storage():
+async def get_storage() -> Optional["StorageEngine"]:
     """Get initialized storage engine."""
     global _storage_engine
     if _storage_engine is None and STORAGE_AVAILABLE:
@@ -275,7 +279,7 @@ async def get_storage():
 if FASTAPI_AVAILABLE:
 
     @app.on_event("startup")
-    async def startup_event():
+    async def startup_event() -> None:
         """Initialize storage engine on startup."""
         if STORAGE_AVAILABLE:
             try:
@@ -290,7 +294,7 @@ if FASTAPI_AVAILABLE:
                 print("Falling back to file-based storage")
 
     @app.on_event("shutdown")
-    async def shutdown_event():
+    async def shutdown_event() -> None:
         """Clean up storage engine."""
         if _storage_engine:
             await _storage_engine.close()
@@ -375,7 +379,7 @@ def get_evidenced_findings(session_id: str) -> list:
 if FASTAPI_AVAILABLE:
 
     @app.get("/")
-    async def root():
+    async def root() -> Dict[str, str]:
         """API root - health check."""
         return {
             "service": "Agent Core API",
@@ -443,7 +447,7 @@ if FASTAPI_AVAILABLE:
         limit: int = Query(20, ge=1, le=100),
         project: Optional[str] = None,
         status: Optional[str] = None,
-    ):
+    ) -> List["SessionSummary"]:
         """List all sessions with metadata."""
         if not SESSIONS_DIR.exists():
             return []
@@ -471,7 +475,7 @@ if FASTAPI_AVAILABLE:
         return sessions
 
     @app.get("/api/sessions/{session_id}")
-    async def get_session(session_id: str):
+    async def get_session(session_id: str) -> Dict[str, Any]:
         """Get detailed session information."""
         # Validate session ID to prevent path traversal
         if SECURITY_AVAILABLE:
@@ -499,7 +503,7 @@ if FASTAPI_AVAILABLE:
         project: Optional[str] = None,
         needs_review: Optional[bool] = None,
         limit: int = Query(50, ge=1, le=200),
-    ):
+    ) -> List["FindingResponse"]:
         """Search findings across all sessions."""
         all_findings = []
 
@@ -543,7 +547,7 @@ if FASTAPI_AVAILABLE:
         return all_findings
 
     @app.post("/api/findings")
-    async def create_finding(finding: NewFinding):
+    async def create_finding(finding: NewFinding) -> Dict[str, Any]:
         """Log a new finding (for real-time capture from OS-App/CareerCoach)."""
         # Get current session or create ad-hoc entry
         now = datetime.now()
@@ -582,7 +586,9 @@ if FASTAPI_AVAILABLE:
 
     @app.post("/api/search/semantic", response_model=list[SearchResult])
     @rate_limit_search
-    async def semantic_search(request: Request, search: SearchQuery):
+    async def semantic_search(
+        request: Request, search: SearchQuery
+    ) -> List["SearchResult"]:
         """Semantic search across knowledge base."""
         # Try to use the memory API if available
         try:
@@ -645,7 +651,7 @@ if FASTAPI_AVAILABLE:
             return results
 
     @app.get("/api/packs")
-    async def list_packs():
+    async def list_packs() -> List[Dict[str, Any]]:
         """List available context packs."""
         packs_dir = AGENT_CORE_DIR / "packs"
         if not packs_dir.exists():
@@ -670,7 +676,7 @@ if FASTAPI_AVAILABLE:
         return packs
 
     @app.post("/api/packs/select")
-    async def select_packs(selection: PackSelection):
+    async def select_packs(selection: PackSelection) -> Dict[str, Any]:
         """Select relevant context packs for a session."""
         packs_dir = AGENT_CORE_DIR / "packs"
         if not packs_dir.exists():
@@ -733,7 +739,7 @@ if FASTAPI_AVAILABLE:
         collections: Optional[str] = Query(
             None, description="Comma-separated: findings,sessions,packs"
         ),
-    ):
+    ) -> Dict[str, Any]:
         """
         Semantic search using vector embeddings (Qdrant).
 
@@ -763,7 +769,9 @@ if FASTAPI_AVAILABLE:
 
     @app.post("/api/v2/findings/batch")
     @rate_limit_write
-    async def store_findings_batch(http_request: Request, request: BulkFindingsRequest):
+    async def store_findings_batch(
+        http_request: Request, request: BulkFindingsRequest
+    ) -> Dict[str, Any]:
         """
         Store multiple findings in a single transaction.
 
@@ -782,7 +790,7 @@ if FASTAPI_AVAILABLE:
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.post("/api/v2/ucw/ingest")
-    async def ingest_ucw_packs(request: UCWIngestRequest):
+    async def ingest_ucw_packs(request: UCWIngestRequest) -> Dict[str, Any]:
         """
         Ingest packs from a UCW (Universal Cognitive Wallet) trade.
 
@@ -806,7 +814,7 @@ if FASTAPI_AVAILABLE:
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.get("/api/v2/stats")
-    async def get_storage_stats():
+    async def get_storage_stats() -> Dict[str, Any]:
         """
         Get storage statistics.
 
@@ -832,7 +840,7 @@ if FASTAPI_AVAILABLE:
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.get("/api/v2/health")
-    async def storage_health():
+    async def storage_health() -> Dict[str, Any]:
         """Check storage engine health."""
         storage = await get_storage()
         if not storage:
@@ -855,7 +863,7 @@ if FASTAPI_AVAILABLE:
         }
 
     @app.post("/api/v2/sessions")
-    async def store_session_v2(session: dict):
+    async def store_session_v2(session: dict) -> Dict[str, Any]:
         """Store a session using the storage engine."""
         storage = await get_storage()
         if not storage:
@@ -872,7 +880,7 @@ if FASTAPI_AVAILABLE:
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
         project: Optional[str] = None,
-    ):
+    ) -> List[Dict[str, Any]]:
         """List sessions from storage engine."""
         storage = await get_storage()
         if not storage:
@@ -906,7 +914,7 @@ if FASTAPI_AVAILABLE:
         pass
 
     @app.get("/api/v2/graph/stats")
-    async def graph_stats():
+    async def graph_stats() -> Dict[str, Any]:
         """Get knowledge graph statistics."""
         if not GRAPH_AVAILABLE:
             raise HTTPException(status_code=503, detail="Graph module not available")
@@ -916,7 +924,9 @@ if FASTAPI_AVAILABLE:
         return stats
 
     @app.get("/api/v2/graph/session/{session_id}")
-    async def get_session_graph(session_id: str, depth: int = Query(2, ge=1, le=4)):
+    async def get_session_graph(
+        session_id: str, depth: int = Query(2, ge=1, le=4)
+    ) -> Dict[str, Any]:
         """
         Get the knowledge subgraph centered on a session.
 
@@ -934,7 +944,9 @@ if FASTAPI_AVAILABLE:
         return subgraph.to_d3_format()
 
     @app.get("/api/v2/graph/related/{session_id}")
-    async def related_sessions(session_id: str, limit: int = Query(10, ge=1, le=50)):
+    async def related_sessions(
+        session_id: str, limit: int = Query(10, ge=1, le=50)
+    ) -> List[Dict[str, Any]]:
         """
         Find sessions related to a given session.
 
@@ -951,7 +963,9 @@ if FASTAPI_AVAILABLE:
         return {"session_id": session_id, "related": related}
 
     @app.get("/api/v2/graph/lineage/{session_id}")
-    async def session_lineage(session_id: str, include_urls: bool = True):
+    async def session_lineage(
+        session_id: str, include_urls: bool = True
+    ) -> Dict[str, Any]:
         """
         Get the complete research lineage for a session.
 
@@ -968,7 +982,9 @@ if FASTAPI_AVAILABLE:
         return lineage
 
     @app.get("/api/v2/graph/clusters")
-    async def concept_clusters(min_size: int = Query(5, ge=2, le=50)):
+    async def concept_clusters(
+        min_size: int = Query(5, ge=2, le=50),
+    ) -> List[Dict[str, Any]]:
         """
         Find concept clusters (groups of related sessions/findings).
 
@@ -984,7 +1000,7 @@ if FASTAPI_AVAILABLE:
     @app.get("/api/v2/graph/timeline")
     async def research_timeline(
         project: Optional[str] = None, limit: int = Query(50, ge=1, le=200)
-    ):
+    ) -> Dict[str, Any]:
         """Get chronological research timeline with lineage links."""
         if not GRAPH_AVAILABLE:
             raise HTTPException(status_code=503, detail="Graph module not available")
@@ -994,7 +1010,9 @@ if FASTAPI_AVAILABLE:
         return {"timeline": timeline, "count": len(timeline)}
 
     @app.get("/api/v2/graph/network/{node_id}")
-    async def concept_network(node_id: str, depth: int = Query(2, ge=1, le=4)):
+    async def concept_network(
+        node_id: str, depth: int = Query(2, ge=1, le=4)
+    ) -> Dict[str, Any]:
         """
         Get a concept network centered on any node.
 
@@ -1014,7 +1032,7 @@ if FASTAPI_AVAILABLE:
     @rate_limit_search  # Expensive computation, treat like search
     async def predict_session_outcome(
         http_request: Request, request: PredictionRequest
-    ):
+    ) -> Dict[str, Any]:
         """
         Predict session outcome based on multi-dimensional correlation.
 
@@ -1074,7 +1092,7 @@ if FASTAPI_AVAILABLE:
             raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
     @app.post("/api/v2/predict/errors")
-    async def predict_errors(request: ErrorPredictionRequest):
+    async def predict_errors(request: ErrorPredictionRequest) -> Dict[str, Any]:
         """
         Predict potential errors for a task.
 
@@ -1113,7 +1131,7 @@ if FASTAPI_AVAILABLE:
             )
 
     @app.post("/api/v2/predict/optimal-time")
-    async def predict_optimal_time(request: OptimalTimeRequest):
+    async def predict_optimal_time(request: OptimalTimeRequest) -> Dict[str, Any]:
         """
         Predict the optimal time to work on a task.
 
@@ -1151,7 +1169,9 @@ if FASTAPI_AVAILABLE:
             )
 
     @app.get("/api/v2/predict/accuracy")
-    async def get_prediction_accuracy(days: int = Query(30, ge=1, le=365)):
+    async def get_prediction_accuracy(
+        days: int = Query(30, ge=1, le=365),
+    ) -> Dict[str, Any]:
         """
         Get prediction accuracy metrics.
 
@@ -1189,7 +1209,9 @@ if FASTAPI_AVAILABLE:
             )
 
     @app.post("/api/v2/predict/update-outcome")
-    async def update_prediction_outcome(request: PredictionOutcomeUpdate):
+    async def update_prediction_outcome(
+        request: PredictionOutcomeUpdate,
+    ) -> Dict[str, Any]:
         """
         Update a tracked prediction with actual outcome for calibration.
 
@@ -1228,7 +1250,7 @@ if FASTAPI_AVAILABLE:
     async def multi_vector_search(
         query: str = Query(..., description="Search query"),
         limit: int = Query(5, ge=1, le=20),
-    ):
+    ) -> List[Dict[str, Any]]:
         """
         Perform multi-dimensional vector search across all dimensions.
 
@@ -1265,7 +1287,7 @@ if FASTAPI_AVAILABLE:
             )
 
     @app.get("/api/v2/predict/calibrate-weights")
-    async def calibrate_weights():
+    async def calibrate_weights() -> Dict[str, Any]:
         """
         Get recommended correlation weights based on prediction accuracy.
 
@@ -1307,7 +1329,7 @@ if FASTAPI_AVAILABLE:
     # ============================================================
 
     @app.get("/api/reinvigorate/{session_id}")
-    async def get_reinvigoration_context(session_id: str):
+    async def get_reinvigoration_context(session_id: str) -> Dict[str, Any]:
         """Get full context for session reinvigoration."""
         # Validate session ID to prevent path traversal
         if SECURITY_AVAILABLE:
@@ -1380,7 +1402,7 @@ if FASTAPI_AVAILABLE:
         query: str = Query(..., description="Concept to find related items for"),
         depth: int = Query(2, ge=1, le=3, description="Relationship depth"),
         limit: int = Query(20, ge=1, le=50, description="Max results"),
-    ):
+    ) -> List[Dict[str, Any]]:
         """
         Find concepts related to a query term.
 
@@ -1517,7 +1539,7 @@ if FASTAPI_AVAILABLE:
         session_id: str,
         include_findings: bool = Query(True, description="Include findings as nodes"),
         include_papers: bool = Query(True, description="Include cited papers"),
-    ):
+    ) -> Dict[str, Any]:
         """
         Get the research lineage graph for a session.
 
@@ -1636,7 +1658,7 @@ if FASTAPI_AVAILABLE:
     @app.get("/api/graph/sessions")
     async def get_sessions_graph(
         limit: int = Query(30, ge=1, le=100), project: Optional[str] = None
-    ):
+    ) -> Dict[str, Any]:
         """
         Get a graph of all sessions with connections.
 

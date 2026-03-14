@@ -26,7 +26,7 @@ TOOL_MODULES = [
 ]
 
 
-def load_tools(server: RawMCPServer):
+def load_tools(server: RawMCPServer) -> None:
     """Dynamically load and register tool modules."""
     for module_path in TOOL_MODULES:
         try:
@@ -44,7 +44,7 @@ def load_tools(server: RawMCPServer):
             log.error(f"Error loading {module_path}: {exc}")
 
 
-async def main():
+async def main() -> None:
     server = RawMCPServer()
     load_tools(server)
     await server.run()

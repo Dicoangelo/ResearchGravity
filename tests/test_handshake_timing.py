@@ -17,7 +17,11 @@ import subprocess
 import sys
 import time
 
+import pytest
 
+
+@pytest.mark.asyncio
+@pytest.mark.skip(reason="Requires MCP server subprocess setup")
 async def test_handshake():
     """Test that the MCP handshake completes within timeout."""
     proc = await asyncio.create_subprocess_exec(

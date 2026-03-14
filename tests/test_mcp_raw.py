@@ -5,8 +5,16 @@ Integration Test — Raw MCP Server Pipeline
 Tests the full flow WITHOUT stdin/stdout (unit-tests the components directly):
   Protocol → Router → Capture → UCW Bridge → Database
 
-Run: python3 test_mcp_raw.py
+Run: python3 tests/test_mcp_raw.py  (standalone runner, not pytest-compatible)
 """
+
+# This file uses a custom test runner, not pytest.
+# Skip when collected by pytest.
+import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="standalone runner — use: python3 tests/test_mcp_raw.py"
+)
 
 import asyncio
 import json
@@ -41,7 +49,7 @@ passed = 0
 failed = 0
 
 
-def test(name):
+def mcp_test(name):
     def decorator(fn):
         async def wrapper():
             global passed, failed
@@ -61,31 +69,31 @@ def test(name):
 # ── Protocol Tests ──────────────────────────────────────────────
 
 
-@test("validate_message: request")
+@mcp_test("validate_message: request")
 async def test_validate_request():
     msg = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
     assert validate_message(msg) == "request"
 
 
-@test("validate_message: notification")
+@mcp_test("validate_message: notification")
 async def test_validate_notification():
     msg = {"jsonrpc": "2.0", "method": "initialized"}
     assert validate_message(msg) == "notification"
 
 
-@test("validate_message: response")
+@mcp_test("validate_message: response")
 async def test_validate_response():
     msg = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
     assert validate_message(msg) == "response"
 
 
-@test("validate_message: error response")
+@mcp_test("validate_message: error response")
 async def test_validate_error():
     msg = {"jsonrpc": "2.0", "id": 1, "error": {"code": -1, "message": "fail"}}
     assert validate_message(msg) == "error"
 
 
-@test("validate_message: rejects missing jsonrpc")
+@mcp_test("validate_message: rejects missing jsonrpc")
 async def test_validate_rejects_bad():
     try:
         validate_message({"id": 1, "method": "x"})
@@ -94,7 +102,7 @@ async def test_validate_rejects_bad():
         assert e.code == INVALID_REQUEST
 
 
-@test("make_response: correct structure")
+@mcp_test("make_response: correct structure")
 async def test_make_response():
     r = make_response(42, {"tools": []})
     assert r["jsonrpc"] == "2.0"
@@ -102,14 +110,14 @@ async def test_make_response():
     assert r["result"] == {"tools": []}
 
 
-@test("make_error: correct structure")
+@mcp_test("make_error: correct structure")
 async def test_make_error():
     r = make_error(42, -32601, "not found")
     assert r["error"]["code"] == -32601
     assert r["error"]["message"] == "not found"
 
 
-@test("initialize_result: MCP format")
+@mcp_test("initialize_result: MCP format")
 async def test_initialize_result():
     r = initialize_result("test", "1.0", "2024-11-05")
     assert r["protocolVersion"] == "2024-11-05"
@@ -120,7 +128,7 @@ async def test_initialize_result():
 # ── UCW Bridge Tests ────────────────────────────────────────────
 
 
-@test("extract_layers: inbound tool call")
+@mcp_test("extract_layers: inbound tool call")
 async def test_ucw_tool_call():
     msg = {
         "jsonrpc": "2.0",
@@ -135,7 +143,7 @@ async def test_ucw_tool_call():
     assert isinstance(instinct["coherence_potential"], float)
 
 
-@test("extract_layers: outbound response")
+@mcp_test("extract_layers: outbound response")
 async def test_ucw_response():
     msg = {
         "jsonrpc": "2.0",
@@ -151,7 +159,7 @@ async def test_ucw_response():
     assert isinstance(instinct["gut_signal"], str)
 
 
-@test("coherence_signature: deterministic")
+@mcp_test("coherence_signature: deterministic")
 async def test_coherence_sig():
     ts = 1707350400_000_000_000  # Fixed timestamp
     sig1 = coherence_signature("search", "research", ts, "test content")
@@ -160,7 +168,7 @@ async def test_coherence_sig():
     assert len(sig1) == 64  # SHA-256 hex
 
 
-@test("coherence_signature: different bucket = different sig")
+@mcp_test("coherence_signature: different bucket = different sig")
 async def test_coherence_sig_buckets():
     ts1 = 1707350400_000_000_000
     ts2 = ts1 + 6 * 60 * 1_000_000_000  # 6 minutes later (different bucket)
@@ -169,7 +177,7 @@ async def test_coherence_sig_buckets():
     assert sig1 != sig2
 
 
-@test("UCWBridgeAdapter.enrich: populates all layers")
+@mcp_test("UCWBridgeAdapter.enrich: populates all layers")
 async def test_bridge_adapter():
     adapter = UCWBridgeAdapter()
     event = CaptureEvent(
@@ -188,7 +196,7 @@ async def test_bridge_adapter():
 # ── Capture Engine Tests ────────────────────────────────────────
 
 
-@test("CaptureEngine: basic capture")
+@mcp_test("CaptureEngine: basic capture")
 async def test_capture_basic():
     engine = CaptureEngine()
     await engine.capture(
@@ -201,7 +209,7 @@ async def test_capture_basic():
     assert engine.turn_count == 1
 
 
-@test("CaptureEngine: turn counting")
+@mcp_test("CaptureEngine: turn counting")
 async def test_capture_turns():
     engine = CaptureEngine()
     # Inbound request
@@ -223,7 +231,7 @@ async def test_capture_turns():
     assert engine.event_count == 2
 
 
-@test("CaptureEngine: UCW bridge integration")
+@mcp_test("CaptureEngine: UCW bridge integration")
 async def test_capture_with_bridge():
     engine = CaptureEngine()
     engine.set_ucw_bridge(UCWBridgeAdapter())
@@ -247,7 +255,7 @@ async def test_capture_with_bridge():
 # ── Router Tests ────────────────────────────────────────────────
 
 
-@test("Router: initialize")
+@mcp_test("Router: initialize")
 async def test_router_initialize():
     router = Router()
     msg = {
@@ -264,7 +272,7 @@ async def test_router_initialize():
     assert result["serverInfo"]["name"] == Config.SERVER_NAME
 
 
-@test("Router: tools/list empty")
+@mcp_test("Router: tools/list empty")
 async def test_router_tools_list_empty():
     router = Router()
     msg = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
@@ -272,7 +280,7 @@ async def test_router_tools_list_empty():
     assert result["tools"] == []
 
 
-@test("Router: tools/list with registered tools")
+@mcp_test("Router: tools/list with registered tools")
 async def test_router_tools_list():
     router = Router()
     tools = [
@@ -293,7 +301,7 @@ async def test_router_tools_list():
     assert result["tools"][0]["name"] == "test_tool"
 
 
-@test("Router: tools/call dispatch")
+@mcp_test("Router: tools/call dispatch")
 async def test_router_tools_call():
     router = Router()
     tools = [
@@ -317,7 +325,7 @@ async def test_router_tools_call():
     assert result["content"][0]["text"] == "Hello UCW"
 
 
-@test("Router: unknown method raises ProtocolError")
+@mcp_test("Router: unknown method raises ProtocolError")
 async def test_router_unknown():
     router = Router()
     msg = {"jsonrpc": "2.0", "id": 4, "method": "nonexistent/method", "params": {}}
@@ -328,7 +336,7 @@ async def test_router_unknown():
         assert e.code == METHOD_NOT_FOUND
 
 
-@test("Router: notification returns None")
+@mcp_test("Router: notification returns None")
 async def test_router_notification():
     router = Router()
     msg = {"jsonrpc": "2.0", "method": "initialized"}
@@ -336,7 +344,7 @@ async def test_router_notification():
     assert result is None
 
 
-@test("Router: ping returns empty dict")
+@mcp_test("Router: ping returns empty dict")
 async def test_router_ping():
     router = Router()
     msg = {"jsonrpc": "2.0", "id": 5, "method": "ping", "params": {}}
@@ -347,7 +355,7 @@ async def test_router_ping():
 # ── Database Tests ──────────────────────────────────────────────
 
 
-@test("CaptureDB: initialize and store event")
+@mcp_test("CaptureDB: initialize and store event")
 async def test_db_store():
     import tempfile
 
@@ -383,7 +391,7 @@ async def test_db_store():
         await db.close()
 
 
-@test("CaptureDB: get_all_stats")
+@mcp_test("CaptureDB: get_all_stats")
 async def test_db_all_stats():
     import tempfile
 
@@ -401,7 +409,7 @@ async def test_db_all_stats():
 # ── Full Pipeline Test ──────────────────────────────────────────
 
 
-@test("Full pipeline: capture → bridge → db round-trip")
+@mcp_test("Full pipeline: capture → bridge → db round-trip")
 async def test_full_pipeline():
     import tempfile
 
