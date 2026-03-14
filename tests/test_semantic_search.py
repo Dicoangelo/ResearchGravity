@@ -2,10 +2,19 @@
 """
 Test semantic search once vectors are loaded.
 Run this after backfill completes to see Cohere embeddings + reranking in action.
+
+Standalone runner — use: python3 tests/test_semantic_search.py
 """
 
 import asyncio
 import sys
+
+import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="standalone runner — use: python3 tests/test_semantic_search.py"
+)
+
 from storage.qdrant_db import get_qdrant
 
 

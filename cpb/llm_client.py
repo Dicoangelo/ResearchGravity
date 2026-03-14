@@ -180,7 +180,7 @@ def load_api_keys() -> Dict[str, str]:
     return keys
 
 
-def save_api_key(provider: str, api_key: str):
+def save_api_key(provider: str, api_key: str) -> None:
     """Save an API key to config file."""
     config = {}
 

@@ -73,7 +73,7 @@ class StorageEngine:
         self._prefer_sqlite_vec = prefer_sqlite_vec
         self._enable_dlq = enable_dlq
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all storage backends."""
         if self._initialized:
             return
@@ -119,7 +119,7 @@ class StorageEngine:
 
         self._initialized = True
 
-    async def close(self):
+    async def close(self) -> None:
         """Close all connections."""
         if self.sqlite:
             await self.sqlite.close()
@@ -922,7 +922,7 @@ class StorageEngine:
         target_id: str,
         relation: str,
         weight: float = 1.0,
-    ):
+    ) -> None:
         """Add a lineage relationship."""
         await self.sqlite.add_lineage(
             source_type=source_type,
@@ -1155,7 +1155,7 @@ class StorageEngine:
         actual_quality: float,
         actual_outcome: str,
         session_id: str,
-    ):
+    ) -> None:
         """Update a prediction with actual outcome."""
         await self.sqlite.update_prediction_outcome(
             prediction_id=prediction_id,
