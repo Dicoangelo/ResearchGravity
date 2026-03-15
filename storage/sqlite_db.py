@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 DB_PATH = Path.home() / ".agent-core" / "storage" / "antigravity.db"
 
 # Schema version for migrations
-SCHEMA_VERSION = 3  # Phase 4: Added prediction_tracking
+SCHEMA_VERSION = 4  # Phase 5: Temporal knowledge graph edges
 
 SCHEMA = """
 -- Enable WAL mode for concurrent reads/writes
@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS papers (
 );
 
 -- Lineage/relationships (lightweight graph in relational)
+-- Phase 5: Temporal edges — valid_at/expired_at enable fact decay
 CREATE TABLE IF NOT EXISTS lineage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_type TEXT NOT NULL,  -- 'session', 'paper', 'finding', 'pack'
@@ -136,6 +137,8 @@ CREATE TABLE IF NOT EXISTS lineage (
     relation TEXT NOT NULL,  -- 'enables', 'informs', 'derives_from', 'cites', 'contains'
     weight REAL DEFAULT 1.0,
     metadata TEXT,  -- JSON
+    valid_at TEXT,  -- When this edge became true (defaults to created_at)
+    expired_at TEXT,  -- When this edge stopped being true (NULL = still active)
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(source_type, source_id, target_type, target_id, relation)
 );
@@ -338,9 +341,37 @@ class SQLiteDB:
             )
             row = await cursor.fetchone()
 
-            if not row:
+            current_version = row[0] if row else 0
+
+            if current_version < 4:
+                # Phase 5: Temporal knowledge graph edges
+                try:
+                    await db.execute(
+                        "ALTER TABLE lineage ADD COLUMN valid_at TEXT"
+                    )
+                except Exception:
+                    pass  # Column already exists
+                try:
+                    await db.execute(
+                        "ALTER TABLE lineage ADD COLUMN expired_at TEXT"
+                    )
+                except Exception:
+                    pass  # Column already exists
+                # Backfill: existing edges get valid_at = created_at
                 await db.execute(
-                    "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                    "UPDATE lineage SET valid_at = created_at WHERE valid_at IS NULL"
+                )
+                # Indexes on new columns
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_lineage_valid_at ON lineage(valid_at)"
+                )
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_lineage_expired_at ON lineage(expired_at)"
+                )
+
+            if current_version < SCHEMA_VERSION:
+                await db.execute(
+                    "INSERT OR REPLACE INTO schema_version (version, applied_at) VALUES (?, ?)",
                     (SCHEMA_VERSION, datetime.now().isoformat()),
                 )
 

@@ -23,6 +23,8 @@ TOOL_MODULES = [
     "mcp_raw.tools.coherence_tools",
     "mcp_raw.tools.intelligence_tools",
     "mcp_raw.tools.delegation_tools",
+    "mcp_raw.tools.react_synthesis",
+    "mcp_raw.tools.oracle_tools",
 ]
 
 
