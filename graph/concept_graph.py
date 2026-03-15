@@ -133,9 +133,10 @@ class ConceptGraph:
                         )
                     )
 
-            # Load lineage edges
+            # Load lineage edges (with temporal fields)
             cursor.execute("""
-                SELECT source_type, source_id, target_type, target_id, relation
+                SELECT source_type, source_id, target_type, target_id, relation,
+                       valid_at, expired_at
                 FROM lineage
             """)
             for row in cursor.fetchall():
@@ -153,6 +154,8 @@ class ConceptGraph:
                         source_id=f"{row['source_type']}:{row['source_id']}",
                         target_id=f"{row['target_type']}:{row['target_id']}",
                         edge_type=edge_type,
+                        valid_at=row["valid_at"],
+                        expired_at=row["expired_at"],
                     )
                 )
 

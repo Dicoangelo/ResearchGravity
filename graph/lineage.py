@@ -57,22 +57,39 @@ class LineageNode:
 
 @dataclass
 class LineageEdge:
-    """An edge (relationship) in the knowledge graph."""
+    """An edge (relationship) in the knowledge graph.
+
+    Temporal fields enable fact decay:
+    - valid_at: when the relationship became true
+    - expired_at: when it stopped being true (None = still active)
+    """
 
     source_id: str
     target_id: str
     edge_type: EdgeType
     weight: float = 1.0
     metadata: Dict[str, Any] = field(default_factory=dict)
+    valid_at: Optional[str] = None
+    expired_at: Optional[str] = None
+
+    @property
+    def is_active(self) -> bool:
+        """True if this edge has not expired."""
+        return self.expired_at is None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "source": self.source_id,
             "target": self.target_id,
             "type": self.edge_type.value,
             "weight": self.weight,
             "metadata": self.metadata,
         }
+        if self.valid_at:
+            d["valid_at"] = self.valid_at
+        if self.expired_at:
+            d["expired_at"] = self.expired_at
+        return d
 
 
 @dataclass
@@ -241,6 +258,30 @@ class LineageTracker:
 
         return []
 
+    def expire_edge(
+        self, source_id: str, target_id: str, expired_at: Optional[str] = None
+    ) -> bool:
+        """Mark an edge as expired (fact decay).
+
+        Returns True if an edge was found and expired.
+        """
+        from datetime import datetime as dt
+
+        timestamp = expired_at or dt.now().isoformat()
+        for edge in self._edges:
+            if edge.source_id == source_id and edge.target_id == target_id and edge.is_active:
+                edge.expired_at = timestamp
+                return True
+        return False
+
+    def get_active_edges(self) -> List[LineageEdge]:
+        """Return only edges that have not expired."""
+        return [e for e in self._edges if e.is_active]
+
+    def get_expired_edges(self) -> List[LineageEdge]:
+        """Return only edges that have expired (historical facts)."""
+        return [e for e in self._edges if not e.is_active]
+
     def get_stats(self) -> Dict[str, Any]:
         """Get graph statistics."""
         type_counts = {}
@@ -248,14 +289,22 @@ class LineageTracker:
             type_counts[node.type.value] = type_counts.get(node.type.value, 0) + 1
 
         edge_type_counts = {}
+        active_count = 0
+        expired_count = 0
         for edge in self._edges:
             edge_type_counts[edge.edge_type.value] = (
                 edge_type_counts.get(edge.edge_type.value, 0) + 1
             )
+            if edge.is_active:
+                active_count += 1
+            else:
+                expired_count += 1
 
         return {
             "total_nodes": len(self._nodes),
             "total_edges": len(self._edges),
+            "active_edges": active_count,
+            "expired_edges": expired_count,
             "node_types": type_counts,
             "edge_types": edge_type_counts,
         }
