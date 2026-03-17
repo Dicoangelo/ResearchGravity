@@ -11,6 +11,7 @@ uvicorn>=0.20.0
 # Storage
 aiofiles>=23.0.0
 aiosqlite>=0.17.0
+asyncpg>=0.27.0
 
 # Vector Storage (V2)
 sqlite-vec>=0.1.0          # Local vector storage
