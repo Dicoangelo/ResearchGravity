@@ -250,10 +250,34 @@ class ReACTSynthesizer:
     """ReACT loop for research synthesis.
 
     Ported from MiroFish's _generate_section_react() with adaptations:
-    - No external LLM dependency — the loop itself IS the reasoning
+    - Adaptive query refinement: each tool result refines the next query
     - Tool diversity enforced via used_tools tracking
     - Structured output as Markdown synthesis
     """
+
+    # Stop words for term extraction
+    _STOP_WORDS = frozenset({
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "shall", "can", "need", "must", "ought",
+        "and", "but", "or", "nor", "not", "so", "yet", "both", "either",
+        "neither", "each", "every", "all", "any", "few", "more", "most",
+        "other", "some", "such", "than", "too", "very", "just", "also",
+        "for", "from", "with", "about", "into", "through", "during", "before",
+        "after", "above", "below", "between", "under", "again", "further",
+        "then", "once", "here", "there", "when", "where", "why", "how",
+        "that", "this", "these", "those", "what", "which", "who", "whom",
+        "found", "results", "search", "none", "error", "matching", "total",
+        "no", "yes", "if", "of", "to", "in", "on", "at", "by", "up",
+        # ResearchGravity internal terms (not useful for refinement)
+        "findings", "finding", "sessions", "session", "learnings", "learning",
+        "research", "urls", "logged", "archived", "active", "recent",
+        "graph", "nodes", "edges", "clusters", "stats", "content", "type",
+        "hybrid", "semantic", "keyword", "relevance", "score", "weight",
+        "context", "project", "topic", "source", "status", "date",
+        "coherence", "moments", "detected", "platform", "summary",
+        "concepts", "papers", "size", "count", "index",
+    })
 
     def __init__(
         self,
@@ -261,12 +285,52 @@ class ReACTSynthesizer:
         max_iterations: int = 5,
         min_tool_calls: int = 3,
     ):
+        self.original_query = query
         self.query = query
         self.max_iterations = min(max_iterations, 8)
         self.min_tool_calls = min(min_tool_calls, len(ALL_INTERNAL_TOOLS))
         self.used_tools: Set[str] = set()
         self.tool_results: List[Dict[str, Any]] = []
         self.tool_calls_count = 0
+        self._discovered_terms: List[str] = []
+
+    def _extract_terms(self, text: str, top_n: int = 5) -> List[str]:
+        """Extract high-signal terms from tool output for query refinement."""
+        from collections import Counter
+
+        words = re.findall(r'\b[a-zA-Z_]{4,}\b', text.lower())
+        # Filter stop words and query terms (we already know those)
+        query_words = set(self.original_query.lower().split())
+        filtered = [
+            w for w in words
+            if w not in self._STOP_WORDS
+            and w not in query_words
+            and not w.startswith("http")
+        ]
+        counts = Counter(filtered)
+        return [term for term, _ in counts.most_common(top_n)]
+
+    def _refine_query(self, tool_result: str) -> str:
+        """Refine the query based on what a tool found.
+
+        Extracts novel high-frequency terms from tool output and appends
+        the best ones to the query for subsequent tool calls.
+        """
+        new_terms = self._extract_terms(tool_result, top_n=3)
+
+        # Only add genuinely new terms
+        existing = set(self.query.lower().split())
+        novel = [t for t in new_terms if t not in existing and t not in self._discovered_terms]
+
+        if novel:
+            self._discovered_terms.extend(novel)
+            # Append top 2 novel terms to refine
+            additions = novel[:2]
+            refined = f"{self.query} {' '.join(additions)}"
+            log.info(f"ReACT refined query: +{additions}")
+            return refined
+
+        return self.query
 
     def _select_next_tool(self) -> Optional[str]:
         """Select the next tool to use, preferring unused tools."""
@@ -285,17 +349,15 @@ class ReACTSynthesizer:
         if not executor:
             return f"Unknown tool: {tool_name}"
 
-        log.info(f"ReACT executing: {tool_name}(query='{self.query[:50]}...')")
+        log.info(f"ReACT executing: {tool_name}(query='{self.query[:80]}...')")
 
-        if tool_name == "knowledge_graph":
-            result = await executor(self.query)
-        else:
-            result = await executor(self.query)
+        result = await executor(self.query)
 
         self.used_tools.add(tool_name)
         self.tool_calls_count += 1
         self.tool_results.append({
             "tool": tool_name,
+            "query_used": self.query,
             "result": result,
             "timestamp": datetime.now().isoformat(),
         })
@@ -307,15 +369,22 @@ class ReACTSynthesizer:
         if not self.tool_results:
             return f"No data collected for query: {self.query}"
 
-        synthesis = f"# ReACT Synthesis: {self.query}\n\n"
+        synthesis = f"# ReACT Synthesis: {self.original_query}\n\n"
         synthesis += f"**Tools used:** {', '.join(self.used_tools)} ({self.tool_calls_count} calls)\n"
-        synthesis += f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
-        synthesis += "---\n\n"
+        synthesis += f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+
+        # Show query evolution
+        if self._discovered_terms:
+            synthesis += f"**Query refined with:** {', '.join(self._discovered_terms)}\n"
+        synthesis += "\n---\n\n"
 
         # Section per tool result
         for i, tr in enumerate(self.tool_results, 1):
             tool_label = TOOL_DESCRIPTIONS.get(tr["tool"], tr["tool"])
+            query_used = tr.get("query_used", self.original_query)
             synthesis += f"## {i}. {tool_label}\n\n"
+            if query_used != self.original_query:
+                synthesis += f"*Refined query: {query_used}*\n\n"
             synthesis += tr["result"]
             synthesis += "\n\n---\n\n"
 
@@ -329,6 +398,8 @@ class ReACTSynthesizer:
         word_count = len(all_text.split())
         synthesis += f"**Total data analyzed:** ~{word_count} words across all sources\n"
         synthesis += f"**Data sources:** {', '.join(sorted(self.used_tools))}\n"
+        if self._discovered_terms:
+            synthesis += f"**Discovered terms:** {', '.join(self._discovered_terms)}\n"
 
         return synthesis
 
@@ -354,7 +425,10 @@ class ReACTSynthesizer:
                 log.info("ReACT: all available tools exhausted")
                 break
 
-            await self._execute_tool(next_tool)
+            result = await self._execute_tool(next_tool)
+
+            # Adaptive refinement: use tool output to improve next query
+            self.query = self._refine_query(result)
 
         # If we still haven't met minimum, log warning
         if len(self.used_tools) < self.min_tool_calls:
