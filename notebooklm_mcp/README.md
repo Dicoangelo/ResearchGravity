@@ -1,7 +1,7 @@
 # NotebookLM Cognitive Engine
 
-**Version:** 2.0.0
-**Status:** Complete (HTTP/RPC + Cognitive Intelligence)
+**Version:** 2.2.0
+**Status:** Complete (HTTP/RPC + Cognitive Intelligence + Convergence Tools + Upstream-Verified Rename/Revise)
 
 Sovereign knowledge synthesis engine connecting NotebookLM to the Universal Cognitive Wallet. Uses direct HTTP/RPC to Google's `batchexecute` API (no browser required). Every interaction feeds the cognitive database — bidirectional, self-curating, knowledge-compounding.
 
@@ -19,7 +19,7 @@ notebooklm_mcp/
 │   ├── constants.py                 # CodeMapper + type codes
 │   └── cognitive.py                 # Cognitive Intelligence Layer (GraphRAG, FSRS, coherence)
 └── tools/
-    └── notebooklm_tools.py          # 37 MCP tools (29 NotebookLM + 6 Cognitive + 2 Auth)
+    └── notebooklm_tools.py          # 47 MCP tools (35 NotebookLM + 9 Cognitive/Convergence + 3 Auth)
 
 UCW Infrastructure (reused):
   mcp_raw/ → transport, protocol, router, capture, database, embeddings
@@ -75,9 +75,9 @@ Already configured in `~/.mcp.json`:
 }
 ```
 
-## Available Tools (37)
+## Available Tools (47)
 
-### NotebookLM Core (29)
+### NotebookLM Core (35)
 
 | Tool | Purpose | Confirm? |
 |------|---------|----------|
@@ -94,10 +94,15 @@ Already configured in `~/.mcp.json`:
 | `source_list_drive` | List sources with Drive freshness | |
 | `source_sync_drive` | Sync stale Drive sources | Yes |
 | `source_delete` | Delete source | Yes |
-| `notebook_query` | Ask questions (AI answers) | |
+| `source_rename` | Rename a source in place | |
+| `notebook_query` | Ask questions synchronously (AI answers) | |
+| `notebook_query_start` | Kick off a query as a background job (returns job_id) | |
+| `notebook_query_status` | Poll an async query job; returns answer on completion | |
 | `studio_create` | Generate content (audio, video, report, etc.) | Yes |
 | `studio_status` | Check artifact generation status | |
 | `studio_delete` | Delete studio artifacts | Yes |
+| `artifact_rename` | Rename a studio artifact in place | |
+| `slide_deck_revise` | Revise slide deck with per-slide instructions (creates NEW artifact) | |
 | `download_artifact` | Download artifacts | |
 | `export_artifact` | Export to Sheets/Docs | |
 | `research_start` | Start web/Drive research | |
@@ -106,12 +111,13 @@ Already configured in `~/.mcp.json`:
 | `notebook_share_status` | Get sharing settings | |
 | `notebook_share_public` | Toggle public link access | |
 | `notebook_share_invite` | Invite collaborator by email | |
+| `notebook_share_batch` | Invite multiple collaborators in one call | |
 | `note_create` | Create a note | |
 | `note_list` | List all notes | |
 | `note_update` | Update note content/title | |
 | `note_delete` | Delete note | Yes |
 
-### Cognitive Intelligence (6)
+### Cognitive Intelligence & Convergence (9)
 
 | Tool | Purpose |
 |------|---------|
@@ -121,11 +127,15 @@ Already configured in `~/.mcp.json`:
 | `research_to_notebook` | Bridge ResearchGravity session into NotebookLM notebook |
 | `knowledge_evolution` | Track understanding evolution over repeated queries |
 | `cognitive_auto_curate` | Trigger coherence-driven notebook creation |
+| `cross_notebook_query` | Run one query across many notebooks, aggregate answers (enriched or plain) |
+| `batch_execute` | Chain multiple MCP tool calls in one request (continue_on_error opt-in) |
+| `pipeline_research` | End-to-end: create notebook → add sources → query → optional studio artifact |
 
-### Auth (2)
+### Auth (3)
 
 | Tool | Purpose |
 |------|---------|
+| `auto_auth` | Extract cookies from Chrome keychain automatically |
 | `save_auth_tokens` | Save cookies from Chrome DevTools |
 | `refresh_auth` | Reload auth tokens |
 
@@ -198,6 +208,48 @@ print(f'Found {len(notebooks)} notebooks')
 # Server startup (Claude Desktop auto-starts via MCP)
 python3 -m notebooklm_mcp
 ```
+
+## Changelog
+
+### 2.2.0 — Phase 4: Upstream Audit Port
+
+Reverse-engineered RPC IDs + param shapes from `jacob-bd/notebooklm-mcp-cli` (read-only audit clone, nothing installed). Promoted both previously-deferred items:
+
+- `source_rename` — RPC `b7Wfje`, params `[None, [source_id], [[[new_title]]]]`. In-place rename, no re-upload.
+- `slide_deck_revise` — RPC `KmcKPe`, params `[[2], artifact_id, [[[slide_idx, instruction], ...]]]`. Creates a NEW slide-deck artifact from per-slide revision instructions; original is untouched. Slide-deck only (other studio types have no revise RPC).
+
+Tool/handler count: 45 → 47. Parity verified.
+
+**Live-verified 2026-04-11:**
+- `source_rename` — non-destructive roundtrip on MFTH notebook (`8d73aec5`), source `22b1d49f` renamed and restored cleanly. Returns `{id, title}`.
+- `slide_deck_revise` — revised `e7fb53e7` "The Closed Loop Architecture" with slide-0 instruction; original untouched, new `99586736` "The Closed Loop Architecture (2)" (`in_progress`) created. Artifact count 3 → 4.
+
+### 2.1.0 — Convergence (Phases 1–3)
+
+**Phase 1 — Security / correctness**
+- Drift fixes vs upstream `jacob-bd/notebooklm-mcp-cli` v0.5.20
+- Base URL allowlist + tightened file permissions
+- `BaseClient` thread-safety locks for `_source_rpc_version`, `_conversation_cache`, `_query_jobs`
+- Dual-RPC fallback `izAoDd → ozz5Z` for source RPC version skew
+- gRPC canonical error code mapping (3/5/7/16) surfaced through handler errors
+- Research pipeline correctness fixes
+
+**Phase 2 — New capabilities**
+- Async query polling: `notebook_query_start` + `notebook_query_status` with 10-min TTL job store
+- `artifact_rename` (RPC `rc3d8d`) and `notebook_share_batch` for multi-invite
+- Studio video enhancements: `video_style_prompt` with custom-style warning
+
+**Phase 3 — Cognitive convergence**
+- `cross_notebook_query` — aggregate a single query across N notebooks, enriched or plain
+- `batch_execute` — serial MCP tool dispatch, `continue_on_error` flag, nested-batch guard
+- `pipeline_research` — one call: create notebook → add sources → query → optional studio
+
+**Deferred (documented, not shipped):**
+- Studio status code 3 remap — speculative, would risk regression
+- Audio source type code 10 — no ground truth
+- `tag` wrapper — would require new local sidecar schema
+
+(`source_rename` and `slide_deck_revise` shipped in 2.2.0 — see above.)
 
 ## References
 

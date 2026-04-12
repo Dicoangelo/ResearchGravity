@@ -10,6 +10,7 @@ import logging
 import os
 import random
 import re
+import threading
 import time
 import urllib.parse
 import uuid
@@ -99,6 +100,45 @@ class ArtifactError(NotebookLMError):
     pass
 
 
+# gRPC canonical error codes (subset we care about)
+GRPC_CODE_INVALID_ARGUMENT = 3
+GRPC_CODE_NOT_FOUND = 5
+GRPC_CODE_PERMISSION_DENIED = 7
+GRPC_CODE_UNAUTHENTICATED = 16
+
+_GRPC_CODE_NAMES = {
+    3: "INVALID_ARGUMENT",
+    5: "NOT_FOUND",
+    7: "PERMISSION_DENIED",
+    16: "UNAUTHENTICATED",
+}
+
+
+class RPCError(NotebookLMError):
+    """A batchexecute RPC returned a structured error payload.
+
+    `error_code` is the gRPC canonical status code parsed from the wrb.fr
+    envelope's item[5] slot. Code 16 is mapped to AuthenticationError at the
+    _call_rpc layer so callers never see it as an RPCError.
+    """
+
+    def __init__(
+        self,
+        error_code: int,
+        message: str = "",
+        rpc_id: str = "",
+        payload: Any = None,
+    ):
+        self.error_code = error_code
+        self.rpc_id = rpc_id
+        self.payload = payload
+        name = _GRPC_CODE_NAMES.get(error_code, f"code={error_code}")
+        super().__init__(
+            f"RPC {rpc_id or '?'} failed: {name}"
+            + (f" — {message}" if message else "")
+        )
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -157,12 +197,16 @@ class NotebookLMAPIClient:
     RPC_CREATE_NOTEBOOK = "CCqFvf"
     RPC_RENAME_NOTEBOOK = "s0tc2d"
     RPC_DELETE_NOTEBOOK = "WWINqb"
-    RPC_ADD_SOURCE = "izAoDd"
+    RPC_ADD_SOURCE = "izAoDd"  # legacy URL/text/drive source add
+    RPC_ADD_SOURCE_V2 = "ozz5Z"  # new URL source add (issue #121 rollout)
     RPC_ADD_SOURCE_FILE = "o4cbdc"
+    # Source type code used by v2 ozz5Z payload (upstream reverse-engineered)
+    SOURCE_TYPE_URL_V2 = 627
     RPC_GET_SOURCE = "hizoJc"
     RPC_CHECK_FRESHNESS = "yR9Yof"
     RPC_SYNC_DRIVE = "FLmJqe"
     RPC_DELETE_SOURCE = "tGMBJ"
+    RPC_RENAME_SOURCE = "b7Wfje"  # Rename a source (upstream v0.5.20 audit)
     RPC_GET_SUMMARY = "VfAZjd"
     RPC_GET_SOURCE_GUIDE = "tr032e"
     RPC_START_FAST_RESEARCH = "Ljjv0c"
@@ -173,6 +217,7 @@ class NotebookLMAPIClient:
     RPC_POLL_STUDIO = "gArtLc"
     RPC_DELETE_STUDIO = "V5N4be"
     RPC_RENAME_ARTIFACT = "rc3d8d"
+    RPC_REVISE_SLIDE_DECK = "KmcKPe"  # Revise existing slide deck with per-slide edits
     RPC_GET_INTERACTIVE_HTML = "v9rmvd"
     RPC_GENERATE_MIND_MAP = "yyryJe"
     RPC_SAVE_MIND_MAP = "CYK0Xb"
@@ -236,6 +281,9 @@ class NotebookLMAPIClient:
         self._client: httpx.Client | None = None
         self._conversation_cache: dict[str, list[ConversationTurn]] = {}
         self._reqid_counter = random.randint(100000, 999999)
+        self._state_lock = threading.Lock()
+        self._source_rpc_version: str | None = None
+        self._query_jobs: dict[str, dict] = {}
 
         if not self.csrf_token and self.cookies:
             self._refresh_auth_tokens()
@@ -360,14 +408,17 @@ class NotebookLMAPIClient:
                 for item in chunk:
                     if isinstance(item, list) and len(item) >= 3:
                         if item[0] == "wrb.fr" and item[1] == rpc_id:
-                            if (
-                                len(item) > 6
-                                and item[6] == "generic"
-                                and isinstance(item[5], list)
-                                and 16 in item[5]
-                            ):
-                                raise AuthenticationError(
-                                    "RPC Error 16: Authentication expired"
+                            err_code, err_msg = self._extract_rpc_error(item)
+                            if err_code is not None:
+                                if err_code == GRPC_CODE_UNAUTHENTICATED:
+                                    raise AuthenticationError(
+                                        "RPC Error 16: Authentication expired"
+                                    )
+                                raise RPCError(
+                                    error_code=err_code,
+                                    message=err_msg,
+                                    rpc_id=rpc_id,
+                                    payload=item[5] if len(item) > 5 else None,
                                 )
                             result_str = item[2]
                             if isinstance(result_str, str):
@@ -377,6 +428,38 @@ class NotebookLMAPIClient:
                                     return result_str
                             return result_str
         return None
+
+    def _extract_rpc_error(self, item: list) -> tuple[int | None, str]:
+        """Extract (grpc_code, message) from a wrb.fr envelope or return (None, '').
+
+        Error envelopes in batchexecute vary, but the canonical shape places the
+        gRPC code as a top-level int in item[5] (a list), with item[2] null.
+        Upstream also observed {code, message} dicts in some payloads.
+        """
+        # Success case: item[2] is the result payload (non-null)
+        if len(item) > 2 and item[2] is not None:
+            return None, ""
+        if len(item) <= 5:
+            return None, ""
+        err_slot = item[5]
+        if not isinstance(err_slot, list):
+            return None, ""
+
+        code: int | None = None
+        message = ""
+        for entry in err_slot:
+            if isinstance(entry, int) and entry in _GRPC_CODE_NAMES:
+                code = entry
+            elif isinstance(entry, str) and not message:
+                message = entry
+            elif isinstance(entry, dict):
+                c = entry.get("code")
+                if isinstance(c, int):
+                    code = c
+                m = entry.get("message")
+                if isinstance(m, str) and not message:
+                    message = m
+        return code, message
 
     def _call_rpc(
         self,
@@ -700,6 +783,49 @@ class NotebookLMAPIClient:
         wait: bool = False,
         wait_timeout: float = 120.0,
     ) -> dict | None:
+        """Add a URL source with dual-RPC fallback.
+
+        Tries the legacy `izAoDd` RPC first; on INVALID_ARGUMENT (gRPC 3) —
+        which Google returns for accounts rolled onto the new source API
+        (issue #121) — falls back to `ozz5Z`. The successful version is
+        cached in `_source_rpc_version` so subsequent calls skip the probe.
+        """
+        source_path = f"/notebook/{notebook_id}"
+
+        with self._state_lock:
+            version = self._source_rpc_version
+
+        if version == "v2":
+            result = self._add_url_source_v2(notebook_id, url, source_path)
+        elif version == "v1":
+            result = self._add_url_source_v1(notebook_id, url, source_path)
+        else:
+            try:
+                result = self._add_url_source_v1(notebook_id, url, source_path)
+                with self._state_lock:
+                    if self._source_rpc_version is None:
+                        self._source_rpc_version = "v1"
+            except RPCError as e:
+                if e.error_code == GRPC_CODE_INVALID_ARGUMENT:
+                    logger.info(
+                        "izAoDd rejected payload with INVALID_ARGUMENT; "
+                        "falling back to ozz5Z (issue #121)"
+                    )
+                    result = self._add_url_source_v2(notebook_id, url, source_path)
+                    with self._state_lock:
+                        if self._source_rpc_version is None:
+                            self._source_rpc_version = "v2"
+                else:
+                    raise
+
+        sr = self._parse_source_add_result(result)
+        if sr and wait:
+            return self.wait_for_source_ready(notebook_id, sr["id"], wait_timeout)
+        return sr
+
+    def _add_url_source_v1(
+        self, notebook_id: str, url: str, source_path: str
+    ) -> Any:
         is_yt = "youtube.com" in url.lower() or "youtu.be" in url.lower()
         if is_yt:
             sd = [None, None, None, None, None, None, None, [url], None, None, 1]
@@ -711,16 +837,31 @@ class NotebookLMAPIClient:
             [2],
             [1, None, None, None, None, None, None, None, None, None, [1]],
         ]
-        result = self._call_rpc(
+        return self._call_rpc(
             self.RPC_ADD_SOURCE,
             params,
-            f"/notebook/{notebook_id}",
+            source_path,
             timeout=SOURCE_ADD_TIMEOUT,
         )
-        sr = self._parse_source_add_result(result)
-        if sr and wait:
-            return self.wait_for_source_ready(notebook_id, sr["id"], wait_timeout)
-        return sr
+
+    def _add_url_source_v2(
+        self, notebook_id: str, url: str, source_path: str
+    ) -> Any:
+        """New ozz5Z RPC (issue #121). Payload captured from reporter's browser:
+            [[[null, "<url>", 627], [null*9, [null, null, 1]], 1]]
+        """
+        sd = [
+            [None, url, self.SOURCE_TYPE_URL_V2],
+            [None, None, None, None, None, None, None, None, None, [None, None, 1]],
+            1,
+        ]
+        params = [[sd]]
+        return self._call_rpc(
+            self.RPC_ADD_SOURCE_V2,
+            params,
+            source_path,
+            timeout=SOURCE_ADD_TIMEOUT,
+        )
 
     def add_text_source(
         self,
@@ -865,6 +1006,21 @@ class NotebookLMAPIClient:
         result = self._call_rpc(self.RPC_DELETE_SOURCE, [[[source_id]], [2]])
         return result is not None
 
+    def rename_source(
+        self, notebook_id: str, source_id: str, new_title: str
+    ) -> dict | None:
+        """Rename a source. RPC params reverse-engineered: [None, [sid], [[[title]]]]."""
+        params = [None, [source_id], [[[new_title]]]]
+        path = f"/notebook/{notebook_id}"
+        result = self._call_rpc(self.RPC_RENAME_SOURCE, params, path)
+        if result and isinstance(result, list) and len(result) > 0:
+            sd = result[0]
+            if isinstance(sd, list) and len(sd) >= 2:
+                returned_id = sd[0][0] if sd[0] else source_id
+                returned_title = sd[1] if len(sd) > 1 else new_title
+                return {"id": returned_id, "title": returned_title}
+        return None
+
     def get_source_guide(self, source_id: str) -> dict[str, Any]:
         result = self._call_rpc(self.RPC_GET_SOURCE_GUIDE, [[[[source_id]]]], "/")
         summary, keywords = "", []
@@ -969,13 +1125,15 @@ class NotebookLMAPIClient:
             parts.append(f"at={urllib.parse.quote(self.csrf_token, safe='')}")
         body = "&".join(parts) + "&"
 
-        self._reqid_counter += 100000
+        with self._state_lock:
+            self._reqid_counter += 100000
+            reqid = self._reqid_counter
         url_params = {
             "bl": os.environ.get(
                 "NOTEBOOKLM_BL", "boq_labs-tailwind-frontend_20260108.06_p0"
             ),
             "hl": "en",
-            "_reqid": str(self._reqid_counter),
+            "_reqid": str(reqid),
             "rt": "c",
         }
         if self._session_id:
@@ -989,19 +1147,111 @@ class NotebookLMAPIClient:
         answer = self._parse_query_response(response.text)
         if answer:
             self._cache_turn(conversation_id, query_text, answer)
-        turns = self._conversation_cache.get(conversation_id, [])
+        with self._state_lock:
+            turn_count = len(self._conversation_cache.get(conversation_id, []))
         return {
             "answer": answer,
             "conversation_id": conversation_id,
-            "turn_number": len(turns),
+            "turn_number": turn_count,
             "is_follow_up": not is_new,
         }
 
     def clear_conversation(self, conversation_id: str) -> bool:
-        if conversation_id in self._conversation_cache:
-            del self._conversation_cache[conversation_id]
-            return True
-        return False
+        with self._state_lock:
+            if conversation_id in self._conversation_cache:
+                del self._conversation_cache[conversation_id]
+                return True
+            return False
+
+    # ---- Async query (for large notebooks exceeding single-call timeout) ----
+
+    QUERY_JOB_TTL_SECONDS = 600  # 10 min — reap completed jobs after this
+
+    def query_start(
+        self,
+        notebook_id: str,
+        query_text: str,
+        source_ids: list[str] | None = None,
+        conversation_id: str | None = None,
+        timeout: float = 300.0,
+    ) -> str:
+        """Kick off a query in a background thread and return a job_id.
+
+        Useful for 50+ source notebooks where the single synchronous POST can
+        exceed client timeouts. Poll with `query_status(job_id)` to retrieve
+        the result. Jobs older than `QUERY_JOB_TTL_SECONDS` are reaped on
+        every `query_status` call.
+        """
+        self._reap_query_jobs()
+        job_id = uuid.uuid4().hex
+        now = time.time()
+        with self._state_lock:
+            self._query_jobs[job_id] = {
+                "status": "pending",
+                "result": None,
+                "error": None,
+                "started_at": now,
+                "finished_at": None,
+                "notebook_id": notebook_id,
+                "query": query_text,
+            }
+
+        def _runner():
+            try:
+                result = self.query(
+                    notebook_id=notebook_id,
+                    query_text=query_text,
+                    source_ids=source_ids,
+                    conversation_id=conversation_id,
+                    timeout=timeout,
+                )
+                with self._state_lock:
+                    job = self._query_jobs.get(job_id)
+                    if job is not None:
+                        job["status"] = "completed"
+                        job["result"] = result
+                        job["finished_at"] = time.time()
+            except Exception as e:
+                with self._state_lock:
+                    job = self._query_jobs.get(job_id)
+                    if job is not None:
+                        job["status"] = "failed"
+                        job["error"] = f"{type(e).__name__}: {e}"
+                        job["finished_at"] = time.time()
+
+        t = threading.Thread(
+            target=_runner, name=f"nlm-query-{job_id[:8]}", daemon=True
+        )
+        t.start()
+        return job_id
+
+    def query_status(self, job_id: str) -> dict:
+        """Return status + result (when complete) for a query job."""
+        self._reap_query_jobs()
+        with self._state_lock:
+            job = self._query_jobs.get(job_id)
+            if job is None:
+                return {"status": "not_found", "job_id": job_id}
+            snapshot = dict(job)
+        elapsed = (
+            (snapshot["finished_at"] or time.time()) - snapshot["started_at"]
+        )
+        snapshot["job_id"] = job_id
+        snapshot["elapsed_seconds"] = round(elapsed, 2)
+        return snapshot
+
+    def _reap_query_jobs(self) -> None:
+        """Drop finished jobs older than TTL. Called lazily on start/status."""
+        cutoff = time.time() - self.QUERY_JOB_TTL_SECONDS
+        with self._state_lock:
+            stale = [
+                jid
+                for jid, job in self._query_jobs.items()
+                if job.get("finished_at") is not None
+                and job["finished_at"] < cutoff
+            ]
+            for jid in stale:
+                del self._query_jobs[jid]
 
     # =====================================================================
     # Studio operations
@@ -1289,6 +1539,52 @@ class NotebookLMAPIClient:
             "data_table",
         )
 
+    def revise_slide_deck(
+        self,
+        artifact_id: str,
+        slide_instructions: list[tuple[int, str]],
+        notebook_id: str | None = None,
+    ) -> dict | None:
+        """Revise a slide deck artifact. Creates a NEW artifact, does not modify in place.
+
+        slide_instructions: list of (slide_index, instruction_text) pairs.
+        RPC KmcKPe params reverse-engineered: [[2], artifact_id, [[[idx, text], ...]]]
+        """
+        if not slide_instructions:
+            raise ValueError("slide_instructions must not be empty")
+        instruction_pairs = [[idx, text] for idx, text in slide_instructions]
+        params = [[2], artifact_id, [instruction_pairs]]
+        path = f"/notebook/{notebook_id}" if notebook_id else None
+        result = self._call_rpc(self.RPC_REVISE_SLIDE_DECK, params, path)
+        if not result or not isinstance(result, list):
+            return None
+        new_id = None
+        title = None
+        status_code = None
+        try:
+            ad = result[0] if isinstance(result[0], list) else result
+            if isinstance(ad, list) and len(ad) >= 1:
+                new_id = ad[0]
+            if isinstance(ad, list) and len(ad) >= 2:
+                title = ad[1]
+            if isinstance(ad, list) and len(ad) >= 5:
+                status_code = ad[4]
+        except (IndexError, TypeError):
+            pass
+        status = (
+            "in_progress"
+            if status_code == 1
+            else "completed"
+            if status_code == 3
+            else "unknown"
+        )
+        return {
+            "artifact_id": new_id,
+            "title": title,
+            "original_artifact_id": artifact_id,
+            "status": status,
+        }
+
     def poll_studio_status(self, notebook_id: str) -> list[dict]:
         params = [[2], notebook_id, 'NOT artifact.status = "ARTIFACT_STATUS_SUGGESTED"']
         result = self._call_rpc(
@@ -1344,6 +1640,18 @@ class NotebookLMAPIClient:
         if notebook_id:
             return self.delete_mind_map(notebook_id, artifact_id)
         return False
+
+    def rename_artifact(
+        self, notebook_id: str, artifact_id: str, new_title: str
+    ) -> bool:
+        """Rename a studio artifact (audio, report, video, etc.)."""
+        if not new_title or not new_title.strip():
+            raise ValueError("new_title must be non-empty")
+        params = [artifact_id, new_title, [2]]
+        result = self._call_rpc(
+            self.RPC_RENAME_ARTIFACT, params, f"/notebook/{notebook_id}"
+        )
+        return result is not None
 
     # =====================================================================
     # Mind maps
@@ -1446,6 +1754,15 @@ class NotebookLMAPIClient:
             raise ValueError(f"Invalid mode '{mode}'. Use 'fast' or 'deep'.")
         if ml == "deep" and sl == "drive":
             raise ValueError("Deep Research only supports Web sources.")
+        try:
+            sources = self.get_notebook_sources_with_types(notebook_id)
+        except Exception:
+            sources = None
+        if sources is not None and len(sources) == 0:
+            raise ValueError(
+                f"Cannot start research on empty notebook '{notebook_id}' — "
+                "add at least one source first"
+            )
         st = (
             constants.RESEARCH_SOURCE_WEB
             if sl == "web"
@@ -1513,11 +1830,62 @@ class NotebookLMAPIClient:
             }
         return {"status": "no_research", "message": "No active research found"}
 
+    def _resolve_current_task_id(
+        self, notebook_id: str, stale_task_id: str
+    ) -> str:
+        """Resolve the live task ID for a research task.
+
+        Deep research (QA9ei) task IDs mutate between start and import — the
+        task ID returned from `start_research` becomes stale once the job is
+        queued, and importing with the stale ID silently fails. This helper
+        polls the current task list and returns the live ID.
+
+        Strategy: if the stale ID is still present, return it unchanged.
+        Otherwise, if exactly one task is live, return that one (the common
+        case — a user runs one research job at a time). If multiple tasks are
+        live and none match, we can't disambiguate — return the stale ID and
+        let the caller see the downstream error.
+        """
+        try:
+            result = self._call_rpc(
+                self.RPC_POLL_RESEARCH,
+                [None, None, notebook_id],
+                f"/notebook/{notebook_id}",
+            )
+        except Exception:
+            return stale_task_id
+        if not result or not isinstance(result, list):
+            return stale_task_id
+        if (
+            len(result) > 0
+            and isinstance(result[0], list)
+            and len(result[0]) > 0
+            and isinstance(result[0][0], list)
+        ):
+            result = result[0]
+        live_ids = []
+        for td in result:
+            if isinstance(td, list) and len(td) >= 1 and isinstance(td[0], str):
+                live_ids.append(td[0])
+        if not live_ids:
+            return stale_task_id
+        if stale_task_id in live_ids:
+            return stale_task_id
+        if len(live_ids) == 1:
+            logger.info(
+                "Deep research task ID mutated: %s → %s",
+                stale_task_id,
+                live_ids[0],
+            )
+            return live_ids[0]
+        return stale_task_id
+
     def import_research_sources(
         self, notebook_id: str, task_id: str, sources: list[dict]
     ) -> list[dict]:
         if not sources:
             return []
+        task_id = self._resolve_current_task_id(notebook_id, task_id)
         sa = []
         for src in sources:
             url, title, rt = (
@@ -1879,7 +2247,8 @@ class NotebookLMAPIClient:
         return ids
 
     def _build_conversation_history(self, conversation_id: str) -> list | None:
-        turns = self._conversation_cache.get(conversation_id, [])
+        with self._state_lock:
+            turns = list(self._conversation_cache.get(conversation_id, []))
         if not turns:
             return None
         history = []
@@ -1889,12 +2258,13 @@ class NotebookLMAPIClient:
         return history or None
 
     def _cache_turn(self, cid: str, query: str, answer: str) -> None:
-        if cid not in self._conversation_cache:
-            self._conversation_cache[cid] = []
-        n = len(self._conversation_cache[cid]) + 1
-        self._conversation_cache[cid].append(
-            ConversationTurn(query=query, answer=answer, turn_number=n)
-        )
+        with self._state_lock:
+            if cid not in self._conversation_cache:
+                self._conversation_cache[cid] = []
+            n = len(self._conversation_cache[cid]) + 1
+            self._conversation_cache[cid].append(
+                ConversationTurn(query=query, answer=answer, turn_number=n)
+            )
 
     def _parse_query_response(self, text: str) -> str:
         if text.startswith(")]}'"):
