@@ -345,6 +345,25 @@ TOOLS = [
             "required": ["source_id", "confirm"],
         },
     },
+    {
+        "name": "source_rename",
+        "description": (
+            "Rename a source in place. Updates the display title without "
+            "re-uploading or re-indexing content."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_id": {"type": "string", "description": "Notebook UUID"},
+                "source_id": {"type": "string", "description": "Source UUID"},
+                "new_title": {
+                    "type": "string",
+                    "description": "New display title (non-empty)",
+                },
+            },
+            "required": ["notebook_id", "source_id", "new_title"],
+        },
+    },
     # ── Query / Conversation ─────────────────────────────────────────────
     {
         "name": "notebook_query",
@@ -369,6 +388,53 @@ TOOLS = [
                 },
             },
             "required": ["notebook_id", "query"],
+        },
+    },
+    {
+        "name": "notebook_query_start",
+        "description": (
+            "Kick off a notebook query in the background and return a job_id. "
+            "Use for 50+ source notebooks where the synchronous notebook_query can "
+            "exceed client timeouts. Poll with notebook_query_status."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_id": {"type": "string", "description": "Notebook UUID"},
+                "query": {"type": "string", "description": "Your question"},
+                "source_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of source IDs to scope the query",
+                },
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Optional conversation ID for follow-up questions",
+                },
+                "timeout": {
+                    "type": "number",
+                    "description": "Per-job timeout in seconds (default 300)",
+                },
+            },
+            "required": ["notebook_id", "query"],
+        },
+    },
+    {
+        "name": "notebook_query_status",
+        "description": (
+            "Check status of an async notebook query started via notebook_query_start. "
+            "Returns status (pending|completed|failed|not_found), result (when complete), "
+            "and elapsed_seconds. Finished jobs are reaped after 10 minutes."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "description": "Job ID returned from notebook_query_start",
+                },
+            },
+            "required": ["job_id"],
         },
     },
     # ── Studio ───────────────────────────────────────────────────────────
@@ -405,6 +471,13 @@ TOOLS = [
                 "focus_prompt": {
                     "type": "string",
                     "description": "Optional focus/customization prompt",
+                },
+                "video_style_prompt": {
+                    "type": "string",
+                    "description": (
+                        "Style prompt for video overviews when video_style='custom'. "
+                        "Alias for focus_prompt — if both are set, this wins for type=video."
+                    ),
                 },
                 "language": {
                     "type": "string",
@@ -516,6 +589,65 @@ TOOLS = [
                 },
             },
             "required": ["artifact_id", "confirm"],
+        },
+    },
+    {
+        "name": "artifact_rename",
+        "description": (
+            "Rename a studio artifact (audio overview, report, video, mind map). "
+            "Updates the display title without regenerating content."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_id": {"type": "string", "description": "Notebook UUID"},
+                "artifact_id": {"type": "string", "description": "Artifact UUID"},
+                "new_title": {
+                    "type": "string",
+                    "description": "New display title (non-empty)",
+                },
+            },
+            "required": ["notebook_id", "artifact_id", "new_title"],
+        },
+    },
+    {
+        "name": "slide_deck_revise",
+        "description": (
+            "Revise a slide deck artifact with per-slide instructions. "
+            "Creates a NEW artifact (does not modify the original). Slide-deck only — "
+            "other studio types don't support revise. Poll with studio_status."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {
+                    "type": "string",
+                    "description": "Existing slide deck artifact UUID to revise",
+                },
+                "notebook_id": {
+                    "type": "string",
+                    "description": "Notebook UUID (optional routing hint)",
+                },
+                "slide_instructions": {
+                    "type": "array",
+                    "description": "List of per-slide revision instructions",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "index": {
+                                "type": "integer",
+                                "description": "0-based slide index",
+                            },
+                            "instruction": {
+                                "type": "string",
+                                "description": "Revision instruction for this slide",
+                            },
+                        },
+                        "required": ["index", "instruction"],
+                    },
+                },
+            },
+            "required": ["artifact_id", "slide_instructions"],
         },
     },
     # ── Download / Export ────────────────────────────────────────────────
@@ -660,6 +792,43 @@ TOOLS = [
                 },
             },
             "required": ["notebook_id", "email"],
+        },
+    },
+    {
+        "name": "notebook_share_batch",
+        "description": (
+            "Invite multiple collaborators to a notebook in one call. "
+            "Loops through invites and reports per-email success/failure."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_id": {"type": "string", "description": "Notebook UUID"},
+                "invites": {
+                    "type": "array",
+                    "description": "List of {email, role} pairs",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "email": {"type": "string"},
+                            "role": {
+                                "type": "string",
+                                "enum": ["editor", "viewer"],
+                            },
+                        },
+                        "required": ["email"],
+                    },
+                },
+                "notify": {
+                    "type": "boolean",
+                    "description": "Send email notification (default: true)",
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Optional message applied to every invite",
+                },
+            },
+            "required": ["notebook_id", "invites"],
         },
     },
     # ── Notes ────────────────────────────────────────────────────────────
@@ -879,6 +1048,122 @@ TOOLS = [
                 },
             },
             "required": [],
+        },
+    },
+    {
+        "name": "cross_notebook_query",
+        "description": (
+            "Run the same query across multiple notebooks and aggregate the "
+            "answers. If the cognitive layer is available, uses enriched_query "
+            "for context-aware retrieval; otherwise falls back to plain "
+            "notebook_query. Returns per-notebook answers with headers."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of notebook UUIDs to query",
+                    "minItems": 1,
+                },
+                "query": {"type": "string", "description": "Natural-language query"},
+                "enriched": {
+                    "type": "boolean",
+                    "description": "Use cognitive enriched_query if available (default: true)",
+                },
+                "max_context_items": {
+                    "type": "integer",
+                    "description": "Enrichment context items per notebook (default: 5)",
+                },
+            },
+            "required": ["notebook_ids", "query"],
+        },
+    },
+    {
+        "name": "batch_execute",
+        "description": (
+            "Execute multiple MCP tool calls in sequence within a single request. "
+            "Each step is {tool, args}. Stops on first failure unless "
+            "continue_on_error=true. Returns per-step status and output."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "steps": {
+                    "type": "array",
+                    "description": "Ordered list of {tool, args} to execute",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tool": {"type": "string"},
+                            "args": {"type": "object"},
+                        },
+                        "required": ["tool"],
+                    },
+                    "minItems": 1,
+                },
+                "continue_on_error": {
+                    "type": "boolean",
+                    "description": "Keep running subsequent steps after a failure (default: false)",
+                },
+            },
+            "required": ["steps"],
+        },
+    },
+    {
+        "name": "pipeline_research",
+        "description": (
+            "End-to-end research pipeline: create a notebook, add sources, "
+            "run an optional first query, and optionally kick off a studio "
+            "artifact (audio/report/video/etc). Returns a trace of each stage. "
+            "Use this when you want one call to go from URLs to a ready notebook."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Notebook title"},
+                "sources": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "URLs or text payloads to add as sources",
+                },
+                "source_type": {
+                    "type": "string",
+                    "enum": ["url", "text"],
+                    "description": "How to treat items in `sources` (default: url)",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Optional first query to warm the conversation",
+                },
+                "studio": {
+                    "type": "object",
+                    "description": "Optional studio artifact to create after ingest",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "audio",
+                                "video",
+                                "report",
+                                "flashcards",
+                                "quiz",
+                                "infographic",
+                                "slide_deck",
+                                "data_table",
+                            ],
+                        },
+                        "focus_prompt": {"type": "string"},
+                    },
+                    "required": ["type"],
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true to run studio creation side-effects",
+                },
+            },
+            "required": ["title", "sources"],
         },
     },
 ]
@@ -1124,6 +1409,21 @@ async def _h_source_delete(args: dict) -> dict:
     )
 
 
+async def _h_source_rename(args: dict) -> dict:
+    client = _require_auth()
+    new_title = (args.get("new_title") or "").strip()
+    if not new_title:
+        return _err("new_title must be non-empty.")
+    result = client.rename_source(
+        args["notebook_id"], args["source_id"], new_title
+    )
+    if not result:
+        return _err("Failed to rename source.")
+    return _ok(
+        f"Renamed source {result.get('id', args['source_id'])} → {result.get('title', new_title)!r}"
+    )
+
+
 # ── Query Handler ────────────────────────────────────────────────────────
 
 
@@ -1156,6 +1456,56 @@ async def _h_notebook_query(args: dict) -> dict:
     return _ok("\n".join(lines))
 
 
+async def _h_notebook_query_start(args: dict) -> dict:
+    client = _require_auth()
+    job_id = client.query_start(
+        notebook_id=args["notebook_id"],
+        query_text=args["query"],
+        source_ids=args.get("source_ids"),
+        conversation_id=args.get("conversation_id"),
+        timeout=float(args.get("timeout", 300.0)),
+    )
+    return _ok(
+        f"Query job started: {job_id}\n"
+        f"Poll with notebook_query_status(job_id='{job_id}')."
+    )
+
+
+async def _h_notebook_query_status(args: dict) -> dict:
+    client = _require_auth()
+    snap = client.query_status(args["job_id"])
+    status = snap.get("status")
+    if status == "not_found":
+        return _err(f"Job {args['job_id']} not found (may have been reaped after 10 min).")
+    lines = [
+        f"Job: {snap.get('job_id')}",
+        f"Status: {status}",
+        f"Elapsed: {snap.get('elapsed_seconds')}s",
+    ]
+    if status == "failed":
+        lines.append(f"Error: {snap.get('error')}")
+        return _err("\n".join(lines))
+    if status == "completed":
+        result = snap.get("result") or {}
+        answer = result.get("answer") or ""
+        lines.append("")
+        lines.append(answer)
+        lines.append(
+            f"\n---\nConversation: {result.get('conversation_id')} | "
+            f"Turn: {result.get('turn_number')}"
+        )
+        if _cognitive and _cognitive.available and answer:
+            await _cognitive.capture_result(
+                "notebook_query",
+                {
+                    "query": snap.get("query"),
+                    "answer": answer[:500],
+                    "notebook_id": snap.get("notebook_id"),
+                },
+            )
+    return _ok("\n".join(lines))
+
+
 # ── Studio Handlers ──────────────────────────────────────────────────────
 
 
@@ -1177,14 +1527,20 @@ async def _h_studio_create(args: dict) -> dict:
         )
     elif stype == "video":
         fc = constants.VIDEO_FORMATS.get_code(args.get("video_format", "explainer"))
-        vs = constants.VIDEO_STYLES.get_code(args.get("video_style", "auto_select"))
+        vstyle = args.get("video_style", "auto_select")
+        vs = constants.VIDEO_STYLES.get_code(vstyle)
+        video_prompt = (args.get("video_style_prompt") or focus or "").strip()
+        if vstyle == "custom" and not video_prompt:
+            log.warning(
+                "studio_create: video_style=custom with no video_style_prompt/focus_prompt — result may be generic."
+            )
         result = client.create_video_overview(
             nid,
             sids,
             format_code=fc,
             visual_style_code=vs,
             language=lang,
-            focus_prompt=focus,
+            focus_prompt=video_prompt,
         )
     elif stype == "report":
         rf = args.get("report_format", "Briefing Doc")
@@ -1256,6 +1612,54 @@ async def _h_studio_delete(args: dict) -> dict:
         _ok(f"Deleted artifact {args['artifact_id']}")
         if ok
         else _err("Failed to delete artifact.")
+    )
+
+
+async def _h_artifact_rename(args: dict) -> dict:
+    client = _require_auth()
+    new_title = (args.get("new_title") or "").strip()
+    if not new_title:
+        return _err("new_title must be non-empty.")
+    try:
+        ok = client.rename_artifact(
+            args["notebook_id"], args["artifact_id"], new_title
+        )
+    except ValueError as e:
+        return _err(str(e))
+    return (
+        _ok(f"Renamed artifact {args['artifact_id']} → {new_title!r}")
+        if ok
+        else _err("Failed to rename artifact.")
+    )
+
+
+async def _h_slide_deck_revise(args: dict) -> dict:
+    client = _require_auth()
+    instructions_raw = args.get("slide_instructions") or []
+    if not instructions_raw:
+        return _err("slide_instructions must not be empty.")
+    pairs: list[tuple[int, str]] = []
+    for item in instructions_raw:
+        if not isinstance(item, dict):
+            return _err("Each slide_instruction must be an object.")
+        idx = item.get("index")
+        text = (item.get("instruction") or "").strip()
+        if idx is None or not isinstance(idx, int):
+            return _err("Each slide_instruction needs an integer index.")
+        if not text:
+            return _err("Each slide_instruction needs non-empty instruction text.")
+        pairs.append((idx, text))
+    try:
+        result = client.revise_slide_deck(
+            args["artifact_id"], pairs, notebook_id=args.get("notebook_id")
+        )
+    except ValueError as e:
+        return _err(str(e))
+    if not result or not result.get("artifact_id"):
+        return _err("Slide deck revise returned no new artifact.")
+    return _ok(
+        f"Revised slide deck → new artifact {result['artifact_id']} "
+        f"({result.get('status', 'unknown')}) from {result.get('original_artifact_id')}"
     )
 
 
@@ -1396,6 +1800,42 @@ async def _h_notebook_share_invite(args: dict) -> dict:
         if ok
         else _err("Failed to invite collaborator.")
     )
+
+
+async def _h_notebook_share_batch(args: dict) -> dict:
+    client = _require_auth()
+    invites = args.get("invites") or []
+    if not invites:
+        return _err("invites must be a non-empty list of {email, role}.")
+    notify = args.get("notify", True)
+    message = args.get("message", "")
+    nid = args["notebook_id"]
+    succeeded: list[str] = []
+    failed: list[str] = []
+    for entry in invites:
+        email = (entry.get("email") or "").strip()
+        if not email:
+            failed.append("<missing email>")
+            continue
+        role = entry.get("role", "viewer")
+        try:
+            ok = client.add_collaborator(
+                nid, email, role=role, notify=notify, message=message
+            )
+        except Exception as e:
+            log.warning(f"share_batch: {email} failed: {e}")
+            ok = False
+        (succeeded if ok else failed).append(f"{email} ({role})")
+    lines = [
+        f"Share batch complete: {len(succeeded)}/{len(invites)} succeeded."
+    ]
+    if succeeded:
+        lines.append("Invited:")
+        lines.extend(f"  {x}" for x in succeeded)
+    if failed:
+        lines.append("Failed:")
+        lines.extend(f"  {x}" for x in failed)
+    return _ok("\n".join(lines)) if succeeded else _err("\n".join(lines))
 
 
 # ── Note Handlers ────────────────────────────────────────────────────────
@@ -1718,6 +2158,172 @@ async def _h_cognitive_auto_curate(args: dict) -> dict:
         return _ok("\n".join(lines))
 
 
+# ── Phase 3: Convergence Handlers ────────────────────────────────────────
+
+
+async def _h_cross_notebook_query(args: dict) -> dict:
+    client = _require_auth()
+    notebook_ids = args.get("notebook_ids") or []
+    query = (args.get("query") or "").strip()
+    if not notebook_ids:
+        return _err("notebook_ids must be a non-empty list.")
+    if not query:
+        return _err("query must be non-empty.")
+    use_enriched = args.get("enriched", True) and _cognitive and _cognitive.available
+    max_ctx = args.get("max_context_items", 5)
+
+    sections: list[str] = [f"Cross-notebook query: {query}"]
+    sections.append(f"Mode: {'enriched' if use_enriched else 'plain'}")
+    sections.append(f"Notebooks: {len(notebook_ids)}\n")
+
+    for nid in notebook_ids:
+        header = f"── {nid} ──"
+        try:
+            if use_enriched:
+                result = await _cognitive.enriched_query(
+                    nid, query, max_context_items=max_ctx
+                )
+                answer = (result or {}).get("answer") or ""
+            else:
+                result = client.query(nid, query)
+                answer = (result or {}).get("answer") or ""
+        except Exception as e:
+            log.warning(f"cross_notebook_query {nid}: {e}")
+            answer = f"[error: {e}]"
+        if not answer:
+            answer = "[no answer]"
+        sections.append(f"{header}\n{answer}\n")
+
+    if _cognitive and _cognitive.available:
+        await _cognitive.capture_result(
+            "cross_notebook_query",
+            {"query": query, "notebook_count": len(notebook_ids)},
+        )
+    return _ok("\n".join(sections))
+
+
+async def _h_batch_execute(args: dict) -> dict:
+    steps = args.get("steps") or []
+    if not steps:
+        return _err("steps must be a non-empty list.")
+    continue_on_error = args.get("continue_on_error", False)
+    results: list[dict] = []
+    lines: list[str] = [f"Batch: {len(steps)} steps"]
+    ok_count = 0
+    for i, step in enumerate(steps, 1):
+        tool = step.get("tool")
+        step_args = step.get("args") or {}
+        if not tool:
+            lines.append(f"  [{i}] ERROR: missing 'tool'")
+            results.append({"step": i, "ok": False, "error": "missing tool"})
+            if not continue_on_error:
+                break
+            continue
+        if tool == "batch_execute":
+            lines.append(f"  [{i}] ERROR: nested batch_execute not allowed")
+            results.append({"step": i, "ok": False, "error": "nested batch"})
+            if not continue_on_error:
+                break
+            continue
+        try:
+            result = await handle_tool(tool, step_args)
+        except Exception as e:
+            result = _err(f"{type(e).__name__}: {e}")
+        is_err = bool(result.get("isError"))
+        results.append({"step": i, "tool": tool, "ok": not is_err, "result": result})
+        marker = "FAIL" if is_err else "OK"
+        if not is_err:
+            ok_count += 1
+        preview = ""
+        try:
+            content = result.get("content") or []
+            if content and isinstance(content, list):
+                preview = (content[0].get("text") or "")[:120]
+        except Exception:
+            preview = ""
+        lines.append(f"  [{i}] {marker} {tool}: {preview}")
+        if is_err and not continue_on_error:
+            lines.append(f"  Stopped at step {i} (continue_on_error=false)")
+            break
+    lines.insert(1, f"Completed: {ok_count}/{len(steps)} ok")
+    return _ok("\n".join(lines))
+
+
+async def _h_pipeline_research(args: dict) -> dict:
+    client = _require_auth()
+    title = (args.get("title") or "").strip()
+    sources = args.get("sources") or []
+    if not title:
+        return _err("title must be non-empty.")
+    if not sources:
+        return _err("sources must be a non-empty list.")
+    source_type = args.get("source_type", "url")
+    query = (args.get("query") or "").strip()
+    studio = args.get("studio")
+    confirm = args.get("confirm", False)
+
+    trace: list[str] = [f"Pipeline: {title}"]
+    # Stage 1: create notebook
+    nb = client.create_notebook(title)
+    nid = getattr(nb, "id", None) if nb else None
+    if not nid:
+        return _err("Failed to create notebook.")
+    trace.append(f"  [1] notebook created: {nid}")
+
+    # Stage 2: add sources
+    added = 0
+    failed = 0
+    for src in sources:
+        try:
+            if source_type == "text":
+                client.add_text_source(nid, src, title=f"{title} source {added+1}")
+            else:
+                client.add_url_source(nid, src)
+            added += 1
+        except Exception as e:
+            log.warning(f"pipeline add source failed: {e}")
+            failed += 1
+    trace.append(f"  [2] sources: {added} added, {failed} failed")
+    if added == 0:
+        return _err("\n".join(trace + ["  No sources could be added. Aborting."]))
+
+    # Stage 3: optional first query
+    if query:
+        try:
+            result = client.query(nid, query)
+            answer = (result or {}).get("answer") or "[no answer]"
+            trace.append(f"  [3] query ok: {answer[:200]}")
+        except Exception as e:
+            trace.append(f"  [3] query failed: {e}")
+
+    # Stage 4: optional studio artifact
+    if studio and isinstance(studio, dict):
+        if not confirm:
+            trace.append("  [4] studio skipped (confirm=false)")
+        else:
+            studio_args = {
+                "notebook_id": nid,
+                "type": studio.get("type"),
+                "confirm": True,
+                "focus_prompt": studio.get("focus_prompt", ""),
+            }
+            studio_result = await _h_studio_create(studio_args)
+            studio_text = ""
+            try:
+                studio_text = (studio_result.get("content") or [{}])[0].get("text", "")[:200]
+            except Exception:
+                pass
+            marker = "FAIL" if studio_result.get("isError") else "OK"
+            trace.append(f"  [4] studio {marker}: {studio_text}")
+
+    if _cognitive and _cognitive.available:
+        await _cognitive.capture_result(
+            "pipeline_research",
+            {"title": title, "notebook_id": nid, "sources_added": added},
+        )
+    return _ok("\n".join(trace))
+
+
 # ── Handler Dispatch Table ───────────────────────────────────────────────
 
 _HANDLERS = {
@@ -1736,12 +2342,17 @@ _HANDLERS = {
     "source_list_drive": _h_source_list_drive,
     "source_sync_drive": _h_source_sync_drive,
     "source_delete": _h_source_delete,
+    "source_rename": _h_source_rename,
     # Query
     "notebook_query": _h_notebook_query,
+    "notebook_query_start": _h_notebook_query_start,
+    "notebook_query_status": _h_notebook_query_status,
     # Studio
     "studio_create": _h_studio_create,
     "studio_status": _h_studio_status,
     "studio_delete": _h_studio_delete,
+    "artifact_rename": _h_artifact_rename,
+    "slide_deck_revise": _h_slide_deck_revise,
     # Download / Export
     "download_artifact": _h_download_artifact,
     "export_artifact": _h_export_artifact,
@@ -1753,6 +2364,7 @@ _HANDLERS = {
     "notebook_share_status": _h_notebook_share_status,
     "notebook_share_public": _h_notebook_share_public,
     "notebook_share_invite": _h_notebook_share_invite,
+    "notebook_share_batch": _h_notebook_share_batch,
     # Notes
     "note_create": _h_note_create,
     "note_list": _h_note_list,
@@ -1769,4 +2381,8 @@ _HANDLERS = {
     "research_to_notebook": _h_research_to_notebook,
     "knowledge_evolution": _h_knowledge_evolution,
     "cognitive_auto_curate": _h_cognitive_auto_curate,
+    # Phase 3: Convergence
+    "cross_notebook_query": _h_cross_notebook_query,
+    "batch_execute": _h_batch_execute,
+    "pipeline_research": _h_pipeline_research,
 }

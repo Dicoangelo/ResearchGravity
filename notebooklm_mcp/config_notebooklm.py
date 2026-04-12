@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 class NotebookLMConfig:
@@ -39,6 +40,32 @@ class NotebookLMConfig:
     # NotebookLM URLs
     NOTEBOOKLM_BASE_URL = "https://notebooklm.google.com"
 
+    # Base URL allowlist — prevents requests to non-Google hosts
+    # (upstream v0.5.17 security hardening)
+    BASE_URL_ALLOWLIST = frozenset({
+        "notebooklm.google.com",
+        "notebooklm-pa.clients6.google.com",
+        "notebooklm-pa.googleapis.com",
+        "accounts.google.com",
+        "myaccount.google.com",
+    })
+
+    @classmethod
+    def validate_base_url(cls, url: str) -> str:
+        """Validate a URL against the allowlist. Raises ValueError if not allowed.
+
+        Only HTTPS URLs targeting *.google.com hosts in BASE_URL_ALLOWLIST pass.
+        """
+        if not url:
+            raise ValueError("empty URL")
+        parsed = urlparse(url)
+        if parsed.scheme != "https":
+            raise ValueError(f"non-https scheme rejected: {parsed.scheme!r}")
+        host = (parsed.hostname or "").lower()
+        if host not in cls.BASE_URL_ALLOWLIST:
+            raise ValueError(f"host not in allowlist: {host!r}")
+        return url
+
     # Capture settings (inherit from UCW)
     CAPTURE_RAW_BYTES = True
     ENABLE_UCW_LAYERS = True
@@ -50,9 +77,15 @@ class NotebookLMConfig:
 
     @classmethod
     def ensure_dirs(cls):
-        """Create required directories"""
+        """Create required directories. Auth state dirs are chmod 0o700."""
         cls.UCW_DIR.mkdir(parents=True, exist_ok=True)
         cls.LOG_DIR.mkdir(parents=True, exist_ok=True)
         cls.NOTEBOOKLM_DIR.mkdir(parents=True, exist_ok=True)
         cls.AUTH_STATE_DIR.mkdir(parents=True, exist_ok=True)
         cls.SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        # Auth state is sensitive — tighten perms (upstream v0.5.17)
+        try:
+            cls.AUTH_STATE_DIR.chmod(0o700)
+            cls.NOTEBOOKLM_DIR.chmod(0o700)
+        except OSError:
+            pass
