@@ -257,6 +257,72 @@ A "safe grid of boxes" is a failure state — push for visual richness and hiera
 Output ONLY the final polished Detailed Description. No conversational text or explanations.
 """
 
+TEXT_CRITIC_PROMPT = """## ROLE
+You are a Lead Visual Description Critic for AI image generation prompts.
+You evaluate and refine TEXTUAL DESCRIPTIONS that will be fed to Gemini's
+Nano Banana Pro image generator — WITHOUT seeing any generated image.
+
+## TASK
+Critique the description purely on how well it will INSTRUCT the image model.
+You know Nano Banana Pro's failure modes intimately and pre-correct for them.
+
+## NANO BANANA PRO FAILURE MODES (from empirical observation)
+1. **Text garbling**: Labels longer than ~25 characters get truncated or garbled.
+   FIX: Shorten all labels. Use abbreviations. Move details to subtitles.
+2. **Element crowding**: More than ~20 distinct labeled elements causes overlap.
+   FIX: Group elements into containers. Reduce to 15-18 max distinct labels.
+3. **Flat grid monotony**: Without explicit size hierarchy, everything renders same size.
+   FIX: Specify exact percentages ("~25% of canvas", "2x larger than").
+4. **Color bleeding**: Adjacent zones with similar colors merge visually.
+   FIX: Ensure strong contrast between adjacent zones. Use dark separators.
+5. **Arrow confusion**: Too many arrow styles or unlabeled arrows become visual noise.
+   FIX: Max 3 arrow styles. Every arrow needs a 2-3 word label.
+6. **Font size collapse**: Small text at 4K renders fine but at 2K becomes unreadable.
+   FIX: Specify "large", "medium", "small" text sizes explicitly.
+7. **Duplicate rendering**: Repeated similar descriptions cause the model to render
+   the same element twice. FIX: Each element must be uniquely positioned.
+8. **Background interference**: Complex backgrounds compete with foreground elements.
+   FIX: Keep backgrounds simple — solid color or very subtle pattern.
+
+## DESCRIPTION TO CRITIQUE
+{description}
+
+## SOURCE CONTEXT (for factual verification)
+{source_context}
+
+## CAPTION (communicative intent)
+{caption}
+
+## CRITIQUE CHECKLIST
+For each issue found, provide a specific fix:
+
+1. **Label length audit**: List any label > 25 chars and suggest a shorter version
+2. **Element count**: Count distinct labeled elements. If > 18, suggest merging
+3. **Spatial ambiguity**: Flag any element without explicit position ("top", "left", "center")
+4. **Size hierarchy**: Is the most important element explicitly described as largest?
+5. **Color adjacency**: Are any adjacent zones using the same or similar colors?
+6. **Arrow clarity**: Are all connections labeled? Are there > 3 arrow styles?
+7. **Text hierarchy**: Are zone headers described as larger than component labels?
+8. **Factual check**: Are all labels from the source context? Flag hallucinations.
+9. **Duplicate risk**: Are any two elements described too similarly?
+10. **Density balance**: Is any quadrant of the diagram overloaded vs others?
+
+## OUTPUT
+Provide your response strictly in this JSON format:
+```json
+{{
+    "issues_found": ["concise description of each issue"],
+    "label_fixes": {{"original_label": "shorter_version"}},
+    "element_count": 0,
+    "density_score": "balanced|left-heavy|right-heavy|top-heavy|bottom-heavy",
+    "confidence": 0.0,
+    "revised_description": "The fully revised description incorporating all fixes."
+}}
+```
+
+If confidence >= 0.9, the description is ready for rendering.
+"""
+
 CRITIC_PROMPT = """## ROLE
 You are a Lead Visual Quality Critic for technical diagrams, evaluating both
 CONTENT FIDELITY and VISUAL DESIGN QUALITY.
@@ -640,6 +706,81 @@ class RefinedPipeline:
             "thought_signature": new_signature,
         }
 
+    async def text_critique(
+        self,
+        description: str,
+        source_context: str,
+        caption: str,
+        thought_signature: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Text-Only Critic: Refine description WITHOUT generating any image.
+
+        Evaluates the textual description for Nano Banana Pro failure modes,
+        spatial ambiguity, label density, and factual accuracy — all in text space.
+
+        Cost: ~$0.05 per call (VLM only, no image gen)
+        vs Visual Critic: ~$0.32 per call (VLM + image gen)
+
+        Returns dict with revised_description, issues_found, confidence score.
+        """
+        prompt = TEXT_CRITIC_PROMPT.format(
+            description=description,
+            source_context=source_context,
+            caption=caption,
+        )
+
+        response, new_signature = await self._vlm_call(
+            prompt,
+            stage="critic",  # Use high thinking level for deep analysis
+            thought_signature=thought_signature,
+        )
+
+        # Parse JSON from response
+        try:
+            json_start = response.find("{")
+            json_end = response.rfind("}") + 1
+            if json_start >= 0 and json_end > json_start:
+                parsed = json.loads(response[json_start:json_end])
+                parsed["thought_signature"] = new_signature
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        return {
+            "issues_found": [],
+            "label_fixes": {},
+            "element_count": 0,
+            "density_score": "unknown",
+            "confidence": 0.5,
+            "revised_description": description,
+            "thought_signature": new_signature,
+        }
+
+    def _save_meta(self, asset_id: str, out_path: Path, result: Dict[str, Any]):
+        """Persist generation metadata as .meta.json alongside the PNG.
+
+        This captures the final refined description, pipeline trace, and cost
+        so future sessions can learn from what worked.
+        """
+        meta_path = out_path.with_suffix(".meta.json")
+        meta = {
+            "asset_id": asset_id,
+            "png_path": str(out_path.resolve()),
+            "final_description": result.get("final_description", ""),
+            "pipeline_trace": result.get("pipeline_trace", []),
+            "refine_mode": result.get("metadata", {}).get("refine_mode", "visual"),
+            "resolution": result.get("metadata", {}).get("resolution"),
+            "quality": result.get("metadata", {}).get("quality"),
+            "estimated_cost_usd": result.get("metadata", {}).get("estimated_cost_usd"),
+            "elapsed_seconds": result.get("metadata", {}).get("elapsed_seconds"),
+            "created_at": result.get("created_at"),
+        }
+        try:
+            meta_path.write_text(json.dumps(meta, indent=2))
+        except IOError:
+            pass  # Non-critical — don't break pipeline on meta write failure
+
     # ── Main Pipeline ────────────────────────────────────────────────────
 
     async def generate(
@@ -656,23 +797,35 @@ class RefinedPipeline:
         input_images: Optional[List[str]] = None,
         skip_planning: bool = False,
         custom_description: Optional[str] = None,
+        refine_mode: str = "visual",
     ) -> Dict[str, Any]:
         """
-        Full PaperBanana-style pipeline: Plan → Style → [Generate → Critique] × T.
+        Full PaperBanana-style pipeline with configurable refinement modes.
+
+        Refine modes:
+            "visual"  — Original: Plan → Style → [Generate → Critique] × T
+                        Most expensive, sees actual pixels. Use for first-time subjects.
+            "text"    — Optimized: Plan → Style → [TextCritic] × T → Generate once
+                        3-7x cheaper. Critic refines description without rendering.
+                        Same quality when descriptions are well-specified.
+            "skip"    — Direct: source_context → Generate once (no planning or critique)
+                        Cheapest ($0.24 at 4K). Use with pre-refined descriptions
+                        or Claude-refined prompts.
 
         Args:
-            source_context: The source material to visualize (methodology, architecture, etc.)
+            source_context: The source material to visualize
             caption: What the diagram should show (communicative intent)
-            resolution: "1K", "2K", or "4K" (default from config or quality tier)
+            resolution: "1K", "2K", or "4K"
             aspect_ratio: "1:1", "5:4", "9:16", "16:9", "3:4", "4:3"
-            quality: "max", "high", or "fast" (overrides resolution/iterations)
-            iterations: Number of Critique → Refine → Regenerate rounds (default: 3)
+            quality: "max", "high", or "fast"
+            iterations: Number of refinement rounds (default from config)
             output_dir: Directory for output files
             output_filename: Custom filename for final output
             session_id: Optional session ID for UCW capture
             input_images: Reference images for style (optional)
-            skip_planning: Skip Planner+Stylist, use source_context directly as description
-            custom_description: Use this description instead of running Planner
+            skip_planning: Skip Planner+Stylist stages
+            custom_description: Use this description instead of Planner
+            refine_mode: "visual" (default), "text" (cheap), or "skip" (cheapest)
 
         Returns:
             Dict with asset_id, png_path, metadata, pipeline_trace, or error key.
@@ -749,150 +902,273 @@ class RefinedPipeline:
             styled_description = description
             pipeline_trace.append({"stage": "stylist", "status": "skipped"})
 
-        # ── STAGES 3-4: Iterative [Generate → Critique] × T ─────────────
+        # ── STAGES 3-4: Refinement + Generation ─────────────────────────
         current_description = styled_description
         iteration_results = []
-        critic_thought_signature = None  # Persists critic reasoning across rounds
+        critic_thought_signature = None
 
-        for t in range(T):
-            iter_start = datetime.now()
-            is_final = t == T - 1
+        if refine_mode == "text":
+            # ── TEXT MODE: Refine description N times, render once ────
+            for t in range(T):
+                refine_start = datetime.now()
 
-            # Determine output path for this iteration
-            if is_final and output_filename:
-                iter_path = out_dir / output_filename
-            elif is_final:
-                iter_path = out_dir / f"{asset_id}_{timestamp}.png"
-            else:
-                iter_path = out_dir / f"{asset_id}_{timestamp}_iter{t + 1}.png"
-
-            # ── Generate from description (fresh each round) ─────────
-            gen_start = datetime.now()
-            success = await self._generate_image(
-                description=current_description,
-                resolution=effective_resolution,
-                aspect_ratio=aspect_ratio,
-                out_path=iter_path,
-            )
-            gen_elapsed = (datetime.now() - gen_start).total_seconds()
-
-            if not success:
-                iteration_results.append(
-                    {
-                        "iteration": t + 1,
-                        "status": "generation_failed",
-                        "elapsed_s": round(gen_elapsed, 1),
-                    }
-                )
-                # If generation fails, try with current description again
-                continue
-
-            iter_result = {
-                "iteration": t + 1,
-                "png_path": str(iter_path.resolve()),
-                "gen_elapsed_s": round(gen_elapsed, 1),
-                "file_size_bytes": iter_path.stat().st_size
-                if iter_path.exists()
-                else 0,
-            }
-
-            # ── Critique (skip on final iteration — just keep the image) ─
-            if not is_final:
-                critic_start = datetime.now()
-                critique_result = await self.critique(
-                    image_path=iter_path,
+                critique_result = await self.text_critique(
                     description=current_description,
                     source_context=source_context,
                     caption=caption,
                     thought_signature=critic_thought_signature,
                 )
-                critic_elapsed = (datetime.now() - critic_start).total_seconds()
+                refine_elapsed = (datetime.now() - refine_start).total_seconds()
 
-                # Preserve thought signature for next iteration
                 critic_thought_signature = critique_result.get("thought_signature")
+                confidence = critique_result.get("confidence", 0.0)
 
-                iter_result["critic_elapsed_s"] = round(critic_elapsed, 1)
-                iter_result["critic_suggestions"] = critique_result.get(
-                    "critic_suggestions", ""
-                )
-                iter_result["text_errors"] = critique_result.get("text_errors", [])
-                iter_result["hallucinated_content"] = critique_result.get(
-                    "hallucinated_content", []
-                )
-                iter_result["duplicated_elements"] = critique_result.get(
-                    "duplicated_elements", []
-                )
-                iter_result["missing_flow_arrows"] = critique_result.get(
-                    "missing_flow_arrows", []
-                )
-                iter_result["visual_quality_score"] = critique_result.get(
-                    "visual_quality_score", {}
-                )
+                iter_result = {
+                    "iteration": t + 1,
+                    "mode": "text_critique",
+                    "critic_elapsed_s": round(refine_elapsed, 1),
+                    "issues_found": critique_result.get("issues_found", []),
+                    "label_fixes": critique_result.get("label_fixes", {}),
+                    "element_count": critique_result.get("element_count", 0),
+                    "density_score": critique_result.get("density_score", "unknown"),
+                    "confidence": confidence,
+                }
 
-                # Update description for next round
                 revised = critique_result.get("revised_description", "")
-                if revised and revised != "No changes needed." and len(revised) > 100:
+                if revised and len(revised) > 100:
                     current_description = revised
                     iter_result["description_refined"] = True
                 else:
                     iter_result["description_refined"] = False
-                    # Critic found no issues — can stop early
-                    if critique_result.get("critic_suggestions", "").startswith(
-                        "No changes"
-                    ):
-                        iter_result["early_stop"] = True
-                        # Promote this iteration's image to final path
-                        if output_filename:
-                            final_path = out_dir / output_filename
-                        else:
-                            final_path = out_dir / f"{asset_id}_{timestamp}.png"
-                        if iter_path != final_path:
-                            import shutil
 
-                            shutil.copy2(str(iter_path), str(final_path))
-                            iter_path = final_path
-                        iteration_results.append(iter_result)
-                        break
+                iteration_results.append(iter_result)
+                pipeline_trace.append(
+                    {
+                        "stage": f"text_critique_{t + 1}",
+                        "confidence": confidence,
+                        "issues": len(critique_result.get("issues_found", [])),
+                        "elapsed_s": round(refine_elapsed, 1),
+                    }
+                )
 
-            iter_result["total_elapsed_s"] = round(
-                (datetime.now() - iter_start).total_seconds(), 1
+                # Early stop if confidence is high enough
+                if confidence >= 0.9:
+                    iter_result["early_stop"] = True
+                    break
+
+            # ── Single render with refined description ────────────────
+            final_path = out_dir / (
+                output_filename
+                if output_filename
+                else f"{asset_id}_{timestamp}.png"
             )
-            iteration_results.append(iter_result)
+
+            gen_start = datetime.now()
+            success = await self._generate_image(
+                description=current_description,
+                resolution=effective_resolution,
+                aspect_ratio=aspect_ratio,
+                out_path=final_path,
+            )
+            gen_elapsed = (datetime.now() - gen_start).total_seconds()
 
             pipeline_trace.append(
                 {
-                    "stage": f"iteration_{t + 1}",
+                    "stage": "final_render",
                     "generated": success,
-                    "description_refined": iter_result.get(
-                        "description_refined", False
-                    ),
-                    "elapsed_s": iter_result["total_elapsed_s"],
+                    "elapsed_s": round(gen_elapsed, 1),
                 }
             )
+
+            if not success:
+                return {
+                    "error": "Final render failed after text refinement",
+                    "pipeline_trace": pipeline_trace,
+                    "iteration_results": iteration_results,
+                    "final_description": current_description,
+                }
+
+        elif refine_mode == "skip":
+            # ── SKIP MODE: Direct render, no refinement ──────────────
+            final_path = out_dir / (
+                output_filename
+                if output_filename
+                else f"{asset_id}_{timestamp}.png"
+            )
+
+            gen_start = datetime.now()
+            success = await self._generate_image(
+                description=current_description,
+                resolution=effective_resolution,
+                aspect_ratio=aspect_ratio,
+                out_path=final_path,
+            )
+            gen_elapsed = (datetime.now() - gen_start).total_seconds()
+
+            pipeline_trace.append(
+                {
+                    "stage": "direct_render",
+                    "generated": success,
+                    "elapsed_s": round(gen_elapsed, 1),
+                }
+            )
+
+            if not success:
+                return {
+                    "error": "Direct render failed",
+                    "pipeline_trace": pipeline_trace,
+                    "final_description": current_description,
+                }
+
+        else:
+            # ── VISUAL MODE (original): [Generate → Critique] × T ────
+            for t in range(T):
+                iter_start = datetime.now()
+                is_final = t == T - 1
+
+                if is_final and output_filename:
+                    iter_path = out_dir / output_filename
+                elif is_final:
+                    iter_path = out_dir / f"{asset_id}_{timestamp}.png"
+                else:
+                    iter_path = out_dir / f"{asset_id}_{timestamp}_iter{t + 1}.png"
+
+                gen_start = datetime.now()
+                success = await self._generate_image(
+                    description=current_description,
+                    resolution=effective_resolution,
+                    aspect_ratio=aspect_ratio,
+                    out_path=iter_path,
+                )
+                gen_elapsed = (datetime.now() - gen_start).total_seconds()
+
+                if not success:
+                    iteration_results.append(
+                        {
+                            "iteration": t + 1,
+                            "mode": "visual",
+                            "status": "generation_failed",
+                            "elapsed_s": round(gen_elapsed, 1),
+                        }
+                    )
+                    continue
+
+                iter_result = {
+                    "iteration": t + 1,
+                    "mode": "visual",
+                    "png_path": str(iter_path.resolve()),
+                    "gen_elapsed_s": round(gen_elapsed, 1),
+                    "file_size_bytes": iter_path.stat().st_size
+                    if iter_path.exists()
+                    else 0,
+                }
+
+                if not is_final:
+                    critic_start = datetime.now()
+                    critique_result = await self.critique(
+                        image_path=iter_path,
+                        description=current_description,
+                        source_context=source_context,
+                        caption=caption,
+                        thought_signature=critic_thought_signature,
+                    )
+                    critic_elapsed = (datetime.now() - critic_start).total_seconds()
+
+                    critic_thought_signature = critique_result.get(
+                        "thought_signature"
+                    )
+
+                    iter_result["critic_elapsed_s"] = round(critic_elapsed, 1)
+                    iter_result["critic_suggestions"] = critique_result.get(
+                        "critic_suggestions", ""
+                    )
+                    iter_result["text_errors"] = critique_result.get(
+                        "text_errors", []
+                    )
+                    iter_result["hallucinated_content"] = critique_result.get(
+                        "hallucinated_content", []
+                    )
+                    iter_result["visual_quality_score"] = critique_result.get(
+                        "visual_quality_score", {}
+                    )
+
+                    revised = critique_result.get("revised_description", "")
+                    if (
+                        revised
+                        and revised != "No changes needed."
+                        and len(revised) > 100
+                    ):
+                        current_description = revised
+                        iter_result["description_refined"] = True
+                    else:
+                        iter_result["description_refined"] = False
+                        if critique_result.get(
+                            "critic_suggestions", ""
+                        ).startswith("No changes"):
+                            iter_result["early_stop"] = True
+                            if output_filename:
+                                final_path_vis = out_dir / output_filename
+                            else:
+                                final_path_vis = (
+                                    out_dir / f"{asset_id}_{timestamp}.png"
+                                )
+                            if iter_path != final_path_vis:
+                                import shutil
+
+                                shutil.copy2(str(iter_path), str(final_path_vis))
+                            iteration_results.append(iter_result)
+                            break
+
+                iter_result["total_elapsed_s"] = round(
+                    (datetime.now() - iter_start).total_seconds(), 1
+                )
+                iteration_results.append(iter_result)
+                pipeline_trace.append(
+                    {
+                        "stage": f"iteration_{t + 1}",
+                        "generated": success,
+                        "description_refined": iter_result.get(
+                            "description_refined", False
+                        ),
+                        "elapsed_s": iter_result.get("total_elapsed_s", 0),
+                    }
+                )
+
+            # Set final_path for visual mode
+            final_path = None  # will be resolved below
 
         # ── Build result ─────────────────────────────────────────────────
         total_elapsed = (datetime.now() - started_at).total_seconds()
 
-        # Final image path is the last successful iteration
-        final_result = None
-        for r in reversed(iteration_results):
-            if r.get("png_path"):
-                final_result = r
-                break
+        # Resolve final path
+        if refine_mode in ("text", "skip"):
+            file_size = (
+                final_path.stat().st_size if final_path.exists() else 0
+            )
+            resolved_path = str(final_path.resolve())
+        else:
+            # Visual mode: find last successful iteration
+            resolved_path = None
+            for r in reversed(iteration_results):
+                if r.get("png_path"):
+                    resolved_path = r["png_path"]
+                    break
 
-        if not final_result:
-            return {
-                "error": "All generation attempts failed",
-                "pipeline_trace": pipeline_trace,
-                "iteration_results": iteration_results,
-            }
+            if not resolved_path:
+                return {
+                    "error": "All generation attempts failed",
+                    "pipeline_trace": pipeline_trace,
+                    "iteration_results": iteration_results,
+                }
+            file_size = (
+                Path(resolved_path).stat().st_size
+                if Path(resolved_path).exists()
+                else 0
+            )
 
-        final_path = final_result["png_path"]
-        file_size = Path(final_path).stat().st_size if Path(final_path).exists() else 0
-
-        return {
+        result = {
             "asset_id": asset_id,
-            "png_path": final_path,
+            "png_path": resolved_path,
             "session_id": session_id,
             "engine": "refined_pipeline",
             "metadata": {
@@ -901,18 +1177,34 @@ class RefinedPipeline:
                 "resolution": effective_resolution,
                 "aspect_ratio": aspect_ratio,
                 "quality": quality or "default",
+                "refine_mode": refine_mode,
+                "text_refinements": len(
+                    [r for r in iteration_results if r.get("mode") == "text_critique"]
+                ),
+                "image_renders": (
+                    1
+                    if refine_mode in ("text", "skip")
+                    else len(
+                        [r for r in iteration_results if r.get("png_path")]
+                    )
+                ),
                 "iterations_run": len(iteration_results),
                 "iterations_planned": T,
                 "elapsed_seconds": round(total_elapsed, 1),
                 "estimated_cost_usd": round(self._session_cost, 4),
                 "file_size_bytes": file_size,
-                "pipeline": "plan_style_critique",
+                "pipeline": f"{'text_refine' if refine_mode == 'text' else 'skip' if refine_mode == 'skip' else 'plan_style_critique'}",
             },
             "pipeline_trace": pipeline_trace,
             "iteration_results": iteration_results,
             "final_description": current_description,
             "created_at": started_at.isoformat(),
         }
+
+        # Persist metadata for future learning
+        self._save_meta(asset_id, Path(resolved_path), result)
+
+        return result
 
     def get_session_cost(self) -> float:
         """Get total cost for current session."""
