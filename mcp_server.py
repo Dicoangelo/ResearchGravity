@@ -520,6 +520,12 @@ async def list_tools() -> List[Tool]:
                         "minimum": 1,
                         "maximum": 5,
                     },
+                    "refine_mode": {
+                        "type": "string",
+                        "description": "Refinement mode: 'visual' (original — render each round, most expensive), 'text' (refine description without rendering, 3-7x cheaper, same quality), 'skip' (no refinement, direct render, cheapest at $0.24/4K)",
+                        "enum": ["visual", "text", "skip"],
+                        "default": "text",
+                    },
                     "session_id": {
                         "type": "string",
                         "description": "Optional: Session ID for UCW capture",
@@ -984,20 +990,28 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
                 iterations=arguments.get("iterations"),
                 session_id=arguments.get("session_id"),
                 skip_planning=arguments.get("skip_planning", False),
+                refine_mode=arguments.get("refine_mode", "text"),
             )
             if "error" in result:
                 return [TextContent(type="text", text=f"❌ {result['error']}")]
 
             meta = result["metadata"]
+            mode_label = {
+                "visual": "Plan → Style → [Generate → Critique] × T",
+                "text": "Plan → Style → [TextCritic] × T → Render once",
+                "skip": "Direct render (no refinement)",
+            }.get(meta.get("refine_mode", "visual"), "refined_pipeline")
             output = f"""✅ Refined Pipeline Complete
 
 **Asset ID:** {result["asset_id"]}
 **Path:** {result["png_path"]}
-**Engine:** refined_pipeline (Plan → Style → [Generate → Critique] × T)
+**Engine:** {mode_label}
+**Refine Mode:** {meta.get("refine_mode", "visual")}
 **VLM Model:** {meta["vlm_model"]}
 **Image Model:** {meta["model"]}
 **Resolution:** {meta["resolution"]}
-**Iterations:** {meta["iterations_run"]}/{meta["iterations_planned"]}
+**Text Refinements:** {meta.get("text_refinements", 0)}
+**Image Renders:** {meta.get("image_renders", "?")}
 **Total Cost:** ${meta["estimated_cost_usd"]:.4f}
 **Total Time:** {meta["elapsed_seconds"]}s
 **File Size:** {meta["file_size_bytes"] // 1024}KB
@@ -1014,24 +1028,33 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
 
             output += "\n\n## Iteration Details"
             for ir in result.get("iteration_results", []):
-                output += f"\n\n### Round {ir['iteration']}"
-                output += f"\n- Generation: {ir.get('gen_elapsed_s', '?')}s"
-                if ir.get("critic_elapsed_s"):
-                    output += f"\n- Critique: {ir['critic_elapsed_s']}s"
-                if ir.get("text_errors"):
-                    output += (
-                        f"\n- Text errors found: {', '.join(ir['text_errors'][:5])}"
-                    )
-                if ir.get("hallucinated_content"):
-                    output += f"\n- Hallucinations flagged: {', '.join(ir['hallucinated_content'][:5])}"
-                if ir.get("duplicated_elements"):
-                    output += (
-                        f"\n- Duplicates: {', '.join(ir['duplicated_elements'][:5])}"
-                    )
+                mode = ir.get("mode", "visual")
+                output += f"\n\n### Round {ir['iteration']} ({mode})"
+
+                if mode == "text_critique":
+                    output += f"\n- Text critique: {ir.get('critic_elapsed_s', '?')}s"
+                    output += f"\n- Confidence: {ir.get('confidence', 0):.1%}"
+                    output += f"\n- Elements: {ir.get('element_count', '?')}"
+                    output += f"\n- Density: {ir.get('density_score', '?')}"
+                    issues = ir.get("issues_found", [])
+                    if issues:
+                        output += f"\n- Issues: {', '.join(issues[:3])}"
+                    fixes = ir.get("label_fixes", {})
+                    if fixes:
+                        output += f"\n- Label fixes: {len(fixes)}"
+                else:
+                    output += f"\n- Generation: {ir.get('gen_elapsed_s', '?')}s"
+                    if ir.get("critic_elapsed_s"):
+                        output += f"\n- Critique: {ir['critic_elapsed_s']}s"
+                    if ir.get("text_errors"):
+                        output += f"\n- Text errors: {', '.join(ir['text_errors'][:5])}"
+                    if ir.get("hallucinated_content"):
+                        output += f"\n- Hallucinations: {', '.join(ir['hallucinated_content'][:5])}"
+
                 if ir.get("description_refined"):
-                    output += "\n- Description refined for next round"
+                    output += "\n- ✓ Description refined"
                 if ir.get("early_stop"):
-                    output += "\n- **Early stop**: Critic found no issues"
+                    output += "\n- **Early stop**: Confidence ≥ 90%"
 
             return [TextContent(type="text", text=output)]
         except Exception as e:
