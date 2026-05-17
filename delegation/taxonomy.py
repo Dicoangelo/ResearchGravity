@@ -27,6 +27,7 @@ Usage:
 """
 
 import asyncio
+from ._async import run_async
 import json
 import re
 from typing import Dict, Optional
@@ -573,7 +574,7 @@ def classify_task(
             profile = asyncio.wait_for(
                 _llm_classify(description, context), timeout=timeout
             )
-            return asyncio.run(profile)
+            return run_async(profile)
         except (asyncio.TimeoutError, RuntimeError, Exception):
             # Fall through to heuristic
             pass
