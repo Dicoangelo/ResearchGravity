@@ -34,6 +34,7 @@ Usage:
 """
 
 import asyncio
+from ._async import run_async
 import importlib
 import json
 import re
@@ -298,7 +299,7 @@ def _calculate_capability_match(
     # Semantic similarity (if LLM available)
     if use_llm and HAS_LLM_CLIENT:
         try:
-            semantic_score = asyncio.run(
+            semantic_score = run_async(
                 _semantic_similarity(subtask.description, agent.description)
             )
             # Blend keyword and semantic scores (60/40 split)
@@ -414,7 +415,7 @@ def route_subtask(
         # Trust score (from TrustLedger if available)
         if trust_ledger:
             # Use async context manager pattern
-            trust_score = asyncio.run(_get_trust_score(trust_ledger, agent.agent_id))
+            trust_score = run_async(_get_trust_score(trust_ledger, agent.agent_id))
         else:
             trust_score = 0.5  # Neutral trust if ledger unavailable
 

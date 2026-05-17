@@ -43,6 +43,7 @@ import hashlib
 import json
 import re
 import asyncio
+from ._async import run_async
 import sqlite3
 from typing import Tuple, List, Optional, Any
 from pathlib import Path
@@ -195,7 +196,7 @@ class FourDsGate:
         """
         if use_llm and HAS_LLM_CLIENT:
             try:
-                score, suggestions = asyncio.run(
+                score, suggestions = run_async(
                     asyncio.wait_for(
                         self._llm_description_analysis(task_description), timeout=3.0
                     )

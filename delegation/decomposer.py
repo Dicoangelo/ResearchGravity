@@ -28,6 +28,7 @@ Usage:
 """
 
 import asyncio
+from ._async import run_async
 import json
 import re
 import uuid
@@ -513,7 +514,7 @@ def _recursive_decompose(
     # Try LLM decomposition first
     if use_llm and HAS_LLM_CLIENT:
         try:
-            subtasks = asyncio.run(
+            subtasks = run_async(
                 asyncio.wait_for(
                     _llm_decompose(task, profile, parent_id, depth), timeout=timeout
                 )
