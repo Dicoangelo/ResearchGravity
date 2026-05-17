@@ -632,6 +632,50 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
         except Exception:
             pass  # Never block delegation on logging failure
 
+        # E5: record lineage node for delegation gate events.
+        # Separate try so event logging and lineage are independently fail-open.
+        if event_type == "delegation_gate":
+            self._record_lineage(task_id, status, details)
+
+    def _record_lineage(self, task_id: str, status: str, details: dict) -> None:
+        """Record a lineage node for a delegation gate firing (E5). Fail-open.
+
+        `task_id` is the 8-char hash from `_hash_task`. If details carry a
+        `parent_task_id`, the node is wired under it; otherwise it becomes a
+        root. Duplicate firings for the same task_id are silently ignored.
+        """
+        try:
+            from .lineage_store import LineageStore, LineageStoreError
+
+            store = LineageStore(db_path=Path(self.db_path))
+            if store.get_node(task_id) is not None:
+                return
+
+            parent_id = details.get("parent_task_id")
+            metadata = {
+                "status": status,
+                "gate": details.get("gate", ""),
+                "reason": details.get("reason", ""),
+            }
+            try:
+                store.add_node(
+                    task_id,
+                    parent_id=parent_id,
+                    node_type="delegation",
+                    metadata=metadata,
+                )
+            except LineageStoreError:
+                # Parent missing / invalid — degrade gracefully to a root node
+                # so we still capture that the delegation happened.
+                store.add_node(
+                    task_id,
+                    parent_id=None,
+                    node_type="delegation",
+                    metadata={**metadata, "degraded": "parent_not_found"},
+                )
+        except Exception:
+            pass  # Never block delegation on lineage failure
+
 
 # ============================================================================
 # PUBLIC API

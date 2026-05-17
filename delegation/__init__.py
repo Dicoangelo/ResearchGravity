@@ -79,6 +79,28 @@ from .ethical_delegation import (
     get_service_tier,
     enforce_safety_floor,
 )
+from .lineage_store import (
+    LineageStore,
+    LineageStoreError,
+    LineageNode,
+    LineageEdge,
+    VALID_NODE_TYPES as LINEAGE_NODE_TYPES,
+    VALID_EDGE_TYPES as LINEAGE_EDGE_TYPES,
+)
+from .auto_curate_gate import (
+    CurateGate,
+    CurateGatePolicy,
+    CurateDecision,
+    GateResult,
+    AUTO_CURATE_ROOT_ID,
+)
+from .auto_curate_runner import (
+    AutoCurateRunner,
+    RunOutcome,
+    RunReport,
+    ExecutorFn,
+    run_auto_curate_cycle,
+)
 
 __all__ = [
     "TaskProfile",
@@ -125,4 +147,20 @@ __all__ = [
     "ServiceTierName",
     "get_service_tier",
     "enforce_safety_floor",
+    "LineageStore",
+    "LineageStoreError",
+    "LineageNode",
+    "LineageEdge",
+    "LINEAGE_NODE_TYPES",
+    "LINEAGE_EDGE_TYPES",
+    "CurateGate",
+    "CurateGatePolicy",
+    "CurateDecision",
+    "GateResult",
+    "AUTO_CURATE_ROOT_ID",
+    "AutoCurateRunner",
+    "RunOutcome",
+    "RunReport",
+    "ExecutorFn",
+    "run_auto_curate_cycle",
 ]
