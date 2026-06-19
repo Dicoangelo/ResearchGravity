@@ -185,8 +185,11 @@ async def _ucw_timeline(args: Dict) -> Dict:
 
     # Build parameterized query (PostgreSQL $1, $2, ...)
     query = """SELECT event_id, timestamp_ns, direction, method, platform,
-                      light_topic, light_intent, light_summary,
-                      instinct_gut_signal, instinct_coherence
+                      light_layer->>'topic'   AS light_topic,
+                      light_layer->>'intent'  AS light_intent,
+                      light_layer->>'summary' AS light_summary,
+                      instinct_layer->>'gut_signal' AS instinct_gut_signal,
+                      (instinct_layer->>'coherence_potential')::float AS instinct_coherence
                FROM cognitive_events WHERE 1=1"""
     params: list = []
     idx = 1
@@ -247,8 +250,12 @@ async def _detect_emergence(args: Dict) -> Dict:
     async with _pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT event_id, timestamp_ns, method, platform,
-                      light_topic, light_concepts, light_intent,
-                      instinct_coherence, instinct_indicators, instinct_gut_signal
+                      light_layer->>'topic'    AS light_topic,
+                      light_layer->>'concepts' AS light_concepts,
+                      light_layer->>'intent'   AS light_intent,
+                      (instinct_layer->>'coherence_potential')::float AS instinct_coherence,
+                      instinct_layer->>'emergence_indicators' AS instinct_indicators,
+                      instinct_layer->>'gut_signal' AS instinct_gut_signal
                FROM cognitive_events
                ORDER BY timestamp_ns DESC LIMIT $1""",
             limit,
