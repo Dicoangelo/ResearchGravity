@@ -542,6 +542,55 @@ class TieredSearchLayer:
             print(f"Firecrawl read-paper error: {e}")
             return []
 
+    async def related_papers(
+        self,
+        paper_id: str,
+        intent: str,
+        mode: str = "similar",
+        k: int = 20,
+    ) -> list[dict]:
+        """
+        Expand from a seed paper to related papers (Firecrawl Research).
+
+        modes:
+          - "similar":    co-citation + bibliographic-coupling neighborhood
+          - "citers":     papers that cite the seed (forward / frontier watch)
+          - "references": papers the seed cites (backward / foundations)
+
+        Candidates are ranked against `intent`. Returns raw dicts with
+        paperId, primaryId, title, abstract, score, and structural/semantic
+        signals so callers can re-rank. Backs the Frontier Scout.
+        """
+        if not HAS_AIOHTTP or not paper_id:
+            return []
+
+        from urllib.parse import quote
+
+        url = (
+            "https://api.firecrawl.dev/v2/search/research/papers/"
+            f"{quote(paper_id, safe=':')}/similar"
+        )
+        params = {"intent": intent, "mode": mode, "k": max(1, k)}
+        headers = {}
+        if self.firecrawl_key:
+            headers["Authorization"] = f"Bearer {self.firecrawl_key}"
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json()
+            if not data.get("success"):
+                return []
+            return data.get("results", [])[:k]
+        except Exception as e:
+            print(f"Firecrawl related-papers error: {e}")
+            return []
+
     @staticmethod
     def _extract_arxiv_id(primary_id: str, ids) -> Optional[str]:
         """Pull a bare arXiv id from primaryId or the ids blob."""
