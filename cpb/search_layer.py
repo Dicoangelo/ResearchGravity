@@ -591,6 +591,52 @@ class TieredSearchLayer:
             print(f"Firecrawl related-papers error: {e}")
             return []
 
+    async def related_github(
+        self, query: str, k: int = 10, drop_noise: bool = True
+    ) -> list[dict]:
+        """
+        Search GitHub history (issues / PRs / discussions / READMEs) for
+        implementation prior-art via Firecrawl Research.
+
+        Backs the Paper->Code Bridge: for a paper or method, find the real
+        engineering record — working repos, known bugs, design debates.
+        When `drop_noise`, results the index flags as noise/demoted are
+        filtered out. Returns raw dicts (repo, url, pageType, title, snippet,
+        scores, ...) best-first.
+        """
+        if not HAS_AIOHTTP or not query:
+            return []
+
+        url = "https://api.firecrawl.dev/v2/search/research/github"
+        params = {"query": query, "k": max(1, k * 2 if drop_noise else k)}
+        headers = {}
+        if self.firecrawl_key:
+            headers["Authorization"] = f"Bearer {self.firecrawl_key}"
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json()
+            if not data.get("success"):
+                return []
+            results = data.get("results", [])
+            if drop_noise:
+                results = [
+                    r
+                    for r in results
+                    if r.get("policyStatus") != "demote"
+                    and r.get("noiseKind") != "noise"
+                ]
+            return results[:k]
+        except Exception as e:
+            print(f"Firecrawl github-history error: {e}")
+            return []
+
     @staticmethod
     def _extract_arxiv_id(primary_id: str, ids) -> Optional[str]:
         """Pull a bare arXiv id from primaryId or the ids blob."""
