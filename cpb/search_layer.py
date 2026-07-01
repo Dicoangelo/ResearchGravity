@@ -488,6 +488,60 @@ class TieredSearchLayer:
 
         return results
 
+    async def read_paper_passages(
+        self, paper_id: str, question: str, k: int = 4
+    ) -> list[dict]:
+        """
+        Read the top full-text passages in one paper that answer a question.
+
+        Backs citation-grounding checks: before trusting that a cited paper
+        actually contains a claimed method/result, pull the passages that
+        address it. `paper_id` may be canonical (paperId) or source-specific
+        (e.g. "arxiv:1706.03762").
+
+        Returns a list of {"score": float, "text": str}, best first.
+        Docs: https://docs.firecrawl.dev/features/research
+        """
+        if not HAS_AIOHTTP or not paper_id:
+            return []
+
+        from urllib.parse import quote
+
+        url = (
+            "https://api.firecrawl.dev/v2/search/research/papers/"
+            f"{quote(paper_id, safe=':')}"
+        )
+        params = {"query": question, "k": max(1, k)}
+        headers = {}
+        if self.firecrawl_key:
+            headers["Authorization"] = f"Bearer {self.firecrawl_key}"
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json()
+
+            if not data.get("success"):
+                return []
+
+            passages = []
+            for p in data.get("passages", [])[:k]:
+                try:
+                    score = float(p.get("score", 0.0))
+                except (TypeError, ValueError):
+                    score = 0.0
+                passages.append({"score": score, "text": p.get("text", "")})
+            return passages
+
+        except Exception as e:
+            print(f"Firecrawl read-paper error: {e}")
+            return []
+
     @staticmethod
     def _extract_arxiv_id(primary_id: str, ids) -> Optional[str]:
         """Pull a bare arXiv id from primaryId or the ids blob."""
