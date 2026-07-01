@@ -70,3 +70,4 @@ visual_assets/
 # Local AI context — kept on disk, not published
 CLAUDE.md
 .claude/
+grounding_ledger.jsonl
