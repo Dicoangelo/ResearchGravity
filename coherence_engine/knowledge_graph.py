@@ -1102,7 +1102,7 @@ class SemanticExtractor:
         import os
 
         self._provider = provider or os.environ.get("UCW_LLM_PROVIDER", "anthropic")
-        self._model = os.environ.get("UCW_INSIGHT_MODEL", "claude-sonnet-4-6")
+        self._model = os.environ.get("UCW_INSIGHT_MODEL", "claude-sonnet-5")
         self._ollama_model = os.environ.get("UCW_OLLAMA_MODEL", "llama3.2")
         self._ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
