@@ -5,13 +5,15 @@ ResearchGravity MCP Server
 Exposes ResearchGravity context and research tools via Model Context Protocol (MCP).
 This allows Claude Desktop and other MCP clients to access ResearchGravity data.
 
+Visual-intelligence server. Research/context tools (log_finding, search_learnings,
+get_session_context, etc.) live ONLY in mcp_raw (researchgravity-ucw) — they were
+removed here 2026-07-18 to stop exposing duplicate tool names to MCP clients.
+
 Tools Provided:
-- get_session_context: Get active session information
-- search_learnings: Search archived learnings
-- get_project_research: Load project-specific research
-- log_finding: Record a finding to active session
-- select_context_packs: Select relevant context packs (V2)
-- get_research_index: Get unified research index
+- visualize_research / diagram_from_session / illustrate_finding: PaperBanana diagrams
+- evaluate_paper_figures: 4-dimension diagram scoring
+- generate_image / edit_image / generate_refined: Gemini native image generation
+- list_visual_profiles: quality profiles
 
 Resources Provided:
 - session://active - Active session data
@@ -154,20 +156,6 @@ def get_project_research_files(project_name: str) -> Dict[str, str]:
     return files
 
 
-def log_finding_to_session(finding: str, finding_type: str = "general") -> bool:
-    """Log a finding to the active session.
-
-    Delegates to the raw-MCP implementation so both servers share one write path.
-    That implementation fans the finding out to the stores the pipeline actually
-    reads (the session scratchpad and the antigravity.db findings table) rather
-    than only to session_tracker.json, whose `findings_captured` key nothing
-    downstream consumes.
-    """
-    from mcp_raw.tools.research_tools import _log_finding_to_session
-
-    return _log_finding_to_session(finding, finding_type)
-
-
 # ============================================================================
 # MCP Tool Handlers
 # ============================================================================
@@ -177,110 +165,6 @@ def log_finding_to_session(finding: str, finding_type: str = "general") -> bool:
 async def list_tools() -> List[Tool]:
     """List available ResearchGravity tools"""
     return [
-        Tool(
-            name="get_session_context",
-            description="Get active research session context including topic, URLs, findings, and status",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {
-                        "type": "string",
-                        "description": "Optional: Specific session ID. If not provided, returns active session.",
-                    }
-                },
-            },
-        ),
-        Tool(
-            name="search_learnings",
-            description="Search archived learnings from past research sessions. Returns relevant concepts, findings, and papers.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (keywords or phrases)",
-                    },
-                    "limit": {
-                        "type": "number",
-                        "description": "Maximum results to return (default: 10)",
-                        "default": 10,
-                    },
-                },
-                "required": ["query"],
-            },
-        ),
-        Tool(
-            name="get_project_research",
-            description="Load research files for a specific project (OS-App, CareerCoach, Metaventions, etc.)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "Project name (e.g., 'os-app', 'careercoach', 'metaventions')",
-                    }
-                },
-                "required": ["project_name"],
-            },
-        ),
-        Tool(
-            name="log_finding",
-            description="Record a finding or insight to the active research session",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "finding": {
-                        "type": "string",
-                        "description": "The finding text to record",
-                    },
-                    "type": {
-                        "type": "string",
-                        "description": "Finding type: general, implementation, metrics, innovation, etc.",
-                        "default": "general",
-                    },
-                },
-                "required": ["finding"],
-            },
-        ),
-        Tool(
-            name="select_context_packs",
-            description="Select relevant context packs using Context Packs V2 (7-layer system with semantic embeddings)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Query for context pack selection",
-                    },
-                    "budget": {
-                        "type": "number",
-                        "description": "Token budget (default: 50000)",
-                        "default": 50000,
-                    },
-                    "use_v1": {
-                        "type": "boolean",
-                        "description": "Force V1 engine (2 layers) instead of V2 (7 layers)",
-                        "default": False,
-                    },
-                },
-                "required": ["query"],
-            },
-        ),
-        Tool(
-            name="get_research_index",
-            description="Get the unified research index with cross-project paper references and concepts",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="list_projects",
-            description="List all tracked projects with their metadata, tech stack, and status",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="get_session_stats",
-            description="Get statistics about research sessions, papers, concepts, and cognitive wallet value",
-            inputSchema={"type": "object", "properties": {}},
-        ),
         # ── Visual Intelligence Layer ──
         # PaperBanana 5-agent pipeline (academic diagrams)
         Tool(
@@ -535,204 +419,9 @@ async def list_tools() -> List[Tool]:
 async def call_tool(name: str, arguments: Any) -> List[TextContent]:
     """Handle tool calls"""
 
-    if name == "get_session_context":
-        session_id = arguments.get("session_id")
-
-        if session_id:
-            session = get_session_by_id(session_id)
-            if not session:
-                return [
-                    TextContent(type="text", text=f"Session not found: {session_id}")
-                ]
-        else:
-            session = get_active_session()
-            if not session:
-                return [
-                    TextContent(
-                        type="text",
-                        text='No active session. Start a session with: python3 init_session.py "topic"',
-                    )
-                ]
-
-        # Format session info
-        output = f"""# Session: {session.get("topic", "Unknown")}
-
-**ID:** {session.get("session_id", "unknown")}
-**Status:** {session.get("status", "unknown")}
-**Started:** {session.get("started", "unknown")}
-**Working Directory:** {session.get("working_directory", "unknown")}
-
-## URLs Captured
-{len(session.get("urls_captured", []))} URLs logged
-
-## Findings
-{len(session.get("findings_captured", []))} findings recorded
-"""
-
-        # Add findings if present
-        findings = session.get("findings_captured", [])
-        if findings:
-            output += "\n### Recent Findings:\n"
-            for f in findings[-5:]:  # Last 5
-                output += f"\n- **{f.get('type', 'general')}**: {f.get('text', '')[:200]}...\n"
-
-        return [TextContent(type="text", text=output)]
-
-    elif name == "search_learnings":
-        query = arguments["query"]
-        limit = arguments.get("limit", 10)
-
-        results = search_learnings_text(query, limit)
-
-        if not results:
-            return [
-                TextContent(type="text", text=f"No learnings found for query: {query}")
-            ]
-
-        output = f"# Search Results for: {query}\n\nFound {len(results)} relevant sections:\n\n"
-
-        for i, result in enumerate(results, 1):
-            output += f"## {i}. {result['title']}\n\n"
-            output += f"{result['preview']}\n\n"
-            output += f"**Relevance Score:** {result['relevance']}\n\n---\n\n"
-
-        return [TextContent(type="text", text=output)]
-
-    elif name == "get_project_research":
-        project_name = arguments["project_name"].lower()
-
-        files = get_project_research_files(project_name)
-
-        if not files:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"No research files found for project: {project_name}",
-                )
-            ]
-
-        output = f"# Research Files for: {project_name}\n\n"
-        output += f"Found {len(files)} files:\n\n"
-
-        for filename, content in files.items():
-            output += f"## {filename}\n\n"
-            # Include first 1000 chars of each file
-            preview = content[:1000] + "..." if len(content) > 1000 else content
-            output += f"{preview}\n\n---\n\n"
-
-        return [TextContent(type="text", text=output)]
-
-    elif name == "log_finding":
-        finding = arguments["finding"]
-        finding_type = arguments.get("type", "general")
-
-        success = log_finding_to_session(finding, finding_type)
-
-        if success:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"✅ Finding logged successfully\n\nType: {finding_type}\nText: {finding}",
-                )
-            ]
-        else:
-            return [
-                TextContent(
-                    type="text",
-                    text="❌ Failed to log finding. No active session or permission error.",
-                )
-            ]
-
-    elif name == "select_context_packs":
-        query = arguments["query"]
-        budget = arguments.get("budget", 50000)
-        use_v1 = arguments.get("use_v1", False)
-
-        # Import and use Context Packs selector
-        try:
-            sys.path.insert(0, str(Path(__file__).parent))
-            from select_packs_v2_integrated import (
-                PackSelectorV2Integrated,
-                format_output,
-            )
-
-            selector = PackSelectorV2Integrated(force_v1=use_v1)
-            packs, metadata = selector.select_packs(
-                context=query, token_budget=budget, enable_pruning=True
-            )
-
-            output = format_output(packs, metadata, output_format="text")
-
-            return [TextContent(type="text", text=output)]
-
-        except Exception as e:
-            return [
-                TextContent(type="text", text=f"❌ Error selecting context packs: {e}")
-            ]
-
-    elif name == "get_research_index":
-        index_file = RESEARCH_DIR / "INDEX.md"
-        content = load_text(index_file)
-
-        if not content:
-            return [TextContent(type="text", text="Research index not found or empty")]
-
-        return [TextContent(type="text", text=content)]
-
-    elif name == "list_projects":
-        projects = load_json(PROJECTS_FILE)
-
-        if not projects:
-            return [TextContent(type="text", text="No projects found")]
-
-        output = "# Tracked Projects\n\n"
-
-        for name, data in projects.items():
-            output += f"## {name}\n\n"
-            output += f"**Status:** {data.get('status', 'unknown')}\n"
-            output += f"**Tech Stack:** {data.get('tech_stack', 'unknown')}\n"
-            output += f"**Focus:** {', '.join(data.get('focus_areas', []))}\n\n"
-
-        return [TextContent(type="text", text=output)]
-
-    elif name == "get_session_stats":
-        tracker = load_json(SESSION_TRACKER)
-        projects = load_json(PROJECTS_FILE)
-
-        # Count stats
-        total_sessions = len(tracker.get("sessions", {}))
-        archived = sum(
-            1
-            for s in tracker.get("sessions", {}).values()
-            if s.get("status") == "archived"
-        )
-
-        # Count from projects.json if available
-        total_concepts = projects.get("_stats", {}).get("concepts", 0)
-        total_papers = projects.get("_stats", {}).get("papers", 0)
-        total_urls = projects.get("_stats", {}).get("urls", 0)
-        wallet_value = projects.get("_stats", {}).get("cognitive_wallet", 0)
-
-        output = f"""# ResearchGravity Statistics
-
-**Total Sessions:** {total_sessions}
-**Archived Sessions:** {archived}
-**Active Sessions:** {total_sessions - archived}
-
-**Concepts Tracked:** {total_concepts}
-**Papers Indexed:** {total_papers}
-**URLs Logged:** {total_urls}
-
-**Cognitive Wallet Value:** ${wallet_value:.2f}
-
-**Projects:** {len([k for k in projects.keys() if not k.startswith("_")])}
-"""
-
-        return [TextContent(type="text", text=output)]
-
     # ── Visual Intelligence Layer Tools ──
 
-    elif name == "visualize_research":
+    if name == "visualize_research":
         try:
             from visual import PaperBananaAdapter, get_visual_config
 

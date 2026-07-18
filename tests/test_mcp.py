@@ -61,34 +61,17 @@ async def test_mcp_server():
                     print(f"  - {resource.uri}: {resource.name}")
                 print()
 
-                # Test 3: Get session stats
-                print("📊 Test 3: Get Session Stats")
+                # Test 3: Tool surface is visual-only (research tools live in mcp_raw)
+                print("Test 3: Visual-only tool surface")
                 print("-" * 60)
-                result = await session.call_tool("get_session_stats", arguments={})
-                print(result.content[0].text)
-                print()
-
-                # Test 4: Get active session
-                print("📍 Test 4: Get Active Session")
-                print("-" * 60)
-                result = await session.call_tool("get_session_context", arguments={})
-                print(result.content[0].text[:300] + "...")
-                print()
-
-                # Test 5: Search learnings
-                print("🔍 Test 5: Search Learnings")
-                print("-" * 60)
-                result = await session.call_tool(
-                    "search_learnings", arguments={"query": "multi-agent", "limit": 3}
-                )
-                print(result.content[0].text[:300] + "...")
-                print()
-
-                # Test 6: List projects
-                print("📁 Test 6: List Projects")
-                print("-" * 60)
-                result = await session.call_tool("list_projects", arguments={})
-                print(result.content[0].text)
+                names = {t.name for t in tools.tools}
+                expected = {
+                    "visualize_research", "diagram_from_session", "illustrate_finding",
+                    "evaluate_paper_figures", "generate_image", "edit_image",
+                    "generate_refined", "list_visual_profiles",
+                }
+                assert names == expected, f"unexpected tool surface: {names ^ expected}"
+                print("Tool surface matches visual-only contract")
                 print()
 
                 # Test 7: Read resource
