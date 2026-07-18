@@ -64,7 +64,17 @@ def _mined_ids(ledger: Path = LEDGER) -> set:
     return ids
 
 
+CODE_SNIPPET_RE = re.compile(
+    r"class \w+\(Enum\)|def \w+\(|=\s*\"\w+\"\\n|self\.\w+\s*=", re.IGNORECASE
+)
+
+
 def _marker_hits(content: str):
+    # Source code that merely mentions a marker word (enum values, feature
+    # specs like "Contradiction Detection") is not a contradiction. First
+    # triage pass: 3 of 7 candidates were exactly this.
+    if CODE_SNIPPET_RE.search(content):
+        return []
     hits = []
     low = content.lower()
     for name, pattern in MARKERS:
@@ -153,7 +163,9 @@ def report():
     if not LEDGER.exists():
         print("No ledger yet. Run the miner first.")
         return
-    recs = [json.loads(x) for x in LEDGER.read_text().splitlines() if x.strip()]
+    rows = [json.loads(x) for x in LEDGER.read_text().splitlines() if x.strip()]
+    recs = [r for r in rows if "markers" in r]
+    reviews = {r["review_of"]: r for r in rows if "review_of" in r}
     by_marker = {}
     paired = 0
     for r in recs:
@@ -161,12 +173,18 @@ def report():
             by_marker[m] = by_marker.get(m, 0) + 1
         if r["contradicts_candidates"]:
             paired += 1
+    verdicts = {}
+    for v in reviews.values():
+        verdicts[v["verdict"]] = verdicts.get(v["verdict"], 0) + 1
+    unreviewed = sum(1 for r in recs if r["marker_finding_id"] not in reviews)
     print(f"=== Contradiction Ledger — {len(recs)} candidates, {paired} paired ===")
     for m, n in sorted(by_marker.items(), key=lambda x: -x[1]):
         print(f"  {m:<18} {n}")
-    print("\nMost recent:")
+    print(f"\nReviews: {verdicts or 'none'} | unreviewed: {unreviewed}")
+    print("\nMost recent candidates:")
     for r in recs[-5:]:
-        print(f"  [{','.join(r['markers'])}] {r['excerpt'][:110]}")
+        v = reviews.get(r["marker_finding_id"], {}).get("verdict", "pending")
+        print(f"  [{','.join(r['markers'])}] ({v}) {r['excerpt'][:100]}")
 
 
 def main():
