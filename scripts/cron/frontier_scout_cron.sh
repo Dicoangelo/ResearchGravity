@@ -4,6 +4,9 @@
 # Appends each run to the append-only ledger; never overwrites (telemetry rule).
 
 set -u
+# launchd PATH resolves python3 to the CommandLineTools 3.9 (missing deps);
+# pin homebrew first.
+export PATH="/opt/homebrew/bin:$PATH"
 REPO="$HOME/projects/apps/researchgravity"
 LEDGER="$HOME/.agent-core/storage/frontier_scout_runs.jsonl"
 LOG="$HOME/.agent-core/logs/frontier-scout.log"
