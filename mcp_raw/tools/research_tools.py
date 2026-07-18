@@ -8,7 +8,9 @@ Research Tools — Ported from SDK mcp_server.py to raw MCP
 """
 
 import json
+import sqlite3
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -274,7 +276,10 @@ async def _log_finding(args: Dict) -> Dict:
         return tool_result_content(
             [
                 text_content(
-                    "Failed to log finding. No active session or permission error."
+                    "Finding NOT persisted. Either there is no active session, or the "
+                    "session's scratchpad and antigravity.db were both unwritable. "
+                    "The finding was not saved to any store the pipeline reads - "
+                    "re-log it or write it directly before archiving."
                 )
             ],
             is_error=True,
@@ -451,7 +456,79 @@ def _get_project_research_files(project_name: str) -> Dict[str, str]:
     return files
 
 
+def _scratchpad_path(session: Dict) -> Optional[Path]:
+    """Resolve a session's scratchpad from its recorded working_directory.
+
+    The session scripts address the scratchpad as `Path.cwd() / ".agent"`, which
+    the MCP server cannot reproduce because it runs from an arbitrary cwd. The
+    tracker records working_directory at init precisely so out-of-cwd writers can
+    find it.
+    """
+    workdir = session.get("working_directory")
+    if not workdir:
+        return None
+    return Path(workdir) / ".agent" / "research" / "scratchpad.json"
+
+
+def _write_finding_to_scratchpad(session: Dict, entry: Dict) -> bool:
+    path = _scratchpad_path(session)
+    if not path or not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text())
+        data.setdefault("findings", []).append(
+            {
+                "type": entry["type"],
+                "content": entry["text"],
+                "timestamp": entry["timestamp"],
+            }
+        )
+        data["last_updated"] = entry["timestamp"]
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        return True
+    except Exception as exc:
+        log.error(f"scratchpad write failed ({path}): {exc}")
+        return False
+
+
+def _write_finding_to_db(session_id: str, entry: Dict) -> bool:
+    if not Config.STORAGE_DB.exists():
+        return False
+    try:
+        con = sqlite3.connect(Config.STORAGE_DB)
+        try:
+            # id is TEXT PRIMARY KEY with no default; SQLite would accept NULL
+            # (legacy quirk - 325 NULL-id rows exist from older writers), so
+            # generate one explicitly.
+            con.execute(
+                "INSERT INTO findings (id, session_id, content, type, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    f"fnd-{uuid.uuid4().hex[:12]}",
+                    session_id,
+                    entry["text"],
+                    entry["type"],
+                    entry["timestamp"],
+                ),
+            )
+            con.commit()
+        finally:
+            con.close()
+        return True
+    except Exception as exc:
+        log.error(f"db write failed: {exc}")
+        return False
+
+
 def _log_finding_to_session(finding: str, finding_type: str = "general") -> bool:
+    """Persist a finding to every store the pipeline actually reads.
+
+    Historically this wrote only to session_tracker.json under `findings_captured`,
+    a key nothing downstream reads: status.py, archive_session.py, the learnings
+    extractor and the RAG index all read scratchpad.json `findings` and the
+    antigravity.db `findings` table. Writes "succeeded" while the findings were
+    stranded. Success now requires at least one canonical store to accept the write.
+    """
     tracker = _load_json(Config.SESSION_TRACKER)
     if not tracker or "active_session" not in tracker:
         return False
@@ -461,21 +538,28 @@ def _log_finding_to_session(finding: str, finding_type: str = "general") -> bool
         return False
 
     session = tracker["sessions"][session_id]
-    if "findings_captured" not in session:
-        session["findings_captured"] = []
+    entry = {
+        "text": finding,
+        "type": finding_type,
+        "timestamp": datetime.now().isoformat(),
+    }
 
-    session["findings_captured"].append(
-        {
-            "text": finding,
-            "type": finding_type,
-            "timestamp": datetime.now().isoformat(),
-        }
-    )
+    # Canonical stores. These are what the pipeline reads.
+    wrote_scratchpad = _write_finding_to_scratchpad(session, entry)
+    wrote_db = _write_finding_to_db(session_id, entry)
 
+    # Tracker copy, kept as an append-only audit trail.
+    session.setdefault("findings_captured", []).append(entry)
     try:
         with open(Config.SESSION_TRACKER, "w") as f:
             json.dump(tracker, f, indent=2)
-        return True
     except Exception as exc:
-        log.error(f"Error saving finding: {exc}")
+        log.error(f"tracker write failed: {exc}")
+
+    if not (wrote_scratchpad or wrote_db):
+        log.error(
+            f"finding NOT persisted to any canonical store for session {session_id}"
+        )
         return False
+
+    return True
