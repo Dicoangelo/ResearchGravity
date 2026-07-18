@@ -181,12 +181,12 @@ async def _vibe_config(args: Dict) -> Dict:
     if config.files_detected:
         output += f"**Files:** {', '.join(config.files_detected)}\n"
 
-    output += f"\n## Subtasks\n"
+    output += "\n## Subtasks\n"
     for i, st in enumerate(config.subtasks, 1):
         output += f"{i}. {st}\n"
 
     if config.personas:
-        output += f"\n## Graph Personas\n"
+        output += "\n## Graph Personas\n"
         for p in config.personas:
             output += f"- **{p['title']}** ({p['finding_count']} findings) — {p['domain']}\n"
 

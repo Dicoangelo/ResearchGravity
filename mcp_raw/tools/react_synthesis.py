@@ -189,7 +189,7 @@ async def _exec_knowledge_graph(query: str) -> str:
         else:
             output += f"No sessions directly matching '{query}' in graph.\n"
             if timeline:
-                output += f"**Recent sessions (for context):**\n"
+                output += "**Recent sessions (for context):**\n"
                 for t in timeline[:5]:
                     output += f"  - {t['topic']} ({t['date']})\n"
 

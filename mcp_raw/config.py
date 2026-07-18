@@ -26,6 +26,11 @@ class Config:
     LEARNINGS_FILE = AGENT_CORE / "memory" / "learnings.md"
     RESEARCH_DIR = AGENT_CORE / "research"
 
+    # Canonical relational store. status.py / archive_session.py / the RAG layer
+    # read findings from here and from the session-local scratchpad, never from
+    # session_tracker.json.
+    STORAGE_DB = AGENT_CORE / "storage" / "antigravity.db"
+
     # Logging (NEVER to stdout)
     LOG_FILE = LOG_DIR / "mcp-raw.log"
     ERROR_LOG = LOG_DIR / "mcp-errors.log"

@@ -155,34 +155,17 @@ def get_project_research_files(project_name: str) -> Dict[str, str]:
 
 
 def log_finding_to_session(finding: str, finding_type: str = "general") -> bool:
-    """Log a finding to the active session"""
-    tracker = load_json(SESSION_TRACKER)
-    if not tracker or "active_session" not in tracker:
-        return False
+    """Log a finding to the active session.
 
-    session_id = tracker["active_session"]
-    if not session_id or session_id not in tracker.get("sessions", {}):
-        return False
+    Delegates to the raw-MCP implementation so both servers share one write path.
+    That implementation fans the finding out to the stores the pipeline actually
+    reads (the session scratchpad and the antigravity.db findings table) rather
+    than only to session_tracker.json, whose `findings_captured` key nothing
+    downstream consumes.
+    """
+    from mcp_raw.tools.research_tools import _log_finding_to_session
 
-    # Add finding
-    session = tracker["sessions"][session_id]
-    if "findings_captured" not in session:
-        session["findings_captured"] = []
-
-    session["findings_captured"].append(
-        {"text": finding, "type": finding_type, "timestamp": datetime.now().isoformat()}
-    )
-
-    # Save
-    try:
-        with open(SESSION_TRACKER, "w") as f:
-            json.dump(tracker, f, indent=2)
-        return True
-    except Exception as e:
-        app.server.request_context.session.send_log_message(
-            level=LoggingLevel.ERROR, data=f"Error saving finding: {e}"
-        )
-        return False
+    return _log_finding_to_session(finding, finding_type)
 
 
 # ============================================================================

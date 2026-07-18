@@ -84,6 +84,10 @@ class VerificationResult:
     citations_found: int = 0
     citations_verified: int = 0
 
+    # Citation grounding (v2.6 — Firecrawl read-paper passage evidence)
+    citations_grounded: int = 0  # arXiv cites with retrievable supporting passages
+    grounding_evidence: List[Dict[str, Any]] = field(default_factory=list)
+
     # Metadata
     verification_method: str = "precision_v2"
     retries_recommended: int = 0
@@ -115,6 +119,8 @@ class VerificationResult:
             "issues": self.issues,
             "citations_found": self.citations_found,
             "citations_verified": self.citations_verified,
+            "citations_grounded": self.citations_grounded,
+            "grounding_evidence": self.grounding_evidence,
             "verification_method": self.verification_method,
             "retries_recommended": self.retries_recommended,
             "feedback": self.feedback,
@@ -438,6 +444,74 @@ class CriticVerifier:
         self.ground_truth_validator = get_gt_validator()
         self.thresholds = PRECISION_VERIFICATION_THRESHOLDS
 
+    @staticmethod
+    def _arxiv_ids_from_citations(citations: List[Dict[str, Any]]) -> List[str]:
+        """Collect unique arXiv ids from extracted citations."""
+        ids = []
+        for c in citations:
+            aid = c.get("id") if c.get("type") == "arxiv" else c.get("resolved_arxiv")
+            if aid and aid not in ids:
+                ids.append(aid)
+        return ids
+
+    async def ground_citations(
+        self,
+        response: str,
+        sources: Optional[List[Dict[str, Any]]] = None,
+        question: Optional[str] = None,
+        max_papers: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        Ground the response's arXiv citations against the cited papers'
+        actual full text via Firecrawl read-paper passages.
+
+        For each arXiv id cited, pull the passages that address the response's
+        question/thesis. A citation is "grounded" when the paper is real and
+        returns retrievable passages. Attaches the top passage as evidence so a
+        reviewer can confirm the paper supports what it's cited for.
+
+        Additive and network-bound: called explicitly or via verify(
+        ground_citations=True); never runs by default so the core pipeline
+        stays hermetic and fast.
+
+        Returns {checked, grounded, coverage, evidence:[...]}.
+        """
+        citations = self.citation_extractor.extract_citations(response, sources)
+        arxiv_ids = self._arxiv_ids_from_citations(citations)[:max_papers]
+        if not arxiv_ids:
+            return {"checked": 0, "grounded": 0, "coverage": 0.0, "evidence": []}
+
+        from .search_layer import get_search_layer
+
+        layer = get_search_layer()
+        probe = question or response[:300]
+
+        evidence: List[Dict[str, Any]] = []
+        grounded = 0
+        for aid in arxiv_ids:
+            passages = await layer.read_paper_passages(
+                f"arxiv:{aid}", probe, k=2
+            )
+            has_support = bool(passages)
+            if has_support:
+                grounded += 1
+            evidence.append(
+                {
+                    "arxiv_id": aid,
+                    "grounded": has_support,
+                    "top_passage": passages[0]["text"][:400] if passages else "",
+                    "top_score": passages[0]["score"] if passages else 0.0,
+                }
+            )
+
+        checked = len(arxiv_ids)
+        return {
+            "checked": checked,
+            "grounded": grounded,
+            "coverage": grounded / checked if checked else 0.0,
+            "evidence": evidence,
+        }
+
     async def verify(
         self,
         response: str,
@@ -446,6 +520,7 @@ class CriticVerifier:
         context: Optional[str] = None,
         pioneer_mode: bool = False,
         trust_context: bool = False,
+        ground_citations: bool = False,
     ) -> VerificationResult:
         """
         Run full verification pipeline on a response (v2.4 with mode flags).
@@ -475,6 +550,13 @@ class CriticVerifier:
 
         # Verify citations against sources
         citations_verified = self._verify_citations(citations, sources)
+
+        # Optional: ground arXiv citations against paper full text (Firecrawl)
+        grounding = {"grounded": 0, "evidence": []}
+        if ground_citations:
+            grounding = await self.ground_citations(
+                response, sources, question=query
+            )
 
         # Calculate component scores
         evidence_score = await self._calculate_evidence_score(
@@ -645,6 +727,8 @@ class CriticVerifier:
             issues=issues,
             citations_found=citations_found,
             citations_verified=citations_verified,
+            citations_grounded=grounding["grounded"],
+            grounding_evidence=grounding["evidence"],
             retries_recommended=retries,
             feedback=feedback,
         )

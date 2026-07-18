@@ -66,3 +66,8 @@ cli_import_log.json
 
 # Large generated visual assets (refined pipeline iterations)
 visual_assets/
+
+# Local AI context — kept on disk, not published
+CLAUDE.md
+.claude/
+grounding_ledger.jsonl

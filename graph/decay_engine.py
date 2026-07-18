@@ -313,16 +313,16 @@ def main():
         print("=== Knowledge Graph Decay Analysis ===\n")
         print(f"Active edges: {stats['total_active']}")
         print(f"Immortal (contains): {stats['immortal']}")
-        print(f"\nAge distribution:")
+        print("\nAge distribution:")
         for bucket, count in stats["age_distribution"].items():
             bar = "█" * min(count // 10, 40)
             print(f"  {bucket:>8}: {count:>5} {bar}")
-        print(f"\nDecay preview:")
+        print("\nDecay preview:")
         print(f"  Would stale (90-180d):  {stats['would_stale']}")
         print(f"  Would expire (>180d):   {stats['would_expire']}")
         print(f"  Would reinforce (<30d): {stats['would_reinforce']}")
         print(f"  Already stale:          {stats['already_stale']}")
-        print(f"\nRelation types:")
+        print("\nRelation types:")
         for rel, count in sorted(stats["by_relation"].items(), key=lambda x: -x[1]):
             print(f"  {rel:>15}: {count}")
 

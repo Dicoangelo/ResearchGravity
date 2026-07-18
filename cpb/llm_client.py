@@ -58,13 +58,58 @@ except ImportError:
 HOME = Path.home()
 CONFIG_FILE = HOME / ".agent-core" / "config.json"
 
-# Model mappings
-ANTHROPIC_MODELS = {
-    "opus": "claude-opus-4-20250514",
-    "sonnet": "claude-sonnet-4-6",
-    "haiku": "claude-3-5-haiku-20241022",
-    "default": "claude-sonnet-4-6",
+# Model ID sovereignty: canonical registry is the single source of truth.
+# Never hardcode model IDs — read them from ~/.claude/config/pricing.json so a
+# model release/deprecation is a one-file registry edit, not a code sweep.
+# The literals below are OFFLINE FALLBACKS only, used if the registry is
+# unreadable; they must mirror the registry's current Claude 5 family.
+PRICING_REGISTRY = HOME / ".claude" / "config" / "pricing.json"
+
+_FALLBACK_ANTHROPIC = {
+    "opus": "claude-opus-4-8",
+    "sonnet": "claude-sonnet-5",
+    "haiku": "claude-haiku-4-5-20251001",
+    "default": "claude-sonnet-5",
 }
+_FALLBACK_CLAUDE_COSTS = {
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-sonnet-5": (3.0, 15.0),
+    "claude-haiku-4-5-20251001": (1.0, 5.0),
+}
+
+
+def _load_registry() -> tuple[Dict[str, str], Dict[str, tuple]]:
+    """Load Claude model IDs + costs from the canonical registry.
+
+    Returns (anthropic_models, claude_costs). Falls back to the mirrored
+    literals above if the registry is missing or malformed so the client
+    stays usable offline.
+    """
+    try:
+        data = json.loads(PRICING_REGISTRY.read_text())
+        models = data["models"]
+        anthropic_models: Dict[str, str] = {}
+        claude_costs: Dict[str, tuple] = {}
+        for tier in ("opus", "sonnet", "haiku"):
+            entry = models.get(tier)
+            if not entry or not entry.get("id"):
+                continue
+            mid = entry["id"]
+            anthropic_models[tier] = mid
+            if entry.get("input") is not None and entry.get("output") is not None:
+                claude_costs[mid] = (entry["input"], entry["output"])
+        if "sonnet" not in anthropic_models:
+            raise ValueError("registry missing sonnet tier")
+        anthropic_models["default"] = anthropic_models["sonnet"]
+        return anthropic_models, claude_costs
+    except Exception:
+        return dict(_FALLBACK_ANTHROPIC), dict(_FALLBACK_CLAUDE_COSTS)
+
+
+_ANTHROPIC_MODELS, _CLAUDE_COSTS = _load_registry()
+
+# Model mappings
+ANTHROPIC_MODELS = _ANTHROPIC_MODELS
 
 OPENAI_MODELS = {
     "gpt4": "gpt-4o",
@@ -79,11 +124,10 @@ GEMINI_MODELS = {
     "default": "gemini-1.5-pro",
 }
 
-# Cost per 1M tokens (input/output)
+# Cost per 1M tokens (input/output). Claude tiers sourced from the registry;
+# non-Claude providers kept inline until they have a canonical registry.
 MODEL_COSTS = {
-    "claude-opus-4-20250514": (15.0, 75.0),
-    "claude-sonnet-4-6": (3.0, 15.0),
-    "claude-3-5-haiku-20241022": (0.25, 1.25),
+    **_CLAUDE_COSTS,
     "gpt-4o": (2.5, 10.0),
     "gpt-4o-mini": (0.15, 0.6),
     "gemini-1.5-pro": (1.25, 5.0),

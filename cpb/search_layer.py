@@ -245,6 +245,7 @@ class TieredSearchLayer:
     def _load_api_keys(self):
         """Load API keys from config."""
         import json
+        import os
         from pathlib import Path
 
         config_path = Path.home() / ".agent-core" / "config.json"
@@ -253,9 +254,15 @@ class TieredSearchLayer:
                 cfg = json.load(f)
                 self.cohere_key = cfg.get("cohere", {}).get("api_key")
                 self.github_token = cfg.get("github", {}).get("token")
+                self.firecrawl_key = cfg.get("firecrawl", {}).get("api_key")
         else:
             self.cohere_key = None
             self.github_token = None
+            self.firecrawl_key = None
+
+        # Env overrides config; Firecrawl Research works keyless but the key
+        # lifts rate limits and clears the "suspicious IP" gate.
+        self.firecrawl_key = os.environ.get("FIRECRAWL_API_KEY", self.firecrawl_key)
 
     async def search(self, query: str, max_results_per_tier: int = 10) -> SearchContext:
         """
@@ -300,20 +307,34 @@ class TieredSearchLayer:
         return context
 
     async def _search_tier1(self, query: str, limit: int) -> list[SearchResult]:
-        """Search Tier 1: Primary sources."""
+        """Search Tier 1: Primary sources.
+
+        Firecrawl Research is the primary (semantically-ranked) paper source;
+        the raw arXiv client runs alongside as a resilient fallback. Papers are
+        deduped by arXiv id so the same paper is not listed twice.
+        """
         results = []
 
         # Parallel search across Tier 1 sources
         tasks = [
+            self._search_firecrawl_papers(query, limit // 2),
             self._search_arxiv(query, limit // 2),
             self._search_web_tier1(query, limit // 2),
         ]
 
         tier1_results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        seen_arxiv: set[str] = set()
         for result in tier1_results:
-            if not isinstance(result, Exception):
-                results.extend(result)
+            if isinstance(result, Exception):
+                continue
+            for item in result:
+                aid = self._extract_arxiv_id("", item.url) if "arxiv.org/abs/" in item.url else None
+                if aid:
+                    if aid in seen_arxiv:
+                        continue
+                    seen_arxiv.add(aid)
+                results.append(item)
 
         return results
 
@@ -397,6 +418,252 @@ class TieredSearchLayer:
             print(f"arXiv search error: {e}")
 
         return results
+
+    async def _search_firecrawl_papers(
+        self, query: str, limit: int
+    ) -> list[SearchResult]:
+        """
+        Search papers via Firecrawl Research Index (Tier 1).
+
+        Semantically-ranked paper search over a research-specific index.
+        Stronger than the raw arXiv keyword client: the API returns a
+        relevance `score`, canonical + source-specific ids, and covers
+        sources beyond arXiv. Works keyless but honors FIRECRAWL_API_KEY
+        for higher rate limits.
+
+        Docs: https://docs.firecrawl.dev/features/research
+        """
+        if not HAS_AIOHTTP:
+            return []
+
+        results: list[SearchResult] = []
+        url = "https://api.firecrawl.dev/v2/search/research/papers"
+        params = {"query": query, "k": max(1, limit)}
+        headers = {}
+        if self.firecrawl_key:
+            headers["Authorization"] = f"Bearer {self.firecrawl_key}"
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json()
+
+            if not data.get("success"):
+                return []
+
+            for paper in data.get("results", [])[:limit]:
+                primary_id = paper.get("primaryId", "") or ""
+                arxiv_id = self._extract_arxiv_id(primary_id, paper.get("ids"))
+                paper_url = (
+                    f"https://arxiv.org/abs/{arxiv_id}"
+                    if arxiv_id
+                    else f"https://www.semanticscholar.org/paper/{paper.get('paperId', '')}"
+                )
+
+                try:
+                    base = float(paper.get("score", 0.0))
+                except (TypeError, ValueError):
+                    base = 0.0
+
+                results.append(
+                    SearchResult(
+                        url=paper_url,
+                        title=paper.get("title", "Untitled"),
+                        content=paper.get("abstract", ""),
+                        tier=SourceTier.TIER_1,
+                        category=SourceCategory.RESEARCH,
+                        source_name="Firecrawl Research",
+                        published_date=self._arxiv_id_to_date(arxiv_id),
+                        base_relevance=base,
+                    )
+                )
+
+        except Exception as e:
+            print(f"Firecrawl paper search error: {e}")
+
+        return results
+
+    async def read_paper_passages(
+        self, paper_id: str, question: str, k: int = 4
+    ) -> list[dict]:
+        """
+        Read the top full-text passages in one paper that answer a question.
+
+        Backs citation-grounding checks: before trusting that a cited paper
+        actually contains a claimed method/result, pull the passages that
+        address it. `paper_id` may be canonical (paperId) or source-specific
+        (e.g. "arxiv:1706.03762").
+
+        Returns a list of {"score": float, "text": str}, best first.
+        Docs: https://docs.firecrawl.dev/features/research
+        """
+        if not HAS_AIOHTTP or not paper_id:
+            return []
+
+        from urllib.parse import quote
+
+        url = (
+            "https://api.firecrawl.dev/v2/search/research/papers/"
+            f"{quote(paper_id, safe=':')}"
+        )
+        params = {"query": question, "k": max(1, k)}
+        headers = {}
+        if self.firecrawl_key:
+            headers["Authorization"] = f"Bearer {self.firecrawl_key}"
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json()
+
+            if not data.get("success"):
+                return []
+
+            passages = []
+            for p in data.get("passages", [])[:k]:
+                try:
+                    score = float(p.get("score", 0.0))
+                except (TypeError, ValueError):
+                    score = 0.0
+                passages.append({"score": score, "text": p.get("text", "")})
+            return passages
+
+        except Exception as e:
+            print(f"Firecrawl read-paper error: {e}")
+            return []
+
+    async def related_papers(
+        self,
+        paper_id: str,
+        intent: str,
+        mode: str = "similar",
+        k: int = 20,
+    ) -> list[dict]:
+        """
+        Expand from a seed paper to related papers (Firecrawl Research).
+
+        modes:
+          - "similar":    co-citation + bibliographic-coupling neighborhood
+          - "citers":     papers that cite the seed (forward / frontier watch)
+          - "references": papers the seed cites (backward / foundations)
+
+        Candidates are ranked against `intent`. Returns raw dicts with
+        paperId, primaryId, title, abstract, score, and structural/semantic
+        signals so callers can re-rank. Backs the Frontier Scout.
+        """
+        if not HAS_AIOHTTP or not paper_id:
+            return []
+
+        from urllib.parse import quote
+
+        url = (
+            "https://api.firecrawl.dev/v2/search/research/papers/"
+            f"{quote(paper_id, safe=':')}/similar"
+        )
+        params = {"intent": intent, "mode": mode, "k": max(1, k)}
+        headers = {}
+        if self.firecrawl_key:
+            headers["Authorization"] = f"Bearer {self.firecrawl_key}"
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json()
+            if not data.get("success"):
+                return []
+            return data.get("results", [])[:k]
+        except Exception as e:
+            print(f"Firecrawl related-papers error: {e}")
+            return []
+
+    async def related_github(
+        self, query: str, k: int = 10, drop_noise: bool = True
+    ) -> list[dict]:
+        """
+        Search GitHub history (issues / PRs / discussions / READMEs) for
+        implementation prior-art via Firecrawl Research.
+
+        Backs the Paper->Code Bridge: for a paper or method, find the real
+        engineering record — working repos, known bugs, design debates.
+        When `drop_noise`, results the index flags as noise/demoted are
+        filtered out. Returns raw dicts (repo, url, pageType, title, snippet,
+        scores, ...) best-first.
+        """
+        if not HAS_AIOHTTP or not query:
+            return []
+
+        url = "https://api.firecrawl.dev/v2/search/research/github"
+        params = {"query": query, "k": max(1, k * 2 if drop_noise else k)}
+        headers = {}
+        if self.firecrawl_key:
+            headers["Authorization"] = f"Bearer {self.firecrawl_key}"
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json()
+            if not data.get("success"):
+                return []
+            results = data.get("results", [])
+            if drop_noise:
+                results = [
+                    r
+                    for r in results
+                    if r.get("policyStatus") != "demote"
+                    and r.get("noiseKind") != "noise"
+                ]
+            return results[:k]
+        except Exception as e:
+            print(f"Firecrawl github-history error: {e}")
+            return []
+
+    @staticmethod
+    def _extract_arxiv_id(primary_id: str, ids) -> Optional[str]:
+        """Pull a bare arXiv id from primaryId or the ids blob."""
+        if primary_id.startswith("arxiv:"):
+            return primary_id.split("arxiv:", 1)[1].split("v")[0]
+        # ids arrives as a stringified dict like "{'arxiv': ['2605.22949']}"
+        if ids:
+            m = re.search(r"(\d{4}\.\d{4,5})", str(ids))
+            if m:
+                return m.group(1)
+        return None
+
+    @staticmethod
+    def _arxiv_id_to_date(arxiv_id: Optional[str]) -> Optional[datetime]:
+        """Approximate publish date from arXiv YYMM.NNNNN id encoding."""
+        if not arxiv_id:
+            return None
+        m = re.match(r"(\d{2})(\d{2})\.", arxiv_id)
+        if not m:
+            return None
+        yy, mm = int(m.group(1)), int(m.group(2))
+        if not 1 <= mm <= 12:
+            return None
+        try:
+            return datetime(2000 + yy, mm, 1)
+        except ValueError:
+            return None
 
     def _build_arxiv_query(self, query: str) -> str:
         """
