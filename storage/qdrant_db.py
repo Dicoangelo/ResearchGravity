@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import uuid
+from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
@@ -111,6 +112,66 @@ if QDRANT_AVAILABLE:
     }
 else:
     COLLECTIONS = {}
+
+
+@dataclass(frozen=True)
+class SearchSpec:
+    """Per-collection search behavior: result shape, rerank wiring, threshold.
+
+    Adding a searchable collection = adding one entry to SEARCH_SPECS
+    (plus a thin public wrapper), not a new hand-rolled search method.
+    """
+
+    fields: tuple  # payload keys copied into each result dict
+    content_key: str = "content"  # document key handed to the reranker
+    content_alias: Optional[str] = None  # payload key mirrored into result["content"]
+    min_score: float = 0.5  # default score threshold
+    rerankable: bool = True  # False: never rerank, never inflate fetch limit
+
+
+SEARCH_SPECS: Dict[str, SearchSpec] = {
+    "findings": SearchSpec(
+        fields=("finding_id", "content", "type", "session_id", "project", "confidence"),
+    ),
+    "sessions": SearchSpec(
+        fields=("session_id", "topic", "project", "status", "finding_count"),
+        content_key="topic",
+        content_alias="topic",
+        min_score=0.4,
+    ),
+    "packs": SearchSpec(
+        fields=("pack_id", "name", "type", "source", "tokens"),
+        content_key="name",
+        content_alias="name",
+        min_score=0.4,
+    ),
+    "papers": SearchSpec(
+        fields=(
+            "paper_id", "title", "content", "authors", "relevance",
+            "source", "url", "ai_keywords", "upvotes", "github_repo",
+        ),
+        min_score=0.4,
+    ),
+    "session_outcomes": SearchSpec(
+        fields=(
+            "outcome_id", "session_id", "intent", "outcome", "quality",
+            "model_efficiency", "models_used", "date", "messages", "tools",
+        ),
+        content_key="intent",
+        content_alias="intent",
+    ),
+    "cognitive_states": SearchSpec(
+        fields=(
+            "state_id", "mode", "energy_level", "flow_score",
+            "hour", "day", "timestamp", "predictions",
+        ),
+        rerankable=False,
+    ),
+    "error_patterns": SearchSpec(
+        fields=("error_id", "error_type", "context", "solution", "success_rate"),
+        rerankable=False,
+    ),
+}
 
 
 def get_cohere_api_key() -> str:
@@ -550,6 +611,71 @@ class QdrantDB:
 
         return len(points)
 
+    async def _search_collection(
+        self,
+        collection: str,
+        query: str,
+        limit: int = 10,
+        min_score: Optional[float] = None,
+        match: Optional[Dict[str, Any]] = None,
+        ranges: Optional[Dict[str, Any]] = None,
+        rerank: bool = True,
+        rerank_top_n: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Generic semantic search over one collection, driven by SEARCH_SPECS.
+
+        Every public search_* method is a thin wrapper over this: it embeds
+        the query, builds equality (`match`) and gte (`ranges`) filters from
+        non-None values, fetches (3x limit when reranking), shapes results
+        per the collection's SearchSpec, and optionally reranks with Cohere.
+        """
+        spec = SEARCH_SPECS[collection]
+        if min_score is None:
+            min_score = spec.min_score
+        rerank = rerank and spec.rerankable
+
+        embedding = await self.embed_query_async(query)
+
+        conditions = [
+            FieldCondition(key=key, match=MatchValue(value=value))
+            for key, value in (match or {}).items()
+            if value is not None
+        ]
+        conditions += [
+            FieldCondition(key=key, range=models.Range(gte=value))
+            for key, value in (ranges or {}).items()
+            if value is not None
+        ]
+        search_filter = Filter(must=conditions) if conditions else None
+
+        # Fetch more results for reranking
+        fetch_limit = limit * 3 if rerank else limit
+
+        results = await self.async_client.query_points(
+            collection_name=collection,
+            query=embedding,
+            query_filter=search_filter,
+            limit=fetch_limit,
+            score_threshold=min_score,
+        )
+
+        items = []
+        for r in results.points:
+            item = {f: r.payload.get(f) for f in spec.fields}
+            if spec.content_alias:
+                item["content"] = r.payload.get(spec.content_alias)
+            item["score"] = r.score
+            items.append(item)
+
+        # Rerank if enabled and we have results (async to avoid blocking)
+        if rerank and items:
+            items = await self.rerank_async(
+                query, items, top_n=rerank_top_n or limit, content_key=spec.content_key
+            )
+
+        return items[:limit]
+
     async def search_findings(
         self,
         query: str,
@@ -561,69 +687,20 @@ class QdrantDB:
         rerank: bool = True,
         rerank_top_n: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Semantic search for findings with optional reranking.
-
-        Args:
-            query: Search query
-            limit: Number of results to return
-            min_score: Minimum similarity score
-            filter_type: Filter by finding type
-            filter_project: Filter by project
-            filter_session: Filter by session
-            rerank: Whether to rerank results using Cohere
-            rerank_top_n: Number of results after reranking (defaults to limit)
-        """
-        # Use query-specific embedding
-        embedding = await self.embed_query_async(query)
-
-        # Build filter
-        conditions = []
-        if filter_type:
-            conditions.append(
-                FieldCondition(key="type", match=MatchValue(value=filter_type))
-            )
-        if filter_project:
-            conditions.append(
-                FieldCondition(key="project", match=MatchValue(value=filter_project))
-            )
-        if filter_session:
-            conditions.append(
-                FieldCondition(key="session_id", match=MatchValue(value=filter_session))
-            )
-
-        search_filter = Filter(must=conditions) if conditions else None
-
-        # Fetch more results for reranking
-        fetch_limit = limit * 3 if rerank else limit
-
-        results = await self.async_client.query_points(
-            collection_name="findings",
-            query=embedding,
-            query_filter=search_filter,
-            limit=fetch_limit,
-            score_threshold=min_score,
+        """Semantic search for findings with optional reranking."""
+        return await self._search_collection(
+            "findings",
+            query,
+            limit,
+            min_score,
+            match={
+                "type": filter_type,
+                "project": filter_project,
+                "session_id": filter_session,
+            },
+            rerank=rerank,
+            rerank_top_n=rerank_top_n,
         )
-
-        findings = [
-            {
-                "finding_id": r.payload.get("finding_id"),
-                "content": r.payload.get("content"),
-                "type": r.payload.get("type"),
-                "session_id": r.payload.get("session_id"),
-                "project": r.payload.get("project"),
-                "confidence": r.payload.get("confidence"),
-                "score": r.score,
-            }
-            for r in results.points
-        ]
-
-        # Rerank if enabled and we have results (async to avoid blocking)
-        if rerank and findings:
-            rerank_n = rerank_top_n or limit
-            findings = await self.rerank_async(query, findings, top_n=rerank_n)
-
-        return findings[:limit]
 
     # --- Session Operations ---
 
@@ -686,45 +763,14 @@ class QdrantDB:
         rerank: bool = True,
     ) -> List[Dict[str, Any]]:
         """Semantic search for sessions with optional reranking."""
-        embedding = await self.embed_query_async(query)
-
-        conditions = []
-        if filter_project:
-            conditions.append(
-                FieldCondition(key="project", match=MatchValue(value=filter_project))
-            )
-
-        search_filter = Filter(must=conditions) if conditions else None
-
-        fetch_limit = limit * 3 if rerank else limit
-
-        results = await self.async_client.query_points(
-            collection_name="sessions",
-            query=embedding,
-            query_filter=search_filter,
-            limit=fetch_limit,
-            score_threshold=min_score,
+        return await self._search_collection(
+            "sessions",
+            query,
+            limit,
+            min_score,
+            match={"project": filter_project},
+            rerank=rerank,
         )
-
-        sessions = [
-            {
-                "session_id": r.payload.get("session_id"),
-                "topic": r.payload.get("topic"),
-                "project": r.payload.get("project"),
-                "status": r.payload.get("status"),
-                "finding_count": r.payload.get("finding_count"),
-                "content": r.payload.get("topic"),  # For reranking
-                "score": r.score,
-            }
-            for r in results.points
-        ]
-
-        if rerank and sessions:
-            sessions = await self.rerank_async(
-                query, sessions, top_n=limit, content_key="topic"
-            )
-
-        return sessions[:limit]
 
     # --- Pack Operations ---
 
@@ -798,49 +844,14 @@ class QdrantDB:
         rerank: bool = True,
     ) -> List[Dict[str, Any]]:
         """Semantic search for context packs with optional reranking."""
-        embedding = await self.embed_query_async(query)
-
-        conditions = []
-        if filter_type:
-            conditions.append(
-                FieldCondition(key="type", match=MatchValue(value=filter_type))
-            )
-        if filter_source:
-            conditions.append(
-                FieldCondition(key="source", match=MatchValue(value=filter_source))
-            )
-
-        search_filter = Filter(must=conditions) if conditions else None
-
-        fetch_limit = limit * 3 if rerank else limit
-
-        results = await self.async_client.query_points(
-            collection_name="packs",
-            query=embedding,
-            query_filter=search_filter,
-            limit=fetch_limit,
-            score_threshold=min_score,
+        return await self._search_collection(
+            "packs",
+            query,
+            limit,
+            min_score,
+            match={"type": filter_type, "source": filter_source},
+            rerank=rerank,
         )
-
-        packs = [
-            {
-                "pack_id": r.payload.get("pack_id"),
-                "name": r.payload.get("name"),
-                "type": r.payload.get("type"),
-                "source": r.payload.get("source"),
-                "tokens": r.payload.get("tokens"),
-                "content": r.payload.get("name", ""),  # For reranking
-                "score": r.score,
-            }
-            for r in results.points
-        ]
-
-        if rerank and packs:
-            packs = await self.rerank_async(
-                query, packs, top_n=limit, content_key="name"
-            )
-
-        return packs[:limit]
 
     # --- Paper Operations ---
 
@@ -934,53 +945,16 @@ class QdrantDB:
             filter_source: Filter by source (e.g., 'huggingface_daily_papers')
             rerank: Whether to rerank with Cohere
         """
-        embedding = await self.embed_query_async(query)
-
-        conditions = []
-        if min_relevance is not None:
-            conditions.append(
-                models.FieldCondition(
-                    key="relevance", range=models.Range(gte=min_relevance)
-                )
-            )
-        if filter_source:
-            conditions.append(
-                FieldCondition(key="source", match=MatchValue(value=filter_source))
-            )
-
-        search_filter = Filter(must=conditions) if conditions else None
-        fetch_limit = limit * 3 if rerank else limit
-
-        results = await self.async_client.query_points(
-            collection_name="papers",
-            query=embedding,
-            query_filter=search_filter,
-            limit=fetch_limit,
-            score_threshold=min_score,
+        return await self._search_collection(
+            "papers",
+            query,
+            limit,
+            min_score,
+            match={"source": filter_source},
+            ranges={"relevance": min_relevance},
+            rerank=rerank,
+            rerank_top_n=rerank_top_n,
         )
-
-        papers = [
-            {
-                "paper_id": r.payload.get("paper_id"),
-                "title": r.payload.get("title"),
-                "content": r.payload.get("content"),
-                "authors": r.payload.get("authors"),
-                "relevance": r.payload.get("relevance"),
-                "source": r.payload.get("source"),
-                "url": r.payload.get("url"),
-                "ai_keywords": r.payload.get("ai_keywords"),
-                "upvotes": r.payload.get("upvotes"),
-                "github_repo": r.payload.get("github_repo"),
-                "score": r.score,
-            }
-            for r in results.points
-        ]
-
-        if rerank and papers:
-            rerank_n = rerank_top_n or limit
-            papers = await self.rerank_async(query, papers, top_n=rerank_n)
-
-        return papers[:limit]
 
     # --- Session Outcome Operations ---
 
@@ -1068,57 +1042,16 @@ class QdrantDB:
             min_quality: Minimum quality score (1-5)
             rerank: Whether to rerank results using Cohere
         """
-        embedding = await self.embed_query_async(query)
-
-        # Build filter
-        conditions = []
-        if filter_outcome:
-            conditions.append(
-                FieldCondition(key="outcome", match=MatchValue(value=filter_outcome))
-            )
-        if min_quality:
-            conditions.append(
-                FieldCondition(key="quality", range=models.Range(gte=min_quality))
-            )
-
-        search_filter = Filter(must=conditions) if conditions else None
-
-        # Fetch more results for reranking
-        fetch_limit = limit * 3 if rerank else limit
-
-        results = await self.async_client.query_points(
-            collection_name="session_outcomes",
-            query=embedding,
-            query_filter=search_filter,
-            limit=fetch_limit,
-            score_threshold=min_score,
+        return await self._search_collection(
+            "session_outcomes",
+            query,
+            limit,
+            min_score,
+            match={"outcome": filter_outcome},
+            # `or None`: preserve historical truthiness semantics (0 = no filter)
+            ranges={"quality": min_quality or None},
+            rerank=rerank,
         )
-
-        outcomes = [
-            {
-                "outcome_id": r.payload.get("outcome_id"),
-                "session_id": r.payload.get("session_id"),
-                "intent": r.payload.get("intent"),
-                "outcome": r.payload.get("outcome"),
-                "quality": r.payload.get("quality"),
-                "model_efficiency": r.payload.get("model_efficiency"),
-                "models_used": r.payload.get("models_used"),
-                "date": r.payload.get("date"),
-                "messages": r.payload.get("messages"),
-                "tools": r.payload.get("tools"),
-                "content": r.payload.get("intent"),  # For reranking
-                "score": r.score,
-            }
-            for r in results.points
-        ]
-
-        # Rerank if enabled (async to avoid blocking)
-        if rerank and outcomes:
-            outcomes = await self.rerank_async(
-                query, outcomes, top_n=limit, content_key="intent"
-            )
-
-        return outcomes[:limit]
 
     # --- Cognitive State Operations ---
 
@@ -1187,30 +1120,10 @@ class QdrantDB:
     async def search_cognitive_states(
         self, query: str, limit: int = 10, min_score: float = 0.5
     ) -> List[Dict[str, Any]]:
-        """Semantic search for cognitive states."""
-        embedding = await self.embed_query_async(query)
-
-        results = await self.async_client.query_points(
-            collection_name="cognitive_states",
-            query=embedding,
-            limit=limit,
-            score_threshold=min_score,
+        """Semantic search for cognitive states (no reranking)."""
+        return await self._search_collection(
+            "cognitive_states", query, limit, min_score
         )
-
-        return [
-            {
-                "state_id": r.payload.get("state_id"),
-                "mode": r.payload.get("mode"),
-                "energy_level": r.payload.get("energy_level"),
-                "flow_score": r.payload.get("flow_score"),
-                "hour": r.payload.get("hour"),
-                "day": r.payload.get("day"),
-                "timestamp": r.payload.get("timestamp"),
-                "predictions": r.payload.get("predictions"),
-                "score": r.score,
-            }
-            for r in results.points
-        ]
 
     # --- Error Pattern Operations ---
 
@@ -1275,38 +1188,15 @@ class QdrantDB:
         min_score: float = 0.5,
         min_success_rate: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
-        """Semantic search for error patterns."""
-        embedding = await self.embed_query_async(query)
-
-        conditions = []
-        if min_success_rate:
-            conditions.append(
-                FieldCondition(
-                    key="success_rate", range=models.Range(gte=min_success_rate)
-                )
-            )
-
-        search_filter = Filter(must=conditions) if conditions else None
-
-        results = await self.async_client.query_points(
-            collection_name="error_patterns",
-            query=embedding,
-            query_filter=search_filter,
-            limit=limit,
-            score_threshold=min_score,
+        """Semantic search for error patterns (no reranking)."""
+        return await self._search_collection(
+            "error_patterns",
+            query,
+            limit,
+            min_score,
+            # `or None`: preserve historical truthiness semantics (0 = no filter)
+            ranges={"success_rate": min_success_rate or None},
         )
-
-        return [
-            {
-                "error_id": r.payload.get("error_id"),
-                "error_type": r.payload.get("error_type"),
-                "context": r.payload.get("context"),
-                "solution": r.payload.get("solution"),
-                "success_rate": r.payload.get("success_rate"),
-                "score": r.score,
-            }
-            for r in results.points
-        ]
 
     # --- Unified Search ---
 
@@ -1342,11 +1232,8 @@ class QdrantDB:
 
             # Rerank each collection (async to avoid blocking)
             if rerank and items:
-                content_key = {
-                    "findings": "content",
-                    "sessions": "topic",
-                    "papers": "content",
-                }.get(collection, "name")
+                spec = SEARCH_SPECS.get(collection)
+                content_key = spec.content_key if spec else "name"
                 items = await self.rerank_async(
                     query, items, top_n=limit, content_key=content_key
                 )
