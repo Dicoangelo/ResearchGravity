@@ -476,16 +476,29 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                 count += 1
         return count
 
-    async def search_findings(
+    async def _vec_search(
         self,
+        entity_type: str,
         query: str,
-        limit: int = 10,
-        min_score: float = 0.5,
-        filter_type: Optional[str] = None,
-        filter_project: Optional[str] = None,
+        limit: int,
+        min_score: float,
+        meta_filters: Optional[Dict[str, Any]] = None,
+        content_field: str = "content",
+        fetch_multiplier: int = 1,
+        include_relevance: bool = False,
+        like_fallback: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Search findings using vector similarity."""
+        """
+        Generic vector similarity search over one entity type.
+
+        Queries vec_{entity_type}s joined to vector_metadata, converts cosine
+        distance to similarity, applies min_score and post-hoc metadata
+        equality filters (non-None values only), and shapes results with the
+        entity's content field name. Optionally falls back to a LIKE scan
+        when the vector path yields nothing.
+        """
         query_embedding = await self.embed_query(query)
+        filters = {k: v for k, v in (meta_filters or {}).items() if v is not None}
 
         async with self.connection() as db:
             results = []
@@ -496,22 +509,22 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
 
                     vec_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
 
-                    # Vector similarity search
+                    # Vector similarity search (over-fetch when filtering post-hoc)
                     cursor = await db.execute(
-                        """
+                        f"""
                         SELECT
                             vm.entity_id,
                             vm.content,
                             vm.metadata,
-                            vec_distance_cosine(vf.embedding, ?) as distance
-                        FROM vec_findings vf
-                        JOIN vector_metadata vm ON vm.rowid = vf.rowid
-                        WHERE vm.entity_type = 'finding'
+                            vec_distance_cosine(v.embedding, ?) as distance
+                        FROM vec_{entity_type}s v
+                        JOIN vector_metadata vm ON vm.rowid = v.rowid
+                        WHERE vm.entity_type = '{entity_type}'
                         ORDER BY distance
                         LIMIT ?
                     """,
-                        (vec_blob, limit * 2),
-                    )  # Get more for filtering
+                        (vec_blob, limit * fetch_multiplier),
+                    )
 
                     rows = await cursor.fetchall()
 
@@ -522,35 +535,30 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
 
                         metadata = json.loads(row[2]) if row[2] else {}
 
-                        # Apply filters
-                        if filter_type and metadata.get("type") != filter_type:
-                            continue
-                        if filter_project and metadata.get("project") != filter_project:
+                        if any(metadata.get(k) != v for k, v in filters.items()):
                             continue
 
-                        results.append(
-                            {
-                                "id": row[0],
-                                "content": row[1],
-                                "score": score,
-                                "relevance_score": score,
-                                **metadata,
-                            }
-                        )
+                        item = {"id": row[0], content_field: row[1], "score": score}
+                        if include_relevance:
+                            item["relevance_score"] = score
+                        results.append({**item, **metadata})
 
                         if len(results) >= limit:
                             break
 
                 except Exception as e:
-                    logger.warning("Vector search failed", extra={"error": str(e)})
+                    logger.warning(
+                        "Vector search failed",
+                        extra={"entity_type": entity_type, "error": str(e)},
+                    )
 
             # Fallback to FTS if no vector results
-            if not results:
+            if not results and like_fallback:
                 cursor = await db.execute(
-                    """
+                    f"""
                     SELECT entity_id, content, metadata
                     FROM vector_metadata
-                    WHERE entity_type = 'finding'
+                    WHERE entity_type = '{entity_type}'
                     AND content LIKE ?
                     LIMIT ?
                 """,
@@ -563,13 +571,33 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
                     results.append(
                         {
                             "id": row[0],
-                            "content": row[1],
+                            content_field: row[1],
                             "score": 0.5,  # Default score for text match
                             **metadata,
                         }
                     )
 
             return results
+
+    async def search_findings(
+        self,
+        query: str,
+        limit: int = 10,
+        min_score: float = 0.5,
+        filter_type: Optional[str] = None,
+        filter_project: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search findings using vector similarity, with LIKE fallback."""
+        return await self._vec_search(
+            "finding",
+            query,
+            limit,
+            min_score,
+            meta_filters={"type": filter_type, "project": filter_project},
+            fetch_multiplier=2,  # Get more for filtering
+            include_relevance=True,
+            like_fallback=True,
+        )
 
     # --- Session Operations ---
 
@@ -637,52 +665,14 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         filter_project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search sessions using vector similarity."""
-        query_embedding = await self.embed_query(query)
-
-        async with self.connection() as db:
-            results = []
-
-            if query_embedding and SQLITE_VEC_AVAILABLE:
-                try:
-                    import struct
-
-                    vec_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
-
-                    cursor = await db.execute(
-                        """
-                        SELECT
-                            vm.entity_id,
-                            vm.content,
-                            vm.metadata,
-                            vec_distance_cosine(vs.embedding, ?) as distance
-                        FROM vec_sessions vs
-                        JOIN vector_metadata vm ON vm.rowid = vs.rowid
-                        WHERE vm.entity_type = 'session'
-                        ORDER BY distance
-                        LIMIT ?
-                    """,
-                        (vec_blob, limit),
-                    )
-
-                    rows = await cursor.fetchall()
-
-                    for row in rows:
-                        score = 1 - row[3]
-                        if score < min_score:
-                            continue
-
-                        metadata = json.loads(row[2]) if row[2] else {}
-                        if filter_project and metadata.get("project") != filter_project:
-                            continue
-
-                        results.append(
-                            {"id": row[0], "topic": row[1], "score": score, **metadata}
-                        )
-
-                except Exception as e:
-                    logger.warning("Session search failed", extra={"error": str(e)})
-
-            return results
+        return await self._vec_search(
+            "session",
+            query,
+            limit,
+            min_score,
+            meta_filters={"project": filter_project},
+            content_field="topic",
+        )
 
     # --- Pack Operations ---
 
@@ -749,59 +739,13 @@ CREATE INDEX IF NOT EXISTS idx_vec_meta_entity ON vector_metadata(entity_id);
         filter_source: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search packs using vector similarity."""
-        query_embedding = await self.embed_query(query)
-
-        async with self.connection() as db:
-            results = []
-
-            if query_embedding and SQLITE_VEC_AVAILABLE:
-                try:
-                    import struct
-
-                    vec_blob = struct.pack(f"{len(query_embedding)}f", *query_embedding)
-
-                    cursor = await db.execute(
-                        """
-                        SELECT
-                            vm.entity_id,
-                            vm.content,
-                            vm.metadata,
-                            vec_distance_cosine(vp.embedding, ?) as distance
-                        FROM vec_packs vp
-                        JOIN vector_metadata vm ON vm.rowid = vp.rowid
-                        WHERE vm.entity_type = 'pack'
-                        ORDER BY distance
-                        LIMIT ?
-                    """,
-                        (vec_blob, limit),
-                    )
-
-                    rows = await cursor.fetchall()
-
-                    for row in rows:
-                        score = 1 - row[3]
-                        if score < min_score:
-                            continue
-
-                        metadata = json.loads(row[2]) if row[2] else {}
-                        if filter_type and metadata.get("type") != filter_type:
-                            continue
-                        if filter_source and metadata.get("source") != filter_source:
-                            continue
-
-                        results.append(
-                            {
-                                "id": row[0],
-                                "content": row[1],
-                                "score": score,
-                                **metadata,
-                            }
-                        )
-
-                except Exception as e:
-                    logger.warning("Pack search failed", extra={"error": str(e)})
-
-            return results
+        return await self._vec_search(
+            "pack",
+            query,
+            limit,
+            min_score,
+            meta_filters={"type": filter_type, "source": filter_source},
+        )
 
     # --- Hybrid Search with Reranking ---
 
