@@ -77,6 +77,22 @@ class PrecisionConfig(CPBConfig):
     enable_learning: bool = True
     retry_on_low_dq: bool = True
 
+    # Consensus early exit — skip the MAR critic stage when the cascade agents
+    # already agree AND the answer is source-grounded.
+    #
+    # Defaults OFF deliberately. Agreement here is pairwise Jaccard over keyword
+    # sets (orchestrator._calculate_agreement), which runs far lower than a
+    # vote-share metric — orchestrator.py treats 0.7 as high and 0.5 as low on
+    # this scale. Until enough runs are logged to calibrate the threshold
+    # empirically, measurement runs but the gate does not.
+    #
+    # Agreement alone is weak evidence: 7 same-model agents share failure modes,
+    # so unanimity can mean correlated error rather than correctness. The
+    # grounding conjunct is load-bearing, not decorative.
+    enable_consensus_early_exit: bool = False
+    early_exit_agreement_threshold: float = 0.70
+    early_exit_requires_sources: bool = True
+
     # Engine configs
     rlm_config: RLMConfig = field(
         default_factory=lambda: RLMConfig(
