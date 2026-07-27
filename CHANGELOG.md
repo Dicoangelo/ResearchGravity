@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Wiring audit (`scripts/audit/wiring_audit.py`) — detects repo-local imports guarded by `try/except` that reference symbols which do not exist. Gates CI on new occurrences; known gaps tracked in an explicit baseline
+- MCP pipeline integration tests now run in CI (26 tests that previously executed nowhere)
+- Keyless YouTube scraper (`youtube_channel_keyless.py`) replacing the dead API-key path, plus a canonical `youtube.db` builder
+- Cascade agreement measurement in CPB precision mode, with an opt-in MAR early-exit gate (ships disabled pending threshold calibration)
+
+### Fixed
+- **ReACT synthesis silently ran 3 of its 4 tools.** `coherence_search` imported a `CoherenceDetector` that does not exist; the broad `except` reported "unavailable" and the run continued reporting 4 tool calls
+- **The 4Ds delegation gate never used an LLM.** `four_ds.py` imported a non-existent `LLMRequest`, forcing `HAS_LLM_CLIENT = False` on every run. The unreachable block held three further never-executed bugs: a sync `get_llm_client()` awaited, a `client.generate()` method that does not exist, and an `LLMResponse` treated as a `str`
+- `CaptureEngine.recent_events()` raised `TypeError` on every call — it slice-indexed a `deque`, which does not support slicing
+- `tests/test_mcp_raw.py` could not run standalone; its `sys.path.insert` pointed at `tests/` rather than the repo root
+- Phantom `CriticResult` import disabling `CRITIC_AVAILABLE` in pack building
+
+### Changed
+- CI can now fail. Both "Validate Research Framework" and "Metaventions Quality Gate" previously contained zero non-zero exit paths and reported SUCCESS unconditionally
+- Ruff split into a blocking error pass (`E9,F63,F7,F82`) and the existing advisory style pass
+- Python unified to 3.12 across both workflows (`research-ci.yml` had drifted to 3.11)
+- Dependency floors realigned to versions actually exercised, with upper major bounds; `anyio` declared as the direct dependency it is
+- Async test policy pinned explicitly in `pytest.ini` (`conftest.py` claimed "auto mode" while the suite ran strict)
+
+### Known
+- Oracle consensus has never run in `storage/ucw_ingestion.py` or `scripts/context-packs/build_packs.py`. `critic/oracle_adapter.py` is orphaned by a base-class refactor — it expects `BaseCritic`/`CriticResult`/`ValidationIssue` where `critic.base` now provides `CriticBase`/`ValidationResult`/`Issue`. Reconnecting it is a design decision; tracked in the wiring-audit baseline
+
 ## [2026-03-17]
 ### Added
 - Hardening — decay engine, adaptive ReACT refinement

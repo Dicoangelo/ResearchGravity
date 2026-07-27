@@ -12,7 +12,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Version-6.1.0-00d9ff?style=for-the-badge" alt="Version" />
-  <img src="https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
   <img src="https://img.shields.io/badge/Status-Production-success?style=for-the-badge" alt="Status" />
 </p>
@@ -535,7 +535,7 @@ python3 scripts/routing/routing-metrics.py cpb status
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.12 (what CI builds and tests against)
 - pip or pipenv
 
 ### Setup
