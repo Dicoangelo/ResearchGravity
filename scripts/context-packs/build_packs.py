@@ -24,9 +24,14 @@ AGENT_CORE = Path.home() / ".agent-core"
 PACK_DIR = AGENT_CORE / "context-packs"
 SESSIONS_DIR = AGENT_CORE / "sessions"
 
-# Import critic system for pack validation
+# Import critic system for pack validation.
+#
+# CriticResult was also imported here and is not defined anywhere in the codebase
+# — the critic package exports ValidationResult. It was never referenced in this
+# file either, so it contributed nothing but a guaranteed ImportError, which the
+# handler below turned into CRITIC_AVAILABLE = False.
 try:
-    from critic import PackCritic, run_oracle_consensus, CriticResult
+    from critic import PackCritic, run_oracle_consensus
 
     CRITIC_AVAILABLE = True
 except ImportError:

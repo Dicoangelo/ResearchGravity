@@ -40,3 +40,10 @@ jobs:
           pip install -r requirements.txt
       - name: Test
         run: pytest --ignore=tests/test_mcp.py
+
+      # Repo-local imports guarded by try/except that reference symbols which do
+      # not exist. The ImportError gets swallowed, the feature turns itself off,
+      # and nothing reports it. Gates on new occurrences; known gaps are tracked
+      # in the script's BASELINE.
+      - name: Wiring audit
+        run: python3 scripts/audit/wiring_audit.py --ci
