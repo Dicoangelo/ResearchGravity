@@ -171,6 +171,11 @@ def audit() -> List[Tuple[str, int, str, str, str]]:
         except (SyntaxError, UnicodeDecodeError):
             continue
 
+        # See guarded_repo_local(): walking each Try and then its subtree reaches
+        # an import inside a nested try once per enclosing block, so a single
+        # broken import would be reported two or more times.
+        seen_lines: Set[int] = set()
+
         for node in ast.walk(tree):
             if not isinstance(node, ast.Try):
                 continue
@@ -178,10 +183,13 @@ def audit() -> List[Tuple[str, int, str, str, str]]:
             for stmt in ast.walk(node):
                 if not isinstance(stmt, ast.ImportFrom) or not stmt.module:
                     continue
+                if stmt.lineno in seen_lines:
+                    continue
 
                 target = resolve(stmt.module, f, modules)
                 if target is None:
                     continue  # third-party or unresolvable — out of scope
+                seen_lines.add(stmt.lineno)
 
                 defined = module_defines(target)
                 if defined is None:
@@ -233,6 +241,72 @@ def key(path: str, module: str, symbol: str) -> str:
     return f"{path}::{module}::{symbol}"
 
 
+def guarded_repo_local() -> List[Tuple[str, int, str, str, int]]:
+    """
+    Every try/except-guarded repo-local import, whether or not the symbol exists.
+
+    The default audit answers "does the target define this symbol?". This answers
+    a broader question: "is this import guarded at all?" A repo-local import is
+    not an optional dependency — if it fails, the repo is broken and should say
+    so. Guarding one converts a loud failure into a feature that turns itself off.
+
+    Reported, never gated. As of 2026-07-30 all of these resolve, so gating would
+    mean grandfathering ~98 entries into BASELINE, and a baseline that large is
+    the check-that-cannot-fail antipattern this script exists to correct. Burn the
+    list down instead, then consider promoting it.
+    """
+    modules, _ = build_module_index()
+    out: List[Tuple[str, int, str, str, int]] = []
+
+    for f in python_files():
+        rel = f.relative_to(ROOT)
+        try:
+            tree = ast.parse(f.read_text(errors="ignore"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        # Deduplicated on (file, line). Walking every Try node and then walking
+        # its subtree double-counts any import inside a nested try — the same
+        # statement is reached once per enclosing block.
+        seen: Set[int] = set()
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Try):
+                continue
+            for stmt in ast.walk(node):
+                if not isinstance(stmt, ast.ImportFrom) or not stmt.module:
+                    continue
+                if stmt.lineno in seen:
+                    continue
+                if resolve(stmt.module, f, modules) is None:
+                    continue  # third-party — legitimately optional
+                seen.add(stmt.lineno)
+                names = ",".join(a.name for a in stmt.names)
+                out.append((str(rel), stmt.lineno, stmt.module, names,
+                            stmt.level or 0))
+
+    return sorted(out)
+
+
+def report_strict_local() -> None:
+    rows = guarded_repo_local()
+    relative = [r for r in rows if r[4] > 0]
+    absolute = [r for r in rows if r[4] == 0]
+
+    print(f"🔎 strict-local: {len(rows)} guarded repo-local import(s) "
+          f"— {len(absolute)} absolute, {len(relative)} relative\n")
+    print("Each one can turn its feature off silently. None of them currently")
+    print("fail; this is a prevention backlog, not a defect list.\n")
+
+    current = None
+    for path, lineno, module, names, level in rows:
+        if path != current:
+            print(f"  {path}")
+            current = path
+        dots = "." * level
+        print(f"      :{lineno:<5} from {dots}{module} import {names[:58]}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -240,7 +314,16 @@ def main() -> int:
         action="store_true",
         help="exit non-zero on findings outside the tracked baseline",
     )
+    parser.add_argument(
+        "--strict-local",
+        action="store_true",
+        help="list every guarded repo-local import (prevention backlog; never gates)",
+    )
     args = parser.parse_args()
+
+    if args.strict_local:
+        report_strict_local()
+        return 0
 
     findings = audit()
     new = [f for f in findings if key(f[0], f[2], f[3]) not in BASELINE]
