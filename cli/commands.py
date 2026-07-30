@@ -5,6 +5,7 @@ Handle all interactive commands for the ResearchGravity REPL.
 
 import json
 import re
+import sys
 import uuid
 import asyncio
 from datetime import datetime
@@ -495,12 +496,22 @@ class CommandHandler:
     async def cmd_predict(self, args: str) -> CommandResult:
         """Show session quality predictions."""
         try:
+            # intelligence.py lives in scripts/prediction/, a plain script
+            # directory rather than a package, so a bare `from intelligence
+            # import ...` never resolved — the except below reported "not
+            # available" on every invocation of this command.
+            _prediction_dir = (
+                Path(__file__).resolve().parent.parent / "scripts" / "prediction"
+            )
+            if str(_prediction_dir) not in sys.path:
+                sys.path.insert(0, str(_prediction_dir))
+
             from intelligence import predict_session_quality
 
             result = await predict_session_quality(args or "current task")
             return CommandResult(True, f"Prediction:\n{json.dumps(result, indent=2)}")
-        except ImportError:
-            return CommandResult(False, "Intelligence module not available.")
+        except ImportError as e:
+            return CommandResult(False, f"Intelligence module not available: {e}")
         except Exception as e:
             return CommandResult(False, f"Prediction failed: {e}")
 
