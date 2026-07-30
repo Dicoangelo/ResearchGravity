@@ -224,20 +224,9 @@ def audit() -> List[Tuple[str, int, str, str, str]]:
 # mechanical fix. The point of the baseline is that CI can gate on *new*
 # regressions today instead of waiting for the backlog to clear — a check that
 # cannot fail is the antipattern this audit exists to correct.
-BASELINE: Dict[str, str] = {
-    "storage/ucw_ingestion.py::critic::run_oracle_consensus": (
-        "critic/oracle_adapter.py defines run_oracle_consensus but cannot be "
-        "imported: it expects BaseCritic/CriticResult/ValidationIssue from "
-        "critic.base, which now provides CriticBase/ValidationResult/Issue. The "
-        "adapter is orphaned by that refactor. Reconnecting it means porting to "
-        "the current base API, or routing these callers to the working "
-        "critic.base.OracleConsensus — which takes exactly 3 critics, where "
-        "these callers pass 1. Needs a design decision."
-    ),
-    "scripts/context-packs/build_packs.py::critic::run_oracle_consensus": (
-        "Same orphaned critic/oracle_adapter.py as above."
-    ),
-}
+# Empty. Both entries were the orphaned critic/oracle_adapter.py; the design
+# decision they were waiting on has been made — see .graveyard/MANIFEST.md.
+BASELINE: Dict[str, str] = {}
 
 
 def key(path: str, module: str, symbol: str) -> str:
