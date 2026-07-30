@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "researchgravity"
+version = "0.1.0"
+description = "Research session tracking with auto-capture, lineage, and multi-tier source management"
+requires-python = ">=3.12"
+
+# Dependencies are deliberately NOT declared here. requirements.txt remains the
+# single source of truth and is installed separately (`pip install -r
+# requirements.txt`); it uses `-r cpb/requirements.txt`, which setuptools'
+# dynamic reader cannot parse anyway. Declaring them in both places would
+# guarantee drift — the same class of bug this file exists to close.
+#
+# This file's only job is to make the repo root importable, so that
+# `from storage.engine import ...` resolves from any script regardless of cwd.
+
+# Packages are listed explicitly rather than discovered.
+#
+# find_packages() would also sweep in the plain script directories under
+# scripts/, whose module names — intelligence, evidence_extractor,
+# auto_capture_v2, status — are generic enough to shadow real third-party
+# distributions on sys.path. Those directories are entry points, not a library,
+# and are deliberately excluded.
+[tool.setuptools]
+packages = [
+    "api",
+    "capture",
+    "cli",
+    "coherence_engine",
+    "cpb",
+    "critic",
+    "delegation",
+    "graph",
+    "mcp_raw",
+    "notebooklm_mcp",
+    "storage",
+    "visual",
+    "webhook",
+]

@@ -46,6 +46,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # Editable install puts the repo root on sys.path for every process,
+          # so scripts under scripts/ can import storage/, critic/, etc. from
+          # any cwd. Without it those imports resolve only when the interpreter
+          # happens to start at the repo root.
+          pip install -e . --no-deps
       - name: Test
         run: pytest --ignore=tests/test_mcp.py
 
