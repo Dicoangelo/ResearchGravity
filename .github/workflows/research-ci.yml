@@ -18,7 +18,9 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          # Matches ci.yml. These drifted (3.11 here, 3.12 there), so the two
+          # workflows were validating against different interpreters.
+          python-version: '3.12'
 
       - name: Validate Scripts
         run: |
@@ -60,41 +62,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Every check below now exits non-zero when it fails. Previously they
+      # printed "⚠️ Missing ..." and carried on, and the brand check only echoed
+      # on success — so this job reported SUCCESS unconditionally and could not
+      # detect the drift it exists to catch.
       - name: Check Documentation Standards
         run: |
           echo "📝 Checking documentation standards..."
+          missing=0
 
-          # Check SKILL.md has required sections
-          if grep -q "Cold Start Protocol" docs/SKILL.md; then
-            echo "✅ Cold Start Protocol documented"
-          else
-            echo "⚠️ Missing Cold Start Protocol"
-          fi
+          test -f docs/SKILL.md || { echo "❌ docs/SKILL.md missing"; exit 1; }
 
-          if grep -q "Source Hierarchy" docs/SKILL.md; then
-            echo "✅ Source Hierarchy documented"
-          else
-            echo "⚠️ Missing Source Hierarchy"
-          fi
+          for section in "Cold Start Protocol" "Source Hierarchy" "Quality Checklist"; do
+            if grep -q "$section" docs/SKILL.md; then
+              echo "✅ $section documented"
+            else
+              echo "❌ Missing $section"
+              missing=1
+            fi
+          done
 
-          if grep -q "Quality Checklist" docs/SKILL.md; then
-            echo "✅ Quality Checklist documented"
-          else
-            echo "⚠️ Missing Quality Checklist"
-          fi
-
+          [ "$missing" -eq 0 ] || { echo "Documentation standards not met"; exit 1; }
           echo "✅ Documentation standards verified"
 
       - name: Metaventions Brand Check
         run: |
           echo "🎨 Verifying Metaventions AI branding..."
+          missing=0
 
           if grep -q "Metaventions AI" README.md; then
             echo "✅ Brand present in README"
+          else
+            echo "❌ Brand missing from README"
+            missing=1
           fi
 
           if grep -q "dicoangelo@metaventionsai.com" docs/SKILL.md; then
             echo "✅ Contact info present"
+          else
+            echo "❌ Contact info missing from docs/SKILL.md"
+            missing=1
           fi
 
+          [ "$missing" -eq 0 ] || { echo "Brand verification failed"; exit 1; }
           echo "✅ Brand verification complete"

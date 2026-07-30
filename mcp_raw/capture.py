@@ -15,6 +15,7 @@ import json
 import time
 import uuid
 from collections import defaultdict, deque
+from itertools import islice
 from typing import Any, Dict, List, Optional
 
 from .logger import get_logger
@@ -220,4 +221,8 @@ class CaptureEngine:
         return self._stats.get("total", 0)
 
     def recent_events(self, limit: int = 20) -> List[Dict]:
-        return [e.to_dict() for e in self._events[-limit:]]
+        # _events is a deque, which does not support slice indexing —
+        # self._events[-limit:] raises TypeError. Walk the tail with islice
+        # instead of materialising the whole (up to 10k entry) deque.
+        start = max(0, len(self._events) - limit)
+        return [e.to_dict() for e in islice(self._events, start, None)]
