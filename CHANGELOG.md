@@ -26,8 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dependency floors realigned to versions actually exercised, with upper major bounds; `anyio` declared as the direct dependency it is
 - Async test policy pinned explicitly in `pytest.ini` (`conftest.py` claimed "auto mode" while the suite ran strict)
 
-### Known
-- Oracle consensus has never run in `storage/ucw_ingestion.py` or `scripts/context-packs/build_packs.py`. `critic/oracle_adapter.py` is orphaned by a base-class refactor — it expects `BaseCritic`/`CriticResult`/`ValidationIssue` where `critic.base` now provides `CriticBase`/`ValidationResult`/`Issue`. Reconnecting it is a design decision; tracked in the wiring-audit baseline
+### Resolved since
+- **Oracle consensus retired rather than reconnected.** `critic/oracle_adapter.py` was orphaned by a base-class refactor on three axes, only one of which was a rename: `validate` became async taking `target_id`, callers read a `notes` field that no longer exists, and `Issue` lost the `category` field the adapter's three-perspective split depends on. Restoring the split would have meant inventing a mapping over the 27 issue codes the critics emit, with no baseline to validate the weights — new design, not a recovered capability. Both callers now `await PackCritic.validate` directly, so pack validation runs for the first time. Adapter moved to `.graveyard/critic/` with recovery notes; the wiring-audit baseline is now empty
+- **The `sys.path` failure shape closed structurally.** Four further features were dead not from a renamed symbol but because scripts under `scripts/` cannot reach the repo root — `pyproject.toml` plus `pip install -e .` fixes that for every process, and the two bare-name imports into sibling script directories got explicit path inserts
 
 ## [2026-03-17]
 ### Added
