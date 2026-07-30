@@ -51,9 +51,14 @@ from .models import TaskProfile, DelegationEvent
 import time
 import uuid
 
-# Try to import LLM client for enhanced analysis
+# Try to import LLM client for enhanced analysis.
+#
+# This previously also imported LLMRequest, which cpb.llm_client does not define.
+# The ImportError was caught here and turned into HAS_LLM_CLIENT = False, so the
+# LLM-enhanced description gate was unreachable on every run and the 4Ds gates
+# silently fell back to heuristics permanently.
 try:
-    from cpb.llm_client import get_llm_client, LLMRequest
+    from cpb.llm_client import get_llm_client
 
     HAS_LLM_CLIENT = True
 except ImportError:
@@ -322,9 +327,10 @@ class FourDsGate:
 
     async def _llm_description_analysis(self, description: str) -> Tuple[float, str]:
         """LLM-based description quality analysis."""
-        client = await get_llm_client()
+        # get_llm_client() is synchronous; LLMClient.complete() is the async call.
+        client = get_llm_client()
 
-        request = LLMRequest(
+        response = await client.complete(
             system_prompt="""You are a task description quality analyzer.
 Score descriptions on specificity, completeness, and constraint clarity.
 Output JSON only: {"score": 0.0-1.0, "suggestions": "string"}""",
@@ -342,10 +348,8 @@ Return JSON: {{"score": 0.85, "suggestions": "suggestion text"}}""",
             model="haiku",
         )
 
-        response = await client.generate(request)
-
-        # Parse JSON from response
-        json_match = re.search(r"\{.*\}", response.strip(), re.DOTALL)
+        # complete() returns an LLMResponse, not a str.
+        json_match = re.search(r"\{.*\}", response.content.strip(), re.DOTALL)
         if json_match:
             data = json.loads(json_match.group(0))
             score = max(0.0, min(1.0, float(data.get("score", 0.5))))

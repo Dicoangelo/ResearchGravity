@@ -17,19 +17,24 @@ Usage:
 import argparse
 import json
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-# Import evidence layer components
-try:
-    from evidence_extractor import process_session as extract_evidence
-    from confidence_scorer import score_session
-    from evidence_validator import validate_session
+# The evidence layer lives in scripts/evidence/, a sibling script directory
+# rather than a package. Python puts only *this* file's directory on sys.path,
+# so these bare imports resolved nowhere and the try/except below pinned
+# EVIDENCE_LAYER_AVAILABLE to False on every run — silently, since nothing logs.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "evidence"))
 
-    EVIDENCE_LAYER_AVAILABLE = True
-except ImportError:
-    EVIDENCE_LAYER_AVAILABLE = False
+from evidence_extractor import process_session as extract_evidence  # noqa: E402
+from confidence_scorer import score_session  # noqa: E402
+from evidence_validator import validate_session  # noqa: E402
+
+# Kept so the two call sites below read unchanged. These imports are repo-local
+# and now unguarded: if they fail, that is a broken repo and it should say so.
+EVIDENCE_LAYER_AVAILABLE = True
 
 # Import critic system for Writer-Critic validation
 try:

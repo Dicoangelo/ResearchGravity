@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import asyncio
 import json
 import re
 from datetime import datetime, timedelta
@@ -24,13 +25,11 @@ AGENT_CORE = Path.home() / ".agent-core"
 PACK_DIR = AGENT_CORE / "context-packs"
 SESSIONS_DIR = AGENT_CORE / "sessions"
 
-# Import critic system for pack validation
-try:
-    from critic import PackCritic, run_oracle_consensus, CriticResult
-
-    CRITIC_AVAILABLE = True
-except ImportError:
-    CRITIC_AVAILABLE = False
+# PackCritic is repo-local, so this import is not guarded. It previously was,
+# around a `run_oracle_consensus` that critic/ has never exported — the
+# ImportError was swallowed into CRITIC_AVAILABLE = False and pack validation
+# silently never ran here.
+from critic import PackCritic
 
 
 class PackBuilder:
@@ -443,11 +442,6 @@ class PackBuilder:
         Returns:
             Validation result dict or None if critic unavailable
         """
-        if not CRITIC_AVAILABLE:
-            if verbose:
-                print("⚠ Critic system not available")
-            return None
-
         # Find pack file
         pack_file = None
         for pack_type in ["domain", "project", "pattern", "paper"]:
@@ -469,28 +463,33 @@ class PackBuilder:
                 print(f"❌ Invalid JSON in pack: {pack_id}")
             return None
 
-        # Run Oracle consensus validation
+        # Single-critic validation. The previous three-perspective "oracle
+        # consensus" split one critic's issues by Issue.category, a field the
+        # data model no longer has, so it could not be restored as written.
         critic = PackCritic()
-        consensus = run_oracle_consensus(
-            critic, {"pack": pack_data, "pack_id": pack_id}
+        validation = asyncio.run(critic.validate(pack_id, pack_data=pack_data))
+
+        issues = [issue.message for issue in validation.issues]
+        summary = (
+            f"{len(issues)} issue(s) found" if issues else "No issues found"
         )
 
         result = {
             "pack_id": pack_id,
-            "approved": consensus.approved,
-            "confidence": consensus.confidence,
-            "issues": consensus.issues,
-            "summary": consensus.summary,
+            "approved": validation.valid,
+            "confidence": validation.confidence,
+            "issues": issues,
+            "summary": summary,
         }
 
         if verbose:
-            status = "✅ APPROVED" if consensus.approved else "❌ NEEDS REVIEW"
+            status = "✅ APPROVED" if validation.valid else "❌ NEEDS REVIEW"
             print(f"\n{status}: {pack_id}")
-            print(f"   Confidence: {consensus.confidence:.2f}")
-            print(f"   Summary: {consensus.summary}")
-            if consensus.issues:
-                print(f"   Issues ({len(consensus.issues)}):")
-                for issue in consensus.issues[:5]:
+            print(f"   Confidence: {validation.confidence:.2f}")
+            print(f"   Summary: {summary}")
+            if issues:
+                print(f"   Issues ({len(issues)}):")
+                for issue in issues[:5]:
                     print(f"      → {issue}")
 
         # Save validation result
@@ -620,7 +619,7 @@ def main():
         )
 
         # Auto-validate unless skipped
-        if not args.skip_validation and pack_id and CRITIC_AVAILABLE:
+        if not args.skip_validation and pack_id:
             print("\n🔎 Running validation...")
             builder.validate_pack(pack_id, verbose=True)
 
@@ -634,7 +633,7 @@ def main():
         )
 
         # Auto-validate unless skipped
-        if not args.skip_validation and pack_id and CRITIC_AVAILABLE:
+        if not args.skip_validation and pack_id:
             print("\n🔎 Running validation...")
             builder.validate_pack(pack_id, verbose=True)
 
@@ -642,7 +641,7 @@ def main():
         pack_ids = builder.create_pack_from_learnings(cluster_by=args.cluster_by)
 
         # Auto-validate unless skipped
-        if not args.skip_validation and pack_ids and CRITIC_AVAILABLE:
+        if not args.skip_validation and pack_ids:
             print("\n🔎 Running validation on created packs...")
             for pack_id in pack_ids:
                 builder.validate_pack(pack_id, verbose=True)

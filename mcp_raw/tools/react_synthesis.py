@@ -200,38 +200,35 @@ async def _exec_knowledge_graph(query: str) -> str:
 
 
 async def _exec_coherence_search(query: str) -> str:
-    """Search coherence moments."""
+    """
+    Semantic coherence search, delegated to the real coherence tool.
+
+    This previously imported `CoherenceDetector` from coherence_engine.detector and
+    called `get_recent_moments()`. Neither exists — the module defines
+    SignatureDetector / SemanticDetector / SynchronicityDetector, and there is no
+    get_recent_moments anywhere in the codebase. The broad `except` below swallowed
+    the ImportError into "Coherence search unavailable", so every ReACT run silently
+    executed 3 of its 4 tools while still reporting 4 tool calls.
+    """
     try:
-        from coherence_engine.detector import CoherenceDetector
-        detector = CoherenceDetector()
-        moments = detector.get_recent_moments(limit=10)
+        from mcp_raw.tools import coherence_tools
 
-        if not moments:
-            return "No coherence moments detected yet."
+        result = await coherence_tools._coherence_search(
+            {"query": query, "limit": 10}
+        )
 
-        # Filter by relevance
-        query_lower = query.lower()
-        relevant = [
-            m for m in moments
-            if query_lower in json.dumps(m, default=str).lower()
-        ]
+        # coherence_tools returns MCP tool-result content; flatten to text.
+        blocks = result.get("content", []) if isinstance(result, dict) else []
+        text = "\n".join(
+            b.get("text", "") for b in blocks if isinstance(b, dict)
+        ).strip()
 
-        if not relevant:
-            output = f"No coherence moments matching '{query}'. Recent moments:\n\n"
-            for m in moments[:5]:
-                output += f"- {m.get('summary', m.get('theme', 'Unknown'))}\n"
-            return output
-
-        output = f"Found {len(relevant)} relevant coherence moments:\n\n"
-        for m in relevant[:5]:
-            output += (
-                f"### {m.get('theme', 'Unknown')}\n"
-                f"Summary: {m.get('summary', 'N/A')}\n"
-                f"Confidence: {m.get('confidence', 'N/A')}\n\n"
-            )
-        return output
+        if result.get("isError"):
+            return f"Coherence search error: {text or 'unknown error'}"
+        return text or f"No coherence moments matching '{query}'."
 
     except Exception as exc:
+        log.warning("coherence_search failed: %s", exc, exc_info=True)
         return f"Coherence search unavailable: {exc}"
 
 
