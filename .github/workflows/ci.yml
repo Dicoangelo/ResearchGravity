@@ -55,3 +55,10 @@ jobs:
       # tests never ran anywhere. It exits non-zero on failure, so it gates here.
       - name: MCP pipeline integration tests
         run: python3 tests/test_mcp_raw.py
+
+      # Repo-local imports guarded by try/except that reference symbols which do
+      # not exist. The ImportError gets swallowed, the feature turns itself off,
+      # and nothing reports it. Gates on new occurrences; known gaps are tracked
+      # in the script's BASELINE.
+      - name: Wiring audit
+        run: python3 scripts/audit/wiring_audit.py --ci
