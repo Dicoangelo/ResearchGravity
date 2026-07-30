@@ -57,6 +57,46 @@ def _get_executor():
     return _llm_executor
 
 
+def _calculate_agreement(responses: List[str]) -> float:
+    """Pairwise Jaccard similarity over response keyword sets (0-1).
+
+    Mirrors CPBOrchestrator._calculate_agreement so the precision path can
+    measure cascade agreement without coupling the two orchestrators. Note the
+    scale: keyword Jaccard runs well below a vote-share metric, so thresholds
+    from vote-based consensus systems do not transfer.
+    """
+    if len(responses) < 2:
+        return 1.0
+
+    stopwords = {
+        "this",
+        "that",
+        "with",
+        "from",
+        "they",
+        "have",
+        "will",
+        "would",
+        "could",
+        "should",
+    }
+
+    keyword_sets = [
+        {w for w in r.lower().split() if len(w) > 4 and w not in stopwords}
+        for r in responses
+    ]
+
+    similarities = []
+    for i in range(len(keyword_sets)):
+        for j in range(i + 1, len(keyword_sets)):
+            a, b = keyword_sets[i], keyword_sets[j]
+            union = a | b
+            if union:
+                similarities.append(len(a & b) / len(union))
+
+    return sum(similarities) / len(similarities) if similarities else 0.5
+
+
 # =============================================================================
 # PRECISION RESULT
 # =============================================================================
@@ -546,15 +586,38 @@ class PrecisionOrchestrator:
             )
             result.output = cascade_result.get("output", "")
             result.sources = cascade_result.get("sources", [])
+            cascade_agreement = cascade_result.get("agreement")
 
             # =================================================================
             # PHASE 4: MAR CONSENSUS (Multi-Agent Reflexion)
             # =================================================================
-            self._update_status("consensus", 50, "Running MAR consensus critique...")
-            mar_result = await self._execute_mar_consensus(
-                working_query, result.output, enriched_context, search_context
+            # MAR runs 3 critics unconditionally, including on unanimous output.
+            # Skip it when the agents already agree AND the answer is grounded.
+            # Grounding is required because agreement among same-model agents can
+            # reflect a shared failure mode rather than correctness.
+            cfg = self.config
+            skip_mar = (
+                cfg.enable_consensus_early_exit
+                and cascade_agreement is not None
+                and cascade_agreement >= cfg.early_exit_agreement_threshold
+                and (bool(result.sources) or not cfg.early_exit_requires_sources)
             )
-            result.output = mar_result.get("output", result.output)
+
+            if skip_mar:
+                self._update_status(
+                    "consensus",
+                    50,
+                    f"Skipping MAR — agents agree ({cascade_agreement:.2f}) "
+                    f"with {len(result.sources)} grounded sources",
+                )
+            else:
+                self._update_status(
+                    "consensus", 50, "Running MAR consensus critique..."
+                )
+                mar_result = await self._execute_mar_consensus(
+                    working_query, result.output, enriched_context, search_context
+                )
+                result.output = mar_result.get("output", result.output)
 
             # =================================================================
             # PHASE 5: VERIFICATION + TARGETED REFINEMENT (IMPROVE pattern)
@@ -878,9 +941,15 @@ class PrecisionOrchestrator:
             # Extract sources from search context
             sources = self._extract_sources_from_search(search_context)
 
+            # Measure cascade agreement. Always computed and reported, even when
+            # the early-exit gate is disabled, so the threshold can be calibrated
+            # against real runs before anything is skipped on it.
+            agreement = _calculate_agreement([ar.response for ar in agent_responses])
+
             return {
                 "output": synthesis.content,
                 "sources": sources,
+                "agreement": agreement,
                 "prompts": prompts,
                 "agent_count": len(prompts),
                 "agent_responses": [
