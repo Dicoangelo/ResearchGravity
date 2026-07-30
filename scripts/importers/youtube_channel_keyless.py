@@ -19,9 +19,11 @@ Usage:
 """
 import argparse
 import json
+import random
 import subprocess
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +31,85 @@ from pathlib import Path
 BASE = Path.home() / ".agent-core" / "research" / "youtube"
 YTDLP = ["yt-dlp", "--ignore-config", "--no-warnings"]
 _lock = threading.Lock()
+
+# Escalating backoff, matching the bar set by the API-based importer
+# (scripts/importers/youtube_channel.py). Eight workers with no throttle
+# handling is exactly what earns a 429.
+BACKOFF = [30, 60, 120, 240, 300]
+
+# Transient — worth retrying. Substring match against yt-dlp's stderr.
+TRANSIENT = (
+    "http error 429",
+    "http error 403",
+    "too many requests",
+    "sign in to confirm",
+    "temporary failure",
+    "connection reset",
+    "read timed out",
+    "unable to download webpage",
+    "the read operation timed out",
+)
+
+# Permanent — the video is genuinely gone or gated. Retrying wastes the budget
+# and, worse, makes a throttled run look like a run full of dead videos.
+PERMANENT = (
+    "video unavailable",
+    "private video",
+    "has been removed",
+    "members-only",
+    "this live event has ended",
+    "account associated with this video has been terminated",
+)
+
+
+def classify(stderr: str) -> str:
+    """transient | permanent | unknown — decides whether a retry is worth it."""
+    s = (stderr or "").lower()
+    if any(p in s for p in PERMANENT):
+        return "permanent"
+    if any(t in s for t in TRANSIENT):
+        return "transient"
+    return "unknown"
+
+
+def run_ytdlp(args, what, attempts=None):
+    """
+    Run yt-dlp, retrying transient failures with escalating backoff.
+
+    Returns (stdout, None) on success, (None, reason) on give-up. The reason is
+    load-bearing: the caller must be able to tell "this video is private" from
+    "we got throttled", because those mean opposite things about whether the
+    resulting dataset is complete.
+    """
+    # Late-bound: one initial try plus one per backoff step. Computed here
+    # rather than as a default argument so it tracks BACKOFF if that is tuned.
+    if attempts is None:
+        attempts = len(BACKOFF) + 1
+
+    last = "unknown"
+    for attempt in range(attempts):
+        r = subprocess.run(YTDLP + args, capture_output=True, text=True)
+        if r.returncode == 0:
+            return r.stdout, None
+
+        kind = classify(r.stderr)
+        last = f"{kind}: {(r.stderr or '').strip()[:200]}"
+        if kind == "permanent":
+            return None, last
+        if attempt == attempts - 1:
+            break
+
+        # Jitter so parallel workers do not resynchronise into a second storm.
+        delay = BACKOFF[min(attempt, len(BACKOFF) - 1)] * (0.75 + random.random() * 0.5)
+        with _lock:
+            print(
+                f"[retry] {what}: {kind}, sleeping {delay:.0f}s "
+                f"(attempt {attempt + 1}/{attempts})",
+                file=sys.stderr, flush=True,
+            )
+        time.sleep(delay)
+
+    return None, last
 
 
 def fmt_duration(sec):
@@ -48,15 +129,18 @@ def fmt_date(ud):
 # ---------- Phase A ----------
 def phase_a(handle, outdir, limit=None):
     url = f"https://www.youtube.com/@{handle}/videos"
-    cmd = YTDLP + ["--flat-playlist", "-J"]
+    cmd = ["--flat-playlist", "-J"]
     if limit:
         cmd += ["--playlist-end", str(limit)]
     cmd += [url]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode != 0:
-        print(f"ERROR flat playlist: {r.stderr[:400]}", file=sys.stderr)
+    out, err = run_ytdlp(cmd, f"flat playlist @{handle}")
+    if out is None:
+        # Exiting here is correct — without the index there is nothing to
+        # resume from, so a partial run is not possible. But only after the
+        # backoff ladder has been exhausted, not on the first 403.
+        print(f"ERROR flat playlist: {err}", file=sys.stderr)
         sys.exit(1)
-    d = json.loads(r.stdout)
+    d = json.loads(out)
     entries = [e for e in d.get("entries", []) if e.get("id")]
     index = {
         "channel": {
@@ -101,15 +185,17 @@ def load_done(jsonl):
 
 
 def fetch_one(vid):
-    r = subprocess.run(
-        YTDLP + ["-J", "--skip-download", f"https://www.youtube.com/watch?v={vid}"],
-        capture_output=True, text=True)
-    if r.returncode != 0:
-        return None
+    """Returns (record, None) or (None, reason)."""
+    out, err = run_ytdlp(
+        ["-J", "--skip-download", f"https://www.youtube.com/watch?v={vid}"],
+        f"video {vid}",
+    )
+    if out is None:
+        return None, err
     try:
-        v = json.loads(r.stdout)
+        v = json.loads(out)
     except json.JSONDecodeError:
-        return None
+        return None, "unknown: malformed JSON from yt-dlp"
     return {
         "id": vid,
         "title": v.get("title", ""),
@@ -123,7 +209,7 @@ def fetch_one(vid):
         "categories": v.get("categories") or [],
         "tags": (v.get("tags") or [])[:25],
         "description": v.get("description", "") or "",
-    }
+    }, None
 
 
 def phase_b(outdir, index, workers=8, limit=None):
@@ -137,26 +223,62 @@ def phase_b(outdir, index, workers=8, limit=None):
         return
 
     fh = jsonl.open("a", encoding="utf-8")
-    counter = {"n": 0, "fail": 0}
+    # Which ids failed, and why. Without this, a throttled run and a run over a
+    # channel full of private videos produce the same output — an incomplete
+    # meta.jsonl that phase C assembles into a dataset looking complete.
+    failures = {}
+    counter = {"n": 0}
 
     def work(vid):
-        rec = fetch_one(vid)
+        rec, reason = fetch_one(vid)
         with _lock:
             if rec:
                 fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 fh.flush()          # checkpoint on every single record
-                counter["n"] += 1
             else:
-                counter["fail"] += 1
-            tot = counter["n"] + counter["fail"]
-            if tot % 20 == 0:
-                print(f"[B] {tot}/{len(todo)} ok={counter['n']} fail={counter['fail']}",
-                      flush=True)
+                failures[vid] = reason
+            counter["n"] += 1
+            if counter["n"] % 20 == 0:
+                print(
+                    f"[B] {counter['n']}/{len(todo)} "
+                    f"ok={counter['n'] - len(failures)} fail={len(failures)}",
+                    flush=True,
+                )
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         list(ex.map(work, todo))
     fh.close()
-    print(f"[B] complete ok={counter['n']} fail={counter['fail']}", flush=True)
+
+    ok = len(todo) - len(failures)
+    transient = {v: r for v, r in failures.items() if r and r.startswith("transient")}
+    unknown = {v: r for v, r in failures.items() if r and r.startswith("unknown")}
+    permanent = {v: r for v, r in failures.items() if r and r.startswith("permanent")}
+
+    if failures:
+        (outdir / "failures.json").write_text(
+            json.dumps(failures, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    print(
+        f"[B] complete ok={ok} failed={len(failures)} "
+        f"(permanent={len(permanent)} transient={len(transient)} "
+        f"unknown={len(unknown)})",
+        flush=True,
+    )
+
+    # Transient failures survived the full backoff ladder, which means the
+    # dataset is incomplete for a reason that will not fix itself by assembling
+    # it. Say so loudly and exit non-zero — a partial dataset that reports
+    # success is the failure mode this whole scraper is trying to avoid.
+    if transient or unknown:
+        print(
+            f"[B] INCOMPLETE — {len(transient) + len(unknown)} video(s) failed for "
+            f"non-permanent reasons after {len(BACKOFF)} retries. Ids and reasons in "
+            f"{outdir / 'failures.json'}. Re-run to resume; already-fetched videos "
+            f"are skipped.",
+            file=sys.stderr, flush=True,
+        )
+        return False
+    return True
 
 
 # ---------- Phase C ----------
@@ -213,10 +335,18 @@ def main():
     else:
         index = json.loads(idx_path.read_text())
 
+    complete = True
     if a.phase in ("B", "all"):
-        phase_b(outdir, index, a.workers, a.limit)
+        complete = phase_b(outdir, index, a.workers, a.limit)
+
+    # Phase C still runs on an incomplete fetch — a partial dataset is useful,
+    # and re-running resumes. But the exit code must not claim success, or a
+    # throttled run looks identical to a clean one to anything downstream.
     if a.phase in ("C", "all"):
         phase_c(outdir, index)
+
+    if not complete:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
