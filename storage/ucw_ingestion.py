@@ -109,22 +109,22 @@ class UCWIngestionPipeline:
         """Initialize the pipeline."""
         self.engine = await get_engine()
 
-        # Try to load validator
-        try:
-            from critic import PackCritic, run_oracle_consensus
+        # PackCritic is repo-local, so this import is not guarded. It previously
+        # was, around a `run_oracle_consensus` that critic/ has never exported —
+        # the ImportError was swallowed and pack validation silently never ran.
+        from critic import PackCritic
 
-            async def validate_pack(pack: Dict[str, Any]) -> Dict[str, Any]:
-                critic = PackCritic()
-                result = run_oracle_consensus(critic, {"pack": pack})
-                return {
-                    "approved": result.approved,
-                    "confidence": result.confidence,
-                    "notes": result.notes,
-                }
+        critic = PackCritic()
 
-            self._validator = validate_pack
-        except ImportError:
-            self._validator = None
+        async def validate_pack(pack: Dict[str, Any]) -> Dict[str, Any]:
+            result = await critic.validate(pack["id"], pack_data=pack)
+            return {
+                "approved": result.valid,
+                "confidence": result.confidence,
+                "notes": [issue.message for issue in result.issues],
+            }
+
+        self._validator = validate_pack
 
     def _generate_pack_id(self, pack: Dict[str, Any], source: str) -> str:
         """Generate deterministic ID for a pack."""
