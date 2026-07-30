@@ -71,3 +71,6 @@ visual_assets/
 CLAUDE.md
 .claude/
 grounding_ledger.jsonl
+
+# Editable-install build metadata
+*.egg-info/

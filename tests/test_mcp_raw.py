@@ -22,8 +22,8 @@ import sys
 import time
 from pathlib import Path
 
-# Ensure mcp_raw is importable
-sys.path.insert(0, str(Path(__file__).parent))
+# Ensure mcp_raw is importable — repo root, not tests/
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from mcp_raw.config import Config
 from mcp_raw.protocol import (

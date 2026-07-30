@@ -1,25 +1,30 @@
 # CPB Core Dependencies
 # ====================
+#
+# See the note in the root requirements.txt — floors reflect what is actually
+# exercised, upper bounds stop silent major bumps.
 
 # Async HTTP client (required for Perplexity, deep research)
-aiohttp>=3.8.0
+aiohttp>=3.14.0,<4.0.0
 
 # Google AI SDK (required for Gemini deep research)
-google-genai>=1.0.0
+google-genai>=1.62.0,<2.0.0
 
 # Anthropic SDK (optional - for LLM client)
-anthropic>=0.18.0
+anthropic>=0.77.0,<1.0.0
 
 # Testing Dependencies
 # ====================
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
+pytest>=8.0.0,<10.0.0
+pytest-asyncio>=1.0.0,<2.0.0
 
 # Optional Dependencies
 # ====================
 
 # arXiv search (for tiered search layer)
-arxiv>=1.4.0
+arxiv>=2.0.0,<5.0.0
 
 # Cohere embeddings (for internal search)
-cohere>=4.0.0
+# Was >=4.0.0 here while the root requirements.txt declared >=5.0.0. pip resolved
+# to the intersection (>=5.0.0), so this floor was never what actually installed.
+cohere>=5.0.0,<6.0.0
