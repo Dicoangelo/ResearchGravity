@@ -21,7 +21,7 @@ from typing import Optional
 import asyncpg
 
 from . import config as cfg
-from .embeddings import embed_event_row, event_to_text
+from .embeddings import embed_event_row, event_to_text, store_embeddings
 from .similarity import SimilarityIndex
 from .scorer import CoherenceScorer
 from .alerts import AlertSystem
@@ -211,11 +211,14 @@ class CoherenceDaemon:
         limit = 10000 if all_unscored else 100
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
+                # No join against embedding_cache: this loop is what *creates*
+                # the embeddings. Gating on their prior existence made the
+                # result set empty by construction for every event that did not
+                # arrive through the extension capture endpoint.
                 """SELECT ce.event_id, ce.session_id, ce.timestamp_ns,
                           ce.platform, ce.data_layer, ce.light_layer,
                           ce.instinct_layer, ce.coherence_sig
                    FROM cognitive_events ce
-                   JOIN embedding_cache ec ON ec.source_event_id = ce.event_id
                    WHERE ce.coherence_scanned_at IS NULL
                    ORDER BY ce.timestamp_ns ASC
                    LIMIT $1""",
@@ -258,8 +261,17 @@ class CoherenceDaemon:
 
         # Build embedding lookup
         embedding_map = {}
+        to_store = []
         for idx, emb in zip(valid_indices, batch_embeddings):
-            embedding_map[events[idx]["event_id"]] = emb
+            eid = events[idx]["event_id"]
+            embedding_map[eid] = emb
+            to_store.append((eid, texts[idx], emb))
+
+        # Persist before scoring. SimilarityIndex reads embedding_cache, so an
+        # event that is not stored can never be matched by a later one.
+        if to_store:
+            stored = await store_embeddings(self._pool, to_store)
+            log.info(f"Persisted {stored}/{len(to_store)} embeddings")
 
         # Process each event through similarity + scoring
         processed = 0
