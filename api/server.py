@@ -379,7 +379,7 @@ def get_evidenced_findings(session_id: str) -> list:
 if FASTAPI_AVAILABLE:
 
     @app.get("/")
-    async def root() -> Dict[str, str]:
+    async def root() -> Dict[str, Any]:
         """API root - health check."""
         return {
             "service": "Agent Core API",
