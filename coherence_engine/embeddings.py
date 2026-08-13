@@ -173,6 +173,57 @@ async def batch_embed_events(
     return stored
 
 
+async def store_embeddings(
+    pool,
+    items: List[tuple],
+) -> int:
+    """
+    Persist a batch of already-computed embeddings.
+
+    `items` is a list of (event_id, text, embedding) tuples.
+
+    The daemon embeds events in its poll loop; without this the vectors stay in
+    process memory and are discarded. SimilarityIndex searches embedding_cache,
+    so an unpersisted event can never be found as a neighbour of a later one —
+    which is the entire cross-platform coherence mechanism.
+
+    Returns the number of rows stored.
+    """
+    if not pool or not items:
+        return 0
+
+    stored = 0
+    async with pool.acquire() as conn:
+        for eid, text, emb in items:
+            try:
+                ch = content_hash(text)
+                vec_str = "[" + ",".join(str(x) for x in emb) + "]"
+                await conn.execute(
+                    f"""INSERT INTO embedding_cache
+                       (content_hash, content_preview, {_embedding_column}, model, dimensions,
+                        source_event_id, content_tsv)
+                       VALUES ($1, $2, $3::vector, $4, $5, $6,
+                               to_tsvector('english', $7))
+                       ON CONFLICT (content_hash) DO UPDATE SET
+                           {_embedding_column} = $3::vector,
+                           model = $4,
+                           dimensions = $5,
+                           content_tsv = to_tsvector('english', $7)""",
+                    ch,
+                    text[:200],
+                    vec_str,
+                    _model_name,
+                    _dimensions,
+                    eid,
+                    text,
+                )
+                stored += 1
+            except Exception as e:
+                log.error(f"Store error for {eid}: {e}")
+
+    return stored
+
+
 async def _store_embedding(
     pool,
     ch: str,
