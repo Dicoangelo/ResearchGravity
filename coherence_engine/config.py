@@ -69,7 +69,22 @@ SYNC_WEIGHTS = {
 # NOTE: Terms that appear in nearly ALL UCW events (ucw, cognitive, meta,
 # sovereign) were removed — they inflated every score. Only keep terms
 # that genuinely signal emergence/breakthrough.
+# Vocabulary for the meta_cognitive signal (weight 0.25 in SYNC_WEIGHTS).
+#
+# The domain terms below were dropped in d9aa778, a commit whose stated purpose
+# was the realtime/embedding upgrade. That silently zeroed the signal for this
+# corpus: it is written in exactly this vocabulary ("the universal cognitive
+# wallet", "the meta-engine", "coherence"), and none of those words survived
+# the edit. Every sampled synchronicity pair scores meta_cognitive = 0.0 today
+# against a stored value of 1.0 in February.
+#
+# Restoring them recovers 0.3-0.7 of the signal — not the full 1.0, because the
+# embedding space and preview text also changed in the same period. Partial
+# recovery of a signal that is currently a hard zero is still the right move.
+#
+# If you narrow this set again, re-measure synchronicity detection first.
 META_COGNITIVE_TERMS = {
+    # Generic meta-cognitive vocabulary
     "emergence",
     "consciousness",
     "synchronicity",
@@ -78,6 +93,15 @@ META_COGNITIVE_TERMS = {
     "epiphany",
     "insight",
     "revelation",
+    # Domain vocabulary this corpus actually uses (restored from c977997)
+    "coherence",
+    "cognitive",
+    "unify",
+    "sovereign",
+    "ucw",
+    "wallet",
+    "alignment",
+    "meta",
 }
 
 # ── Content noise filters ───────────────────────────────
