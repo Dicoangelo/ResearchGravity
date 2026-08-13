@@ -214,11 +214,19 @@ class SynchronicityDetector:
         return 1.0 - (gap_s / window_s)
 
     def _semantic_score(self, similarity: float) -> float:
-        """Normalize semantic similarity to 0-1 for scoring."""
+        """Normalize semantic similarity to 0-1 for scoring.
+
+        The piecewise ramp is not continuous at 0.95: the band just below it
+        evaluates to 0.8 + 0.15*2 = 1.10, then drops back to 1.0. That
+        over-unity output is what let synchronicity clear its threshold under
+        the old MiniLM embeddings (stored signals show semantic = 1.097), so it
+        is clamped rather than silently returning >1 from a function documented
+        as 0-1. Carries weight 0.00 today — see SYNC_WEIGHTS.
+        """
         if similarity >= 0.95:
             return 1.0
         if similarity >= cfg.SEMANTIC_THRESHOLD:
-            return 0.8 + (similarity - cfg.SEMANTIC_THRESHOLD) * 2
+            return min(1.0, 0.8 + (similarity - cfg.SEMANTIC_THRESHOLD) * 2)
         if similarity >= cfg.SEMANTIC_MEDIUM_THRESHOLD:
             return 0.5 + (similarity - cfg.SEMANTIC_MEDIUM_THRESHOLD) * 3
         return max(0.0, similarity - 0.5) * 2

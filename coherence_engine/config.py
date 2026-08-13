@@ -57,12 +57,43 @@ TIME_WINDOWS = [
 ]
 
 # ── Synchronicity signal weights ──────────────────────────
+# Recalibrated 2026-08-13 for the nomic-embed-text-v1.5 space. The previous
+# weights were tuned against all-MiniLM-L6-v2 and stopped working when the
+# embeddings were migrated to 768d without re-benchmarking detection; every one
+# of the 29 historical synchronicity moments scored 0.834 then and 0.634 now,
+# and 0/29 cleared the threshold.
+#
+# Measured on those 29 known-good pairs vs 3,111 real candidate pairs drawn from
+# the population the detector actually sees (cross-family, in-window, cosine
+# >= SEMANTIC_MEDIUM_THRESHOLD):
+#
+#   signal              pos.med  neg.med  separation
+#   concept_overlap       1.000    0.000      +1.000
+#   meta_cognitive        0.700    0.000      +0.700
+#   instinct_alignment    0.690    0.540      +0.150
+#   semantic              0.629    0.664      -0.035   <- anti-correlated
+#   temporal              0.000    0.000      +0.000   <- always 0 in practice
+#
+# `semantic` is not merely weak, it is *inverted*: candidates are already gated
+# at cosine >= SEMANTIC_MEDIUM_THRESHOLD upstream in
+# temporal._find_similar_in_window, so re-scoring cosine inside the composite
+# double-counts a precondition that no longer varies within the filtered pool.
+# `temporal` is structurally 0 because _temporal_score decays over the fixed
+# 30-minute TIME_WINDOW_MINUTES while synchronicity only ever fires in the
+# block/daily/weekly windows (4h-7d) — every pair is past the decay floor. Both
+# are kept in the signals dict for diagnostics (stored per-moment metadata is
+# how this regression was diagnosed at all) but carry no weight.
+#
+# At these weights, on the existing SYNCHRONICITY_THRESHOLD / MIN_ALERT_CONFIDENCE:
+#   recall 26/29 (90%), false positives 0/3111 (0.00%), pos median 0.850.
+#
+# If you re-tune, re-run the measurement — do not adjust these by intuition.
 SYNC_WEIGHTS = {
-    "temporal": 0.15,
-    "semantic": 0.30,
-    "meta_cognitive": 0.25,
-    "instinct_alignment": 0.15,
-    "concept_overlap": 0.15,
+    "temporal": 0.00,
+    "semantic": 0.00,
+    "meta_cognitive": 0.50,
+    "instinct_alignment": 0.00,
+    "concept_overlap": 0.50,
 }
 
 # ── Meta-cognitive keywords ───────────────────────────────

@@ -97,7 +97,14 @@ class CoherenceScorer:
 
         # Layer 3: Synchronicity (on high-similarity cross-platform matches)
         families = cfg.PLATFORM_FAMILIES
-        event_family = families.get(event_row.get("platform", ""), "")
+        # Default to the platform name, not "" — an unmapped platform is its own
+        # family. The "" default made the lookup asymmetric with the candidate
+        # side below (and with SemanticDetector, which already does this), so an
+        # unmapped platform compared as "" in one direction and by name in the
+        # other.
+        event_family = families.get(
+            event_row.get("platform", ""), event_row.get("platform", "")
+        )
         for sr in similar_results:
             if sr.platform == event_row.get("platform", ""):
                 continue
