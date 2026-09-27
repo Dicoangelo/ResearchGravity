@@ -526,7 +526,7 @@ python3 scripts/routing/routing-metrics.py cpb status
 ### Research Foundation
 
 - **arXiv:2512.24601** (RLM) - Recursive context externalization
-- **arXiv:2511.15755** (DQ) - Decisional quality measurement
+- **arXiv:2511.15755** (DQ) - Decisional quality measurement (since withdrawn by its author; V+S+C formula adapted)
 - **arXiv:2508.17536** - Voting vs Debate consensus strategies
 
 ---

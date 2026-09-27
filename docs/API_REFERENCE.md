@@ -1082,7 +1082,7 @@ for pack_id, weight in top:
     "papers": [
       {
         "arxiv_id": "2511.15755",
-        "title": "MyAntFarm.ai: Multi-Agent Consensus",
+        "title": "MyAntFarm.ai: Multi-Agent Consensus (since withdrawn by its author)",
         "relevance": "high"
       }
     ],
