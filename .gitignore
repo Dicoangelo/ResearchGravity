@@ -74,3 +74,6 @@ grounding_ledger.jsonl
 
 # Editable-install build metadata
 *.egg-info/
+
+# BASIX local receipts, calibration artifacts and dedicated databases
+basix-local/

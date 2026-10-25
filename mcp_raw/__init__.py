@@ -1,14 +1,29 @@
 """
-UCW Raw MCP Server — Sovereign Cognitive Capture Infrastructure
+UCW Raw MCP Server — Sovereign Cognitive Capture Infrastructure.
 
-No SDK. Full protocol control. Every byte captured.
+Public classes are loaded on demand. Importing the protocol or configuration
+alone must not initialize capture dependencies or open personal log files.
 """
 
 __version__ = "1.0.0"
 
-from .server import RawMCPServer
-from .capture import CaptureEngine, CaptureEvent
-from .db import CaptureDB
-from .database import CognitiveDatabase
-from .router import Router
-from .config import Config
+_EXPORTS = {
+    "RawMCPServer": "server",
+    "CaptureEngine": "capture",
+    "CaptureEvent": "capture",
+    "CaptureDB": "db",
+    "CognitiveDatabase": "database",
+    "Router": "router",
+    "Config": "config",
+}
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name):
+    from importlib import import_module
+
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(f".{_EXPORTS[name]}", __name__), name)
+    globals()[name] = value
+    return value

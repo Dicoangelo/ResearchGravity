@@ -1,0 +1,78 @@
+{
+  "workload": {
+    "id": "local-upscale-pilot",
+    "task": "image_upscale",
+    "name": "Upscale one calibration image 4x",
+    "max_cost_usd": 1,
+    "deadline_seconds": 30,
+    "cloud_upload_allowed": false,
+    "allowed_regions": [],
+    "input": {
+      "width": 64,
+      "height": 64,
+      "count": 1,
+      "scale": 4
+    }
+  },
+  "offers": [
+    {
+      "id": "local-upscayl",
+      "name": "Local Upscayl",
+      "provider": "Sovereign Media",
+      "task": "image_upscale",
+      "region": "local",
+      "data_leaves_device": false,
+      "availability": "available",
+      "estimated_seconds": 0.97,
+      "estimated_cost_usd": 0,
+      "measurement_scope": {
+        "width": 64,
+        "height": 64,
+        "count": 1,
+        "scale": 4
+      },
+      "evidence_ids": [
+        "local-upscale-measurement"
+      ],
+      "notes": "Single calibration run. Runtime varies by image content. Incremental provider charge is zero; energy and hardware cost are excluded. Output quality has not been scored."
+    },
+    {
+      "id": "runpod-historical",
+      "name": "RunPod GPU lane",
+      "provider": "RunPod",
+      "task": "image_upscale",
+      "region": null,
+      "data_leaves_device": true,
+      "availability": "unknown",
+      "estimated_seconds": null,
+      "estimated_cost_usd": null,
+      "measurement_scope": null,
+      "evidence_ids": [
+        "historical-runpod"
+      ],
+      "notes": "Historical lane only. Current capacity, region, all-in cost, and this workload's performance have not been measured. Cloud executor disabled."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "local-upscale-measurement",
+      "title": "Observed local 64x64 image upscale",
+      "uri": "urn:basix:artifact:sample-256.png",
+      "captured_at": "2026-10-25T20:52:40.649217+00:00",
+      "valid_until": "2026-10-26T20:52:40.649217+00:00",
+      "kind": "local_measurement",
+      "content": "{\"cost_scope\": \"Incremental provider charge only; energy/depreciation not measured\", \"count\": 1, \"engine\": \"Real-ESRGAN / Upscayl upscayl-lite-4x\", \"input_dimensions\": [64, 64], \"input_sha256\": \"e7df7d39b7e05b5da135cfcdd6a15009e128088a823610ef6641c4e4ac8db6a0\", \"output_dimensions\": [256, 256], \"output_sha256\": \"5808be32daa94fb2c0a9cd93ebdb0affcb5927fea0ce3f3e33ae7527e12b0c75\", \"provider_charge_usd\": 0, \"scale\": 4, \"validation\": \"PNG signature and 4x dimensions only; perceptual quality and repeatability untested\", \"wall_seconds\": 0.97}",
+      "sha256": "df0fc0ccfb5644aefe8b7eda7f33a020dc07d77bbfe64764f80ffc059c60a412"
+    },
+    {
+      "id": "historical-runpod",
+      "title": "Archived Sovereign Media GPU observation",
+      "uri": "urn:basix:source:sovereign-media:README.md:ac2971b",
+      "captured_at": "2026-07-12T12:00:00+00:00",
+      "valid_until": "2026-07-13T12:00:00+00:00",
+      "kind": "historical_record",
+      "content": "Sovereign Media README dated 2026-07-12 records a RunPod RTX 4090 upscale at 2.07 seconds/frame, 768x1168, $0.69/hour. This is a historical report, not a current quote or benchmark for 64x64 images.",
+      "sha256": "caabbd9992961df40ddfead5a06e76addbcb3ac0cc8d6604b1cc1217bada90e4"
+    }
+  ]
+}

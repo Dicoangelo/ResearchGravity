@@ -42,6 +42,11 @@
 
 ## Proof Deck — See It Work
 
+**New local pilot:** [BASIX × ResearchGravity](docs/basix/README.md) compares a
+bounded image-upscale workload, records source-backed decisions, and exports a
+selected handoff. Includes CLI, loopback UI, MCP tools and isolated SQLite
+indexing. See its [validation and limits](docs/basix/VALIDATION-2026-10-25.md).
+
 <p align="center">
   <img src="scripts/proof/proof-deck.gif" alt="ResearchGravity Proof Deck — 9-slide interactive demo" width="100%" />
 </p>
