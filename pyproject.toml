@@ -26,6 +26,7 @@ requires-python = ">=3.12"
 # and are deliberately excluded.
 [tool.setuptools]
 packages = [
+    "basix",
     "api",
     "capture",
     "cli",
@@ -40,3 +41,6 @@ packages = [
     "visual",
     "webhook",
 ]
+
+[tool.setuptools.package-data]
+basix = ["static/*.html", "examples/*.json"]
