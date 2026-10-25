@@ -11,13 +11,20 @@ session can continue it.** The first workload is a small image-upscaling job.
 
 This media-workload planner is the new bounded implementation wedge selected for
 this build, not a claim that earlier BASIX plans had only this purpose. A recovered
-September 15, 2025 user-submitted execution specification already grouped the
-operational direction into **Index, Broker, Rails and Governance**, with
+September 2025 user-submitted execution specification already grouped the
+operational direction into **Index, Broker, Rails, Vault and Governance**, with
 inference-first routing, provider adapters, policy constraints, metering, an
 evidence chain and observability. Its source predates this implementation; the
-origin of the text before it was submitted is not established, and the recovered
-record is partial. Its proposed twelve-week schedule and service targets are
-historical planning, not current commitments or measured results.
+origin of the text before it was submitted is not established. The recovered
+visible conversation branch excludes attachments and alternate branches; its
+date is inherited from the earlier import. Its twelve-week schedule and service
+targets are historical planning, not current commitments or measured results.
+
+An earlier August 2025 branch pursued a daily index and explanatory dashboard.
+The user asked for an incremental architecture and explicit mathematical models;
+the proposed index formula, seeded data and methodology card were assistant
+design suggestions. Preserve that branch alongside the later operational broker
+plan. Neither establishes a calibrated index or a functioning market.
 
 Recovered history also explores a Sovereign OS / AI service layer, AI frameworks
 and hardware, a ledger, and cognitive-equity infrastructure for AI finance. Those
@@ -29,6 +36,7 @@ collapsed into this planner or treated as already approved product requirements.
 | Index | Dated evidence and comparable workload observations | A broad live index, certification and generalized ratings |
 | Broker | Constraint-based option evaluation and a reviewable choice | Provider allocation, autonomous routing and external execution |
 | Rails | A portable receipt linking inputs, evidence and decisions | Payments, settlement, asset issuance and financial integration |
+| Vault | Selected evidence and immutable local receipts | Enforced retention, encryption/key policy and verified custody across providers |
 | Governance | Explicit policy inputs, abstention and execution disabled by default | Compliance certification, enterprise controls and legal claims |
 
 The original inference-first scope remains an intended next workload direction.
@@ -72,6 +80,9 @@ trading connection, settlement system or ownership claim belongs in this v1.
 Every receipt has `execution_authorized: false`. Eligibility is not consent to
 spend, upload, provision, or run an external job. Links and hashes establish
 provenance; they do not independently verify provider claims or capacity.
+The historical Vault and policy requirements also include residency, encryption
+and retention. Future execution must enforce these as eligibility gates; current
+cloud-upload permission and receipt storage do not demonstrate those controls.
 
 ## v1 implementation boundary
 
@@ -113,11 +124,16 @@ Reuse existing capabilities:
    and warm runtime; inspect artifacts and choose an output-quality check. Keep
    calibration data distinct from evaluation inputs.
 2. **Current provider data.** Add one read-only capacity/price adapter with dated
-   source responses, expiry, unit normalization and unknown-state handling. No
-   inferred guarantees from a listing alone.
+   source responses, expiry, unit normalization and unknown-state handling. Use a
+   versioned workload/region/health/maintenance contract with contract tests and
+   canaries. No inferred guarantees from a listing alone.
 3. **Harden a cloud executor.** Add explicit budget approval, job identity,
-   resumable state, input/output integrity, safe argument handling, verified
-   cleanup and cost reconciliation. Test failure paths before a bounded real job.
+   enforced data policy, resumable state, input/output integrity, safe arguments
+   and verified cleanup. Classify timeout, quota, policy and provider-down errors;
+   bound retries and failover. Link quotes, provider acknowledgements, execution
+   spans and measured charges for reconciliation. A local zero provider charge
+   is not total cost. Test failures before a bounded real job, then review a
+   restricted pilot with explicit quality and service criteria.
 4. **Generalize workloads.** Add one new workload class only after its own
    requirement and measurement schema exist. Do not extrapolate image timings to
    video or LLM inference.

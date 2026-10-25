@@ -7,18 +7,20 @@ are recorded separately; this document is not a production-readiness claim.
 | Capability | Current evidence / status | Gap or next action |
 |---|---|---|
 | Canonical direction | Historical specs reconciled; operational and investment work are explicitly distinct | Validate the operational decision with real users/workloads |
+| Daily index and methodology | Earlier dashboard/index branch and later operational broker plan are preserved as distinct historical directions | Version signals, provider classes, updates and methodology; establish quality/comparability before any public ranking |
 | Typed workload and offer contract | Implemented in planner; bounded unit tests pass | Add new workload classes only with explicit contracts |
 | Source integrity and freshness | Hash/date/reference checks implemented; stale/synthetic evidence cannot establish feasibility | Provenance does not verify truth; review provider assertions and data scope |
-| Hard constraints | Privacy, region, deadline, budget and scope evaluated; unknown values cause abstention | Real model-memory requirements and resource units are outside image-upscale v1 |
+| Hard constraints | Privacy, region, deadline, budget and scope evaluated; unknown values cause abstention | Model-memory/reliability contracts and verified provider residency remain outside image-upscale v1 |
 | Repeatable decision | Deterministic ranking and content-hashed receipt implemented | Compare repeated actual runs with estimates before broader claims |
 | Local execution evidence | One 64×64 → 256×256 local upscale observed at 0.97s; dimensions/hash checked, quality unmeasured | Record exact tool/model/input/output, inspect quality, repeat warm/cold runs |
-| Immutable persistence | Atomic store, tamper rejection and CLI/UI/MCP readback verified | Extend retention/migration policy before multi-user service |
+| Immutable persistence / historical Vault | Atomic local store, tamper rejection and CLI/UI/MCP readback verified; not a complete Vault | Enforce encryption/key policy and retention modes (never, TTL, cache), including deletion semantics, before external execution or multi-user service |
 | Portable project handoff | Selected receipt + limitations + next action round-tripped through CLI, MCP and SQLite | Validate usefulness with a second human/operator workflow |
 | ResearchGravity indexing | Real selected receipt indexed twice idempotently; exact handoff readback and FTS verified | Incremental maintenance and vector retrieval remain separate work |
 | MCP and loopback UI | Same planner, transport boundaries, browser restore and responsive layouts verified | Hosted authentication and multi-user concurrency are outside v1 |
-| Live cloud capacity / prices | No current adapter connected | Implement one read-only provider adapter; capture unit definitions and expiry |
+| Live cloud capacity / prices | No current adapter connected | Version workload/region/health/price/maintenance contracts; capture units and expiry; add contract tests and canaries |
 | Cloud execution | Existing external harness is a prototype, excluded from v1 execution | Harden approval, ceilings, retry/idempotency, shell safety, output checks and cleanup |
-| Actual total cost | Historical examples and estimates exist | Include setup/download/storage/egress and reconcile against measured charges |
+| Failure handling / observability | Planner reports blocked/unknown; one local elapsed-time measurement exists | Explicit timeout/quota/policy/provider-down taxonomy, bounded backoff, circuit breakers, failover history and request/route/provider spans; measure service targets |
+| Metering and actual total cost | Historical examples and estimates exist; no quote-to-invoice chain | Link request, decision, provider acknowledgement, execution, metering and charges; reconcile quoted/actual cost under fixed scope. Include setup/storage/egress; zero provider charge excludes local hardware and energy costs |
 | Energy / carbon / sovereignty scoring | Broad research topics and old rubric exist | Define sourced quantities and limitations before implementation; no invented scores |
 | Continuous history compounding | Capture and context-pack infrastructure exists | Explicit allowlist, incremental updates, conflict/supersession handling and selected export |
 | Market validation | A first-user operational use case is defined | Three real workload owners; test whether briefs change decisions and save measurable effort |

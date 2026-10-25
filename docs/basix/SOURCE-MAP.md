@@ -9,9 +9,10 @@ Private conversations are not reproduced or linked in this public repository.
 | Source | Date / state | What it contributes | What it does not prove |
 |---|---|---|---|
 | Private BASIX strategy bridge and role-preserving source inventory | Recovered October 18–19, 2026 | Separates operational routing, broad research taxonomy and investment research; distinguishes human requests from assistant proposals | Customer demand, current prices, adopted allocations or a functioning BASIX product |
-| Private Grok operational execution specification | User-submitted September 15, 2025; recovered October 25, 2026; partial records | Index, Broker, Rails and Governance; inference-first routing, adapters, policy tags, metering, evidence and observability | Provenance before submission, complete plan coverage, achieved service targets, live venues or current spending authority |
+| Private earlier daily-index / dashboard branch | August 2025 history; recovered October 25, 2026 | User requests for incremental architecture and explicit models; assistant proposals for seeded signals, a methodology card and content hashes | An adopted formula, calibrated ratings or a functioning market; distinct from the later broker plan |
+| Private Grok operational execution specification | User-submitted; September 2025 date from prior import; visible branch recovered October 25, 2026 | Index, Broker, Rails, Vault and Governance; inference-first contracts, hard data-policy gates, provider adapters, failure handling, metering and observability | Original authorship before submission, attachments/alternate branches, achieved targets, live providers, verified financial claims or spending authority |
 | Private Gemini BASIX / UCW planning recovery | Recovered October 25, 2026; manifest retained privately | Sovereign OS and AI service layer, framework/hardware evolution, ledger, cognitive-equity and AI-finance infrastructure directions | One unified adopted roadmap or implemented capabilities; the media planner is a new bounded wedge |
-| Selected private NotebookLM ResearchGravity / UCW sources | Four notebooks queried October 25, 2026; raw memory-results source also read | Research-session lineage, source-quality checks, portable memory concepts and a recorded synthetic retrieval experiment | The original BASIX four-layer specification, current deployment health, global-corpus retrieval quality or production adoption of a reranker |
+| Selected private NotebookLM ResearchGravity / UCW sources | Four notebooks queried October 25, 2026; raw memory-results source also read | Research-session lineage, source-quality checks, portable memory concepts and a recorded synthetic retrieval experiment | The original BASIX operational blueprint, current deployment health, global-corpus retrieval quality or production adoption of a reranker |
 | [UCW whitepaper, section 8](../ucw/WHITEPAPER.md#8-basix-the-sovereign-ai-cloud-index) | February 2026 proposal | Sovereignty theme and a separately versioned sector/index rubric | Validated workload scoring, investment returns or enforceable ownership rights |
 | [UCW Phase 2 PRD](../prds/PRD_UCW_PHASE2.md) | February 7, 2026 plan | Local-first portability, precision, temporal context and incremental processing | Current deployment health or reproduced performance metrics |
 | [Raw MCP PRD](../prds/PRD_UCW_RAW_MCP.md) | February 7, 2026 status document | Tool/protocol capture architecture and cross-platform normalization goals | Complete capture of every current application or account |
@@ -26,15 +27,17 @@ ChatGPT research archive, in
 Its underlying transcripts, original chat identifiers and private source
 snapshots stay there. The October 25 private recovery is separately indexed in
 `outputs/basix-researchgravity-2026-10-25/history/manifest.json`, with authorship
-and scope decisions in the adjacent `SPEC-DECISIONS.md`. These external local
-artifacts are private source records, not files to publish or runtime inputs. The frozen investment protocols and result files are not
+and scope decisions in the adjacent `SPEC-DECISIONS.md`. `SPEC-ADDENDUM.md` records
+the recovered Vault layer, distinct earlier index branch and operational gaps.
+These external local artifacts are private source records, not files to publish
+or runtime inputs. The frozen investment protocols and result files are not
 inputs to operational workload evaluation and are not modified by this work.
 
 ## NotebookLM coverage and interpretation
 
 The selected notebooks cover the ResearchGravity execution playbook, convergence
 protocol, UCW memory research, and a research-to-experiment memory/retrieval
-study. None supplied the historical BASIX Index/Broker/Rails/Governance
+study. None supplied the historical BASIX Index/Broker/Rails/Vault/Governance
 specification; that evidence comes from the separate private Grok recovery.
 No BASIX-titled notebook was found in the catalog search. That is a search
 observation, not proof that the corpus contains no other related material.
